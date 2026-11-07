@@ -1,0 +1,21 @@
+.DS_Store
+.idea/
+*.iml
+
+# Dart / Flutter
+.dart_tool/
+build/
+coverage/
+.flutter-plugins-dependencies
+
+# Dart Frog
+apps/backend/.dart_frog/
+
+# Entorno local
+.env
+
+# Claude Code (personal)
+.claude/settings.local.json
+
+# Repo propio (CaptainNEXUS/PowerLifter), se mantiene aparte
+reference/

@@ -1,0 +1,18 @@
+name: maktub_backend
+description: API de Maktub Barbell Club (Dart Frog + MongoDB), organizada en slices verticales.
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.3
+
+dependencies:
+  dart_frog: ^1.2.6
+  maktub_core:
+    path: ../../packages/maktub_core
+  mongo_dart: ^0.10.10
+
+dev_dependencies:
+  lints: ^6.0.0
+  mocktail: ^1.0.5
+  test: ^1.30.0

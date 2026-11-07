@@ -1,0 +1,12 @@
+name: maktub_workspace
+publish_to: none
+
+environment:
+  sdk: ^3.13.3
+
+# Pub workspaces: una sola resolución de dependencias (un pubspec.lock en la raíz)
+# para todos los paquetes. `dart pub get` acá resuelve todo el monorepo.
+workspace:
+  - apps/frontend
+  - apps/backend
+  - packages/maktub_core

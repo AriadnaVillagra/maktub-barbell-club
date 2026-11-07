@@ -1,0 +1,11 @@
+name: maktub_core
+description: Modelo de dominio y reglas de entrenamiento compartidas entre frontend y backend.
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.3
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.30.0

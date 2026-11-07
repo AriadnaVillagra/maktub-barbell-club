@@ -1,0 +1,12 @@
+include: package:lints/recommended.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - .dart_frog/**
+
+linter:
+  rules:
+    - prefer_single_quotes
+    - prefer_final_locals
+    - always_declare_return_types
