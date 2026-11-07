@@ -25,6 +25,8 @@ Members depend on `maktub_core` by path. Run `flutter pub get` from the root aft
 
 ## Commands
 
+From the repo root, `make dev` starts MongoDB, the API (:8080) and the app (:5000) in one terminal; `make api` and `make app` start one side; `make help` lists the rest. Open the app at `http://localhost:5000` in your own Chrome: the OAuth client allows only `http://localhost` and `http://localhost:5000` (on macOS, turn off AirPlay Receiver, which holds port 5000), and Google blocks sign-in in the Chrome that `flutter run -d chrome` opens. The backend must not write to stderr at startup: `dart_frog dev` kills the server when it does.
+
 ```bash
 docker compose up -d                                   # MongoDB on localhost:27017
 cd apps/backend && dart_frog dev                       # API on :8080 (CLI: dart pub global activate dart_frog_cli)

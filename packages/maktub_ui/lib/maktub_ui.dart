@@ -6,6 +6,7 @@
 /// literales: solo tokens (`context.colores`, `Espacio.l`…) o componentes de este paquete.
 library;
 
+export 'src/componentes/sign_in_panel.dart';
 export 'src/galeria/galeria.dart' show GaleriaMaktub, GaleriaDeModo, Muestrario;
 export 'src/tema/contexto.dart';
 export 'src/tema/modo.dart';

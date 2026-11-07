@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // Serves the PWA on :5000 without opening Chrome: open http://localhost:5000
+      // in your own Chrome (with your Google session). The OAuth client allows only
+      // http://localhost and http://localhost:5000.
+      "name": "App (localhost:5000, tu Chrome)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "cwd": "apps/frontend",
+      "args": ["-d", "web-server", "--web-port", "5000"],
+      "preLaunchTask": "Backend: dart_frog dev"
+    },
+    {
+      // Same, without starting the backend (if it is already running).
+      "name": "App sola (localhost:5000)",
+      "type": "dart",
+      "request": "launch",
+      "program": "lib/main.dart",
+      "cwd": "apps/frontend",
+      "args": ["-d", "web-server", "--web-port", "5000"]
+    }
+  ]
+}

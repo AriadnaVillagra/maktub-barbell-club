@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../componentes/sign_in_panel.dart';
 import '../tema/contexto.dart';
 import '../tema/modo.dart';
 import '../tema/tema_maktub.dart';
@@ -72,6 +73,7 @@ class Muestrario extends StatelessWidget {
             _Seccion('Texto', _Textos()),
             _Seccion('Números', _Numeros()),
             _Seccion('Controles', _Controles()),
+            _Seccion('Ingreso', _Ingreso()),
           ],
         ),
       );
@@ -256,6 +258,31 @@ class _Controles extends StatelessWidget {
           ),
           Text('Densidad: ${context.densidad.name} · táctil ${context.densidad.tactilMinimo.round()} dp',
               style: context.textos.bodySmall),
+        ],
+      );
+}
+
+/// [SignInPanel] with a stand-in for Google's button (the real one is an HTML element) and a
+/// failure message.
+class _Ingreso extends StatelessWidget {
+  const _Ingreso();
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        spacing: Espacio.xxl,
+        runSpacing: Espacio.xl,
+        children: [
+          SignInPanel(
+            title: 'Maktub Barbell Club',
+            subtitle: 'Ingresá con tu cuenta de Google.',
+            action: OutlinedButton(onPressed: () {}, child: const Text('Botón de Google')),
+          ),
+          SignInPanel(
+            title: 'Maktub Barbell Club',
+            action: OutlinedButton(onPressed: () {}, child: const Text('Botón de Google')),
+            message: 'Este email no tiene una cuenta en Maktub. Pedile acceso a tu coach.',
+          ),
+          const SignInPanel(title: 'Enviando', action: SizedBox.shrink(), busy: true),
         ],
       );
 }

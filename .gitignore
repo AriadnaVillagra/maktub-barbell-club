@@ -25,3 +25,6 @@ docs/planillas/
 
 # Worktrees de agentes de Claude Code
 .claude/worktrees/
+
+# Config real del script de alta (emails reales, repo publico)
+apps/backend/tool/alta.local.json

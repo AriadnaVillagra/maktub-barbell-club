@@ -20,8 +20,8 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 
 | # | Épica | Estado | Issues | Bloqueos |
 |---|---|---|---|---|
-| E0 | [Cerrar F0](E0-cerrar-f0.md) | en curso | 5 / 6 (hechos: E0.1–E0.5; E0.6 se valida después del merge) | — |
-| E1 | [Acceso](E1-acceso.md) | en curso | 1 / 14 (E1.1 hecho) | — |
+| E0 | [Cerrar F0](E0-cerrar-f0.md) | hecho | 6 / 6 (mergeada a `main`) | — |
+| E1 | [Acceso](E1-acceso.md) | en curso | 14 / 14 (lista para revisión y merge; ingreso real probado en localhost:5000 el 2026-11-07) | — |
 | E2 | [Catálogo](E2-catalogo.md) | pendiente | 0 / 10 | — |
 | E3 | [Atletas y referencias](E3-atletas-referencias.md) | pendiente | 0 / 6 | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | pendiente | 0 / 6 | — |
