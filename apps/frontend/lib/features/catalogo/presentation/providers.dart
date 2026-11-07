@@ -3,7 +3,9 @@ import 'package:maktub_core/maktub_core.dart';
 
 import '../../../core/red/api_providers.dart';
 import '../../access/presentation/providers.dart';
+import '../data/http_catalog_admin_repository.dart';
 import '../data/http_catalog_repository.dart';
+import '../domain/catalog_admin_repository.dart';
 import '../domain/catalog_repository.dart';
 
 final catalogRepositoryProvider = Provider<CatalogRepository>(
@@ -28,3 +30,8 @@ final activeExercisesProvider = FutureProvider.family<List<Exercise>, String?>((
       .watch(catalogRepositoryProvider)
       .exercises(clubId, categoryId: categoryId, status: CatalogStatus.active);
 });
+
+/// Writes and reads of the club's categories, timers and equipment (E2.9).
+final catalogAdminRepositoryProvider = Provider<CatalogAdminRepository>(
+  (ref) => HttpCatalogAdminRepository(ref.watch(clienteApiProvider)),
+);

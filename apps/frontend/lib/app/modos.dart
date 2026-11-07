@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
+
+import 'router.dart';
 
 /// Portadas de cada modo. Por ahora listan lo que va a vivir ahí; cada feature
 /// reemplaza su entrada por la navegación real a sus pantallas.
@@ -49,6 +52,22 @@ class _PortadaModo extends StatelessWidget {
           children: [
             Text(descripcion, style: context.textos.bodyLarge),
             const SizedBox(height: Espacio.l),
+            if (titulo == 'Planificación') ...[
+              for (final (icono, nombre, ruta) in [
+                (Icons.label_outline, 'Categorías', Rutas.categorias),
+                (Icons.timer_outlined, 'Temporizadores del club', Rutas.temporizadores),
+                (Icons.fitness_center, 'Equipo', Rutas.equipo),
+              ])
+                Card(
+                  child: ListTile(
+                    key: Key('catalogo-$ruta'),
+                    leading: Icon(icono),
+                    title: Text(nombre),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.go(ruta),
+                  ),
+                ),
+            ],
             for (final (icono, nombre, detalle) in secciones)
               Card(
                 child: ListTile(
