@@ -5,6 +5,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/domain/catalog_admin_repository.dart';
 import 'package:maktub_frontend/features/catalogo/domain/catalog_repository.dart';
+import 'package:maktub_frontend/features/catalogo/domain/exercise_draft.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/session/domain/session_manager.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
@@ -73,6 +74,34 @@ class FakeCatalogAdminRepository
     String? categoryId,
     CatalogStatus? status,
   }) async => const [];
+
+  @override
+  Future<List<MuscleGroup>> muscleGroups(String clubId) async => const [];
+
+  @override
+  Future<List<MovementPattern>> patterns(String clubId) async => const [];
+
+  @override
+  Future<Exercise> createExercise(String clubId, ExerciseDraft draft) =>
+      throw UnimplementedError();
+
+  @override
+  Future<Exercise> updateExercise(
+    String clubId,
+    String id,
+    ExerciseDraft draft,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<Exercise> setExerciseStatus(
+    String clubId,
+    String id,
+    CatalogStatus status,
+  ) => throw UnimplementedError();
+
+  @override
+  Future<DeleteExerciseResult> deleteExercise(String clubId, String id) =>
+      throw UnimplementedError();
 
   @override
   Future<Category> createCategory(String clubId, String name) async {
