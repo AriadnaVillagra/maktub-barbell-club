@@ -3,7 +3,7 @@
 
 DART_FROG := $(HOME)/.pub-cache/bin/dart_frog
 
-.PHONY: help dev mongo api app app-chrome alta deps test analyze
+.PHONY: help dev mongo api app app-chrome alta semilla deps test analyze
 
 help:
 	@echo "make dev         Todo: Mongo + API (:8080) + app (:5000). Ctrl+C corta las dos"
@@ -12,6 +12,7 @@ help:
 	@echo "make mongo       MongoDB local (docker compose)"
 	@echo "make app-chrome  App en un Chrome aparte (sin tu sesión de Google)"
 	@echo "make alta        Script de alta: ALTA_USUARIOS=\"email:Nombre,...\" make alta"
+	@echo "make semilla     Carga el catálogo base aprobado en plataforma (idempotente, no pisa lo existente)"
 	@echo "make deps        flutter pub get en todo el workspace"
 	@echo "make test        Tests de core, backend, ui y app"
 	@echo "make analyze     Análisis de core, backend, ui y app"
@@ -35,6 +36,10 @@ app-chrome:
 # ALTA_USUARIOS (or tool/alta.local.json) comes from the environment.
 alta: mongo
 	cd apps/backend && dart run tool/alta.dart
+
+# Base catalog seed (E2.7): reads tool/semilla/catalogo_base.json, writes to MONGO_URL.
+semilla: mongo
+	cd apps/backend && dart run tool/semilla.dart
 
 deps:
 	flutter pub get

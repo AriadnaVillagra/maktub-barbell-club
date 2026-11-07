@@ -48,7 +48,7 @@ void main() {
     await tester.tap(find.text('Planificación'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Catálogo'), findsOneWidget);
+    expect(find.text('Temporizadores del club'), findsOneWidget);
     expect(find.text('Sesión de hoy'), findsNothing);
   });
 
@@ -84,7 +84,7 @@ void main() {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.planificacion);
 
       expect(find.text('Sesión de hoy'), findsOneWidget);
-      expect(find.text('Catálogo'), findsNothing);
+      expect(find.text('Temporizadores del club'), findsNothing);
     });
 
     testWidgets('an athlete on a wide screen has no rail either', (tester) async {
@@ -97,7 +97,7 @@ void main() {
     testWidgets('a coach sees planning and can open it by URL', (tester) async {
       await _montar(tester, const Size(400, 800), ruta: Rutas.planificacion);
 
-      expect(find.text('Catálogo'), findsOneWidget);
+      expect(find.text('Temporizadores del club'), findsOneWidget);
       expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Planificación')), findsOneWidget);
     });
   });

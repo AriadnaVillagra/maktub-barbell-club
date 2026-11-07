@@ -1,0 +1,2739 @@
+{
+ "_leyenda": {
+  "estado": "APROBADA por Ari el 2026-11-07 (E2.6). E2.7 la carga en `plataforma`.",
+  "origen": "\"reference\": id, nombre, categoría de planilla, referencia de carga y descripción vienen de reference/Esquema.gs (CATALOGO, TEMPORIZADORES, WODS); \"general\": agregado desde el set general. Patrón, músculos, métricas, métrica objetivo y sugerencias NO están en reference/ en ningún ejercicio: son aportes de esta propuesta.",
+  "cambios_sobre_reference": "Se corrigieron tildes en los nombres (Búlgaras, déficit, Extensión, Jalón...). La \"referencia\" de calentamientos y estiramientos (a qué primario acompañan) pasa a `sugerencias`. Las categorías \"primario\" y \"secundario\" se mantienen como en la planilla.",
+  "campos_fuera_del_modelo": "`origen` (solo para revisar): E2.7 debe descartarlo. El temporizador de un WoD se elige al armar el bloque (E5), no está en el ejercicio.",
+  "formato": "Claves y valores de enums como el cable de maktub_core. Falta `clubId` (plataforma), `estado` (activo) y `auditoria`: los pone E2.7."
+ },
+ "categorias": [
+  {
+   "id": "primario",
+   "nombre": "Primario",
+   "origen": "reference"
+  },
+  {
+   "id": "secundario",
+   "nombre": "Secundario",
+   "origen": "reference"
+  },
+  {
+   "id": "accesorio",
+   "nombre": "Accesorio",
+   "origen": "reference"
+  },
+  {
+   "id": "calentamiento",
+   "nombre": "Calentamiento",
+   "origen": "reference"
+  },
+  {
+   "id": "estiramiento",
+   "nombre": "Estiramiento",
+   "origen": "reference"
+  },
+  {
+   "id": "cardio",
+   "nombre": "Cardio",
+   "origen": "general"
+  },
+  {
+   "id": "wod",
+   "nombre": "WoD",
+   "origen": "general"
+  }
+ ],
+ "gruposMusculares": [
+  {
+   "id": "cuadriceps",
+   "nombre": "Cuádriceps",
+   "origen": "general"
+  },
+  {
+   "id": "isquios",
+   "nombre": "Isquiotibiales",
+   "origen": "general"
+  },
+  {
+   "id": "gluteos",
+   "nombre": "Glúteos",
+   "origen": "general"
+  },
+  {
+   "id": "aductores",
+   "nombre": "Aductores",
+   "origen": "general"
+  },
+  {
+   "id": "pantorrillas",
+   "nombre": "Pantorrillas",
+   "origen": "general"
+  },
+  {
+   "id": "pecho",
+   "nombre": "Pecho",
+   "origen": "general"
+  },
+  {
+   "id": "dorsales",
+   "nombre": "Dorsales",
+   "origen": "general"
+  },
+  {
+   "id": "espalda_alta",
+   "nombre": "Espalda alta",
+   "origen": "general"
+  },
+  {
+   "id": "hombro",
+   "nombre": "Hombro",
+   "origen": "general"
+  },
+  {
+   "id": "biceps",
+   "nombre": "Bíceps",
+   "origen": "general"
+  },
+  {
+   "id": "triceps",
+   "nombre": "Tríceps",
+   "origen": "general"
+  },
+  {
+   "id": "antebrazos",
+   "nombre": "Antebrazos",
+   "origen": "general"
+  },
+  {
+   "id": "core",
+   "nombre": "Core",
+   "origen": "general"
+  },
+  {
+   "id": "lumbares",
+   "nombre": "Lumbares",
+   "origen": "general"
+  }
+ ],
+ "patrones": [
+  {
+   "id": "sentadilla",
+   "nombre": "Sentadilla",
+   "origen": "general"
+  },
+  {
+   "id": "bisagra",
+   "nombre": "Bisagra de cadera",
+   "origen": "general"
+  },
+  {
+   "id": "zancada",
+   "nombre": "Zancada y unilateral",
+   "origen": "general"
+  },
+  {
+   "id": "empuje_horizontal",
+   "nombre": "Empuje horizontal",
+   "origen": "general"
+  },
+  {
+   "id": "empuje_vertical",
+   "nombre": "Empuje vertical",
+   "origen": "general"
+  },
+  {
+   "id": "traccion_horizontal",
+   "nombre": "Tracción horizontal",
+   "origen": "general"
+  },
+  {
+   "id": "traccion_vertical",
+   "nombre": "Tracción vertical",
+   "origen": "general"
+  },
+  {
+   "id": "olimpico",
+   "nombre": "Levantamiento olímpico",
+   "origen": "general"
+  },
+  {
+   "id": "aislamiento",
+   "nombre": "Aislamiento",
+   "origen": "general"
+  },
+  {
+   "id": "core",
+   "nombre": "Core",
+   "origen": "general"
+  },
+  {
+   "id": "cardio",
+   "nombre": "Cardio y acondicionamiento",
+   "origen": "general"
+  },
+  {
+   "id": "movilidad",
+   "nombre": "Movilidad y estiramiento",
+   "origen": "general"
+  }
+ ],
+ "ejercicios": [
+  {
+   "id": "sq_espalda",
+   "nombre": "Sentadilla de espalda",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "sentadilla",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "core",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "propia"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Básico (ref: notas \"basico\")."
+  },
+  {
+   "id": "dl_convencional",
+   "nombre": "Peso muerto",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "bisagra",
+   "musculos": [
+    {
+     "grupoId": "isquios",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "antebrazos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "propia"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Básico."
+  },
+  {
+   "id": "bp_plano",
+   "nombre": "Bench press",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "empuje_horizontal",
+   "musculos": [
+    {
+     "grupoId": "pecho",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "propia"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Básico."
+  },
+  {
+   "id": "sq_frontal",
+   "nombre": "Sentadilla frontal",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "sentadilla",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "core",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "sq_espalda"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Variante."
+  },
+  {
+   "id": "sq_zercher",
+   "nombre": "Zercher squat",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "sentadilla",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "core",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "sq_espalda"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Variante."
+  },
+  {
+   "id": "sq_pausa",
+   "nombre": "Sentadilla con pausa",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "sentadilla",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "core",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "sq_espalda"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Variante."
+  },
+  {
+   "id": "dl_deficit",
+   "nombre": "Peso muerto en déficit",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "bisagra",
+   "musculos": [
+    {
+     "grupoId": "isquios",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "antebrazos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "dl_convencional"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Variante."
+  },
+  {
+   "id": "bp_pausa",
+   "nombre": "Bench press con pausa",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "empuje_horizontal",
+   "musculos": [
+    {
+     "grupoId": "pecho",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "bp_plano"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Variante."
+  },
+  {
+   "id": "mil_press",
+   "nombre": "Press militar",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "empuje_vertical",
+   "musculos": [
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "pecho",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "core",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "bp_plano"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "push_press",
+   "nombre": "Push press",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "empuje_vertical",
+   "musculos": [
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "cuadriceps",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "bp_plano"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "bp_inclinado",
+   "nombre": "Press inclinado",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "empuje_horizontal",
+   "musculos": [
+    {
+     "grupoId": "pecho",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "bp_plano"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "rem_barra",
+   "nombre": "Remo con barra",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "traccion_horizontal",
+   "musculos": [
+    {
+     "grupoId": "dorsales",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "biceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "bp_plano"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "dl_rumano",
+   "nombre": "Peso muerto rumano",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "bisagra",
+   "musculos": [
+    {
+     "grupoId": "isquios",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "dl_convencional"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "good_morning",
+   "nombre": "Good morning",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "bisagra",
+   "musculos": [
+    {
+     "grupoId": "isquios",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "dl_convencional"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "hip_thrust",
+   "nombre": "Hip thrust",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "bisagra",
+   "musculos": [
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "dl_convencional"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "prensa",
+   "nombre": "Prensa de piernas",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "sentadilla",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "sq_espalda"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "bulgaras",
+   "nombre": "Búlgaras",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "zancada",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "sq_espalda"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "zancadas",
+   "nombre": "Zancadas con mancuernas",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "zancada",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "sq_espalda"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Secundario; referencia de carga tomada de la columna \"referencia\" de reference/."
+  },
+  {
+   "id": "curl_barra",
+   "nombre": "Curl de bíceps con barra",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "biceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "antebrazos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "curl_martillo",
+   "nombre": "Curl martillo",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "biceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "antebrazos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "tri_polea",
+   "nombre": "Extensión de tríceps en polea",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "triceps",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "arnold_press",
+   "nombre": "Arnold press",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "empuje_vertical",
+   "musculos": [
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "elev_lateral",
+   "nombre": "Elevaciones laterales",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "elev_frontal",
+   "nombre": "Elevaciones frontales",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "pecho",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "face_pull",
+   "nombre": "Face pull",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "traccion_horizontal",
+   "musculos": [
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "shrugs",
+   "nombre": "Shrugs",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "espalda_alta",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "antebrazos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "renegade_row",
+   "nombre": "Renegade row",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "traccion_horizontal",
+   "musculos": [
+    {
+     "grupoId": "dorsales",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "core",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "dumbbell_row",
+   "nombre": "Remo con mancuerna",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "traccion_horizontal",
+   "musculos": [
+    {
+     "grupoId": "dorsales",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "biceps",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "tbar_row",
+   "nombre": "T-bar row",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "traccion_horizontal",
+   "musculos": [
+    {
+     "grupoId": "dorsales",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "biceps",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "rem_polea",
+   "nombre": "Remo en polea",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "traccion_horizontal",
+   "musculos": [
+    {
+     "grupoId": "dorsales",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "biceps",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "jalon_pecho",
+   "nombre": "Jalón al pecho",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "traccion_vertical",
+   "musculos": [
+    {
+     "grupoId": "dorsales",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "biceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "aperturas",
+   "nombre": "Aperturas con mancuernas",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "empuje_horizontal",
+   "musculos": [
+    {
+     "grupoId": "pecho",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "dumbbell_press",
+   "nombre": "Press con mancuernas",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "empuje_horizontal",
+   "musculos": [
+    {
+     "grupoId": "pecho",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Sin referencia de carga: kilaje fijo por atleta."
+  },
+  {
+   "id": "escapular_pull",
+   "nombre": "Escapular pull ups",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "peso_corporal",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "traccion_vertical",
+   "musculos": [
+    {
+     "grupoId": "espalda_alta",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "dorsales",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Peso corporal."
+  },
+  {
+   "id": "push_ups",
+   "nombre": "Push ups",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "peso_corporal",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "empuje_horizontal",
+   "musculos": [
+    {
+     "grupoId": "pecho",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Peso corporal."
+  },
+  {
+   "id": "cal_sq",
+   "nombre": "Movilidad de cadera y tobillo",
+   "categorias": [
+    "calentamiento"
+   ],
+   "metricas": [
+    "repeticiones",
+    "tiempo"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "movilidad",
+   "musculos": [
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "pantorrillas",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [
+    "sq_espalda",
+    "sq_frontal",
+    "sq_zercher",
+    "sq_pausa"
+   ],
+   "origen": "reference",
+   "notas": "Acompaña a los primarios que la planilla le asignaba por referencia; acá es una sugerencia."
+  },
+  {
+   "id": "cal_dl",
+   "nombre": "Movilidad de cadera y espalda",
+   "categorias": [
+    "calentamiento"
+   ],
+   "metricas": [
+    "repeticiones",
+    "tiempo"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "movilidad",
+   "musculos": [
+    {
+     "grupoId": "lumbares",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [
+    "dl_convencional",
+    "dl_deficit"
+   ],
+   "origen": "reference",
+   "notas": "Acompaña a los primarios que la planilla le asignaba por referencia; acá es una sugerencia."
+  },
+  {
+   "id": "cal_bp",
+   "nombre": "Movilidad de hombro y escápula",
+   "categorias": [
+    "calentamiento"
+   ],
+   "metricas": [
+    "repeticiones",
+    "tiempo"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "movilidad",
+   "musculos": [
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [
+    "bp_plano",
+    "bp_pausa"
+   ],
+   "origen": "reference",
+   "notas": "Acompaña a los primarios que la planilla le asignaba por referencia; acá es una sugerencia."
+  },
+  {
+   "id": "cal_aprox",
+   "nombre": "Series de aproximación",
+   "categorias": [
+    "calentamiento"
+   ],
+   "metricas": [
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": null,
+   "musculos": [],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "En la planilla \"sirve para cualquier día\". Sin patrón ni músculos propios: su carga es la del ejercicio al que acompaña."
+  },
+  {
+   "id": "est_sq",
+   "nombre": "Estiramiento de cuádriceps y aductores",
+   "categorias": [
+    "estiramiento"
+   ],
+   "metricas": [
+    "tiempo"
+   ],
+   "metricaObjetivo": "tiempo",
+   "patronId": "movilidad",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "aductores",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [
+    "sq_espalda",
+    "sq_frontal",
+    "sq_zercher",
+    "sq_pausa"
+   ],
+   "origen": "reference",
+   "notas": "Ver nota de calentamientos sobre sugerencias."
+  },
+  {
+   "id": "est_dl",
+   "nombre": "Estiramiento de isquios y lumbar",
+   "categorias": [
+    "estiramiento"
+   ],
+   "metricas": [
+    "tiempo"
+   ],
+   "metricaObjetivo": "tiempo",
+   "patronId": "movilidad",
+   "musculos": [
+    {
+     "grupoId": "isquios",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [
+    "dl_convencional",
+    "dl_deficit"
+   ],
+   "origen": "reference",
+   "notas": "Ver nota de calentamientos sobre sugerencias."
+  },
+  {
+   "id": "est_bp",
+   "nombre": "Estiramiento de pectoral y hombro",
+   "categorias": [
+    "estiramiento"
+   ],
+   "metricas": [
+    "tiempo"
+   ],
+   "metricaObjetivo": "tiempo",
+   "patronId": "movilidad",
+   "musculos": [
+    {
+     "grupoId": "pecho",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [
+    "bp_plano",
+    "bp_pausa"
+   ],
+   "origen": "reference",
+   "notas": "Ver nota de calentamientos sobre sugerencias."
+  },
+  {
+   "id": "bp_cerrado",
+   "nombre": "Press banca agarre cerrado",
+   "categorias": [
+    "secundario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "empuje_horizontal",
+   "musculos": [
+    {
+     "grupoId": "triceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "pecho",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "bp_plano"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "dl_sumo",
+   "nombre": "Peso muerto sumo",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "bisagra",
+   "musculos": [
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "aductores",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "cuadriceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "dl_convencional"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "snatch",
+   "nombre": "Arranque",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "olimpico",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "propia"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "clean",
+   "nombre": "Cargada",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "olimpico",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "propia"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "jerk",
+   "nombre": "Envión (jerk)",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "olimpico",
+   "musculos": [
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "cuadriceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "core",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "propia"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "power_snatch",
+   "nombre": "Arranque de potencia",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "olimpico",
+   "musculos": [
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "cuadriceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "snatch"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "power_clean",
+   "nombre": "Cargada de potencia",
+   "categorias": [
+    "primario"
+   ],
+   "metricas": [
+    "carga_pct_rm",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_pct_rm",
+   "patronId": "olimpico",
+   "musculos": [
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "cuadriceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "lumbares",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "de_otro",
+    "ejercicioId": "clean"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "pull_ups",
+   "nombre": "Dominadas",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "peso_corporal",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "traccion_vertical",
+   "musculos": [
+    {
+     "grupoId": "dorsales",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "biceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "dips",
+   "nombre": "Fondos",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "peso_corporal",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "empuje_vertical",
+   "musculos": [
+    {
+     "grupoId": "triceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "pecho",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "leg_curl",
+   "nombre": "Curl femoral",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "isquios",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "leg_ext",
+   "nombre": "Extensión de cuádriceps",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "calf_raise",
+   "nombre": "Elevación de talones",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "pantorrillas",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "back_ext",
+   "nombre": "Hiperextensiones",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "peso_corporal",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "bisagra",
+   "musculos": [
+    {
+     "grupoId": "lumbares",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "plank",
+   "nombre": "Plancha",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "tiempo"
+   ],
+   "metricaObjetivo": "tiempo",
+   "patronId": "core",
+   "musculos": [
+    {
+     "grupoId": "core",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "hanging_leg_raise",
+   "nombre": "Elevación de piernas colgado",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "peso_corporal",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "core",
+   "musculos": [
+    {
+     "grupoId": "core",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "antebrazos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "ab_wheel",
+   "nombre": "Rueda abdominal",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "peso_corporal",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "core",
+   "musculos": [
+    {
+     "grupoId": "core",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "dorsales",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "pallof",
+   "nombre": "Pallof press",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "core",
+   "musculos": [
+    {
+     "grupoId": "core",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "step_up",
+   "nombre": "Step up",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "zancada",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "goblet_squat",
+   "nombre": "Sentadilla goblet",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "sentadilla",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "core",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "farmer_walk",
+   "nombre": "Paseo del granjero",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "distancia",
+    "tiempo"
+   ],
+   "metricaObjetivo": "distancia",
+   "patronId": "core",
+   "musculos": [
+    {
+     "grupoId": "core",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "antebrazos",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "espalda_alta",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "skull",
+   "nombre": "Press francés",
+   "categorias": [
+    "accesorio"
+   ],
+   "metricas": [
+    "carga_fija",
+    "repeticiones"
+   ],
+   "metricaObjetivo": "carga_fija",
+   "patronId": "aislamiento",
+   "musculos": [
+    {
+     "grupoId": "triceps",
+     "peso": "principal"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "run",
+   "nombre": "Correr",
+   "categorias": [
+    "cardio"
+   ],
+   "metricas": [
+    "distancia",
+    "tiempo",
+    "ritmo",
+    "zona_cardiaca"
+   ],
+   "metricaObjetivo": "distancia",
+   "patronId": "cardio",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "pantorrillas",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ritmo"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "row_erg",
+   "nombre": "Remo (ergómetro)",
+   "categorias": [
+    "cardio"
+   ],
+   "metricas": [
+    "distancia",
+    "tiempo",
+    "ritmo",
+    "calorias"
+   ],
+   "metricaObjetivo": "distancia",
+   "patronId": "cardio",
+   "musculos": [
+    {
+     "grupoId": "dorsales",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "isquios",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "biceps",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "marca"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "ski_erg",
+   "nombre": "Ski erg",
+   "categorias": [
+    "cardio"
+   ],
+   "metricas": [
+    "distancia",
+    "tiempo",
+    "ritmo",
+    "calorias"
+   ],
+   "metricaObjetivo": "distancia",
+   "patronId": "cardio",
+   "musculos": [
+    {
+     "grupoId": "dorsales",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "core",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "marca"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "bike",
+   "nombre": "Bicicleta",
+   "categorias": [
+    "cardio"
+   ],
+   "metricas": [
+    "distancia",
+    "tiempo",
+    "ritmo",
+    "zona_cardiaca"
+   ],
+   "metricaObjetivo": "tiempo",
+   "patronId": "cardio",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "pantorrillas",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ritmo"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "assault_bike",
+   "nombre": "Assault bike",
+   "categorias": [
+    "cardio"
+   ],
+   "metricas": [
+    "tiempo",
+    "distancia",
+    "calorias"
+   ],
+   "metricaObjetivo": "calorias",
+   "patronId": "cardio",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "dorsales",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "gluteos",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "marca"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "jump_rope",
+   "nombre": "Saltar la cuerda",
+   "categorias": [
+    "cardio"
+   ],
+   "metricas": [
+    "repeticiones",
+    "tiempo"
+   ],
+   "metricaObjetivo": "tiempo",
+   "patronId": "cardio",
+   "musculos": [
+    {
+     "grupoId": "pantorrillas",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "burpees",
+   "nombre": "Burpees",
+   "categorias": [
+    "cardio"
+   ],
+   "metricas": [
+    "repeticiones",
+    "tiempo"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "cardio",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "pecho",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "core",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "triceps",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "general"
+  },
+  {
+   "id": "wod_amrap5",
+   "nombre": "AMRAP 5 min",
+   "categorias": [
+    "wod"
+   ],
+   "metricas": [
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "cardio",
+   "musculos": [],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Formato amrap. Repetir hasta que se termine el tiempo, sin descanso."
+  },
+  {
+   "id": "wod_amrap4",
+   "nombre": "AMRAP 4 min",
+   "categorias": [
+    "wod"
+   ],
+   "metricas": [
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "cardio",
+   "musculos": [],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Formato amrap. Repetir hasta que se termine el tiempo, sin descanso."
+  },
+  {
+   "id": "wod_tabata",
+   "nombre": "Tabata",
+   "categorias": [
+    "wod"
+   ],
+   "metricas": [
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "cardio",
+   "musculos": [],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Formato tabata. 8 rondas de 20 segundos de trabajo y 10 de descanso, alternando dos ejercicios."
+  },
+  {
+   "id": "wod_emom10",
+   "nombre": "EMOM 10 min",
+   "categorias": [
+    "wod"
+   ],
+   "metricas": [
+    "repeticiones"
+   ],
+   "metricaObjetivo": "repeticiones",
+   "patronId": "cardio",
+   "musculos": [],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Formato emom. Al inicio de cada minuto, las repeticiones indicadas."
+  },
+  {
+   "id": "wod_fran",
+   "nombre": "Fran",
+   "categorias": [
+    "wod"
+   ],
+   "metricas": [
+    "tiempo"
+   ],
+   "metricaObjetivo": "tiempo",
+   "patronId": "cardio",
+   "musculos": [
+    {
+     "grupoId": "cuadriceps",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "core",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "dorsales",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Formato for_time. 21-15-9 de thrusters y toes to bar."
+  },
+  {
+   "id": "wod_annie",
+   "nombre": "Annie fixed",
+   "categorias": [
+    "wod"
+   ],
+   "metricas": [
+    "tiempo"
+   ],
+   "metricaObjetivo": "tiempo",
+   "patronId": "cardio",
+   "musculos": [
+    {
+     "grupoId": "core",
+     "peso": "principal"
+    },
+    {
+     "grupoId": "pantorrillas",
+     "peso": "secundario"
+    },
+    {
+     "grupoId": "hombro",
+     "peso": "secundario"
+    }
+   ],
+   "referencia": {
+    "tipo": "ninguna"
+   },
+   "sugerencias": [],
+   "origen": "reference",
+   "notas": "Formato for_time. 50-40-20-10 de sit ups y jumping jacks."
+  }
+ ],
+ "temporizadores": [
+  {
+   "id": "desc_90",
+   "nombre": "Descanso 1:30",
+   "tipo": "countdown",
+   "trabajoSeg": 90,
+   "descansoSeg": 0,
+   "rondas": 1,
+   "origen": "reference"
+  },
+  {
+   "id": "desc_120",
+   "nombre": "Descanso 2 min",
+   "tipo": "countdown",
+   "trabajoSeg": 120,
+   "descansoSeg": 0,
+   "rondas": 1,
+   "origen": "reference"
+  },
+  {
+   "id": "desc_180",
+   "nombre": "Descanso 3 min",
+   "tipo": "countdown",
+   "trabajoSeg": 180,
+   "descansoSeg": 0,
+   "rondas": 1,
+   "origen": "reference"
+  },
+  {
+   "id": "desc_240",
+   "nombre": "Descanso 4 min",
+   "tipo": "countdown",
+   "trabajoSeg": 240,
+   "descansoSeg": 0,
+   "rondas": 1,
+   "origen": "reference"
+  },
+  {
+   "id": "desc_300",
+   "nombre": "Descanso 5 min",
+   "tipo": "countdown",
+   "trabajoSeg": 300,
+   "descansoSeg": 0,
+   "rondas": 1,
+   "origen": "reference"
+  },
+  {
+   "id": "cuenta_4",
+   "nombre": "Cuenta regresiva 4 min",
+   "tipo": "countdown",
+   "trabajoSeg": 240,
+   "descansoSeg": 0,
+   "rondas": 1,
+   "origen": "reference"
+  },
+  {
+   "id": "cuenta_5",
+   "nombre": "Cuenta regresiva 5 min",
+   "tipo": "countdown",
+   "trabajoSeg": 300,
+   "descansoSeg": 0,
+   "rondas": 1,
+   "origen": "reference"
+  },
+  {
+   "id": "emom_10",
+   "nombre": "EMOM 10 minutos",
+   "tipo": "emom",
+   "trabajoSeg": 60,
+   "descansoSeg": 0,
+   "rondas": 10,
+   "origen": "reference"
+  },
+  {
+   "id": "emom_15",
+   "nombre": "EMOM 15 minutos",
+   "tipo": "emom",
+   "trabajoSeg": 60,
+   "descansoSeg": 0,
+   "rondas": 15,
+   "origen": "reference"
+  },
+  {
+   "id": "tabata",
+   "nombre": "Tabata 20/10 x8",
+   "tipo": "tabata",
+   "trabajoSeg": 20,
+   "descansoSeg": 10,
+   "rondas": 8,
+   "origen": "reference"
+  },
+  {
+   "id": "desc_60",
+   "nombre": "Descanso 1 min",
+   "tipo": "countdown",
+   "trabajoSeg": 60,
+   "descansoSeg": 0,
+   "rondas": 1,
+   "origen": "general"
+  },
+  {
+   "id": "emom_20",
+   "nombre": "EMOM 20 minutos",
+   "tipo": "emom",
+   "trabajoSeg": 60,
+   "descansoSeg": 0,
+   "rondas": 20,
+   "origen": "general"
+  }
+ ]
+}

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../componentes/insignia.dart';
 import '../componentes/sign_in_panel.dart';
 import '../tema/contexto.dart';
 import '../tema/modo.dart';
@@ -74,6 +75,7 @@ class Muestrario extends StatelessWidget {
             _Seccion('Números', _Numeros()),
             _Seccion('Controles', _Controles()),
             _Seccion('Ingreso', _Ingreso()),
+            _Seccion('Insignias', _Insignias()),
           ],
         ),
       );
@@ -295,4 +297,18 @@ class GaleriaDeModo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => TemaDeModo(modo: modo, child: const GaleriaMaktub());
+}
+
+class _Insignias extends StatelessWidget {
+  const _Insignias();
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        spacing: Espacio.s,
+        runSpacing: Espacio.s,
+        children: [
+          InsigniaMaktub('Base', context.colores.insigniaBase),
+          InsigniaMaktub('Propio', context.colores.insigniaPropio),
+        ],
+      );
 }

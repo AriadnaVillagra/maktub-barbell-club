@@ -44,6 +44,12 @@ class ClienteApi {
   Future<Map<String, dynamic>> put(String ruta, Object cuerpo, {Map<String, String>? headers}) =>
       _enviar('PUT', ruta, cuerpo: cuerpo, headers: headers);
 
+  Future<Map<String, dynamic>> patch(String ruta, Object cuerpo, {Map<String, String>? headers}) =>
+      _enviar('PATCH', ruta, cuerpo: cuerpo, headers: headers);
+
+  Future<Map<String, dynamic>> delete(String ruta, {Map<String, String>? headers}) =>
+      _enviar('DELETE', ruta, headers: headers);
+
   Future<Map<String, dynamic>> post(String ruta, {Object? cuerpo, Map<String, String>? headers}) =>
       _enviar('POST', ruta, cuerpo: cuerpo, headers: headers);
 

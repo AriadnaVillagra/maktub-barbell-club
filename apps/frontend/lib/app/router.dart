@@ -5,6 +5,10 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../features/access/presentation/providers.dart';
+import '../features/catalogo/presentation/catalog_routes.dart';
+import '../features/catalogo/presentation/categories_page.dart';
+import '../features/catalogo/presentation/team_page.dart';
+import '../features/catalogo/presentation/timers_page.dart';
 import '../features/session/domain/session_manager.dart';
 import '../features/session/presentation/providers.dart';
 import '../features/session/presentation/sign_in_page.dart';
@@ -17,6 +21,13 @@ import 'shell.dart';
 abstract final class Rutas {
   static const entrenamiento = '/entrenamiento';
   static const planificacion = '/planificacion';
+  static const categorias = '/planificacion/categorias';
+  static const temporizadores = '/planificacion/temporizadores';
+  static const equipo = '/planificacion/equipo';
+
+  /// Exercise catalog under each mode: athletes read it from training, coaches from either.
+  static const catalogoEntrenamiento = '$entrenamiento/catalogo';
+  static const catalogoPlanificacion = '$planificacion/catalogo';
 
   /// Sign-in with Google. Every route leads here without a session (see [sessionRedirect]).
   static const signIn = '/ingreso';
@@ -47,10 +58,23 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, navegacion) => ShellPrincipal(navegacion: navegacion),
         branches: [
           StatefulShellBranch(routes: [
-            GoRoute(path: Rutas.entrenamiento, builder: (_, _) => const PaginaEntrenamiento()),
+            GoRoute(
+              path: Rutas.entrenamiento,
+              builder: (_, _) => const PaginaEntrenamiento(),
+              routes: [exerciseCatalogRoute()],
+            ),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: Rutas.planificacion, builder: (_, _) => const PaginaPlanificacion()),
+            GoRoute(
+              path: Rutas.planificacion,
+              builder: (_, _) => const PaginaPlanificacion(),
+              routes: [
+                exerciseCatalogRoute(),
+                GoRoute(path: 'categorias', builder: (_, _) => const CategoriesPage()),
+                GoRoute(path: 'temporizadores', builder: (_, _) => const TimersPage()),
+                GoRoute(path: 'equipo', builder: (_, _) => const TeamPage()),
+              ],
+            ),
           ]),
         ],
       ),
