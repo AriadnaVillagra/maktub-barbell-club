@@ -1,21 +1,21 @@
 {
  "_leyenda": {
-  "estado": "PROPUESTA, pendiente de aprobación (E2.6). E2.7 la carga en `plataforma`.",
+  "estado": "APROBADA por Ari el 2026-11-07 (E2.6). E2.7 la carga en `plataforma`.",
   "origen": "\"reference\": id, nombre, categoría de planilla, referencia de carga y descripción vienen de reference/Esquema.gs (CATALOGO, TEMPORIZADORES, WODS); \"general\": agregado desde el set general. Patrón, músculos, métricas, métrica objetivo y sugerencias NO están en reference/ en ningún ejercicio: son aportes de esta propuesta.",
-  "cambios_sobre_reference": "Se corrigieron tildes en los nombres (Búlgaras, déficit, Extensión, Jalón...). La \"referencia\" de calentamientos y estiramientos (a qué primario acompañan) pasa a `sugerencias`. Las categorías \"primario\" y \"secundario\" de la planilla pasan a \"principal\"+\"fuerza\" y \"fuerza\".",
-  "campos_fuera_del_modelo": "`origen` (solo para revisar) y `temporizadorId` en WoDs (el modelo Exercise no tiene campo de temporizador): E2.7 debe descartarlos o resolverse según la decisión del usuario.",
+  "cambios_sobre_reference": "Se corrigieron tildes en los nombres (Búlgaras, déficit, Extensión, Jalón...). La \"referencia\" de calentamientos y estiramientos (a qué primario acompañan) pasa a `sugerencias`. Las categorías \"primario\" y \"secundario\" se mantienen como en la planilla.",
+  "campos_fuera_del_modelo": "`origen` (solo para revisar): E2.7 debe descartarlo. El temporizador de un WoD se elige al armar el bloque (E5), no está en el ejercicio.",
   "formato": "Claves y valores de enums como el cable de maktub_core. Falta `clubId` (plataforma), `estado` (activo) y `auditoria`: los pone E2.7."
  },
  "categorias": [
   {
-   "id": "principal",
-   "nombre": "Principal",
-   "origen": "general"
+   "id": "primario",
+   "nombre": "Primario",
+   "origen": "reference"
   },
   {
-   "id": "fuerza",
-   "nombre": "Fuerza",
-   "origen": "general"
+   "id": "secundario",
+   "nombre": "Secundario",
+   "origen": "reference"
   },
   {
    "id": "accesorio",
@@ -182,8 +182,7 @@
    "id": "sq_espalda",
    "nombre": "Sentadilla de espalda",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -220,8 +219,7 @@
    "id": "dl_convencional",
    "nombre": "Peso muerto",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -262,8 +260,7 @@
    "id": "bp_plano",
    "nombre": "Bench press",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -296,8 +293,7 @@
    "id": "sq_frontal",
    "nombre": "Sentadilla frontal",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -335,8 +331,7 @@
    "id": "sq_zercher",
    "nombre": "Zercher squat",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -374,8 +369,7 @@
    "id": "sq_pausa",
    "nombre": "Sentadilla con pausa",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -413,8 +407,7 @@
    "id": "dl_deficit",
    "nombre": "Peso muerto en déficit",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -456,8 +449,7 @@
    "id": "bp_pausa",
    "nombre": "Bench press con pausa",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -491,7 +483,7 @@
    "id": "mil_press",
    "nombre": "Press militar",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -529,7 +521,7 @@
    "id": "push_press",
    "nombre": "Push press",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -563,7 +555,7 @@
    "id": "bp_inclinado",
    "nombre": "Press inclinado",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -597,7 +589,7 @@
    "id": "rem_barra",
    "nombre": "Remo con barra",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -635,7 +627,7 @@
    "id": "dl_rumano",
    "nombre": "Peso muerto rumano",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -669,7 +661,7 @@
    "id": "good_morning",
    "nombre": "Good morning",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -703,7 +695,7 @@
    "id": "hip_thrust",
    "nombre": "Hip thrust",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -733,7 +725,7 @@
    "id": "prensa",
    "nombre": "Prensa de piernas",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -763,7 +755,7 @@
    "id": "bulgaras",
    "nombre": "Búlgaras",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -797,7 +789,7 @@
    "id": "zancadas",
    "nombre": "Zancadas con mancuernas",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -1556,7 +1548,7 @@
    "id": "bp_cerrado",
    "nombre": "Press banca agarre cerrado",
    "categorias": [
-    "fuerza"
+    "secundario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -1589,7 +1581,7 @@
    "id": "dl_sumo",
    "nombre": "Peso muerto sumo",
    "categorias": [
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -1630,8 +1622,7 @@
    "id": "snatch",
    "nombre": "Arranque",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -1675,8 +1666,7 @@
    "id": "clean",
    "nombre": "Cargada",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -1720,8 +1710,7 @@
    "id": "jerk",
    "nombre": "Envión (jerk)",
    "categorias": [
-    "principal",
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -1761,7 +1750,7 @@
    "id": "power_snatch",
    "nombre": "Arranque de potencia",
    "categorias": [
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -1802,7 +1791,7 @@
    "id": "power_clean",
    "nombre": "Cargada de potencia",
    "categorias": [
-    "fuerza"
+    "primario"
    ],
    "metricas": [
     "carga_pct_rm",
@@ -2509,8 +2498,7 @@
    },
    "sugerencias": [],
    "origen": "reference",
-   "notas": "Formato amrap. Repetir hasta que se termine el tiempo, sin descanso.",
-   "temporizadorId": "cuenta_5"
+   "notas": "Formato amrap. Repetir hasta que se termine el tiempo, sin descanso."
   },
   {
    "id": "wod_amrap4",
@@ -2529,8 +2517,7 @@
    },
    "sugerencias": [],
    "origen": "reference",
-   "notas": "Formato amrap. Repetir hasta que se termine el tiempo, sin descanso.",
-   "temporizadorId": "cuenta_4"
+   "notas": "Formato amrap. Repetir hasta que se termine el tiempo, sin descanso."
   },
   {
    "id": "wod_tabata",
@@ -2549,8 +2536,7 @@
    },
    "sugerencias": [],
    "origen": "reference",
-   "notas": "Formato tabata. 8 rondas de 20 segundos de trabajo y 10 de descanso, alternando dos ejercicios.",
-   "temporizadorId": "tabata"
+   "notas": "Formato tabata. 8 rondas de 20 segundos de trabajo y 10 de descanso, alternando dos ejercicios."
   },
   {
    "id": "wod_emom10",
@@ -2569,8 +2555,7 @@
    },
    "sugerencias": [],
    "origen": "reference",
-   "notas": "Formato emom. Al inicio de cada minuto, las repeticiones indicadas.",
-   "temporizadorId": "emom_10"
+   "notas": "Formato emom. Al inicio de cada minuto, las repeticiones indicadas."
   },
   {
    "id": "wod_fran",

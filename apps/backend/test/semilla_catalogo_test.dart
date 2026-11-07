@@ -155,21 +155,17 @@ void main() {
     },
   );
 
-  test('WoDs are exactly the exercises of category wod, with a resolvable timer when they name one', () {
-    final timerIds = {for (final t in timers) t.id};
-    final rawEx = {
-      for (final j in raw['ejercicios'] as List) (j as Map)['id']: j,
-    };
+  test('WoDs are exactly the exercises of category wod', () {
     for (final e in exercises) {
       final isWod = e.categoryIds.contains('wod');
       expect(isWod, e.id.startsWith('wod_'), reason: e.id);
-      if (isWod) {
-        expect(e.categoryIds, ['wod'], reason: e.id);
-        final t = rawEx[e.id]!['temporizadorId'];
-        if (t != null) expect(timerIds, contains(t), reason: e.id);
-      } else {
-        expect(rawEx[e.id]!.containsKey('temporizadorId'), isFalse);
-      }
+      if (isWod) expect(e.categoryIds, ['wod'], reason: e.id);
+    }
+  });
+
+  test('the timer is not part of the exercise (chosen when building the block)', () {
+    for (final j in raw['ejercicios'] as List) {
+      expect((j as Map).containsKey('temporizadorId'), isFalse, reason: '${j['id']}');
     }
   });
 
