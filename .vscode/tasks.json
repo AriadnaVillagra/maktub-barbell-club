@@ -1,0 +1,29 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Mongo: docker compose up",
+      "type": "shell",
+      "command": "docker compose up -d",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      // Runs the API on :8080. Uses the full path because ~/.pub-cache/bin may not be on PATH.
+      "label": "Backend: dart_frog dev",
+      "type": "shell",
+      "command": "${env:HOME}/.pub-cache/bin/dart_frog dev",
+      "options": { "cwd": "${workspaceFolder}/apps/backend" },
+      "dependsOn": "Mongo: docker compose up",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "dart_frog",
+        "pattern": { "regexp": "^__never_matches__$" },
+        "background": {
+          "beginsPattern": "Starting|Running|Hot reload",
+          "endsPattern": "Running on http://localhost:8080"
+        }
+      }
+    }
+  ]
+}

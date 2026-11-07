@@ -57,7 +57,8 @@ class AccessTokenCodec {
   factory AccessTokenCodec.fromEnvironment() {
     final secret = Platform.environment['TOKEN_SECRET'];
     if (secret != null && secret.isNotEmpty) return AccessTokenCodec(secret);
-    stderr.writeln('TOKEN_SECRET is not set: using a random secret for this process.');
+    // stdout, not stderr: `dart_frog dev` kills the server on any stderr output before hot reload is up.
+    stdout.writeln('TOKEN_SECRET is not set: using a random secret for this process.');
     return AccessTokenCodec(randomToken(48));
   }
 
