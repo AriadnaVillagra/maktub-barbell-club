@@ -10,3 +10,4 @@ workspace:
   - apps/frontend
   - apps/backend
   - packages/maktub_core
+  - packages/maktub_ui

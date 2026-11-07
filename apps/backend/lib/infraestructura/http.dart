@@ -40,17 +40,38 @@ Middleware manejarErrores() => (handler) => (context) async {
       }
     };
 
-const _cabecerasCors = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-};
+/// Orígenes que pueden llamar a la API desde el navegador: la PWA vive en otro sitio
+/// (GitHub Pages) que la API. Se configura con `ORIGENES_PERMITIDOS`, separados por coma,
+/// p. ej. `https://usuario.github.io`. `http://localhost:<cualquier puerto>` se permite
+/// siempre, para desarrollo con `flutter run -d chrome`.
+List<String> origenesDesdeEntorno() => [
+      for (final o in (Platform.environment['ORIGENES_PERMITIDOS'] ?? '').split(','))
+        if (o.trim().isNotEmpty) o.trim().replaceAll(RegExp(r'/+$'), ''),
+    ];
 
-/// Necesario para correr el frontend como Flutter web contra la API local.
-Middleware cors() => (handler) => (context) async {
-      if (context.request.method == HttpMethod.options) {
-        return Response(statusCode: HttpStatus.noContent, headers: _cabecerasCors);
-      }
-      final respuesta = await handler(context);
-      return respuesta.copyWith(headers: {...respuesta.headers, ..._cabecerasCors});
-    };
+bool _esLocal(String origen) => RegExp(r'^http://(localhost|127\.0\.0\.1)(:\d+)?$').hasMatch(origen);
+
+/// CORS con lista de orígenes. La autenticación viaja en `Authorization` (no hay cookies),
+/// así que no se envía `Allow-Credentials`.
+Middleware cors({List<String>? origenes}) {
+  final permitidos = (origenes ?? origenesDesdeEntorno()).toSet();
+
+  Map<String, String> cabeceras(String? origen) => {
+        'Vary': 'Origin',
+        if (origen != null && (permitidos.contains(origen) || _esLocal(origen))) ...{
+          'Access-Control-Allow-Origin': origen,
+          'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'Access-Control-Max-Age': '600',
+        },
+      };
+
+  return (handler) => (context) async {
+        final propias = cabeceras(context.request.headers['origin']);
+        if (context.request.method == HttpMethod.options) {
+          return Response(statusCode: HttpStatus.noContent, headers: propias);
+        }
+        final respuesta = await handler(context);
+        return respuesta.copyWith(headers: {...respuesta.headers, ...propias});
+      };
+}

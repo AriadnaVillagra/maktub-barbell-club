@@ -1,0 +1,42 @@
+name: maktub_ui
+description: Design system de Maktub Barbell Club - tokens, temas y componentes (docs/features/F17-design-system.md).
+publish_to: none
+resolution: workspace
+
+environment:
+  sdk: ^3.13.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  # Fuentes empaquetadas (F17, DS7): la PWA tiene que funcionar sin señal, así que nunca se
+  # descargan en runtime. Subconjunto latino, de Fontsource 5.3.0. Licencias OFL en assets/fuentes/.
+  # Desde la app se nombran con prefijo de paquete: `Familias.texto` / `Familias.numeros`.
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fuentes/Inter-400.ttf
+          weight: 400
+        - asset: assets/fuentes/Inter-500.ttf
+          weight: 500
+        - asset: assets/fuentes/Inter-600.ttf
+          weight: 600
+        - asset: assets/fuentes/Inter-700.ttf
+          weight: 700
+    - family: BarlowCondensed
+      fonts:
+        - asset: assets/fuentes/BarlowCondensed-500.ttf
+          weight: 500
+        - asset: assets/fuentes/BarlowCondensed-600.ttf
+          weight: 600
+        - asset: assets/fuentes/BarlowCondensed-700.ttf
+          weight: 700

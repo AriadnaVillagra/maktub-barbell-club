@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:maktub_core/maktub_core.dart';
+import 'package:maktub_ui/maktub_ui.dart';
 
 /// Hoja inferior para elegir un temporizador del catálogo.
 Future<Temporizador?> elegirTemporizador(BuildContext context, Iterable<Temporizador> temporizadores) {
@@ -8,7 +9,7 @@ Future<Temporizador?> elegirTemporizador(BuildContext context, Iterable<Temporiz
     context: context,
     showDragHandle: true,
     builder: (context) => lista.isEmpty
-        ? const Padding(padding: EdgeInsets.all(24), child: Text('No hay temporizadores cargados.'))
+        ? const Padding(padding: EdgeInsets.all(Espacio.xl), child: Text('No hay temporizadores cargados.'))
         : ListView(
             shrinkWrap: true,
             children: [

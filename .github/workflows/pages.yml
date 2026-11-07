@@ -1,0 +1,65 @@
+# Publica la PWA (apps/frontend) en GitHub Pages en cada push a main.
+# Requisito único en el repo: Settings → Pages → Source: "GitHub Actions".
+name: PWA en GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+env:
+  API_URL: https://maktub-api-312703406459.europe-north1.run.app
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.4
+          cache: true
+
+      - name: Dependencias del workspace
+        run: flutter pub get
+
+      - name: Tests
+        run: |
+          (cd packages/maktub_core && dart test)
+          (cd packages/maktub_ui && flutter test --exclude-tags golden)
+          (cd apps/frontend && flutter test)
+
+      # --base-href: Pages sirve el sitio en /<repo>/.
+      # --no-web-resources-cdn: CanvasKit va dentro del sitio, no desde el CDN de Google (sin señal).
+      - name: Build web
+        working-directory: apps/frontend
+        run: >
+          flutter build web --release
+          --base-href "/${{ github.event.repository.name }}/"
+          --no-web-resources-cdn
+          --dart-define=API_URL=${{ env.API_URL }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/frontend/build/web
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -1,5 +1,4 @@
-import '../modelos/catalogo.dart';
-import '../modelos/enums.dart';
+import '../modelos/temporizador.dart';
 
 /// Un tramo de duración fija. Todo temporizador se expande a una lista de fases
 /// y de ahí para abajo el motor es el mismo.

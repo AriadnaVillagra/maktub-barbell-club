@@ -2,50 +2,27 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('Plan viaja ida y vuelta por JSON', () {
-    final plan = Plan(
-      id: 'p1',
-      nombre: 'Plan',
-      activo: true,
-      inicio: DateTime.utc(2026, 11, 2),
-      dias: const [
-        PlanDia(dia: 1, primario: 'sq_espalda', variantes: {
-          Variante.carga2: ContenidoVariante(ejercicios: [
-            Prescripcion(
-              bloque: Bloque.principal,
-              orden: 1,
-              ejercicio: 'sq_espalda',
-              series: [SeriePlan(reps: 8, pct: 60), SeriePlan(reps: 3, pct: 80)],
-            ),
-          ]),
-        }),
-      ],
-    );
+  test('Auditoria viaja ida y vuelta por JSON en UTC', () {
+    final creada = Auditoria.nueva('u1', ahora: DateTime.utc(2026, 11, 7, 10));
+    final modificada = creada.modificada('u2', ahora: DateTime.utc(2026, 11, 8, 9));
 
-    final copia = Plan.fromJson(plan.toJson());
+    final copia = Auditoria.fromJson(modificada.toJson());
 
-    expect(copia.inicio, DateTime.utc(2026, 11, 2));
-    expect(copia.tieneCarga2, isTrue);
-    expect(copia.dia(1)!.variantes[Variante.carga2]!.ejercicios.single.series.last.pct, 80);
+    expect(copia.creadoPor, 'u1');
+    expect(copia.creadoEn, DateTime.utc(2026, 11, 7, 10));
+    expect(copia.modificadoPor, 'u2');
+    expect(copia.modificadoEn, DateTime.utc(2026, 11, 8, 9));
+    expect(creada.toJson().containsKey('modificadoPor'), isFalse);
   });
 
-  test('SesionRegistrada valida su forma y tiene una clave por día', () {
-    final sesion = SesionRegistrada(
-      atleta: 'a1',
-      plan: 'p1',
-      ciclo: 1,
-      semana: 5,
-      dia: 1,
-      fecha: DateTime.utc(2026, 11, 7),
-    );
-
-    expect(sesion.validar(), ['la semana debe estar entre 1 y 4']);
-    expect(sesion.clave, 'a1|p1|1|5|1');
+  test('desdeCable tolera mayúsculas y espacios y rechaza lo desconocido', () {
+    expect(TipoTemporizador.deCable(' EMOM '), TipoTemporizador.emom);
+    expect(() => TipoTemporizador.deCable('amrap'), throwsFormatException);
   });
 
-  test('el bloque final viaja como "final"', () {
-    const fila = FilaRegistro(ejercicio: 'curl', bloque: Bloque.cierre, pesoKg: 12);
-    expect(fila.toJson()['bloque'], 'final');
-    expect(FilaRegistro.fromJson(fila.toJson()).bloque, Bloque.cierre);
+  test('Temporizador viaja ida y vuelta por JSON', () {
+    const t = Temporizador(id: 'tabata', nombre: 'Tabata', tipo: TipoTemporizador.tabata, trabajoSeg: 20, descansoSeg: 10, rondas: 8);
+    final copia = Temporizador.fromJson(t.toJson());
+    expect((copia.tipo, copia.trabajoSeg, copia.descansoSeg, copia.rondas), (TipoTemporizador.tabata, 20, 10, 8));
   });
 }

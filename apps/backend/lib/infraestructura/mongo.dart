@@ -3,17 +3,11 @@ import 'dart:io';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 
-/// Nombres de colecciones. Cada slice lee y escribe lo que necesita directamente;
-/// no hay repositorios compartidos entre slices.
-abstract final class Colecciones {
-  static const atletas = 'atletas';
-  static const rms = 'rms';
-  static const ejercicios = 'ejercicios';
-  static const temporizadores = 'temporizadores';
-  static const wods = 'wods';
-  static const planes = 'planes';
-  static const sesiones = 'sesiones';
-}
+/// Nombres de colecciones, uno por colección, a medida que los features las crean.
+/// Cada slice lee y escribe lo que necesita directamente; no hay repositorios compartidos.
+/// Todo documento lleva `clubId` (salvo usuarios y sesiones de login) y toda consulta filtra por
+/// él; lo de plataforma usa `clubPlataforma` (docs/diseno.md, "Club, usuarios y roles").
+abstract final class Colecciones {}
 
 String urlMongoDesdeEntorno() =>
     Platform.environment['MONGO_URL'] ?? 'mongodb://localhost:27017/maktub';
@@ -24,11 +18,8 @@ Future<Db> abrirMongo([String? url]) async {
   return db;
 }
 
-Future<void> asegurarIndices(Db db) async {
-  await db.createIndex(Colecciones.rms, keys: {'atleta': 1, 'basico': 1, 'fecha': -1});
-  await db.createIndex(Colecciones.sesiones, keys: {'plan': 1, 'atleta': 1});
-  await db.createIndex(Colecciones.planes, keys: {'activo': 1});
-}
+/// Índices que necesitan los features; idempotente, se corre al arrancar.
+Future<void> asegurarIndices(Db db) async {}
 
 /// Documento de Mongo (`_id`) → JSON del dominio (`id`).
 Json desdeDocumento(Map<String, dynamic> doc) {

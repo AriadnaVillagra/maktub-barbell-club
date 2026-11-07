@@ -66,19 +66,9 @@ void main() {
       expect(en(DateTime.utc(2026, 10, 1)), const UbicacionEnCiclo(ciclo: 1, semana: 1));
     });
 
-    test('sin inicio cae en ciclo 1 semana 1', () {
-      expect(
-        UbicacionEnCiclo.desdeFechas(fecha: DateTime.utc(2030)),
-        const UbicacionEnCiclo(ciclo: 1, semana: 1),
-      );
-    });
-
-    test('la semana 3 usa carga2 solo si el plan la define', () {
-      expect(varianteDeSemana(1, planTieneCarga2: true), Variante.descarga);
-      expect(varianteDeSemana(2, planTieneCarga2: true), Variante.carga);
-      expect(varianteDeSemana(3, planTieneCarga2: true), Variante.carga2);
-      expect(varianteDeSemana(3, planTieneCarga2: false), Variante.carga);
-      expect(varianteDeSemana(4, planTieneCarga2: true), Variante.descarga);
+    test('los ciclos se repiten sin fin', () {
+      final ubicacion = UbicacionEnCiclo.desdeFechas(inicio: inicio, fecha: inicio.add(const Duration(days: 7 * 41)));
+      expect(ubicacion, const UbicacionEnCiclo(ciclo: 11, semana: 2));
     });
   });
 

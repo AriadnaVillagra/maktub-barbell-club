@@ -1,13 +1,14 @@
-/// Dominio compartido de Maktub Barbell Club: modelos (contratos JSON entre
-/// frontend y backend) y reglas de entrenamiento puras, sin dependencias.
+/// Dominio compartido de Maktub Barbell Club: reglas de entrenamiento puras y los
+/// modelos que frontend y backend intercambian. Sin dependencias ni I/O.
+///
+/// Los modelos de cada feature (clubes, catálogo, referencias, planes, sesiones...)
+/// se agregan acá a medida que se construyen, siguiendo "Modelo del dominio" en docs/diseno.md.
 library;
 
-export 'src/modelos/catalogo.dart';
-export 'src/modelos/enums.dart';
+export 'src/modelos/base.dart';
+export 'src/modelos/cable.dart';
 export 'src/modelos/json.dart' show Json;
-export 'src/modelos/plan.dart';
-export 'src/modelos/seguimiento.dart';
-export 'src/modelos/sesion_registrada.dart';
+export 'src/modelos/temporizador.dart';
 export 'src/reglas/ciclo.dart';
 export 'src/reglas/equipo.dart';
 export 'src/reglas/fases.dart';
