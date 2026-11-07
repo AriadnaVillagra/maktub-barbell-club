@@ -22,7 +22,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 |---|---|---|---|---|
 | E0 | [Cerrar F0](E0-cerrar-f0.md) | hecho | 6 / 6 (mergeada a `main`) | — |
 | E1 | [Acceso](E1-acceso.md) | hecho | 14 / 14 (mergeada a `main`; ingreso probado en localhost:5000 y en Pages, R2 ok) | — |
-| E2 | [Catálogo](E2-catalogo.md) | pendiente | 0 / 10 | — |
+| E2 | [Catálogo](E2-catalogo.md) | en curso | 6 / 10 (hechos: E2.1–E2.5, E2.10; E2.6 aprobada con cambios, falta aplicarlos) | — |
 | E3 | [Atletas y referencias](E3-atletas-referencias.md) | pendiente | 0 / 6 | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | pendiente | 0 / 6 | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | pendiente | 0 / 9 | — |
