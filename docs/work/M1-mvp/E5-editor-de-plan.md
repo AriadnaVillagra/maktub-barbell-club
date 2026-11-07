@@ -43,4 +43,19 @@ Orden: después de la E2 (5.1 necesita 2.1; 5.4 necesita 2.6) y de la E1 (5.2 ne
 
 ## Issues
 
-Se completa al derivar los issues de esta épica.
+| # | Issue | Depende de |
+|---|---|---|
+| E5.1 | [Modelos del plan y validaciones en maktub_core](E5.1-modelos-del-plan.md) | E2.1 |
+| E5.2 | [Backend: crear, leer y listar planes](E5.2-backend-crear-leer-listar-plan.md) | E5.1, E1.10, E1.11 |
+| E5.3 | [Backend: guardar un plan entero, atómico y validado](E5.3-backend-guardar-plan-atomico.md) | E5.1, E5.2 |
+| E5.4 | [Los planes cuentan como uso real de ejercicios y temporizadores](E5.4-planes-como-uso-real.md) | E5.3, E2.4 |
+| E5.5 | [App: lista de planes y editor de estructura (modelos de semana, asignación y días)](E5.5-app-estructura-del-plan.md) | E5.1, E5.2, E1.12, E1.14 |
+| E5.6 | [App: bloques de cada día con nombre, categoría y temporizador](E5.6-app-bloques-del-dia.md) | E5.5, E2.1, E2.2 |
+| E5.7 | [App: agregar prescripciones con ejercicio y series por defecto](E5.7-app-prescripciones-con-series-por-defecto.md) | E5.6, E2.10 |
+| E5.8 | [App: editar series una por una, nota y temporizador propio](E5.8-app-series-una-por-una.md) | E5.7 |
+| E5.9 | [App: guardar el plan con validación visible](E5.9-app-guardar-plan.md) | E5.3, E5.8 |
+
+**En paralelo:**
+- La cadena del backend (E5.2 → E5.3 → E5.4) y la de la app (E5.5 → E5.6 → E5.7 → E5.8) avanzan en paralelo una vez que existe E5.2.
+- E5.9 une las dos.
+- E5.1 depende solo de E2.1 y se puede adelantar.

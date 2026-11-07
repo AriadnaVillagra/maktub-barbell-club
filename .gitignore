@@ -19,3 +19,6 @@ apps/backend/.dart_frog/
 
 # Repo propio (CaptainNEXUS/PowerLifter), se mantiene aparte
 reference/
+
+# Planillas con datos personales de entrenamiento (repo publico): nunca al repo
+docs/planillas/

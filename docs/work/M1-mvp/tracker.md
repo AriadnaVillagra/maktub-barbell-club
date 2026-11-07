@@ -21,15 +21,15 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | # | Épica | Estado | Issues | Bloqueos |
 |---|---|---|---|---|
 | E0 | [Cerrar F0](E0-cerrar-f0.md) | pendiente | 0 / 6 | — |
-| E1 | [Acceso](E1-acceso.md) | pendiente | 0 / 14 | E1.1 ← client ID de OAuth con el origen `github.io` (consola de GCP, acción manual del usuario) |
+| E1 | [Acceso](E1-acceso.md) | en curso | 1 / 14 (E1.1 hecho) | — |
 | E2 | [Catálogo](E2-catalogo.md) | pendiente | 0 / 10 | — |
 | E3 | [Atletas y referencias](E3-atletas-referencias.md) | pendiente | 0 / 6 | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | pendiente | 0 / 6 | E4.6 ← CSV de la planilla (E8.1, lo exporta el usuario; adelantado por D12) |
-| E5 | [Editor de plan](E5-editor-de-plan.md) | sin refinar | — | — |
-| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | sin refinar | — | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | sin refinar | — | — |
-| E8 | [Migración](E8-migracion.md) | sin refinar | — | ← CSV de las hojas de la planilla (lo exporta el usuario) |
-| E9 | [Cierre](E9-cierre.md) | sin refinar | — | — |
+| E5 | [Editor de plan](E5-editor-de-plan.md) | pendiente | 0 / 9 | — |
+| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | pendiente | 0 / 6 | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | pendiente | 0 / 13 | — |
+| E8 | [Migración](E8-migracion.md) | pendiente | 0 / 6 | E8.1 ← CSV de las hojas de la planilla (lo exporta el usuario; adelantado por D12) |
+| E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
 2026-11-07.

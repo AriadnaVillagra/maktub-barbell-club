@@ -45,4 +45,16 @@ de club y dominio"); acá se fija lo que no dicen:
 
 ## Issues
 
-Se completa al derivar los issues de esta épica.
+| # | Issue | Depende de |
+|---|---|---|
+| E6.1 | [Modelos de grupo y asignación en maktub_core](E6.1-modelos-grupo-asignacion.md) | E5.1 |
+| E6.2 | [Backend: lectura de grupos y alta del grupo de Andi y Ari](E6.2-backend-grupos.md) | E6.1, E1.9, E1.10, E1.11, E3.4 |
+| E6.3 | [Backend: asignar un plan a un grupo](E6.3-backend-asignacion.md) | E6.1, E6.2, E5.2, E1.10, E1.11 |
+| E6.4 | [Backend: ciclo y semana de una fecha en la asignación activa](E6.4-backend-ubicacion-por-fecha.md) | E6.3 |
+| E6.5 | [App: asignar un plan al grupo con fecha de inicio](E6.5-app-asignar-plan.md) | E6.2, E6.3, E5.2, E1.12, E1.14 |
+| E6.6 | [App: calendario que abre en la semana que toca](E6.6-app-calendario-hoy.md) | E6.4, E6.5, E1.12 |
+
+**En paralelo:**
+- E6.4 (backend) y E6.5 (app) se pueden tomar a la vez una vez que existe E6.3.
+- E6.6 cierra la épica.
+- Hasta E7.13 el calendario abre el día 1 (D13).

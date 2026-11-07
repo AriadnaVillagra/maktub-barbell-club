@@ -43,7 +43,7 @@ Para modelos, slices y rutas, ver `design.md`, secciones "`maktub_core`" y "Back
 | # | Issue | Depende de |
 |---|---|---|
 | E3.1 | [Modelos de referencia, factor y kilaje, con vigencia](E3.1-modelos-y-vigencia.md) | E2.1 |
-| E3.2 | [Backend: RM nuevo que reinicia el factor](E3.2-registrar-rm.md) | E3.1, E1.10 |
+| E3.2 | [Backend: registrar un RM nuevo (el factor vuelve a 100 % por regla)](E3.2-registrar-rm.md) | E3.1, E1.10 |
 | E3.3 | [Backend: factores con historial y kilajes fijos](E3.3-factores-y-kilajes-api.md) | E3.1, E1.10 |
 | E3.4 | [Backend: leer la ficha con permisos por rol](E3.4-lectura-ficha-api.md) | E3.2, E3.3, E1.10, E1.11 |
 | E3.5 | [App: ficha del atleta en solo lectura](E3.5-ficha-atleta-lectura.md) | E3.4, E1.12 |

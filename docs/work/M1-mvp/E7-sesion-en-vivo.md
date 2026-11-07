@@ -63,4 +63,23 @@ se da por supuesto.
 
 ## Issues
 
-Se completa al derivar los issues de esta épica.
+| # | Issue | Depende de |
+|---|---|---|
+| E7.1 | [Verificar que Cloud Run sostiene el WebSocket](E7.1-verificar-websocket-cloud-run.md) | — |
+| E7.2 | [Modelos de sesión y registro en `maktub_core`](E7.2-modelos-sesion-y-registro.md) | E3.1, E4.1, E4.5, E5.1 |
+| E7.3 | [Backend: abrir o retomar la sesión del día y registrar por serie](E7.3-sesion-del-dia-y-upsert-por-serie.md) | E7.2, E6.3, E6.4, E1.10, E1.11 |
+| E7.4 | [Consulta real de uso de registros para la regla de archivar](E7.4-uso-de-registros-para-archivar.md) | E7.3, E2.4 |
+| E7.5 | [Canal en vivo: ticket de un solo uso y WebSocket por sesión](E7.5-ticket-y-websocket-por-sesion.md) | E7.1, E7.3 |
+| E7.6 | [Canal en vivo: número de secuencia, resincronización y difusión en memoria](E7.6-secuencia-resync-y-difusion.md) | E7.5 |
+| E7.7 | [Pantalla de la sesión: día, presentes, atleta y kilos calculados](E7.7-pantalla-sesion-dia-y-kilos.md) | E7.3, E4.1, E4.2, E6.4, E6.6 |
+| E7.8 | [Pantalla de la sesión: marcar series, editar kilos y reps, nota y restaurar](E7.8-pantalla-sesion-marcar-y-editar.md) | E7.7, E7.3, E4.5 |
+| E7.9 | [Borrador local y cola de reintentos](E7.9-borrador-local-y-cola.md) | E7.8, E0.2 |
+| E7.10 | [Cliente del canal en vivo y reconexión](E7.10-cliente-canal-en-vivo.md) | E7.6, E7.8, E7.9 |
+| E7.11 | [Temporizadores en la sesión](E7.11-temporizadores-en-sesion.md) | E7.8, E2.2 |
+| E7.12 | [WoD en la sesión: nota y temporizador](E7.12-wod-en-sesion.md) | E7.8, E7.11 |
+| E7.13 | [Calendario: días hechos y pendientes desde las sesiones](E7.13-calendario-hechos-y-pendientes.md) | E6.6, E7.3 |
+
+**En paralelo:**
+- E7.1 (verificación de R1) no depende de nada y va primero (M1 §6).
+- La cadena del canal (E7.5 → E7.6) avanza en paralelo con la de la pantalla (E7.7 → E7.8). E7.4 y E7.13 se pueden tomar apenas existe E7.3.
+- Después de E7.8 se pueden tomar a la vez E7.9 y E7.11. E7.10 une el canal con el borrador.

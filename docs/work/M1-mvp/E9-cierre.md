@@ -47,4 +47,15 @@ diseño, que invierte M1 §5 al poner 9.2 antes de 9.1 (D2):
 
 ## Issues
 
-Se completa al derivar los issues de esta épica.
+| # | Issue | Depende de |
+|---|---|---|
+| E9.1 | [Merge de `m1-mvp` a `main` y despliegue](E9.1-merge-y-despliegue.md) | E0, E1, E2, E3, E4, E5, E6, E7, E8 |
+| E9.2 | [Validar en la PWA publicada: abrir sin señal e instalar](E9.2-validar-pwa-publicada.md) | E9.1 |
+| E9.3 | [Prueba en el gimnasio: una semana con dos teléfonos](E9.3-prueba-gimnasio.md) | E9.1, E9.2 |
+| E9.4 | [Corregir los problemas de la prueba en el gimnasio](E9.4-corregir-problemas-gimnasio.md) | E9.3 |
+| E9.5 | [Prueba manual del usuario sobre la PWA de producción](E9.5-prueba-manual-usuario.md) | E9.4 |
+| E9.6 | [Corte: planilla congelada, importación final y paso a la app](E9.6-corte.md) | E9.5, E8.6 |
+| E9.7 | [Ciclo completo de 4 semanas entrenado solo con la app](E9.7-ciclo-cuatro-semanas.md) | E9.6 |
+| E9.8 | [Verificar los 11 criterios de M1 y cerrar el ítem](E9.8-cerrar-item.md) | E9.7 |
+
+**En paralelo:** nada. Es una secuencia (design.md §5), y la mayoría de los pasos son manuales u observacionales.
