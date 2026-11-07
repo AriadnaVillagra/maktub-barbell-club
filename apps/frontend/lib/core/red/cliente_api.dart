@@ -17,31 +17,70 @@ class ErrorDeApi implements Exception {
   String toString() => mensaje;
 }
 
+/// Where the client gets the access token it sends in `Authorization`, and who renews it.
+abstract interface class AccessTokenSource {
+  /// The access token to send now, or null when there is no session.
+  Future<String?> accessToken();
+
+  /// Called when a request sent with [rejectedToken] answered 401. Returns true when there is a
+  /// (possibly new) access token worth retrying with, false when the session is over.
+  Future<bool> renewAfterUnauthorized(String rejectedToken);
+}
+
 /// Cliente HTTP delgado: JSON de ida y vuelta, errores de la API como [ErrorDeApi].
+///
+/// With an [auth] source, every request carries `Authorization: Bearer <accessToken>`, and a 401
+/// asks the source to renew and retries once. Any other status (a 403 included) is returned as is.
 class ClienteApi {
-  ClienteApi({required this.base, http.Client? cliente}) : _http = cliente ?? http.Client();
+  ClienteApi({required this.base, http.Client? cliente, this.auth}) : _http = cliente ?? http.Client();
 
   final Uri base;
+  final AccessTokenSource? auth;
   final http.Client _http;
 
-  Future<Map<String, dynamic>> get(String ruta) => _enviar(() => _http.get(base.resolve(ruta)));
+  Future<Map<String, dynamic>> get(String ruta, {Map<String, String>? headers}) =>
+      _enviar('GET', ruta, headers: headers);
 
-  Future<Map<String, dynamic>> put(String ruta, Object cuerpo) => _enviar(
-        () => _http.put(
-          base.resolve(ruta),
-          headers: const {'Content-Type': 'application/json'},
-          body: jsonEncode(cuerpo),
-        ),
-      );
+  Future<Map<String, dynamic>> put(String ruta, Object cuerpo, {Map<String, String>? headers}) =>
+      _enviar('PUT', ruta, cuerpo: cuerpo, headers: headers);
 
-  Future<Map<String, dynamic>> _enviar(Future<http.Response> Function() pedido) async {
-    final http.Response respuesta;
+  Future<Map<String, dynamic>> post(String ruta, {Object? cuerpo, Map<String, String>? headers}) =>
+      _enviar('POST', ruta, cuerpo: cuerpo, headers: headers);
+
+  Future<Map<String, dynamic>> _enviar(String metodo, String ruta, {Object? cuerpo, Map<String, String>? headers}) async {
+    final source = auth;
+    final token = await source?.accessToken();
+    var respuesta = await _pedir(metodo, ruta, cuerpo, headers, token);
+    if (respuesta.statusCode == 401 && source != null && token != null) {
+      if (await source.renewAfterUnauthorized(token)) {
+        respuesta = await _pedir(metodo, ruta, cuerpo, headers, await source.accessToken());
+      }
+    }
+    return _leer(respuesta);
+  }
+
+  Future<http.Response> _pedir(
+    String metodo,
+    String ruta,
+    Object? cuerpo,
+    Map<String, String>? headers,
+    String? token,
+  ) async {
+    final pedido = http.Request(metodo, base.resolve(ruta));
+    if (token != null) pedido.headers['Authorization'] = 'Bearer $token';
+    if (headers != null) pedido.headers.addAll(headers);
+    if (cuerpo != null) {
+      pedido.headers['Content-Type'] = 'application/json';
+      pedido.body = jsonEncode(cuerpo);
+    }
     try {
-      respuesta = await pedido();
+      return await http.Response.fromStream(await _http.send(pedido));
     } on Exception catch (e) {
       throw ErrorDeApi('No se pudo conectar con el servidor ($e).');
     }
+  }
 
+  Map<String, dynamic> _leer(http.Response respuesta) {
     final cuerpo = respuesta.body.isEmpty ? <String, dynamic>{} : jsonDecode(utf8.decode(respuesta.bodyBytes));
     if (respuesta.statusCode >= 400) {
       final mensaje = cuerpo is Map && cuerpo['error'] != null ? '${cuerpo['error']}' : 'Error ${respuesta.statusCode}';
@@ -53,8 +92,9 @@ class ClienteApi {
   void cerrar() => _http.close();
 }
 
-final clienteApiProvider = Provider<ClienteApi>((ref) {
-  final cliente = ClienteApi(base: Uri.parse(urlApi));
-  ref.onDispose(cliente.cerrar);
-  return cliente;
+/// The one `http.Client` of the app. Tests override it with a `MockClient`.
+final httpClientProvider = Provider<http.Client>((ref) {
+  final client = http.Client();
+  ref.onDispose(client.close);
+  return client;
 });

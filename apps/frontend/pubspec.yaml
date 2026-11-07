@@ -18,6 +18,7 @@ dependencies:
     path: ../../packages/maktub_core
   maktub_ui:
     path: ../../packages/maktub_ui
+  shared_preferences: 2.5.6
 
 dev_dependencies:
   flutter_test:
