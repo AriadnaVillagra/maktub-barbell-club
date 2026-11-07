@@ -31,7 +31,6 @@ class PaginaPlanificacion extends StatelessWidget {
         titulo: 'Planificación',
         descripcion: 'Diseñar planes y mantener el catálogo y las referencias de cada atleta.',
         secciones: [
-          (Icons.list_alt, 'Catálogo', 'Ejercicios, categorías, equipo y temporizadores'),
           (Icons.people_outline, 'Atletas y referencias', 'RMs, marcas, ritmos, FC y factores de trabajo'),
           (Icons.view_week_outlined, 'Planes', 'Modelos de semana, días, bloques y prescripciones'),
           (Icons.event_available_outlined, 'Asignaciones', 'Plan × grupo × inicio y estado de los días'),
