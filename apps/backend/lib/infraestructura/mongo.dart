@@ -35,6 +35,18 @@ Future<Db> abrirMongo([String? url]) async {
 Future<void> asegurarIndices(Db db) async {
   // To list and revoke a user's sessions (e.g. "close all my other devices").
   await db.collection(Colecciones.loginSessions).createIndex(keys: {'userId': 1}, name: 'userId');
+  // Mongo deletes each session on its own once `expiresAt` passes (F1: expired sessions clean themselves up).
+  // mongo_dart's createIndex has no expireAfterSeconds option, so use the raw command (idempotent).
+  await db.runCommand({
+    'createIndexes': Colecciones.loginSessions,
+    'indexes': [
+      {
+        'key': {'expiresAt': 1},
+        'name': 'expiresAt_ttl',
+        'expireAfterSeconds': 0,
+      },
+    ],
+  });
 
   await db
       .collection(Colecciones.usuarios)
