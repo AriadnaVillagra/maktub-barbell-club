@@ -21,7 +21,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | # | Épica | Estado | Issues | Bloqueos |
 |---|---|---|---|---|
 | E0 | [Cerrar F0](E0-cerrar-f0.md) | hecho | 6 / 6 (mergeada a `main`) | — |
-| E1 | [Acceso](E1-acceso.md) | en curso | 14 / 14 (lista para revisión y merge; ingreso real probado en localhost:5000 el 2026-11-07) | — |
+| E1 | [Acceso](E1-acceso.md) | hecho | 14 / 14 (mergeada a `main`; ingreso probado en localhost:5000 y en Pages, R2 ok) | — |
 | E2 | [Catálogo](E2-catalogo.md) | pendiente | 0 / 10 | — |
 | E3 | [Atletas y referencias](E3-atletas-referencias.md) | pendiente | 0 / 6 | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | pendiente | 0 / 6 | — |
@@ -37,3 +37,14 @@ Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados
 ## Preguntas abiertas que vienen del diseño
 
 - R4 (`diseno.md` no refleja el recorte de M1): no frena nada. Ver design.md §6.
+
+## Pendientes que salieron de E1
+
+- **Aviso de versión nueva.** El service worker de E0.2 no activa una versión nueva hasta que se
+  cierran todas las pestañas y la PWA; recargar no alcanza. Al publicar E1 hubo que desinstalar la
+  PWA y limpiar la caché en el teléfono. Hace falta un "Hay una versión nueva, tocá para actualizar".
+  Candidato para E7 (modo sin señal), o antes como issue chico.
+- **Límite de intentos y `X-Forwarded-For` (E1.8).** Confirmar en los logs de Cloud Run que la última
+  dirección es la del cliente y no la de un balanceador de Google; si no, todos comparten el cupo.
+- **Renovación simultánea en dos pestañas (E1.12).** Arreglado el caso común (`f7be008`); solo dos
+  renovaciones en el mismo instante pueden revocar la sesión. Bloquearlo del todo requiere Web Locks.
