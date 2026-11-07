@@ -20,6 +20,13 @@ abstract final class Colecciones {
 
   /// One per (`clubId`, `usuarioId`).
   static const atletas = 'atletas';
+
+  /// Catalog (F2): base documents have `clubId` = `plataforma`, the club's own its id.
+  static const ejercicios = 'ejercicios';
+  static const categorias = 'categorias';
+  static const temporizadores = 'temporizadores';
+  static const gruposMusculares = 'grupos_musculares';
+  static const patrones = 'patrones_movimiento';
 }
 
 String urlMongoDesdeEntorno() =>
