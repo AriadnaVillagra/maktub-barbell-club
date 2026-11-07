@@ -62,7 +62,19 @@ Todos los documentos con `clubId` llevan además la auditoría que ya existe en 
   uso y la detección de reuso (si se usa un refresh token ya rotado, se revoca toda la sesión de ese
   dispositivo) son obligatorias, no opcionales. Con un dominio propio común (`app.` y `api.`) se
   podría volver a cookies httpOnly.
-- El login, el registro y la recuperación tienen límite de intentos.
+- **Solo un secreto ya rotado cuenta como reuso.** Un secreto que nunca fue válido se rechaza sin
+  revocar nada: el id de la sesión se lee en el token de acceso, y si cualquier secreto erróneo
+  revocara la sesión, quien tenga ese token podría cerrar la sesión de otro dispositivo.
+  (Decidido en M1, 2026-11-07.)
+- Las sesiones vencidas se borran solas (índice TTL).
+- **El ID token de Google se verifica en el backend sin SDK de Google**: firma RS256 contra las
+  claves públicas que publica Google, más `aud` (el client ID), `iss`, `exp` y `email_verified`.
+  Se guarda el `sub` de Google en el primer ingreso. En web, la app obtiene el token con el botón
+  que dibuja Google: `google_sign_in` no permite iniciar sesión por código. (M1, 2026-11-07.)
+- Un email sin cuenta que entra con Google recibe un rechazo claro con un código que no es 401,
+  porque la app trata 401 como "renovar el token".
+- El login, el registro y la recuperación tienen límite de intentos, y también la renovación del
+  token. Mientras el backend corra en una sola instancia, el límite se lleva en memoria.
 
 **Clubes y membresías**
 
@@ -80,6 +92,10 @@ Todos los documentos con `clubId` llevan además la auditoría que ya existe en 
 
 - Todo pedido autenticado indica en qué club actúa. El backend verifica que haya una membresía
   activa, que el rol alcance para la acción y **filtra cada consulta por ese `clubId`**.
+- **El club viaja en la ruta**: `/clubes/{clubId}/…`. Queda explícito en cada endpoint, es fácil
+  de auditar y de cubrir con el test de aislamiento, y no hace falta tocar CORS. Las rutas sin club
+  son solo las de la sesión (`/auth/…`) y la de "quién soy", que devuelve el usuario, sus clubes y
+  sus roles en cada uno. (Decidido en M1, 2026-11-07.)
 - Los recursos de plataforma (catálogo base, biblioteca de planes) se leen desde cualquier club y
   solo los escribe el administrador de plataforma.
 

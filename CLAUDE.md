@@ -72,6 +72,7 @@ Hosting (all free tier): the PWA goes on GitHub Pages, the API on Google Cloud R
 - `lib/features/<feature>/{data,domain,presentation}`. `domain/` is pure (entities, repository interfaces, use cases). Each feature's DI lives in `presentation/providers.dart`, so tests override the repository provider. Riverpod `Notifier`/`AsyncNotifier`, without codegen.
 - `lib/app/`: `MaterialApp.router`, `router.dart` (`Rutas`: `/entrenamiento`, `/planificacion` as `StatefulShellRoute` branches; features add child routes under their mode), `shell.dart` (applies each mode's theme, a bottom `NavigationBar` on compact screens and a `NavigationRail` from medium width up, plus the running timer bar), `modos.dart` (mode landing pages, placeholders for now).
 - `lib/core/red/cliente_api.dart`: HTTP client (`ErrorDeApi` carries the backend's `{error}`).
+- Offline: the `flutter_service_worker.js` that Flutter 3.47 generates is a stub that unregisters itself, so it caches nothing. The app ships its own service worker for the app shell, scoped to the Pages base path (`/maktub-barbell-club/`). The day's data (session, plan, references) is stored locally by the app itself, together with the retry queue. Decided in M1 on 2026-11-07, see `docs/work/M1-mvp/design.md`.
 - `features/temporizador`: `Crono` (immutable, measured against the wall clock) + `CronoController` (200 ms tick, haptics). It is the base for F8.
 
 ## Status
