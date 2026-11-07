@@ -2,12 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maktub_frontend/app/app.dart';
+import 'package:maktub_frontend/features/session/presentation/providers.dart';
+
+import '../features/session/fakes.dart';
 
 Future<void> _montar(WidgetTester tester, Size tamano) async {
   tester.view.physicalSize = tamano;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
-  await tester.pumpWidget(const ProviderScope(child: MaktubApp()));
+  // Signed in: without a session the router would stop at the sign-in screen.
+  await tester.pumpWidget(ProviderScope(
+    overrides: [
+      tokenStoreProvider.overrideWithValue(FakeTokenStore(issued(1))),
+      authApiProvider.overrideWithValue(FakeAuthApi()),
+    ],
+    child: const MaktubApp(),
+  ));
   await tester.pumpAndSettle();
 }
 

@@ -7,6 +7,8 @@ import '../data/http_auth_api.dart';
 import '../data/shared_preferences_token_store.dart';
 import '../domain/session_manager.dart';
 import '../domain/session_repositories.dart';
+import 'google_button/google_button.dart';
+import 'sign_in_controller.dart';
 
 final tokenStoreProvider = Provider<TokenStore>((ref) => SharedPreferencesTokenStore());
 
@@ -41,6 +43,12 @@ class SessionController extends Notifier<SessionStatus> {
 
   Future<void> signOut() => _manager.signOut();
 }
+
+/// Draws the sign-in button. Tests replace it with a plain button that hands over a fake ID token.
+final googleButtonProvider = Provider<GoogleButtonBuilder>((ref) => googleButton);
+
+final signInControllerProvider =
+    NotifierProvider.autoDispose<SignInController, SignInState>(SignInController.new);
 
 /// Adapts the session to what [ClienteApi] needs to authenticate its requests.
 class SessionTokenSource implements AccessTokenSource {

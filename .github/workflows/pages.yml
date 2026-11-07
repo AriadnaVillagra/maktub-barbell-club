@@ -18,6 +18,8 @@ concurrency:
 
 env:
   API_URL: https://maktub-api-312703406459.europe-north1.run.app
+  # OAuth client ID (docs/work/M1-mvp/E1.1-client-id-oauth.md). Not a secret.
+  GOOGLE_CLIENT_ID: 312703406459-c6kmar4snieeg2o1bqi8446rq498ujgg.apps.googleusercontent.com
 
 jobs:
   build:
@@ -49,6 +51,7 @@ jobs:
           --base-href "/${{ github.event.repository.name }}/"
           --no-web-resources-cdn
           --dart-define=API_URL=${{ env.API_URL }}
+          --dart-define=GOOGLE_CLIENT_ID=${{ env.GOOGLE_CLIENT_ID }}
 
       # Versions the service worker cache and lists the files to precache.
       - name: Sellar service worker

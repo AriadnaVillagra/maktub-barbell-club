@@ -26,6 +26,7 @@ class FakeTokenStore implements TokenStore {
 
 /// Each refresh waits on a [Completer] the test completes, so tests can line requests up behind it.
 class FakeAuthApi implements AuthApi {
+  final signInCalls = <String>[];
   final refreshCalls = <String>[];
   final logoutCalls = <String>[];
   final pendingRefreshes = <Completer<IssuedSession>>[];
@@ -35,6 +36,7 @@ class FakeAuthApi implements AuthApi {
 
   @override
   Future<IssuedSession> signInWithGoogle(String idToken, {String? device}) async {
+    signInCalls.add(idToken);
     if (signInError != null) throw signInError!;
     return signInResult;
   }
