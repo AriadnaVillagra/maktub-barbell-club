@@ -10,6 +10,16 @@ import 'package:mongo_dart/mongo_dart.dart';
 abstract final class Colecciones {
   /// One per device a user logged in from (F1). Global: no `clubId`.
   static const loginSessions = 'login_sessions';
+
+  /// Global: no `clubId`. `email` is stored normalized (`normalizarEmail`) and is unique.
+  static const usuarios = 'usuarios';
+  static const clubes = 'clubes';
+
+  /// One per (`clubId`, `usuarioId`).
+  static const membresias = 'membresias';
+
+  /// One per (`clubId`, `usuarioId`).
+  static const atletas = 'atletas';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -25,6 +35,24 @@ Future<Db> abrirMongo([String? url]) async {
 Future<void> asegurarIndices(Db db) async {
   // To list and revoke a user's sessions (e.g. "close all my other devices").
   await db.collection(Colecciones.loginSessions).createIndex(keys: {'userId': 1}, name: 'userId');
+
+  await db
+      .collection(Colecciones.usuarios)
+      .createIndex(keys: {'email': 1}, name: 'email_unico', unique: true);
+  await db
+      .collection(Colecciones.membresias)
+      .createIndex(
+        keys: {'clubId': 1, 'usuarioId': 1},
+        name: 'club_usuario_unico',
+        unique: true,
+      );
+  await db
+      .collection(Colecciones.atletas)
+      .createIndex(
+        keys: {'clubId': 1, 'usuarioId': 1},
+        name: 'club_usuario_unico',
+        unique: true,
+      );
 }
 
 /// Documento de Mongo (`_id`) → JSON del dominio (`id`).
