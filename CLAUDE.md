@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A training app for weightlifting and gym clubs: coaches plan, athletes run the day together from several devices in sync. Flutter PWA + Dart Frog + MongoDB. Code, identifiers and docs are in Spanish; keep new code in Spanish.
+A training app for weightlifting and gym clubs: coaches plan, athletes run the day together from several devices in sync. Flutter PWA + Dart Frog + MongoDB. Docs are in Spanish. Existing code is in Spanish; **new code is written in English** (decided 2026-11-07, without migrating what exists).
 
 **`docs/diseno.md` is the source of truth for the domain model, the decisions log, and the feature list ("Features" section) with dependencies.** Its section numbers change as it grows, so refer to sections by name. Read the relevant section before building a feature. It is maintained from a separate session: don't edit it; raise conflicts with the user instead.
 
@@ -43,9 +43,9 @@ scripts/desplegar-backend.sh                           # deploy API to Cloud Run
 ORIGENES_PERMITIDOS=https://<usuario>.github.io scripts/desplegar-backend.sh
 ```
 
-Production API: `https://maktub-api-312703406459.europe-north1.run.app` (GCP project `maktub-514012`). `MONGO_URL` comes from the Secret Manager secret `mongo-url`, read by the `maktub-api` service account. Atlas allows `0.0.0.0/0` because Cloud Run has no static egress IP. Budgets on the project: a $5 spend cap on Cloud Run plus a $5 alerts-only budget.
+Production API: `https://maktub-api-312703406459.europe-north1.run.app` (GCP project `maktub-514012`). `MONGO_URL` comes from the Secret Manager secret `mongo-url`, read by the `maktub-api` service account. Atlas allows `0.0.0.0/0` because Cloud Run has no static egress IP. The Atlas database user `contacto_db_user` has the built-in role "Read and write to any database" (not Atlas admin); that also covers index creation and `mongodump` for the backup. Budgets on the project: a $5 spend cap on Cloud Run plus a $5 alerts-only budget.
 
-Backend env vars: `MONGO_URL` (default `mongodb://localhost:27017/maktub`) and `ORIGENES_PERMITIDOS`, a comma-separated CORS allowlist such as `https://<usuario>.github.io`. `http://localhost:<any port>` is always allowed for development.
+Backend env vars: `MONGO_URL` (default `mongodb://localhost:27017/maktub`), `TOKEN_SECRET` (HMAC key for access tokens, ≥ 32 chars, from the Secret Manager secret `token-secret`; without it a random one is used per process, fine for development), and `ORIGENES_PERMITIDOS`, a comma-separated CORS allowlist such as `https://<usuario>.github.io`. `http://localhost:<any port>` is always allowed for development.
 
 Hosting (all free tier): the PWA goes on GitHub Pages, the API on Google Cloud Run in `europe-north1` as a plain Docker container, and MongoDB on Atlas M0. Keep the backend free of Google-specific APIs so the same image can move to any VM. The app and the API are on different sites, so auth travels in the `Authorization` header and never in cookies.
 
