@@ -51,4 +51,26 @@ void main() {
       expect(go(SessionStatus.signedIn, '${Rutas.signIn}?desde=%2F%2Fevil.example'), Rutas.entrenamiento);
     });
   });
+
+  group('signed in, planning permission', () {
+    String? goAs(bool? canPlan, String location) =>
+        sessionRedirect(SessionStatus.signedIn, Uri.parse(location), canPlan: canPlan);
+
+    test('without permission planning leads to training, also coming from sign-in', () {
+      expect(goAs(false, Rutas.planificacion), Rutas.entrenamiento);
+      expect(goAs(false, '${Rutas.planificacion}/algo'), Rutas.entrenamiento);
+      expect(goAs(false, '${Rutas.signIn}?desde=%2Fplanificacion'), Rutas.entrenamiento);
+      expect(goAs(false, Rutas.entrenamiento), isNull);
+    });
+
+    test('with permission planning stays', () {
+      expect(goAs(true, Rutas.planificacion), isNull);
+    });
+
+    test('while unknown, planning waits at the loading screen and training stays', () {
+      expect(goAs(null, Rutas.planificacion), '${Rutas.restoring}?desde=%2Fplanificacion');
+      expect(goAs(null, '${Rutas.restoring}?desde=%2Fplanificacion'), isNull);
+      expect(goAs(null, Rutas.entrenamiento), isNull);
+    });
+  });
 }

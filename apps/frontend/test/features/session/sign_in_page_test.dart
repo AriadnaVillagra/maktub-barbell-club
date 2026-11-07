@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/app/app.dart';
+import 'package:maktub_frontend/features/access/presentation/providers.dart';
 import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
 import 'package:maktub_frontend/features/session/presentation/sign_in_controller.dart';
 import 'package:maktub_frontend/features/session/presentation/sign_in_page.dart';
 
+import '../access/fakes.dart';
 import 'fakes.dart';
 
 /// The whole app with the repositories replaced and Google's button replaced by plain buttons: one
@@ -37,6 +40,9 @@ void main() {
       overrides: [
         tokenStoreProvider.overrideWithValue(store),
         authApiProvider.overrideWithValue(api),
+        meRepositoryProvider.overrideWithValue(
+          FakeMeRepository(meWith([(club('c1', 'Gimnasio', TipoClub.club), {Rol.coach})])),
+        ),
         googleButtonProvider.overrideWithValue(fakeGoogleButton),
       ],
       child: const MaktubApp(),

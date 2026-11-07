@@ -6,7 +6,10 @@ import 'router.dart';
 /// Without a session every route leads to sign-in; with one, sign-in leads into the app. The route
 /// the user asked for travels in `desde`, so a deep link survives the detour. The gallery (debug
 /// only) is open to everyone.
-String? sessionRedirect(SessionStatus status, Uri location) {
+///
+/// [canPlan] says whether the user can plan in the active club (null: not known yet). Without
+/// permission the planning routes lead to training; while unknown they wait at the loading screen.
+String? sessionRedirect(SessionStatus status, Uri location, {bool? canPlan = true}) {
   final path = location.path;
   if (path == Rutas.galeria) return null;
   final inSessionGate = path == Rutas.signIn || path == Rutas.restoring;
@@ -19,8 +22,18 @@ String? sessionRedirect(SessionStatus status, Uri location) {
   return switch (status) {
     SessionStatus.restoring => path == Rutas.restoring ? null : gate(Rutas.restoring),
     SessionStatus.signedOut => path == Rutas.signIn ? null : gate(Rutas.signIn),
-    SessionStatus.signedIn => inSessionGate ? _safeTarget(location.queryParameters[_from]) : null,
+    SessionStatus.signedIn => _signedIn(location, inSessionGate, canPlan, gate),
   };
+}
+
+String? _signedIn(Uri location, bool inSessionGate, bool? canPlan, String Function(String) gate) {
+  final target = inSessionGate ? _safeTarget(location.queryParameters[_from]) : location.toString();
+  final targetPath = Uri.parse(target).path;
+  if (targetPath == Rutas.planificacion || targetPath.startsWith('${Rutas.planificacion}/')) {
+    if (canPlan == null) return inSessionGate ? null : gate(Rutas.restoring);
+    if (!canPlan) return Rutas.entrenamiento;
+  }
+  return inSessionGate ? target : null;
 }
 
 const _from = 'desde';

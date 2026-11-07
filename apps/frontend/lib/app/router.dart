@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
+import '../features/access/presentation/providers.dart';
 import '../features/session/domain/session_manager.dart';
 import '../features/session/presentation/providers.dart';
 import '../features/session/presentation/sign_in_page.dart';
@@ -31,11 +32,14 @@ final routerProvider = Provider<GoRouter>((ref) {
   final session = ValueNotifier<SessionStatus>(ref.read(sessionControllerProvider));
   ref.listen(sessionControllerProvider, (_, status) => session.value = status);
   ref.onDispose(session.dispose);
+  final canPlan = ValueNotifier<bool?>(ref.read(canPlanProvider));
+  ref.listen(canPlanProvider, (_, value) => canPlan.value = value);
+  ref.onDispose(canPlan.dispose);
 
   final router = GoRouter(
     initialLocation: Rutas.entrenamiento,
-    refreshListenable: session,
-    redirect: (context, state) => sessionRedirect(session.value, state.uri),
+    refreshListenable: Listenable.merge([session, canPlan]),
+    redirect: (context, state) => sessionRedirect(session.value, state.uri, canPlan: canPlan.value),
     routes: [
       GoRoute(path: Rutas.signIn, builder: (_, _) => const SignInPage()),
       GoRoute(path: Rutas.restoring, builder: (_, _) => const SessionRestoringPage()),

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
+import '../features/access/presentation/providers.dart';
 import '../features/temporizador/presentation/widgets/barra_crono.dart';
 import 'preferencias.dart';
 
@@ -23,14 +24,18 @@ class ShellPrincipal extends ConsumerWidget {
 
   void _ir(int indice) => navegacion.goBranch(indice, initialLocation: indice == navegacion.currentIndex);
 
+  /// Indexes (into the branches) of the destinations the user can reach. Planning only shows up
+  /// with permission; while that isn't known yet it stays hidden.
+  static List<int> _visibles(bool canPlan) => [0, if (canPlan) 1];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => TemaDeModo(
         modo: _modos[navegacion.currentIndex],
         preferencia: ref.watch(preferenciaTemaProvider),
-        child: Builder(builder: _construir),
+        child: Builder(builder: (context) => _construir(context, _visibles(ref.watch(canPlanProvider) ?? false))),
       );
 
-  Widget _construir(BuildContext context) {
+  Widget _construir(BuildContext context, List<int> visibles) {
     final contenido = Column(
       children: [
         Expanded(child: navegacion),
@@ -38,16 +43,19 @@ class ShellPrincipal extends ConsumerWidget {
       ],
     );
 
+    // A single destination has nowhere to navigate to, so there is no bar.
+    if (visibles.length < 2) return Scaffold(body: contenido);
+
     if (context.tamanoPantalla != TamanoPantalla.compacto) {
       return Scaffold(
         body: Row(
           children: [
             NavigationRail(
-              selectedIndex: navegacion.currentIndex,
-              onDestinationSelected: _ir,
+              selectedIndex: visibles.indexOf(navegacion.currentIndex).clamp(0, visibles.length - 1),
+              onDestinationSelected: (i) => _ir(visibles[i]),
               labelType: NavigationRailLabelType.all,
               destinations: [
-                for (final d in _destinos)
+                for (final d in [for (final i in visibles) _destinos[i]])
                   NavigationRailDestination(
                     icon: Icon(d.icono),
                     selectedIcon: Icon(d.seleccionado),
@@ -65,10 +73,10 @@ class ShellPrincipal extends ConsumerWidget {
     return Scaffold(
       body: contenido,
       bottomNavigationBar: NavigationBar(
-        selectedIndex: navegacion.currentIndex,
-        onDestinationSelected: _ir,
+        selectedIndex: visibles.indexOf(navegacion.currentIndex).clamp(0, visibles.length - 1),
+        onDestinationSelected: (i) => _ir(visibles[i]),
         destinations: [
-          for (final d in _destinos)
+          for (final d in [for (final i in visibles) _destinos[i]])
             NavigationDestination(icon: Icon(d.icono), selectedIcon: Icon(d.seleccionado), label: d.etiqueta),
         ],
       ),
