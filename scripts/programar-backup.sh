@@ -5,13 +5,16 @@
 #
 #   scripts/programar-backup.sh
 #
-# Overridable: PROYECTO, REGION, BUCKET_BACKUPS, HORARIO (cron), ZONA_HORARIA.
+# Overridable: PROYECTO, REGION, REGION_PLANIFICADOR, BUCKET_BACKUPS, HORARIO (cron), ZONA_HORARIA.
+# Cloud Scheduler is not offered in europe-north1, so the schedule lives in europe-west1;
+# it only sends an HTTP call to the job, which still runs in REGION.
 # Default schedule: every day at 04:00 Europe/Madrid (quiet hour for the club).
 # MONGO_URL comes from the `mongo-url` secret, never from the repo.
 set -euo pipefail
 
 PROYECTO="${PROYECTO:-maktub-514012}"
 REGION="${REGION:-europe-north1}"
+REGION_PLANIFICADOR="${REGION_PLANIFICADOR:-europe-west1}"
 BUCKET_BACKUPS="${BUCKET_BACKUPS:-${PROYECTO}-backups}"
 TRABAJO="${TRABAJO:-maktub-backup}"
 PLANIFICADOR="${PLANIFICADOR:-maktub-backup-diario}"
@@ -59,20 +62,20 @@ done
 
 echo "▸ Programación diaria (${HORARIO} ${ZONA_HORARIA})…"
 URI="https://run.googleapis.com/v2/projects/${PROYECTO}/locations/${REGION}/jobs/${TRABAJO}:run"
-if gcloud scheduler jobs describe "$PLANIFICADOR" --project "$PROYECTO" --location "$REGION" >/dev/null 2>&1; then
+if gcloud scheduler jobs describe "$PLANIFICADOR" --project "$PROYECTO" --location "$REGION_PLANIFICADOR" >/dev/null 2>&1; then
   ACCION=update
 else
   ACCION=create
 fi
 gcloud scheduler jobs "$ACCION" http "$PLANIFICADOR" \
-  --project "$PROYECTO" --location "$REGION" \
+  --project "$PROYECTO" --location "$REGION_PLANIFICADOR" \
   --schedule "$HORARIO" --time-zone "$ZONA_HORARIA" \
   --uri "$URI" --http-method POST \
   --oauth-service-account-email "$CUENTA_DISPARO_EMAIL" \
   --attempt-deadline 60s \
   --quiet
 # Make sure it is enabled even if someone paused it.
-gcloud scheduler jobs resume "$PLANIFICADOR" --project "$PROYECTO" --location "$REGION" >/dev/null
+gcloud scheduler jobs resume "$PLANIFICADOR" --project "$PROYECTO" --location "$REGION_PLANIFICADOR" >/dev/null
 
 echo "✓ Backup programado: job ${TRABAJO}, planificador ${PLANIFICADOR}"
 echo "  Ejecutar ahora:  gcloud run jobs execute ${TRABAJO} --project ${PROYECTO} --region ${REGION} --wait"
