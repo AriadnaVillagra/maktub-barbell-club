@@ -22,7 +22,18 @@ RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
 export PATH="$PATH:$HOME/.pub-cache/bin"
 
 echo "▸ Build de producción (Dart Frog)…"
-(cd "$RAIZ/apps/backend" && dart_frog build)
+SALIDA_BUILD="$(cd "$RAIZ/apps/backend" && dart_frog build 2>&1)" || { echo "$SALIDA_BUILD"; exit 1; }
+echo "$SALIDA_BUILD"
+# Dart Frog only warns about a rogue route (x.dart next to an x/ folder) and then drops it from the server.
+if grep -q "Rogue route" <<<"$SALIDA_BUILD"; then
+  echo "✗ Hay rutas que Dart Frog descarta (ver arriba). Movelas a <carpeta>/index.dart." >&2
+  exit 1
+fi
+
+# Compile here what Cloud Build compiles: route handlers with the wrong parameters (e.g. missing
+# clubId under routes/clubes/[clubId]/) only fail at this step, never in tests or the analyzer.
+echo "▸ Compilando el servidor como en Cloud Build…"
+(cd "$RAIZ/apps/backend/build" && dart pub get >/dev/null && dart compile exe bin/server.dart -o "$(mktemp -d)/server" >/dev/null)
 
 echo "▸ Desplegando ${SERVICIO} en ${REGION}…"
 gcloud run deploy "$SERVICIO" \
