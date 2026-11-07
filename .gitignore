@@ -22,3 +22,6 @@ reference/
 
 # Planillas con datos personales de entrenamiento (repo publico): nunca al repo
 docs/planillas/
+
+# Worktrees de agentes de Claude Code
+.claude/worktrees/
