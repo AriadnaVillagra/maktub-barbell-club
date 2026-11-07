@@ -8,7 +8,8 @@
 # - una sola instancia (--max-instances 1): la difusión en vivo es en memoria;
 # - escala a cero (--min-instances 0): gratis cuando nadie lo usa;
 # - timeout de 60 min: tope de una conexión WebSocket; el cliente reconecta y resincroniza;
-# - MONGO_URL sale del secreto `mongo-url`, nunca del repo.
+# - MONGO_URL sale del secreto `mongo-url` y TOKEN_SECRET de `token-secret`, nunca del repo
+#   (los dos los crea o habilita scripts/gcp-preparar.sh).
 set -euo pipefail
 
 PROYECTO="${PROYECTO:-maktub-514012}"
@@ -36,7 +37,7 @@ gcloud run deploy "$SERVICIO" \
   --memory 256Mi \
   --concurrency 80 \
   --timeout 3600 \
-  --set-secrets "MONGO_URL=mongo-url:latest" \
+  --set-secrets "MONGO_URL=mongo-url:latest,TOKEN_SECRET=token-secret:latest" \
   --set-env-vars "^|^ORIGENES_PERMITIDOS=${ORIGENES}" \
   --quiet
 

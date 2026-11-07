@@ -10,6 +10,7 @@ dependencies:
   dart_frog: ^1.2.6
   maktub_core:
     path: ../../packages/maktub_core
+  crypto: 3.0.8
   mongo_dart: ^0.10.10
 
 dev_dependencies:

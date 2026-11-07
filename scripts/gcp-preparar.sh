@@ -14,19 +14,28 @@ echo "▸ Habilitando APIs en ${PROYECTO}…"
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   secretmanager.googleapis.com --project "$PROYECTO"
 
-echo "▸ Cuenta de servicio de la API (solo puede leer su secreto)…"
+echo "▸ Secreto para firmar los tokens de acceso (token-secret)…"
+# Generated once and never printed. Rotating it only forces every app to renew its access token.
+if ! gcloud secrets describe token-secret --project "$PROYECTO" >/dev/null 2>&1; then
+  openssl rand -base64 48 | tr -d '\n' |
+    gcloud secrets create token-secret --project "$PROYECTO" --replication-policy automatic --data-file=- >/dev/null
+fi
+
+echo "▸ Cuenta de servicio de la API (solo puede leer sus secretos)…"
 if ! gcloud iam service-accounts describe "$CUENTA_EMAIL" --project "$PROYECTO" >/dev/null 2>&1; then
   gcloud iam service-accounts create "$CUENTA" --project "$PROYECTO" --display-name "API de Maktub (Cloud Run)"
 fi
 # Una cuenta recién creada tarda unos segundos en ser visible para IAM: se reintenta.
-for intento in 1 2 3 4 5 6; do
-  if gcloud secrets add-iam-policy-binding mongo-url --project "$PROYECTO" \
-    --member "serviceAccount:${CUENTA_EMAIL}" --role roles/secretmanager.secretAccessor >/dev/null 2>&1; then
-    break
-  fi
-  [ "$intento" = 6 ] && { echo "✗ No se pudo dar acceso al secreto mongo-url"; exit 1; }
-  echo "  esperando a que la cuenta esté disponible (${intento}/6)…"
-  sleep 10
+for secreto in mongo-url token-secret; do
+  for intento in 1 2 3 4 5 6; do
+    if gcloud secrets add-iam-policy-binding "$secreto" --project "$PROYECTO" \
+      --member "serviceAccount:${CUENTA_EMAIL}" --role roles/secretmanager.secretAccessor >/dev/null 2>&1; then
+      break
+    fi
+    [ "$intento" = 6 ] && { echo "✗ No se pudo dar acceso al secreto ${secreto}"; exit 1; }
+    echo "  esperando a que la cuenta esté disponible (${intento}/6)…"
+    sleep 10
+  done
 done
 
 echo "▸ Permisos para construir desde el código (Cloud Build usa la cuenta de Compute por defecto)…"
