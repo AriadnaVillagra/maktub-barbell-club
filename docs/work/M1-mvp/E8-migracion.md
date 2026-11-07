@@ -55,4 +55,16 @@ cubre, la migración queda incompleta y 8.2, 8.3 y el criterio 10 no se pueden d
 
 ## Issues
 
-Se completa al derivar los issues de esta épica.
+| # | Issue | Depende de |
+|---|---|---|
+| E8.1 | [Exportar las hojas de la planilla a CSV](E8.1-exportar-csv-planilla.md) | — |
+| E8.2 | [Importador del catálogo](E8.2-importador-catalogo.md) | E8.1, E2.7 |
+| E8.3 | [Importador de atletas, RMs y kilajes](E8.3-importador-atletas-rms-kilajes.md) | E8.1, E8.2, E1.9, E3.2, E3.3 |
+| E8.4 | [Importador de planes, con octubre corregido](E8.4-importador-planes.md) | E8.1, E8.2, E5.3 |
+| E8.5 | [Importador del historial](E8.5-importador-historial.md) | E8.1, E8.3, E8.4, E7.3 |
+| E8.6 | [Verificación de la migración](E8.6-verificacion-migracion.md) | E8.2, E8.3, E8.4, E8.5 |
+
+**En paralelo:**
+- E8.1 es manual, va adelantado (D12) y no depende de nada.
+- E8.3 y E8.4 se pueden tomar a la vez después de E8.2.
+- E8.5 espera a los dos, y E8.6 cierra la épica.

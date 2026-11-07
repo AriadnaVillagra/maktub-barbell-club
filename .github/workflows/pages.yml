@@ -50,6 +50,10 @@ jobs:
           --no-web-resources-cdn
           --dart-define=API_URL=${{ env.API_URL }}
 
+      # Versions the service worker cache and lists the files to precache.
+      - name: Sellar service worker
+        run: scripts/sellar-service-worker.sh apps/frontend/build/web
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: apps/frontend/build/web
