@@ -87,6 +87,42 @@ void main() {
     expect(api.refreshCalls, hasLength(1));
   });
 
+  test('if another tab already rotated the tokens, it adopts them instead of refreshing', () async {
+    await signedIn();
+    store.saved = issued(2); // the other tab refreshed and saved
+
+    expect(await manager.renewAfterUnauthorized('access-1'), isTrue);
+
+    expect(api.refreshCalls, isEmpty);
+    expect(await manager.currentAccessToken(), 'access-2');
+    expect(manager.status, SessionStatus.signedIn);
+  });
+
+  test('when the adopted token is rejected too, it refreshes with the adopted refresh token', () async {
+    await signedIn();
+    store.saved = issued(2);
+    await manager.renewAfterUnauthorized('access-1');
+
+    final renewal = manager.renewAfterUnauthorized('access-2');
+    await pumpEventQueue();
+    expect(api.refreshCalls, ['refresh-2']);
+    api.pendingRefreshes.single.complete(issued(3));
+
+    expect(await renewal, isTrue);
+    expect(store.saved?.refreshToken, 'refresh-3');
+  });
+
+  test('if another tab signed out, a 401 signs this one out without calling the API', () async {
+    await signedIn();
+    store.saved = null;
+
+    expect(await manager.renewAfterUnauthorized('access-1'), isFalse);
+
+    expect(api.refreshCalls, isEmpty);
+    expect(manager.status, SessionStatus.signedOut);
+    expect(await manager.currentAccessToken(), isNull);
+  });
+
   test('a rejected refresh clears the tokens and signs out', () async {
     await signedIn();
     final statuses = <SessionStatus>[];

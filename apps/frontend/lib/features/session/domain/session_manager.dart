@@ -12,6 +12,8 @@ enum SessionStatus { restoring, signedIn, signedOut }
 /// The refresh token rotates on every use and the API treats a reused one as theft, so two
 /// refreshes must never run at once: every request that gets a 401 while a refresh is in flight
 /// waits for that same refresh, and a 401 for a token that was already replaced just retries.
+/// Across tabs, a refresh first checks the saved tokens and adopts them if another tab rotated them;
+/// only two tabs refreshing in the very same instant can still trip the API's reuse check.
 class SessionManager {
   SessionManager(this._store, this._api);
 
@@ -75,6 +77,22 @@ class SessionManager {
 
   Future<bool> _renew(IssuedSession current) async {
     final epoch = _epoch;
+    // Other tabs (or the installed PWA next to a tab) share the saved tokens but each holds its own
+    // copy in memory. If another one already rotated the refresh token, sending ours would look like
+    // reuse to the API and revoke the session: take the saved tokens instead of refreshing.
+    final saved = await _store.read();
+    if (epoch != _epoch) return _session != null;
+    if (saved == null) {
+      // Another tab signed out, which revoked this session in the API too.
+      _epoch++;
+      _session = null;
+      _setStatus(SessionStatus.signedOut);
+      return false;
+    }
+    if (saved.refreshToken != current.refreshToken) {
+      _session = saved;
+      return true;
+    }
     try {
       final next = await _api.refresh(current.refreshToken);
       if (epoch != _epoch) return _session != null;
