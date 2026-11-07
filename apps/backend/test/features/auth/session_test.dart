@@ -26,7 +26,7 @@ class _FakeSessions implements StartSessionStore, RefreshSessionStore, EndSessio
     required DateTime createdAt,
     required DateTime expiresAt,
   }) async {
-    rows[id] = {'userId': userId, 'refreshHash': refreshHash, 'device': device, 'expiresAt': expiresAt, 'revokedAt': null};
+    rows[id] = {'userId': userId, 'refreshHash': refreshHash, 'previousHashes': <String>[], 'device': device, 'expiresAt': expiresAt, 'revokedAt': null};
   }
 
   @override
@@ -36,6 +36,7 @@ class _FakeSessions implements StartSessionStore, RefreshSessionStore, EndSessio
     return (
       userId: r['userId']! as String,
       refreshHash: r['refreshHash']! as String,
+      previousHashes: (r['previousHashes']! as List).cast<String>(),
       expiresAt: r['expiresAt']! as DateTime,
       revoked: r['revokedAt'] != null,
     );
@@ -45,6 +46,7 @@ class _FakeSessions implements StartSessionStore, RefreshSessionStore, EndSessio
   Future<bool> rotate(String sessionId, {required String expectedHash, required String newHash, required DateTime expiresAt, required DateTime now}) async {
     final r = rows[sessionId];
     if (r == null || r['refreshHash'] != expectedHash || r['revokedAt'] != null) return false;
+    (r['previousHashes']! as List).add(expectedHash);
     r
       ..['refreshHash'] = newHash
       ..['expiresAt'] = expiresAt;
@@ -144,6 +146,28 @@ void main() {
       await expectLater(refresh(first.refreshToken), throwsUnauthorized());
       expect(sessions.isRevoked(sessionIdOf(first.refreshToken)), isTrue);
       await expectLater(refresh(second.refreshToken), throwsUnauthorized());
+    });
+
+    test('a secret that was never issued is rejected and the session stays active', () async {
+      final issued = await start(userId: 'u1');
+      final id = sessionIdOf(issued.refreshToken);
+
+      await expectLater(refresh('$id.never-issued'), throwsUnauthorized());
+
+      expect(sessions.isRevoked(id), isFalse);
+      expect((await refresh(issued.refreshToken)).refreshToken, isNotEmpty);
+    });
+
+    test('reusing a rotated token does not touch the other devices of the user', () async {
+      final phone = await start(userId: 'u1', device: 'phone');
+      final laptop = await start(userId: 'u1', device: 'laptop');
+      await refresh(phone.refreshToken);
+
+      await expectLater(refresh(phone.refreshToken), throwsUnauthorized());
+
+      expect(sessions.isRevoked(sessionIdOf(phone.refreshToken)), isTrue);
+      expect(sessions.isRevoked(sessionIdOf(laptop.refreshToken)), isFalse);
+      expect((await refresh(laptop.refreshToken)).refreshToken, isNotEmpty);
     });
 
     test('an expired, unknown or malformed refresh token is rejected', () async {

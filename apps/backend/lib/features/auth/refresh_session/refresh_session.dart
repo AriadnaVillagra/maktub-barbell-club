@@ -19,8 +19,9 @@ const invalidSession = ErrorDeSolicitud('La sesión no es válida. Volvé a inic
 
 /// Renews a session and rotates its refresh token.
 ///
-/// Presenting a refresh token that is not the current one (already rotated, or two refreshes racing)
-/// is treated as theft: the whole session of that device is revoked and the app has to log in again.
+/// Presenting a refresh token that was valid once and has been rotated (or two refreshes racing)
+/// is treated as theft: the session of that device is revoked and the app has to log in again.
+/// Any other wrong secret was never issued, so it is just rejected and revokes nothing.
 class RefreshSession {
   RefreshSession(this._store, this._codec, {DateTime Function()? now}) : _now = now ?? DateTime.now;
 
@@ -37,7 +38,9 @@ class RefreshSession {
     if (session == null || session.revoked || !now.isBefore(session.expiresAt)) throw invalidSession;
 
     if (!sameText(presented.hash, session.refreshHash)) {
-      await _store.revoke(presented.sessionId, now);
+      if (session.previousHashes.any((old) => sameText(presented.hash, old))) {
+        await _store.revoke(presented.sessionId, now);
+      }
       throw invalidSession;
     }
 
