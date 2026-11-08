@@ -113,4 +113,58 @@ void main() {
       expect(codes, contains(PlanProblemCode.assignmentUnknownModel));
     },
   );
+
+  group('blocks', () {
+    PlanDraft withDay() => empty().addModel('A');
+    PlanBlock block(String name) => PlanBlock(name: name, categoryId: 'c');
+    List<String> names(PlanDraft d, [int day = 0]) => [
+      for (final b in d.weekModels[0].days[day].blocks) b.name,
+    ];
+
+    test('adds at the end, keeps order and leaves the block as given', () {
+      final base = withDay();
+      final id = base.weekModels[0].id;
+      final d = base.addBlock(id, 0, block('x')).addBlock(id, 0, block('y'));
+      expect(names(d), ['x', 'y']);
+      expect(d.weekModels[0].days[0].blocks[0].prescriptions, isEmpty);
+      expect(
+        d.weekModels[0].days[0].blocks[0].executionMode,
+        ExecutionMode.sequential,
+      );
+      expect(d.isDirty, isTrue);
+      expect(names(base), isEmpty, reason: 'immutable');
+    });
+
+    test('moves, updates and removes, leaving other days untouched', () {
+      final base = withDay();
+      final id = base.weekModels[0].id;
+      var d = base.addDay(id);
+      d = d.addBlock(id, 0, block('a')).addBlock(id, 0, block('b'));
+      d = d.addBlock(id, 0, block('c')).addBlock(id, 1, block('z'));
+      d = d.moveBlock(id, 0, 0, 2);
+      expect(names(d), ['b', 'c', 'a']);
+      d = d.updateBlock(
+        id,
+        0,
+        1,
+        (b) => PlanBlock(name: 'C2', categoryId: 'k', timerId: 't'),
+      );
+      expect(d.weekModels[0].days[0].blocks[1].timerId, 't');
+      d = d.removeBlock(id, 0, 0);
+      expect(names(d), ['C2', 'a']);
+      expect(names(d, 1), ['z']);
+    });
+
+    test('out-of-range operations return the same draft', () {
+      final d = withDay();
+      final id = d.weekModels[0].id;
+      final one = d.addBlock(id, 0, block('a'));
+      expect(identical(one.addBlock(id, 5, block('x')), one), isTrue);
+      expect(identical(one.addBlock('nope', 0, block('x')), one), isTrue);
+      expect(identical(one.removeBlock(id, 0, 3), one), isTrue);
+      expect(identical(one.moveBlock(id, 0, 0, 1), one), isTrue);
+      expect(identical(one.moveBlock(id, 0, 0, 0), one), isTrue);
+      expect(identical(one.updateBlock(id, 0, 2, (b) => b), one), isTrue);
+    });
+  });
 }

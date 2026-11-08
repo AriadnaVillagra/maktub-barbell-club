@@ -10,6 +10,7 @@ import 'package:maktub_frontend/features/plan/presentation/plan_editor_page.dart
 import 'package:maktub_frontend/features/plan/presentation/plans_page.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
 
+import '../catalogo/catalog_admin_fakes.dart';
 import '../session/fakes.dart';
 import 'fakes.dart';
 
@@ -323,6 +324,160 @@ void main() {
         expect(find.text('lista'), findsOneWidget);
       },
     );
+  });
+
+  group('blocks', () {
+    final catalog = FakeCatalogAdminRepository(
+      categoriesList: [
+        category('warm', 'Calentamiento'),
+        category('main', 'Principal'),
+        category('old', 'Vieja', status: CatalogStatus.archived),
+      ],
+      timersList: [
+        timer('rest90', 'Descanso 90'),
+        timer('emom', 'EMOM 10', type: TipoTemporizador.emom),
+        timer('gone', 'Archivado', status: CatalogStatus.archived),
+      ],
+    );
+
+    Future<void> open(WidgetTester tester, [Plan? plan]) async {
+      await pumpPlanPage(
+        tester,
+        const PlanEditorPage(planId: 'p1', listPath: '/x'),
+        FakePlanRepository(
+          plans: [
+            plan ??
+                samplePlan(
+                  models: [model('a', 'A', 1)],
+                  assignment: ['a', 'a', 'a', 'a'],
+                ),
+          ],
+        ),
+        catalog: catalog,
+      );
+    }
+
+    Future<void> pick(WidgetTester tester, Key field, String text) async {
+      await tester.tap(find.byKey(field));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(text).last);
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> addBlock(
+      WidgetTester tester,
+      String name,
+      String category, {
+      String? timer,
+    }) async {
+      await tester.tap(find.byKey(const Key('block-add-a-0')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('block-name-field')), name);
+      await pick(tester, const Key('block-category-field'), category);
+      if (timer != null) {
+        await pick(tester, const Key('block-timer-field'), timer);
+      }
+      await tester.tap(find.byKey(const Key('block-ok')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('a new day starts empty; the dialog needs name and category', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(find.text('0 bloques'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('block-add-a-0')));
+      await tester.pumpAndSettle();
+      FilledButton ok() =>
+          tester.widget<FilledButton>(find.byKey(const Key('block-ok')));
+      expect(ok().onPressed, isNull);
+      await tester.enterText(find.byKey(const Key('block-name-field')), 'WoD');
+      await tester.pump();
+      expect(ok().onPressed, isNull, reason: 'the category is required');
+      await pick(tester, const Key('block-category-field'), 'Principal');
+      expect(ok().onPressed, isNotNull);
+      await tester.tap(find.byKey(const Key('block-category-field')));
+      await tester.pumpAndSettle();
+      expect(find.text('Vieja'), findsNothing, reason: 'archived is hidden');
+    });
+
+    testWidgets('builds the 5 reference blocks with name, category and timer', (
+      tester,
+    ) async {
+      await open(tester);
+      const names = ['Estiramiento', 'Calentamiento', 'Principal', 'Final'];
+      for (final n in names) {
+        await addBlock(tester, n, 'Calentamiento');
+      }
+      await addBlock(tester, 'WoD', 'Principal', timer: 'Descanso 90');
+      expect(find.text('5 bloques'), findsOneWidget);
+      for (var i = 0; i < 5; i++) {
+        expect(find.byKey(Key('block-a-0-$i')), findsOneWidget);
+      }
+      expect(find.text('Principal · Descanso: Descanso 90'), findsOneWidget);
+      expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('block-add-a-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('block-timer-field')));
+      await tester.pumpAndSettle();
+      expect(find.text('Descanso 90'), findsOneWidget);
+      expect(find.text('EMOM 10'), findsNothing, reason: 'only rest timers');
+      expect(find.text('Archivado'), findsNothing);
+    });
+
+    testWidgets('a block can be edited, reordered and removed', (tester) async {
+      await open(tester);
+      await addBlock(tester, 'Uno', 'Calentamiento');
+      await addBlock(tester, 'Dos', 'Principal');
+
+      await tester.tap(find.byKey(const Key('block-down-a-0-0')));
+      await tester.pump();
+      expect(
+        tester.getTopLeft(find.text('Uno')).dy >
+            tester.getTopLeft(find.text('Dos')).dy,
+        isTrue,
+      );
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const Key('block-up-a-0-0')))
+            .onPressed,
+        isNull,
+      );
+
+      // "Uno" is now second: edit it.
+      await tester.tap(find.byKey(const Key('block-a-0-1')));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<TextField>(find.byKey(const Key('block-name-field')))
+            .controller!
+            .text,
+        'Uno',
+      );
+      await tester.enterText(
+        find.byKey(const Key('block-name-field')),
+        'Uno bis',
+      );
+      await pick(tester, const Key('block-category-field'), 'Principal');
+      await pick(tester, const Key('block-timer-field'), 'Descanso 90');
+      await tester.tap(find.byKey(const Key('block-ok')));
+      await tester.pumpAndSettle();
+      expect(find.text('Uno bis'), findsOneWidget);
+      expect(find.text('Principal · Descanso: Descanso 90'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('block-remove-a-0-0')));
+      await tester.pump();
+      expect(find.text('Dos'), findsNothing);
+      expect(find.text('1 bloque'), findsOneWidget);
+    });
+
+    testWidgets('an empty block stays empty', (tester) async {
+      await open(tester);
+      await addBlock(tester, 'Final', 'Principal');
+      expect(find.text('Final'), findsOneWidget);
+      expect(find.text('1 bloque'), findsOneWidget);
+    });
   });
 
   group('navigation', () {

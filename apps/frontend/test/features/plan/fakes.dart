@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
+import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/plan/domain/plan_repository.dart';
 import 'package:maktub_frontend/features/plan/presentation/providers.dart';
 import 'package:maktub_frontend/features/session/domain/session_manager.dart';
@@ -11,6 +12,7 @@ import 'package:maktub_frontend/features/session/presentation/providers.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../access/fakes.dart';
+import '../catalogo/catalog_admin_fakes.dart';
 
 Plan samplePlan({
   String id = 'p1',
@@ -86,7 +88,14 @@ class _SignedIn extends SessionController {
 List<Override> planOverrides(
   FakePlanRepository repo, {
   Set<Rol> roles = const {Rol.coach},
+  FakeCatalogAdminRepository? catalog,
 }) => [
+  catalogRepositoryProvider.overrideWithValue(
+    catalog ?? FakeCatalogAdminRepository(),
+  ),
+  catalogAdminRepositoryProvider.overrideWithValue(
+    catalog ?? FakeCatalogAdminRepository(),
+  ),
   sessionControllerProvider.overrideWith(_SignedIn.new),
   meRepositoryProvider.overrideWithValue(
     FakeMeRepository(meWith([(club('c1', 'Gimnasio', TipoClub.club), roles)])),
@@ -97,14 +106,15 @@ List<Override> planOverrides(
 Future<void> pumpPlanPage(
   WidgetTester tester,
   Widget page,
-  FakePlanRepository repo,
-) async {
+  FakePlanRepository repo, {
+  FakeCatalogAdminRepository? catalog,
+}) async {
   tester.view.physicalSize = const Size(900, 1800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: planOverrides(repo),
+      overrides: planOverrides(repo, catalog: catalog),
       child: MaterialApp(theme: TemaMaktub.claro(), home: page),
     ),
   );

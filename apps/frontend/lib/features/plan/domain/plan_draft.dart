@@ -4,8 +4,8 @@ import 'package:maktub_core/maktub_core.dart';
 /// assignment and the days of each model) on top of the [base] plan it came from.
 ///
 /// Immutable; every operation returns a new draft, and an operation that would break a structural limit
-/// (7 days, 4 weeks) returns the same draft. Blocks, prescriptions and sets travel untouched inside
-/// each [PlanDay]: E5.6 to E5.8 add their operations here.
+/// (7 days, 4 weeks) returns the same draft. Blocks are edited here (E5.6); prescriptions and sets travel
+/// untouched inside each block: E5.7 and E5.8 add their operations.
 class PlanDraft {
   const PlanDraft({
     required this.base,
@@ -149,6 +149,73 @@ class PlanDraft {
       days.insert(to, days.removeAt(from));
       return WeekModel(id: m.id, name: m.name, days: days);
     });
+  }
+
+  /// Appends [block] to the end of the day. The block is added as given: nothing is filled in for it.
+  PlanDraft addBlock(String modelId, int day, PlanBlock block) =>
+      _mapDay(day: day, modelId, (d) => _withBlocks(d, [...d.blocks, block]));
+
+  PlanDraft removeBlock(String modelId, int day, int index) => _mapDay(
+    modelId,
+    day: day,
+    index: index,
+    (d) => _withBlocks(d, [...d.blocks]..removeAt(index)),
+  );
+
+  /// Moves the block at [from] so it ends up at index [to] (both 0-based, inside the list).
+  PlanDraft moveBlock(String modelId, int day, int from, int to) {
+    final n = _dayOf(modelId, day)?.blocks.length ?? 0;
+    if (from < 0 || from >= n || to < 0 || to >= n || from == to) return this;
+    return _mapDay(modelId, day: day, (d) {
+      final blocks = [...d.blocks];
+      blocks.insert(to, blocks.removeAt(from));
+      return _withBlocks(d, blocks);
+    });
+  }
+
+  /// Replaces the block at [index] with the result of [change]; its prescriptions are not touched.
+  PlanDraft updateBlock(
+    String modelId,
+    int day,
+    int index,
+    PlanBlock Function(PlanBlock) change,
+  ) => _mapDay(
+    modelId,
+    day: day,
+    index: index,
+    (d) => _withBlocks(d, [
+      for (final (i, b) in d.blocks.indexed) i == index ? change(b) : b,
+    ]),
+  );
+
+  PlanDay? _dayOf(String modelId, int day) {
+    final days = modelById(modelId)?.days;
+    return days == null || day < 0 || day >= days.length ? null : days[day];
+  }
+
+  PlanDay _withBlocks(PlanDay d, List<PlanBlock> blocks) =>
+      PlanDay(name: d.name, blocks: blocks);
+
+  /// Applies [change] to a day; returns this draft if the day (or the block [index], when given) is missing.
+  PlanDraft _mapDay(
+    String modelId,
+    PlanDay Function(PlanDay) change, {
+    required int day,
+    int? index,
+  }) {
+    final d = _dayOf(modelId, day);
+    if (d == null) return this;
+    if (index != null && (index < 0 || index >= d.blocks.length)) return this;
+    return _mapModel(
+      modelId,
+      (m) => WeekModel(
+        id: m.id,
+        name: m.name,
+        days: [
+          for (final (i, x) in m.days.indexed) i == day ? change(x) : x,
+        ],
+      ),
+    );
   }
 
   PlanDraft _mapModel(String id, WeekModel Function(WeekModel) change) =>

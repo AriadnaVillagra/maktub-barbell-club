@@ -5,7 +5,10 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
+import '../../catalogo/presentation/catalog_admin_providers.dart';
+import '../../catalogo/presentation/exercise_catalog_providers.dart';
 import '../domain/plan_draft.dart';
+import 'block_dialog.dart';
 import 'plan_dialogs.dart';
 import 'plan_labels.dart';
 import 'providers.dart';
@@ -13,8 +16,7 @@ import 'providers.dart';
 /// Editor of a plan's structure: week models, the assignment of the 4 weeks and the days of each model.
 /// Everything is in memory; saving is E5.9. Leaving with changes asks before discarding them.
 ///
-/// Extension points: E5.6 adds the blocks inside [_DayTile], E5.7 and E5.8 the prescriptions and sets
-/// below them, and E5.9 the save action in the app bar (it reads `PlanDraft.toPlan`).
+/// Extension points: E5.7 and E5.8 add the prescriptions and sets below the blocks in [_BlockTile], and E5.9 the save action in the app bar (it reads `PlanDraft.toPlan`).
 class PlanEditorPage extends ConsumerWidget {
   const PlanEditorPage({
     super.key,
@@ -245,8 +247,8 @@ class _ModelCard extends StatelessWidget {
   }
 }
 
-/// One day of a week model. Blocks (E5.6) will render as its children.
-class _DayTile extends StatelessWidget {
+/// One day of a week model with its ordered blocks (add, edit, reorder, remove).
+class _DayTile extends ConsumerWidget {
   const _DayTile({
     super.key,
     required this.modelId,
@@ -265,41 +267,188 @@ class _DayTile extends StatelessWidget {
   final PlanEditor editor;
 
   @override
-  Widget build(BuildContext context) => ListTile(
-    contentPadding: EdgeInsets.zero,
-    leading: const Icon(Icons.today_outlined),
-    title: Text(day.name ?? 'Día ${index + 1}'),
-    subtitle: Text(
-      day.blocks.length == 1 ? '1 bloque' : '${day.blocks.length} bloques',
-    ),
-    trailing: Row(
-      mainAxisSize: MainAxisSize.min,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final categories = ref.watch(catalogCategoriesProvider).value ?? const [];
+    final timers = ref.watch(clubTimersProvider).value ?? const [];
+    String? categoryName(String? id) {
+      for (final c in categories) {
+        if (c.id == id) return c.name;
+      }
+      return null;
+    }
+
+    String? timerName(String? id) {
+      for (final t in timers) {
+        if (t.id == id) return t.nombre;
+      }
+      return null;
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        IconButton(
-          key: Key('day-up-$modelId-$index'),
-          icon: const Icon(Icons.arrow_upward),
-          tooltip: 'Subir',
-          onPressed: index == 0
-              ? null
-              : () => editor.moveDay(modelId, index, index - 1),
+        ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.today_outlined),
+          title: Text(day.name ?? 'Día ${index + 1}'),
+          subtitle: Text(
+            day.blocks.length == 1
+                ? '1 bloque'
+                : '${day.blocks.length} bloques',
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                key: Key('day-up-$modelId-$index'),
+                icon: const Icon(Icons.arrow_upward),
+                tooltip: 'Subir',
+                onPressed: index == 0
+                    ? null
+                    : () => editor.moveDay(modelId, index, index - 1),
+              ),
+              IconButton(
+                key: Key('day-down-$modelId-$index'),
+                icon: const Icon(Icons.arrow_downward),
+                tooltip: 'Bajar',
+                onPressed: index == count - 1
+                    ? null
+                    : () => editor.moveDay(modelId, index, index + 1),
+              ),
+              IconButton(
+                key: Key('day-remove-$modelId-$index'),
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Quitar día',
+                onPressed: draft.canRemoveDay(modelId)
+                    ? () => editor.removeDay(modelId, index)
+                    : null,
+              ),
+            ],
+          ),
         ),
-        IconButton(
-          key: Key('day-down-$modelId-$index'),
-          icon: const Icon(Icons.arrow_downward),
-          tooltip: 'Bajar',
-          onPressed: index == count - 1
-              ? null
-              : () => editor.moveDay(modelId, index, index + 1),
-        ),
-        IconButton(
-          key: Key('day-remove-$modelId-$index'),
-          icon: const Icon(Icons.delete_outline),
-          tooltip: 'Quitar día',
-          onPressed: draft.canRemoveDay(modelId)
-              ? () => editor.removeDay(modelId, index)
-              : null,
+        Padding(
+          padding: const EdgeInsets.only(left: Espacio.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (b, block) in day.blocks.indexed)
+                _BlockTile(
+                  key: Key('block-$modelId-$index-$b'),
+                  keyPrefix: '$modelId-$index',
+                  index: b,
+                  count: day.blocks.length,
+                  block: block,
+                  categoryName: categoryName(block.categoryId),
+                  timerName: timerName(block.timerId),
+                  editor: editor,
+                  modelId: modelId,
+                  day: index,
+                ),
+              TextButton.icon(
+                key: Key('block-add-$modelId-$index'),
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar bloque'),
+                onPressed: () async {
+                  final fields = await askBlock(context);
+                  if (fields == null) return;
+                  editor.addBlock(
+                    modelId,
+                    index,
+                    PlanBlock(
+                      name: fields.name,
+                      categoryId: fields.categoryId,
+                      timerId: fields.timerId,
+                    ),
+                  );
+                },
+              ),
+            ],
+          ),
         ),
       ],
-    ),
-  );
+    );
+  }
+}
+
+/// One block of a day. E5.7 and E5.8 render its prescriptions and sets below.
+class _BlockTile extends StatelessWidget {
+  const _BlockTile({
+    super.key,
+    required this.keyPrefix,
+    required this.modelId,
+    required this.day,
+    required this.index,
+    required this.count,
+    required this.block,
+    required this.categoryName,
+    required this.timerName,
+    required this.editor,
+  });
+
+  final String keyPrefix;
+  final String modelId;
+  final int day;
+  final int index;
+  final int count;
+  final PlanBlock block;
+  final String? categoryName;
+  final String? timerName;
+  final PlanEditor editor;
+
+  @override
+  Widget build(BuildContext context) {
+    final details = [
+      categoryName ?? 'Sin categoría',
+      if (block.timerId != null) 'Descanso: ${timerName ?? block.timerId}',
+    ].join(' · ');
+    return ListTile(
+      contentPadding: EdgeInsets.zero,
+      title: Text(block.name),
+      subtitle: Text(details),
+      onTap: () async {
+        final fields = await askBlock(context, initial: block);
+        if (fields == null) return;
+        editor.updateBlock(
+          modelId,
+          day,
+          index,
+          (b) => PlanBlock(
+            name: fields.name,
+            categoryId: fields.categoryId,
+            executionMode: b.executionMode,
+            athleteMode: b.athleteMode,
+            timerId: fields.timerId,
+            prescriptions: b.prescriptions,
+          ),
+        );
+      },
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            key: Key('block-up-$keyPrefix-$index'),
+            icon: const Icon(Icons.arrow_upward),
+            tooltip: 'Subir bloque',
+            onPressed: index == 0
+                ? null
+                : () => editor.moveBlock(modelId, day, index, index - 1),
+          ),
+          IconButton(
+            key: Key('block-down-$keyPrefix-$index'),
+            icon: const Icon(Icons.arrow_downward),
+            tooltip: 'Bajar bloque',
+            onPressed: index == count - 1
+                ? null
+                : () => editor.moveBlock(modelId, day, index, index + 1),
+          ),
+          IconButton(
+            key: Key('block-remove-$keyPrefix-$index'),
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Quitar bloque',
+            onPressed: () => editor.removeBlock(modelId, day, index),
+          ),
+        ],
+      ),
+    );
+  }
 }
