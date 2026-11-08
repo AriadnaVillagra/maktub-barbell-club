@@ -22,8 +22,8 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 |---|---|---|---|---|
 | E0 | [Cerrar F0](E0-cerrar-f0.md) | hecho | 6 / 6 (mergeada a `main`) | — |
 | E1 | [Acceso](E1-acceso.md) | hecho | 14 / 14 (mergeada a `main`; ingreso probado en localhost:5000 y en Pages, R2 ok) | — |
-| E2 | [Catálogo](E2-catalogo.md) | en curso | 10 / 10 (mergeada a `main` y semilla cargada; falta tu prueba en producción) | — |
-| E3 | [Atletas y referencias](E3-atletas-referencias.md) | pendiente | 0 / 6 | — |
+| E2 | [Catálogo](E2-catalogo.md) | hecho | 10 / 10 (mergeada a `main` y semilla cargada; prueba en producción ok) | — |
+| E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (lista para revisar y mergear a `main`; falta probarla en un navegador real) | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | pendiente | 0 / 6 | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | pendiente | 0 / 9 | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | pendiente | 0 / 6 | — |
@@ -48,6 +48,15 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **`diseno.md` quedó atrás** en C1 (ejercicios base) y en Equipo (S3 de F2). Se actualiza desde su sesión.
 - **E5 (editor de plan):** la barra se indica por ejercicio; falta decidir si la prescripción la puede pisar.
 - **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja.
+
+## Pendientes que salieron de E3 (2026-11-08)
+
+- **Datos corporales del atleta** (altura, peso y su seguimiento, cargados por el atleta): van después de
+  M1. No tienen diseño. Definir qué datos, si guardan historial, quién los ve y cómo se protegen.
+- **Quién lee perfiles.** Decidido: un nivel hacia abajo y nunca hacia arriba; el coach ve a los atletas
+  y el atleta solo lo suyo. Falta diseñar qué ven los administradores. Andi y Ari son admin de plataforma,
+  y hoy esa marca no da permisos dentro de un club (`permisos.dart`). Como también son coach y atleta en
+  Maktub, esto no frena M1.
 
 ## Pendientes que salieron de E1
 
