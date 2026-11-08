@@ -58,5 +58,10 @@ class MongoCategoryUsage implements CategoryUsage {
 
   @override
   Future<bool> isUsed(String clubId, String categoryId) async =>
-      await _db.collection(Colecciones.ejercicios).findOne({'clubId': clubId, 'categorias': categoryId}) != null;
+      await _db.collection(Colecciones.ejercicios).findOne({
+        // A default category can be used from any club, so its usage looks at all of them.
+        if (clubId != clubPlataforma) 'clubId': clubId,
+        'categorias': categoryId,
+      }) !=
+      null;
 }

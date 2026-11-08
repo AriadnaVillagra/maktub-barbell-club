@@ -9,6 +9,7 @@ import '../features/catalogo/presentation/catalog_routes.dart';
 import '../features/catalogo/presentation/categories_page.dart';
 import '../features/catalogo/presentation/team_page.dart';
 import '../features/catalogo/presentation/timers_page.dart';
+import '../features/members/presentation/members_page.dart';
 import '../features/session/domain/session_manager.dart';
 import '../features/session/presentation/providers.dart';
 import '../features/session/presentation/sign_in_page.dart';
@@ -21,13 +22,14 @@ import 'shell.dart';
 abstract final class Rutas {
   static const entrenamiento = '/entrenamiento';
   static const planificacion = '/planificacion';
-  static const categorias = '/planificacion/categorias';
-  static const temporizadores = '/planificacion/temporizadores';
-  static const equipo = '/planificacion/equipo';
 
-  /// Exercise catalog under each mode: athletes read it from training, coaches from either.
-  static const catalogoEntrenamiento = '$entrenamiento/catalogo';
-  static const catalogoPlanificacion = '$planificacion/catalogo';
+  /// What configures the club rather than a plan: catalog, timers, equipment and members.
+  static const preferencias = '/preferencias';
+  static const catalogo = '$preferencias/catalogo';
+  static const categorias = '$preferencias/categorias';
+  static const temporizadores = '$preferencias/temporizadores';
+  static const equipo = '$preferencias/equipo';
+  static const miembros = '$preferencias/miembros';
 
   /// Sign-in with Google. Every route leads here without a session (see [sessionRedirect]).
   static const signIn = '/ingreso';
@@ -46,11 +48,15 @@ final routerProvider = Provider<GoRouter>((ref) {
   final canPlan = ValueNotifier<bool?>(ref.read(canPlanProvider));
   ref.listen(canPlanProvider, (_, value) => canPlan.value = value);
   ref.onDispose(canPlan.dispose);
+  final canConfigure = ValueNotifier<bool?>(ref.read(canConfigureProvider));
+  ref.listen(canConfigureProvider, (_, value) => canConfigure.value = value);
+  ref.onDispose(canConfigure.dispose);
 
   final router = GoRouter(
     initialLocation: Rutas.entrenamiento,
-    refreshListenable: Listenable.merge([session, canPlan]),
-    redirect: (context, state) => sessionRedirect(session.value, state.uri, canPlan: canPlan.value),
+    refreshListenable: Listenable.merge([session, canPlan, canConfigure]),
+    redirect: (context, state) =>
+        sessionRedirect(session.value, state.uri, canPlan: canPlan.value, canConfigure: canConfigure.value),
     routes: [
       GoRoute(path: Rutas.signIn, builder: (_, _) => const SignInPage()),
       GoRoute(path: Rutas.restoring, builder: (_, _) => const SessionRestoringPage()),
@@ -61,18 +67,24 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(
               path: Rutas.entrenamiento,
               builder: (_, _) => const PaginaEntrenamiento(),
-              routes: [exerciseCatalogRoute()],
             ),
           ]),
           StatefulShellBranch(routes: [
             GoRoute(
               path: Rutas.planificacion,
               builder: (_, _) => const PaginaPlanificacion(),
+            ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(
+              path: Rutas.preferencias,
+              builder: (_, _) => const PaginaPreferencias(),
               routes: [
                 exerciseCatalogRoute(),
                 GoRoute(path: 'categorias', builder: (_, _) => const CategoriesPage()),
                 GoRoute(path: 'temporizadores', builder: (_, _) => const TimersPage()),
                 GoRoute(path: 'equipo', builder: (_, _) => const TeamPage()),
+                GoRoute(path: 'miembros', builder: (_, _) => const MembersPage()),
               ],
             ),
           ]),

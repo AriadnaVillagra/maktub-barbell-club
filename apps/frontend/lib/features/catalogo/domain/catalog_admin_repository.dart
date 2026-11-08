@@ -4,7 +4,7 @@ import 'package:maktub_core/maktub_core.dart';
 enum RemovalOutcome { deleted, archived }
 
 /// Management of the club's own categories, timers and equipment (E2.9). Reading the categories
-/// stays in `CatalogRepository`. Writes need `Accion.planificar`; base entries can't be changed.
+/// stays in `CatalogRepository`. Default entries need a platform admin.
 abstract interface class CatalogAdminRepository {
   Future<Category> createCategory(String clubId, String name);
   Future<Category> renameCategory(String clubId, String id, String name);

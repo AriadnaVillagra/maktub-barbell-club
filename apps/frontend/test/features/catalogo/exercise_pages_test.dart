@@ -86,14 +86,14 @@ void main() {
     testWidgets(
       'shows base and own entries with their badge, filters by category and searches',
       (tester) async {
-        await pump(tester, {Rol.coach});
+        await pump(tester, {Rol.coach, Rol.adminClub});
         expect(listed(tester), [
           'Curl de bíceps',
           'Press militar',
           'Sentadilla',
         ]);
-        expect(find.text('Base'), findsOneWidget);
-        expect(find.text('Propio'), findsNWidgets(2));
+        expect(find.text('Default'), findsOneWidget);
+        expect(find.text('Custom'), findsNWidgets(2));
 
         await tester.tap(find.widgetWithText(ChoiceChip, 'Accesorio'));
         await tester.pumpAndSettle();
@@ -107,7 +107,7 @@ void main() {
     );
 
     testWidgets('the coach can show archived exercises', (tester) async {
-      await pump(tester, {Rol.coach});
+      await pump(tester, {Rol.coach, Rol.adminClub});
       await tester.tap(find.byType(Switch));
       await tester.pumpAndSettle();
       expect(listed(tester), contains('Press antiguo'));
@@ -129,11 +129,11 @@ void main() {
       'a base exercise is read-only and offers to create an own one',
       (tester) async {
         await pump(tester, {
-          Rol.coach,
+          Rol.coach, Rol.adminClub,
         }, at: '/planificacion/catalogo/ejercicios/squat');
         expect(find.text('Sentadilla'), findsWidgets);
         expect(find.text('Cuádriceps (100 %), Glúteos (50 %)'), findsOneWidget);
-        expect(find.text('Crear uno propio a partir de este'), findsOneWidget);
+        expect(find.text('Duplicar como custom'), findsOneWidget);
         expect(find.text('Editar'), findsNothing);
         expect(find.text('Archivar'), findsNothing);
       },
@@ -145,7 +145,7 @@ void main() {
       await pump(tester, {
         Rol.atleta,
       }, at: '/planificacion/catalogo/ejercicios/squat');
-      expect(find.text('Crear uno propio a partir de este'), findsNothing);
+      expect(find.text('Duplicar como custom'), findsNothing);
       await pump(tester, {
         Rol.atleta,
       }, at: '/planificacion/catalogo/ejercicios/curl');
@@ -158,12 +158,12 @@ void main() {
       tester,
     ) async {
       await pump(tester, {
-        Rol.coach,
+        Rol.coach, Rol.adminClub,
       }, at: '/planificacion/catalogo/ejercicios/squat');
-      await tester.tap(find.text('Crear uno propio a partir de este'));
+      await tester.tap(find.text('Duplicar como custom'));
       await tester.pumpAndSettle();
       expect(
-        find.widgetWithText(TextField, 'Sentadilla (propio)'),
+        find.widgetWithText(TextField, 'Sentadilla (custom)'),
         findsOneWidget,
       );
       await tester.tap(find.text('Crear ejercicio'));
@@ -171,12 +171,12 @@ void main() {
 
       final draft = catalog.created.single;
       final source = catalog.items.firstWhere((e) => e.id == 'squat');
-      expect(draft.name, 'Sentadilla (propio)');
+      expect(draft.name, 'Sentadilla (custom)');
       expect(draft.categoryIds, source.categoryIds);
       expect(draft.metrics, source.metrics);
       expect(draft.patternId, 'squat');
       expect(draft.muscles, source.muscles);
-      expect(find.text('Propio'), findsOneWidget);
+      expect(find.text('Custom'), findsOneWidget);
     });
   });
 
@@ -184,7 +184,7 @@ void main() {
     testWidgets(
       'creates an exercise choosing muscles and pattern from the seeded lists',
       (tester) async {
-        await pump(tester, {Rol.coach});
+        await pump(tester, {Rol.coach, Rol.adminClub});
         await tester.tap(find.text('Nuevo ejercicio'));
         await tester.pumpAndSettle();
 
@@ -231,7 +231,7 @@ void main() {
       'edits an own exercise and shows the backend error when the name is taken',
       (tester) async {
         await pump(tester, {
-          Rol.coach,
+          Rol.coach, Rol.adminClub,
         }, at: '/planificacion/catalogo/ejercicios/curl/editar');
         catalog.failWrites = duplicateName;
         await tester.enterText(
@@ -261,7 +261,7 @@ void main() {
 
     testWidgets('does not send a nameless exercise', (tester) async {
       await pump(tester, {
-        Rol.coach,
+        Rol.coach, Rol.adminClub,
       }, at: '/planificacion/catalogo/ejercicios/nuevo');
       await tester.tap(find.text('Crear ejercicio'));
       await tester.pumpAndSettle();
@@ -271,7 +271,7 @@ void main() {
 
     testWidgets('archives and restores an own exercise', (tester) async {
       await pump(tester, {
-        Rol.coach,
+        Rol.coach, Rol.adminClub,
       }, at: '/planificacion/catalogo/ejercicios/curl');
       await tester.tap(find.text('Archivar'));
       await tester.pumpAndSettle();
@@ -287,7 +287,7 @@ void main() {
     ) async {
       catalog.deleteArchives = true;
       await pump(tester, {
-        Rol.coach,
+        Rol.coach, Rol.adminClub,
       }, at: '/planificacion/catalogo/ejercicios/curl');
       await tester.tap(find.text('Eliminar'));
       await tester.pumpAndSettle();
@@ -307,7 +307,7 @@ void main() {
 
     testWidgets('deleting an unused one goes back to the list', (tester) async {
       await pump(tester, {
-        Rol.coach,
+        Rol.coach, Rol.adminClub,
       }, at: '/planificacion/catalogo/ejercicios/curl');
       await tester.tap(find.text('Eliminar'));
       await tester.pumpAndSettle();

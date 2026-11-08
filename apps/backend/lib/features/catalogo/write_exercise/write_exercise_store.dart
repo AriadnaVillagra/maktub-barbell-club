@@ -66,7 +66,8 @@ class MongoExerciseUsage implements ExerciseUsage {
   @override
   Future<bool> isUsed(String clubId, String exerciseId) async {
     final doc = await _db.collection(Colecciones.ejercicios).findOne({
-      'clubId': clubId,
+      // A default exercise can be used from any club, so its usage looks at all of them.
+      if (clubId != clubPlataforma) 'clubId': clubId,
       r'$or': [
         {'sugerencias': exerciseId},
         {'referencia.ejercicioId': exerciseId},

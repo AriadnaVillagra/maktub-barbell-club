@@ -55,7 +55,7 @@ Exercise _exercise(
   LoadReference reference = const LoadReference.none(),
 }) => Exercise(id: id, clubId: clubId, name: name, metrics: metrics, loadReference: reference, auditoria: _audit);
 
-ClubContext _club(String clubId, {Set<Rol> roles = const {Rol.coach}}) =>
+ClubContext _club(String clubId, {Set<Rol> roles = const {Rol.coach, Rol.adminClub}}) =>
     ClubContext(clubId: clubId, userId: 'u1', roles: roles, clubType: TipoClub.club);
 
 Future<Response> _call(
@@ -298,6 +298,20 @@ void main() {
       expect(store.exercises.single.name, 'Remo');
     });
 
+    test('a platform admin edits a default exercise and it stays default', () async {
+      store.exercises.add(_exercise('base', clubPlataforma, 'Sentadilla'));
+      final admin = ClubContext(
+        clubId: 'club-a',
+        userId: 'a',
+        roles: const {Rol.coach},
+        clubType: TipoClub.club,
+        isPlatformAdmin: true,
+      );
+      final updated = await WriteExercise(store, usage).update(admin, 'base', _body('Sentadilla trasera'));
+      expect(updated.clubId, clubPlataforma);
+      expect(store.exercises.firstWhere((e) => e.id == 'base').name, 'Sentadilla trasera');
+    });
+
     test('a base exercise is not editable from a club', () async {
       store.exercises.add(_exercise('base', clubPlataforma, 'Sentadilla'));
       final r = await update('base', _body('Otra'));
@@ -410,7 +424,7 @@ void main() {
         newId: () => markers[c.read<ClubContext>().clubId]!,
       ),
       path: '/clubes/{clubId}/catalogo/ejercicios',
-      action: Accion.planificar,
+      action: Accion.editarCatalogoClub,
       method: 'POST',
       body: jsonEncode(_body('Remo')),
       seed: (clubId, marker) => markers[clubId] = marker,
@@ -420,7 +434,7 @@ void main() {
       'PATCH /clubes/{clubId}/catalogo/ejercicios/e1',
       endpoint: (c) => setExerciseStatusEndpoint(c, 'e1', store: isolationStore, usage: _FakeUsage()),
       path: '/clubes/{clubId}/catalogo/ejercicios/e1',
-      action: Accion.planificar,
+      action: Accion.editarCatalogoClub,
       method: 'PATCH',
       body: jsonEncode({'estado': 'archivado'}),
       seed: (clubId, marker) => isolationStore.exercises
@@ -433,7 +447,7 @@ void main() {
       'DELETE /clubes/{clubId}/catalogo/ejercicios/e1',
       endpoint: (c) => deleteExerciseEndpoint(c, 'e1', store: isolationStore, usage: _FakeUsage()..used.add('e1')),
       path: '/clubes/{clubId}/catalogo/ejercicios/e1',
-      action: Accion.planificar,
+      action: Accion.editarCatalogoClub,
       method: 'DELETE',
       seed: (clubId, marker) => isolationStore.exercises
         ..removeWhere((e) => e.clubId == clubId && e.id == 'e1')

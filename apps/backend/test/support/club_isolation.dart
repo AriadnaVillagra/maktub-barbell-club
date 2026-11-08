@@ -26,6 +26,9 @@ class _FakeStore implements ClubContextStore {
 
   @override
   Future<TipoClub?> clubType(String clubId) async => clubs[clubId];
+
+  @override
+  Future<bool> isPlatformAdmin(String userId) async => false;
 }
 
 /// Reusable club isolation check (F1 §5, design §3.3) for any endpoint under `/clubes/{clubId}/…`.

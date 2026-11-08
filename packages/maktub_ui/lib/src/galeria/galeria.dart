@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../componentes/campo_busqueda.dart';
+import '../componentes/contador_cantidad.dart';
 import '../componentes/insignia.dart';
 import '../componentes/sign_in_panel.dart';
 import '../tema/contexto.dart';
@@ -76,6 +78,7 @@ class Muestrario extends StatelessWidget {
             _Seccion('Controles', _Controles()),
             _Seccion('Ingreso', _Ingreso()),
             _Seccion('Insignias', _Insignias()),
+            _Seccion('Búsqueda y cantidad', _BusquedaYCantidad()),
           ],
         ),
       );
@@ -299,6 +302,21 @@ class GaleriaDeModo extends StatelessWidget {
   Widget build(BuildContext context) => TemaDeModo(modo: modo, child: const GaleriaMaktub());
 }
 
+class _BusquedaYCantidad extends StatelessWidget {
+  const _BusquedaYCantidad();
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        spacing: Espacio.l,
+        runSpacing: Espacio.m,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          SizedBox(width: 280, child: CampoBusqueda(hint: 'Buscar ejercicio', onChanged: (_) {})),
+          ContadorCantidad(valor: 3, onChanged: (_) {}),
+        ],
+      );
+}
+
 class _Insignias extends StatelessWidget {
   const _Insignias();
 
@@ -307,8 +325,8 @@ class _Insignias extends StatelessWidget {
         spacing: Espacio.s,
         runSpacing: Espacio.s,
         children: [
-          InsigniaMaktub('Base', context.colores.insigniaBase),
-          InsigniaMaktub('Propio', context.colores.insigniaPropio),
+          InsigniaMaktub('Default', context.colores.insigniaBase),
+          InsigniaMaktub('Custom', context.colores.insigniaPropio),
         ],
       );
 }

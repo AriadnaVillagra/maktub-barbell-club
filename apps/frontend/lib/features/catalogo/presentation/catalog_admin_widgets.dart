@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../../core/red/cliente_api.dart';
+import '../domain/catalog_filters.dart';
 
 /// Shows the message of an API error (or a generic one) in a snack bar.
 void showApiError(BuildContext context, Object error) {
@@ -87,3 +89,65 @@ Widget asyncView<T>(
 /// Formats a weight without a trailing ".0": 20 → "20", 2.5 → "2.5".
 String formatKg(double kg) =>
     kg == kg.roundToDouble() ? kg.toStringAsFixed(0) : '$kg';
+
+/// "Default" or "Custom", so the origin of an entry is clear at a glance.
+class ScopeBadge extends StatelessWidget {
+  const ScopeBadge(this.scope, {super.key});
+
+  final CatalogScope scope;
+
+  @override
+  Widget build(BuildContext context) => scope == CatalogScope.base
+      ? InsigniaMaktub('Default', context.colores.insigniaBase)
+      : InsigniaMaktub('Custom', context.colores.insigniaPropio);
+}
+
+/// The filters shared by the management lists: origin and archived.
+class CatalogFilters extends StatelessWidget {
+  const CatalogFilters({
+    super.key,
+    required this.scope,
+    required this.onScope,
+    required this.showArchived,
+    required this.onShowArchived,
+    required this.archivedLabel,
+  });
+
+  final ScopeFilter scope;
+  final ValueChanged<ScopeFilter> onScope;
+  final bool showArchived;
+  final ValueChanged<bool> onShowArchived;
+  final String archivedLabel;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(Espacio.m, Espacio.m, Espacio.m, 0),
+        child: Wrap(
+          spacing: Espacio.s,
+          children: [
+            for (final (value, label) in const [
+              (ScopeFilter.all, 'Todas'),
+              (ScopeFilter.base, 'Default'),
+              (ScopeFilter.club, 'Custom'),
+            ])
+              ChoiceChip(
+                key: Key('scope-${value.name}'),
+                label: Text(label),
+                selected: scope == value,
+                onSelected: (_) => onScope(value),
+              ),
+          ],
+        ),
+      ),
+      SwitchListTile(
+        key: const Key('show-archived'),
+        title: Text(archivedLabel),
+        value: showArchived,
+        onChanged: onShowArchived,
+      ),
+    ],
+  );
+}

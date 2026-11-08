@@ -61,11 +61,8 @@ class _ExercisePickerState extends ConsumerState<ExercisePicker> {
       children: [
         Padding(
           padding: const EdgeInsets.all(Espacio.m),
-          child: TextField(
-            decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
-              hintText: 'Buscar ejercicio',
-            ),
+          child: CampoBusqueda(
+            hint: 'Buscar ejercicio',
             onChanged: (v) => setState(() => _query = v),
           ),
         ),
@@ -120,6 +117,68 @@ class _ExercisePickerState extends ConsumerState<ExercisePicker> {
               );
             },
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Opens a searchable list of [candidates] in a bottom sheet. Resolves to the chosen one, or null.
+Future<Exercise?> showExerciseSearchSheet(
+  BuildContext context,
+  List<Exercise> candidates,
+) => showModalBottomSheet<Exercise>(
+  context: context,
+  isScrollControlled: true,
+  useSafeArea: true,
+  builder: (_) => FractionallySizedBox(
+    heightFactor: 0.9,
+    child: _ExerciseSearchList(candidates),
+  ),
+);
+
+class _ExerciseSearchList extends StatefulWidget {
+  const _ExerciseSearchList(this.candidates);
+
+  final List<Exercise> candidates;
+
+  @override
+  State<_ExerciseSearchList> createState() => _ExerciseSearchListState();
+}
+
+class _ExerciseSearchListState extends State<_ExerciseSearchList> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final q = normalizeForSearch(_query);
+    final shown = [
+      for (final e in widget.candidates)
+        if (q.isEmpty || normalizeForSearch(e.name).contains(q)) e,
+    ]..sort((a, b) => normalizeForSearch(a.name).compareTo(normalizeForSearch(b.name)));
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(Espacio.m),
+          child: CampoBusqueda(
+            key: const Key('reference-search'),
+            hint: 'Buscar ejercicio',
+            autofocus: true,
+            onChanged: (v) => setState(() => _query = v),
+          ),
+        ),
+        Expanded(
+          child: shown.isEmpty
+              ? Center(child: Text('No hay ejercicios que coincidan.', style: context.textos.bodyLarge))
+              : ListView.builder(
+                  itemCount: shown.length,
+                  itemBuilder: (_, i) => ListTile(
+                    key: ValueKey('reference-${shown[i].id}'),
+                    title: Text(shown[i].name),
+                    onTap: () => Navigator.of(context).pop(shown[i]),
+                  ),
+                ),
         ),
       ],
     );

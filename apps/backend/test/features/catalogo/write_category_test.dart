@@ -50,7 +50,7 @@ final _at = DateTime.utc(2026, 11, 7, 12);
 Category _category(String id, String clubId, String name) =>
     Category(id: id, clubId: clubId, name: name, auditoria: _audit);
 
-ClubContext _club(String clubId, {Set<Rol> roles = const {Rol.coach}}) =>
+ClubContext _club(String clubId, {Set<Rol> roles = const {Rol.coach, Rol.adminClub}}) =>
     ClubContext(clubId: clubId, userId: 'u1', roles: roles, clubType: TipoClub.club);
 
 Future<Response> _call(
@@ -189,7 +189,7 @@ void main() {
         newId: () => markers[c.read<ClubContext>().clubId]!,
       ),
       path: '/clubes/{clubId}/catalogo/categorias',
-      action: Accion.planificar,
+      action: Accion.editarCatalogoClub,
       method: 'POST',
       body: jsonEncode({'nombre': 'Accesorio'}),
       seed: (clubId, marker) => markers[clubId] = marker,
@@ -198,7 +198,7 @@ void main() {
       'PATCH /clubes/{clubId}/catalogo/categorias/c1',
       endpoint: (c) => setCategoryStatusEndpoint(c, 'c1', store: isolationStore, usage: _FakeUsage()),
       path: '/clubes/{clubId}/catalogo/categorias/c1',
-      action: Accion.planificar,
+      action: Accion.editarCatalogoClub,
       method: 'PATCH',
       body: jsonEncode({'estado': 'archivado'}),
       seed: (clubId, marker) => isolationStore.categories
@@ -209,7 +209,7 @@ void main() {
       'DELETE /clubes/{clubId}/catalogo/categorias/c1',
       endpoint: (c) => deleteCategoryEndpoint(c, 'c1', store: isolationStore, usage: _FakeUsage()..used.add('c1')),
       path: '/clubes/{clubId}/catalogo/categorias/c1',
-      action: Accion.planificar,
+      action: Accion.editarCatalogoClub,
       method: 'DELETE',
       seed: (clubId, marker) => isolationStore.categories
         ..removeWhere((c) => c.clubId == clubId && c.id == 'c1')

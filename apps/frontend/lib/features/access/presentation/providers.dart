@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:maktub_core/maktub_core.dart';
 
 import '../../../core/red/api_providers.dart';
 import '../../session/domain/session_manager.dart';
@@ -27,4 +28,24 @@ final canPlanProvider = Provider<bool?>((ref) {
     return null;
   }
   return me.value?.canPlan ?? false;
+});
+
+/// Whether the Preferences tab is available: null while it is not known yet.
+final canConfigureProvider = Provider<bool?>((ref) {
+  final me = ref.watch(meProvider);
+  if (me.isLoading && !me.hasValue) {
+    return null;
+  }
+  return me.value?.canConfigure ?? false;
+});
+
+/// Whether the user can create and change what belongs to the active club.
+final canEditClubCatalogProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canEditClubCatalog ?? false);
+
+final canManageMembersProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canManageMembers ?? false);
+
+/// Whether the user can change a given catalog item (see [Me.canWriteCatalog]).
+final canWriteCatalogProvider = Provider<bool Function(DelClub)>((ref) {
+  final me = ref.watch(meProvider).value;
+  return (item) => me?.canWriteCatalog(item) ?? false;
 });

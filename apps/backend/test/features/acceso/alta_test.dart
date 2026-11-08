@@ -67,7 +67,7 @@ void main() {
       expect(ms, hasLength(2));
       for (final m in ms) {
         final membresia = Membresia.fromJson(desdeDocumento(m));
-        expect(membresia.roles, {Rol.coach, Rol.atleta});
+        expect(membresia.roles, {Rol.coach, Rol.atleta, Rol.adminClub});
         expect(membresia.esCoachActivo, isTrue);
       }
     }

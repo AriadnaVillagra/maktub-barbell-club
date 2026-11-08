@@ -21,14 +21,45 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('lists base categories fixed and the club\'s with actions', (
+  Future<void> showArchived(WidgetTester tester) async {
+    await tester.tap(find.byKey(const Key('show-archived')));
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('lists everything in one list with its badge; default ones have no actions for a club admin', (
     tester,
   ) async {
     await pumpAdminPage(tester, const CategoriesPage(), repo());
     expect(find.text('Fuerza'), findsOneWidget);
+    expect(find.text('Default'), findsNWidgets(2));
+    expect(find.text('Custom'), findsNWidgets(2));
     expect(find.byKey(const Key('category-menu-strength')), findsNothing);
     expect(find.byKey(const Key('category-menu-mine')), findsOneWidget);
-    expect(find.text('Archivada'), findsOneWidget);
+    expect(find.byIcon(Icons.lock_outline), findsNothing);
+  });
+
+  testWidgets('filters by origin and shows only the archived ones', (tester) async {
+    await pumpAdminPage(tester, const CategoriesPage(), repo());
+    expect(find.text('Antigua'), findsNothing);
+    await tester.tap(find.byKey(const Key('scope-base')));
+    await tester.pumpAndSettle();
+    expect(find.text('Movilidad'), findsNothing);
+    await tester.tap(find.byKey(const Key('scope-all')));
+    await tester.pumpAndSettle();
+    await showArchived(tester);
+    expect(find.text('Antigua'), findsOneWidget);
+    expect(find.text('Movilidad'), findsNothing);
+  });
+
+  testWidgets('a platform admin edits a default category by tapping it', (tester) async {
+    final r = repo();
+    await pumpAdminPage(tester, const CategoriesPage(), r, isPlatformAdmin: true);
+    await tester.tap(find.text('Fuerza'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const Key('category-name')), 'Básicos');
+    await tester.tap(find.byKey(const Key('category-save')));
+    await tester.pumpAndSettle();
+    expect(r.calls, ['renameCategory:strength:Básicos']);
   });
 
   testWidgets('the coach creates a category', (tester) async {
@@ -49,7 +80,8 @@ void main() {
   testWidgets('the coach renames a category', (tester) async {
     final r = repo();
     await pumpAdminPage(tester, const CategoriesPage(), r);
-    await pick(tester, 'mine', 'Renombrar');
+    await tester.tap(find.text('Movilidad'));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const Key('category-name')),
       'Flexibilidad',
@@ -66,6 +98,8 @@ void main() {
     await pumpAdminPage(tester, const CategoriesPage(), r);
     await pick(tester, 'mine', 'Archivar');
     expect(r.calls.last, 'categoryStatus:mine:archivado');
+    expect(find.text('Movilidad'), findsNothing);
+    await showArchived(tester);
     expect(find.text('Archivada'), findsNWidgets(2));
     await pick(tester, 'old', 'Reactivar');
     expect(r.calls.last, 'categoryStatus:old:activo');
@@ -82,7 +116,7 @@ void main() {
       find.text('La categoría está en uso: quedó archivada.'),
       findsOneWidget,
     );
-    expect(find.text('Archivada'), findsNWidgets(2));
+    expect(find.text('Movilidad'), findsNothing);
   });
 
   testWidgets('deleting an unused category removes it', (tester) async {

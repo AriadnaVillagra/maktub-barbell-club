@@ -2,6 +2,7 @@
 /// La usan el backend para autorizar y la app para mostrar u ocultar acciones.
 library;
 
+import '../modelos/base.dart';
 import '../modelos/clubes.dart';
 
 /// Una acción por fila de la matriz.
@@ -16,11 +17,14 @@ enum Accion {
   /// Editar referencias (RMs, marcas). El coach, las de todos; en el club personal, las propias.
   editarReferencias,
 
-  /// Planificar, asignar y editar el catálogo del club.
+  /// Planificar y asignar.
   planificar,
+
+  /// Crear, editar, archivar y borrar lo del club: ejercicios, categorías, temporizadores y equipo.
+  editarCatalogoClub,
   seguirPlanPorDefecto,
 
-  /// Invitar, quitar miembros y cambiar roles.
+  /// Registrar miembros y cambiar sus roles. Solo el administrador del club.
   gestionarMiembros,
   verReportesDeTodos,
 
@@ -36,9 +40,10 @@ const _coach = {
   Accion.verReportesPropios,
   Accion.editarReferencias,
   Accion.planificar,
-  Accion.gestionarMiembros,
   Accion.verReportesDeTodos,
 };
+
+const _adminClub = {Accion.verCatalogoYPlanes, Accion.editarCatalogoClub, Accion.gestionarMiembros};
 
 const _personal = {
   Accion.verCatalogoYPlanes,
@@ -57,7 +62,25 @@ bool puede(Set<Rol> roles, Accion accion, TipoClub tipo, {bool esAdminPlataforma
   if (roles.isEmpty) return false;
   if (tipo == TipoClub.personal) return _personal.contains(accion);
   return (roles.contains(Rol.coach) && _coach.contains(accion)) ||
-      (roles.contains(Rol.atleta) && _atleta.contains(accion));
+      (roles.contains(Rol.atleta) && _atleta.contains(accion)) ||
+      (roles.contains(Rol.adminClub) && _adminClub.contains(accion));
+}
+
+/// Si puede modificar un elemento del catálogo: lo default solo el administrador de plataforma (el cambio
+/// se ve en todos los clubes), lo del club quien tenga [Accion.editarCatalogoClub].
+bool puedeEscribirCatalogo(
+  DelClub elemento,
+  Set<Rol> roles,
+  TipoClub tipo, {
+  bool esAdminPlataforma = false,
+}) => elemento.clubId == clubPlataforma
+    ? esAdminPlataforma
+    : puede(roles, Accion.editarCatalogoClub, tipo);
+
+/// Si dejar a [usuarioId] con [rolesNuevos] deja al club sin ningún administrador activo.
+bool dejaSinAdmin(Iterable<Membresia> membresiasDelClub, String usuarioId, Set<Rol> rolesNuevos) {
+  if (rolesNuevos.contains(Rol.adminClub)) return false;
+  return !membresiasDelClub.any((m) => m.usuarioId != usuarioId && m.activa && m.roles.contains(Rol.adminClub));
 }
 
 /// Si dejar a [usuarioId] con [rolesNuevos] (vacío = sale o lo quitan) deja al club sin coach activo.

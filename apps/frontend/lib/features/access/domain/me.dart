@@ -22,11 +22,15 @@ class Me {
     required this.user,
     required this.personalClub,
     required this.clubs,
+    this.isPlatformAdmin = false,
   });
 
   final Usuario user;
   final Club? personalClub;
   final List<ClubAccess> clubs;
+
+  /// Can change what every club shares (the default catalog).
+  final bool isPlatformAdmin;
 
   factory Me.fromJson(Json j) => Me(
     user: Usuario.fromJson((j['usuario'] as Map).cast<String, dynamic>()),
@@ -37,6 +41,7 @@ class Me {
       for (final c in (j['clubes'] as List? ?? const []))
         ClubAccess.fromJson((c as Map).cast<String, dynamic>()),
     ],
+    isPlatformAdmin: j['esAdminPlataforma'] == true,
   );
 
   /// The club the app works in. There is no selector yet (F1), so the criterion is: the first
@@ -57,4 +62,19 @@ class Me {
 
   /// Whether planning is available in the active club (never in the personal one).
   bool get canPlan => activeClub?.can(Accion.planificar) ?? false;
+
+  /// Whether the user can create and change what belongs to the active club.
+  bool get canEditClubCatalog => activeClub?.can(Accion.editarCatalogoClub) ?? false;
+
+  bool get canManageMembers => activeClub?.can(Accion.gestionarMiembros) ?? false;
+
+  /// Whether the Preferences tab (catalog, timers, equipment, members) is available.
+  bool get canConfigure => canPlan || canEditClubCatalog || canManageMembers;
+
+  /// Whether the user can change [item]: default ones need a platform admin, the club's a club admin.
+  bool canWriteCatalog(DelClub item) {
+    final active = activeClub;
+    if (active == null) return false;
+    return puedeEscribirCatalogo(item, active.roles, active.club.tipo, esAdminPlataforma: isPlatformAdmin);
+  }
 }

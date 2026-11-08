@@ -5,8 +5,7 @@ import 'exercise_form_page.dart';
 import 'exercise_list_page.dart';
 
 /// Exercise catalog routes, relative to a mode: `<mode>/catalogo`, `.../ejercicios/nuevo`,
-/// `.../ejercicios/:id` and `.../ejercicios/:id/editar`. Athletes reach them through training mode
-/// (they cannot enter planning); coaches through either one. Add the result as a child of each mode route.
+/// `.../ejercicios/:id` and `.../ejercicios/:id/editar`. Lives under the Preferences tab.
 GoRoute exerciseCatalogRoute() => GoRoute(
   path: 'catalogo',
   builder: (_, state) => ExerciseListPage(basePath: state.matchedLocation),

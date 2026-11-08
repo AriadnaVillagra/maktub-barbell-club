@@ -48,7 +48,7 @@ void main() {
     await tester.tap(find.text('Planificación'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Temporizadores del club'), findsOneWidget);
+    expect(find.text('Atletas y referencias'), findsOneWidget);
     expect(find.text('Sesión de hoy'), findsNothing);
   });
 
@@ -84,7 +84,7 @@ void main() {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.planificacion);
 
       expect(find.text('Sesión de hoy'), findsOneWidget);
-      expect(find.text('Temporizadores del club'), findsNothing);
+      expect(find.text('Atletas y referencias'), findsNothing);
     });
 
     testWidgets('an athlete on a wide screen has no rail either', (tester) async {
@@ -97,8 +97,30 @@ void main() {
     testWidgets('a coach sees planning and can open it by URL', (tester) async {
       await _montar(tester, const Size(400, 800), ruta: Rutas.planificacion);
 
-      expect(find.text('Temporizadores del club'), findsOneWidget);
+      expect(find.text('Atletas y referencias'), findsOneWidget);
       expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Planificación')), findsOneWidget);
+    });
+
+    testWidgets('the catalog lives in Preferences, not in training', (tester) async {
+      await _montar(tester, const Size(400, 800));
+      expect(find.text('Catálogo'), findsNothing);
+
+      await tester.tap(find.text('Preferencias'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ejercicios'), findsOneWidget);
+      expect(find.text('Temporizadores'), findsOneWidget);
+      expect(find.text('Miembros'), findsNothing);
+    });
+
+    testWidgets('a club admin also manages members', (tester) async {
+      await _montar(tester, const Size(400, 800), roles: {Rol.coach, Rol.adminClub}, ruta: Rutas.preferencias);
+      expect(find.text('Miembros'), findsOneWidget);
+    });
+
+    testWidgets('an athlete cannot open Preferences by URL', (tester) async {
+      await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.preferencias);
+      expect(find.text('Sesión de hoy'), findsOneWidget);
     });
   });
 }
