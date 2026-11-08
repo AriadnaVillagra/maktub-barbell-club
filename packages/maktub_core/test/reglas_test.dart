@@ -74,6 +74,53 @@ void main() {
       expect(pctDesdePeso(63, 80), 78.75);
     });
 
+    test('pctDesdePeso: a loadable weight comes back exactly through pesoPorPorcentaje', () {
+      final pct = pctDesdePeso(63, 80)!;
+      expect(pesoPorPorcentaje(rm: 80, pct: pct, equipo: Equipo.estandar), 63);
+    });
+
+    test('pctDesdePeso: a weight that is not loadable comes back as the nearest loadable', () {
+      final pct = pctDesdePeso(62, 80)!;
+      expect(pct, 77.5);
+      expect(pesoPorPorcentaje(rm: 80, pct: pct, equipo: Equipo.estandar), Equipo.estandar.masCercano(62));
+    });
+
+    test('pctDesdePeso: a neutral work factor of 100 gives the same as no factor', () {
+      expect(pctDesdePeso(63, 80, workFactor: 100), pctDesdePeso(63, 80));
+      expect(pctDesdePeso(61.7, 83, workFactor: 100), (61.7 / 83 * 10000).round() / 100);
+    });
+
+    test('pctDesdePeso: another work factor divides by rm × factor', () {
+      // 100 × 0.8 = 80 kg is the 100 %; 60 kg is 75 %.
+      expect(pctDesdePeso(60, 100, workFactor: 80), 75);
+      expect(pesoPorPorcentaje(rm: 100, pct: 75, equipo: Equipo.estandar, workFactor: 80), 60);
+    });
+
+    test('pctDesdePeso: with any work factor every loadable weight round-trips', () {
+      final equipo = Equipo.estandar;
+      for (final (rm, factor) in [(80.0, 100.0), (83.0, 90.0), (100.0, 80.0), (120.0, 110.0), (57.5, 85.0)]) {
+        for (final w in equipo.cargables.where((c) => c <= rm * 1.5)) {
+          final pct = pctDesdePeso(w, rm, workFactor: factor)!;
+          expect(
+            pesoPorPorcentaje(rm: rm, pct: pct, equipo: equipo, workFactor: factor),
+            w,
+            reason: 'rm $rm factor $factor weight $w pct $pct',
+          );
+        }
+      }
+    });
+
+    test('pctDesdePeso: without a usable RM there is no %, and no error', () {
+      expect(pctDesdePeso(63, null), isNull);
+      expect(pctDesdePeso(63, 0), isNull);
+      expect(pctDesdePeso(63, 0, workFactor: 80), isNull);
+      expect(pctDesdePeso(63, -5), isNull);
+    });
+
+    test('pctDesdePeso: a work factor that is not positive gives no %', () {
+      expect(pctDesdePeso(63, 80, workFactor: 0), isNull);
+    });
+
     test('el ajuste se acota entre 50 y 150', () {
       expect(Ajuste.acotar(40), 50);
       expect(Ajuste.acotar(160), 150);
