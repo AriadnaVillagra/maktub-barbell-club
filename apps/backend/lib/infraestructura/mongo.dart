@@ -128,6 +128,15 @@ Future<void> asegurarIndices(Db db) async {
   ]) {
     await db.collection(Colecciones.planes).createIndex(keys: {'clubId': 1, path: 1}, name: name);
   }
+
+  // The same checks against the library WoDs: a WoD's exercises and timers also count as usage.
+  for (final (name, path) in [
+    ('club_uso_ejercicio', 'prescripciones.ejercicioId'),
+    ('club_uso_temporizador_wod', 'temporizadorId'),
+    ('club_uso_temporizador_prescripcion', 'prescripciones.temporizadorId'),
+  ]) {
+    await db.collection(Colecciones.wods).createIndex(keys: {'clubId': 1, path: 1}, name: name);
+  }
 }
 
 /// Documento de Mongo (`_id`) → JSON del dominio (`id`).
