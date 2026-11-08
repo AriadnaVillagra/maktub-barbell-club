@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
+import 'package:shelf/shelf.dart' show HijackException;
 
 /// Error de la solicitud del cliente. El middleware lo convierte en un 4xx con `{error}`.
 class ErrorDeSolicitud implements Exception {
@@ -30,6 +31,9 @@ Response metodoNoPermitido() => Response(statusCode: HttpStatus.methodNotAllowed
 Middleware manejarErrores() => (handler) => (context) async {
       try {
         return await handler(context);
+      } on HijackException {
+        // A WebSocket upgrade took over the connection: it is how shelf says so, not an error.
+        rethrow;
       } on ErrorDeSolicitud catch (e) {
         return Response.json(statusCode: e.estado, body: {...e.extra, 'error': e.mensaje});
       } on FormatException catch (e) {
