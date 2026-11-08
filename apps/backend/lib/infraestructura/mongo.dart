@@ -36,6 +36,9 @@ abstract final class Colecciones {
 
   /// Work factors (F3): one document per entry of the history, never overwritten.
   static const factoresTrabajo = 'factores_trabajo';
+
+  /// Fixed weights (F3): one document per (`clubId`, `atletaId`, `ejercicioId`), replaced in place.
+  static const kilajesFijos = 'kilajes_fijos';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -93,6 +96,14 @@ Future<void> asegurarIndices(Db db) async {
           name: 'club_atleta_ejercicio_fecha',
         );
   }
+
+  await db
+      .collection(Colecciones.kilajesFijos)
+      .createIndex(
+        keys: {'clubId': 1, 'atletaId': 1, 'ejercicioId': 1},
+        name: 'club_atleta_ejercicio_unico',
+        unique: true,
+      );
 }
 
 /// Documento de Mongo (`_id`) → JSON del dominio (`id`).
