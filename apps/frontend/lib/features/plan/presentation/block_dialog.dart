@@ -10,7 +10,7 @@ import '../../catalogo/presentation/exercise_catalog_providers.dart';
 /// (sequential, simultaneous): M1 runs nothing else.
 typedef BlockFields = ({String name, String categoryId, String? timerId});
 
-/// Asks for the name, category and default rest timer of a block, starting from [initial] when editing.
+/// Asks for the name, category and timer of a block (any type of timer: a WoD block needs EMOM, tabata...), starting from [initial] when editing.
 /// Null if cancelled.
 Future<BlockFields?> askBlock(BuildContext context, {PlanBlock? initial}) =>
     showDialog<BlockFields>(
@@ -60,10 +60,7 @@ class _BlockDialogState extends ConsumerState<_BlockDialog> {
     ];
     final timerItems = [
       for (final t in timers)
-        if ((t.tipo == TipoTemporizador.countdown &&
-                t.estado == CatalogStatus.active) ||
-            t.id == _timerId)
-          t,
+        if (t.estado == CatalogStatus.active || t.id == _timerId) t,
     ];
     return AlertDialog(
       title: Text(widget.initial == null ? 'Nuevo bloque' : 'Editar bloque'),
@@ -102,7 +99,7 @@ class _BlockDialogState extends ConsumerState<_BlockDialog> {
                   : null,
               isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Temporizador de descanso',
+                labelText: 'Temporizador',
               ),
               items: [
                 const DropdownMenuItem<String?>(

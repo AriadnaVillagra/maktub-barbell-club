@@ -399,7 +399,7 @@ class _BlockTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final details = [
       categoryName ?? 'Sin categoría',
-      if (block.timerId != null) 'Descanso: ${timerName ?? block.timerId}',
+      if (block.timerId != null) 'Temporizador: ${timerName ?? block.timerId}',
     ].join(' · ');
     return ListTile(
       contentPadding: EdgeInsets.zero,

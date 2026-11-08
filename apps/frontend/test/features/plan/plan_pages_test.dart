@@ -414,7 +414,7 @@ void main() {
       for (var i = 0; i < 5; i++) {
         expect(find.byKey(Key('block-a-0-$i')), findsOneWidget);
       }
-      expect(find.text('Principal · Descanso: Descanso 90'), findsOneWidget);
+      expect(find.text('Principal · Temporizador: Descanso 90'), findsOneWidget);
       expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('block-add-a-0')));
@@ -422,7 +422,11 @@ void main() {
       await tester.tap(find.byKey(const Key('block-timer-field')));
       await tester.pumpAndSettle();
       expect(find.text('Descanso 90'), findsOneWidget);
-      expect(find.text('EMOM 10'), findsNothing, reason: 'only rest timers');
+      expect(
+        find.text('EMOM 10'),
+        findsOneWidget,
+        reason: 'every active timer, of any type',
+      );
       expect(find.text('Archivado'), findsNothing);
     });
 
@@ -464,7 +468,7 @@ void main() {
       await tester.tap(find.byKey(const Key('block-ok')));
       await tester.pumpAndSettle();
       expect(find.text('Uno bis'), findsOneWidget);
-      expect(find.text('Principal · Descanso: Descanso 90'), findsOneWidget);
+      expect(find.text('Principal · Temporizador: Descanso 90'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('block-remove-a-0-0')));
       await tester.pump();
