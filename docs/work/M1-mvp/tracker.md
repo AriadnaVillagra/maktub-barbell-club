@@ -26,7 +26,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (probada y revisada; falta mergear a `main`) | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | en curso | 6 / 6 (revisada; falta mergear a `main`) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | en curso | 15 / 15 (falta probar Publicar y mergear a `main`) | — |
-| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | en curso | 3 / 6 (E6.1 a E6.3 hechos; siguen E6.4 y E6.5) | — |
+| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | en curso | 6 / 6 (lista para probar y mergear a `main`; el día abre en 1 hasta E7.13) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | pendiente | 0 / 13 | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
