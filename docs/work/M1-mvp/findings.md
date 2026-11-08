@@ -123,6 +123,20 @@ temporizador. Falta casi todo:
 - **No hay documento de política de trabajo.** La magnitud y esta estructura de carpeta son
   improvisadas. Si después se define una política, este ítem se tiene que ajustar a ella.
 
+## E7.1: WebSocket en Cloud Run (R1), medido el 2026-11-08
+
+Se abrió un WebSocket contra la API real (`europe-north1`, una sola instancia, `--timeout 3600`), con un eco
+cada 30 s durante 66 minutos.
+
+- La primera conexión duró **3601 s** y respondió los 120 mensajes. Eco más lento: 67 ms.
+- El único corte fue en el tope de 3600 s de Cloud Run, con **código 1006** y sin mensaje de cierre.
+- La reconexión abrió en unos 2 s, y siguió hasta el final de la prueba sin más cortes.
+
+R1 se cumple: hace falta reconectar una vez cada 60 minutos. **Para E7.10:** el cierre llega como 1006, igual
+que una caída de red, así que el cliente tiene que reconectar y resincronizar por número de secuencia sin
+mostrarlo como error. La prueba fue desde una conexión de escritorio estable; un teléfono en el gimnasio va a
+cortarse más seguido por la red, y eso lo cubre la misma reconexión.
+
 ## Nota sobre la investigación
 
 La ubicación del código la hizo un agente de búsqueda. El juicio sobre si lo que existe tiene la
