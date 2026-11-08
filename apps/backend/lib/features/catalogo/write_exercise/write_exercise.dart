@@ -4,6 +4,8 @@ import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
 import 'package:maktub_backend/features/plan/usage/usage.dart';
 import 'package:maktub_backend/features/plan/usage/usage_store.dart';
+import 'package:maktub_backend/features/sesion/record_usage/record_usage.dart';
+import 'package:maktub_backend/features/sesion/record_usage/record_usage_store.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -104,9 +106,12 @@ WriteExercise _useCase(
   now: now,
 );
 
-/// An exercise is in use when another exercise or a plan refers to it.
-ExerciseUsage _exerciseUsage(Db db) =>
-    _AnyExerciseUsage([MongoExerciseUsage(db), PlanExerciseUsage(MongoPlanUsageStore(db))]);
+/// An exercise is in use when another exercise, a plan or a set record refers to it.
+ExerciseUsage _exerciseUsage(Db db) => _AnyExerciseUsage([
+  MongoExerciseUsage(db),
+  PlanExerciseUsage(MongoPlanUsageStore(db)),
+  RecordExerciseUsage(MongoRecordUsageStore(db)),
+]);
 
 class _AnyExerciseUsage implements ExerciseUsage {
   _AnyExerciseUsage(this._sources);
