@@ -14,6 +14,7 @@ export 'src/modelos/grupo.dart';
 export 'src/modelos/json.dart' show Json;
 export 'src/modelos/plan.dart';
 export 'src/modelos/referencias.dart';
+export 'src/modelos/sesion.dart';
 export 'src/modelos/temporizador.dart';
 export 'src/modelos/usuario.dart';
 export 'src/modelos/wod.dart';
