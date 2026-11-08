@@ -47,10 +47,29 @@ class HttpPlanRepository implements PlanRepository {
         ),
       );
     } on ErrorDeApi catch (e) {
-      final problems = e.estado == 422 ? _parseProblems(e.cuerpo) : null;
-      if (problems == null) rethrow;
-      throw PlanRejected(e.mensaje, problems);
+      _rejectIfProblems(e);
+      rethrow;
     }
+  }
+
+  @override
+  Future<Plan> publish(String clubId, String planId) async {
+    try {
+      return Plan.fromJson(
+        await _client.post(
+          '${_path(clubId)}/${Uri.encodeComponent(planId)}/publicar',
+        ),
+      );
+    } on ErrorDeApi catch (e) {
+      _rejectIfProblems(e);
+      rethrow;
+    }
+  }
+
+  /// Throws [PlanRejected] when [e] is a 422 with a list of problems this app understands.
+  static void _rejectIfProblems(ErrorDeApi e) {
+    final problems = e.estado == 422 ? _parseProblems(e.cuerpo) : null;
+    if (problems != null) throw PlanRejected(e.mensaje, problems);
   }
 
   /// The `problemas` of a 422 body, or null when they are missing or contain a code this app does not

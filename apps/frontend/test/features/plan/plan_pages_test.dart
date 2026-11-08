@@ -33,8 +33,8 @@ void main() {
       );
       await pumpPlanPage(tester, const PlansPage(basePath: '/x'), repo);
       expect(find.text('Fuerza'), findsOneWidget);
-      expect(find.text('Regular · 2 modelos'), findsOneWidget);
-      expect(find.text('RM · 0 modelos'), findsOneWidget);
+      expect(find.text('Regular · 2 modelos · Borrador'), findsOneWidget);
+      expect(find.text('RM · 0 modelos · Borrador'), findsOneWidget);
       expect(repo.calls, ['plans:c1']);
     });
 

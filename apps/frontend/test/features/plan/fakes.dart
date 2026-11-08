@@ -22,6 +22,7 @@ Plan samplePlan({
   PlanType type = PlanType.regular,
   List<WeekModel> models = const [],
   List<String> assignment = const [],
+  PublishedPlan? published,
 }) => Plan(
   id: id,
   clubId: 'c1',
@@ -29,7 +30,16 @@ Plan samplePlan({
   type: type,
   weekModels: models,
   weekAssignment: assignment,
+  published: published,
   auditoria: Auditoria(creadoPor: 'u1', creadoEn: DateTime.utc(2026, 11, 1)),
+);
+
+/// A published copy of [plan]'s saved content.
+PublishedPlan publishedCopyOf(Plan plan) => PublishedPlan(
+  weekModels: plan.weekModels,
+  weekAssignment: plan.weekAssignment,
+  publishedAt: DateTime.utc(2026, 11, 7),
+  publishedBy: 'u1',
 );
 
 WeekModel model(String id, String name, int days) => WeekModel(
@@ -55,6 +65,15 @@ class FakePlanRepository implements PlanRepository {
   /// When set, [save] waits for it before answering.
   Future<void>? saveGate;
 
+  /// Plan ids sent to [publish], in order.
+  final published = <String>[];
+
+  /// When set, [publish] throws it instead of publishing.
+  Object? publishFailure;
+
+  /// When set, [publish] waits for it before answering.
+  Future<void>? publishGate;
+
   @override
   Future<List<PlanSummary>> plans(String clubId) async {
     calls.add('plans:$clubId');
@@ -66,6 +85,8 @@ class FakePlanRepository implements PlanRepository {
           name: p.name,
           type: p.type,
           modelCount: p.weekModels.length,
+          published: p.published != null,
+          hasUnpublishedChanges: p.hasUnpublishedChanges,
         ),
     ];
   }
@@ -95,6 +116,8 @@ class FakePlanRepository implements PlanRepository {
       type: plan.type,
       weekModels: plan.weekModels,
       weekAssignment: plan.weekAssignment,
+      // The server keeps its own published copy, whatever the client sends.
+      published: this.stored[plan.id]?.published,
       auditoria: Auditoria(
         creadoPor: 'u1',
         creadoEn: DateTime.utc(2026, 11, 1),
@@ -104,6 +127,27 @@ class FakePlanRepository implements PlanRepository {
     );
     this.stored[plan.id] = stored;
     return stored;
+  }
+
+  @override
+  Future<Plan> publish(String clubId, String planId) async {
+    calls.add('publish:$clubId:$planId');
+    published.add(planId);
+    await publishGate;
+    if (publishFailure != null) throw publishFailure!;
+    final current = stored[planId]!;
+    final result = Plan(
+      id: current.id,
+      clubId: current.clubId,
+      name: current.name,
+      type: current.type,
+      weekModels: current.weekModels,
+      weekAssignment: current.weekAssignment,
+      published: publishedCopyOf(current),
+      auditoria: current.auditoria,
+    );
+    stored[planId] = result;
+    return result;
   }
 
   @override

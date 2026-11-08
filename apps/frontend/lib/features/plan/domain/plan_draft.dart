@@ -51,6 +51,8 @@ class PlanDraft {
     type: base.type,
     weekModels: weekModels,
     weekAssignment: [for (final a in assignment) a ?? ''],
+    // Never lost: the published copy only changes by publishing.
+    published: base.published,
     auditoria: base.auditoria,
   );
 

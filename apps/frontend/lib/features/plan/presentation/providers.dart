@@ -220,3 +220,95 @@ class PlanSave extends Notifier<PlanSaveState> {
     );
   }
 }
+
+/// Whether "Publicar" is offered: the plan is saved (no unsaved edits), `validatePlan` finds nothing to fix
+/// and there is something to publish (never published, or the saved content differs from the published copy,
+/// compared through its JSON form). False while the draft or the exercises are loading.
+final planPublishableProvider = Provider.autoDispose.family<bool, String>((
+  ref,
+  planId,
+) {
+  final draft = ref.watch(planEditorProvider(planId)).value;
+  final exercises = ref.watch(catalogExercisesProvider).value;
+  if (draft == null || exercises == null) return false;
+  if (draft.isDirty || !draft.base.hasUnpublishedChanges) return false;
+  final byId = {for (final e in exercises) e.id: e};
+  return validatePlan(draft.toPlan(), exerciseById: (id) => byId[id]).isEmpty;
+});
+
+/// Where publishing the plan stands: in flight, refused with a list of problems, failed, or done.
+class PlanPublishState {
+  const PlanPublishState({
+    this.publishing = false,
+    this.title,
+    this.problems = const [],
+    this.error,
+    this.justPublished = false,
+  });
+
+  final bool publishing;
+
+  /// Heading of the problem list; null when there is no list.
+  final String? title;
+  final List<PlanProblemLine> problems;
+
+  /// A failure that is not a list of problems (network, permission, conflict, server).
+  final String? error;
+  final bool justPublished;
+}
+
+final planPublishProvider = NotifierProvider.autoDispose
+    .family<PlanPublish, PlanPublishState, String>(PlanPublish.new);
+
+/// Asks the server to publish the saved plan. The server is the judge: a 422 lists the problems it found. The
+/// draft in the editor survives: the plan the server returns becomes its base, so the published copy updates
+/// and any edits made meanwhile stay. A second publish while one is in flight is ignored.
+class PlanPublish extends Notifier<PlanPublishState> {
+  PlanPublish(this.planId);
+
+  final String planId;
+
+  @override
+  PlanPublishState build() => const PlanPublishState();
+
+  Future<void> publish() async {
+    if (state.publishing) return;
+    final draft = ref.read(planEditorProvider(planId)).value;
+    if (draft == null || draft.isDirty) return;
+    final editor = ref.read(planEditorProvider(planId).notifier);
+    final plan = draft.toPlan();
+    state = const PlanPublishState(publishing: true);
+    String? Function(String) nameOf = (_) => null;
+    try {
+      final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
+      if (clubId == null) throw StateError('No active club');
+      final exercises = {
+        for (final e in await ref.read(catalogExercisesProvider.future))
+          e.id: e,
+      };
+      nameOf = (id) => exercises[id]?.name;
+      final published = await ref
+          .read(planRepositoryProvider)
+          .publish(clubId, planId);
+      if (!ref.mounted) return;
+      editor.commitSaved(draft, published);
+      ref.invalidate(plansProvider);
+      state = const PlanPublishState(justPublished: true);
+    } on PlanRejected catch (e) {
+      if (!ref.mounted) return;
+      state = PlanPublishState(
+        title: e.message,
+        problems: [
+          for (final p in e.problems)
+            describePlanProblem(p, plan, exerciseName: nameOf),
+        ],
+      );
+    } on ErrorDeApi catch (e) {
+      if (ref.mounted) state = PlanPublishState(error: e.mensaje);
+    } catch (_) {
+      if (ref.mounted) {
+        state = const PlanPublishState(error: 'No se pudo publicar el plan.');
+      }
+    }
+  }
+}

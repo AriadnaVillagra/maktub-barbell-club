@@ -102,9 +102,30 @@ class _Editor extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final editor = ref.read(planEditorProvider(planId).notifier);
     final save = ref.watch(planSaveProvider(planId));
+    final publish = ref.watch(planPublishProvider(planId));
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
+        _PublishStatus(planId: planId, draft: draft),
+        const SizedBox(height: Espacio.l),
+        if (publish.problems.isNotEmpty) ...[
+          ListaDeProblemas(
+            key: const Key('plan-publish-problems'),
+            titulo: publish.title ?? 'No se publicó el plan.',
+            problemas: [
+              for (final p in publish.problems)
+                ProblemaMaktub(p.message, ubicacion: p.location),
+            ],
+          ),
+          const SizedBox(height: Espacio.l),
+        ] else if (publish.error != null) ...[
+          ListaDeProblemas(
+            key: const Key('plan-publish-error'),
+            titulo: 'No se publicó el plan.',
+            problemas: [ProblemaMaktub(publish.error!)],
+          ),
+          const SizedBox(height: Espacio.l),
+        ],
         if (save.problems.isNotEmpty) ...[
           ListaDeProblemas(
             key: const Key('plan-problems'),
@@ -174,6 +195,71 @@ class _Editor extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// What the athletes see of the plan (draft, published, or published with unpublished changes) and the
+/// "Publicar" button, which shows only when the saved plan is complete and has something to publish.
+class _PublishStatus extends ConsumerWidget {
+  const _PublishStatus({required this.planId, required this.draft});
+
+  final String planId;
+  final PlanDraft draft;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final plan = draft.base;
+    final publishing = ref.watch(planPublishProvider(planId)).publishing;
+    final publishable = ref.watch(planPublishableProvider(planId));
+    final (label, detail) = switch (plan.published) {
+      null => (
+        'Borrador',
+        'Los atletas todavía no ven este plan.',
+      ),
+      _ when plan.hasUnpublishedChanges => (
+        'Publicado con cambios sin publicar',
+        'Los atletas ven la última versión publicada.',
+      ),
+      _ => ('Publicado', 'Los atletas ven la versión guardada.'),
+    };
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(Espacio.m),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    key: const Key('plan-status'),
+                    style: context.textos.titleSmall,
+                  ),
+                  Text(detail, style: context.textos.bodyMedium),
+                ],
+              ),
+            ),
+            if (publishable || publishing) ...[
+              const SizedBox(width: Espacio.m),
+              FilledButton.icon(
+                key: const Key('plan-publish'),
+                icon: publishing
+                    ? const SizedBox.square(
+                        dimension: Espacio.l,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.publish_outlined),
+                label: const Text('Publicar'),
+                onPressed: publishing
+                    ? null
+                    : () => ref.read(planPublishProvider(planId).notifier).publish(),
+              ),
+            ],
+          ],
+        ),
+      ),
     );
   }
 }

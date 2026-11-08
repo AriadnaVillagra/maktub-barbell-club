@@ -57,7 +57,7 @@ class PlansPage extends ConsumerWidget {
                     leading: const Icon(Icons.view_week_outlined),
                     title: Text(p.name),
                     subtitle: Text(
-                      '${planTypeLabel(p.type)} · ${p.modelCount == 1 ? '1 modelo' : '${p.modelCount} modelos'}',
+                      '${planTypeLabel(p.type)} · ${p.modelCount == 1 ? '1 modelo' : '${p.modelCount} modelos'} · ${!p.published ? 'Borrador' : p.hasUnpublishedChanges ? 'Publicado con cambios' : 'Publicado'}',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () =>
