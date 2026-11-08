@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -24,6 +26,9 @@ class ShellPrincipal extends ConsumerWidget {
     (icono: Icons.person_outline, seleccionado: Icons.person, etiqueta: 'Perfil'),
   ];
 
+  /// Logical pixels per second that tell a swipe from a slow drag.
+  static const _swipeMinVelocity = 300.0;
+
   void _ir(int indice) => navegacion.goBranch(indice, initialLocation: indice == navegacion.currentIndex);
 
   /// Indexes (into the branches) of the destinations the user can reach. Planning, Preferences and
@@ -48,10 +53,27 @@ class ShellPrincipal extends ConsumerWidget {
         ),
       );
 
+  /// A horizontal swipe moves to the next or previous tab. Only from a tab's landing page: inside a
+  /// screen (a plan, a form) the same gesture must not throw the user out of it.
+  void _swipe(BuildContext context, DragEndDetails details, List<int> visibles) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity.abs() < _swipeMinVelocity) return;
+    if (GoRouter.of(context).state.uri.pathSegments.length != 1) return;
+    final next = visibles.indexOf(navegacion.currentIndex) + (velocity < 0 ? 1 : -1);
+    if (next >= 0 && next < visibles.length) _ir(visibles[next]);
+  }
+
   Widget _construir(BuildContext context, List<int> visibles) {
     final contenido = Column(
       children: [
-        Expanded(child: navegacion),
+        Expanded(
+          child: GestureDetector(
+            behavior: HitTestBehavior.translucent,
+            supportedDevices: const {PointerDeviceKind.touch, PointerDeviceKind.mouse},
+            onHorizontalDragEnd: (d) => _swipe(context, d, visibles),
+            child: navegacion,
+          ),
+        ),
         const BarraCrono(),
       ],
     );

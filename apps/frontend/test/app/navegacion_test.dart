@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,6 +82,57 @@ void main() {
 
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(NavigationBar), findsNothing);
+  });
+
+  group('swiping between tabs', () {
+    int selected(WidgetTester tester) =>
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex;
+
+    Future<void> swipe(WidgetTester tester, double dx) async {
+      await tester.flingFrom(const Offset(200, 400), Offset(dx, 0), 1000);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('moves through the tabs and stops at the ends', (tester) async {
+      await _montar(tester, const Size(400, 800), athleteIds: {'c1': 'a1'});
+      expect(selected(tester), 0);
+
+      await swipe(tester, 300); // Already on the first tab.
+      expect(selected(tester), 0);
+
+      for (final expected in [1, 2, 3, 3]) {
+        await swipe(tester, -300);
+        expect(selected(tester), expected);
+      }
+
+      await swipe(tester, 300);
+      expect(selected(tester), 2);
+    });
+
+    testWidgets('a mouse drag also moves through the tabs', (tester) async {
+      await _montar(tester, const Size(400, 800));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.down(const Offset(300, 400));
+      for (var i = 1; i <= 5; i++) {
+        await gesture.moveBy(
+          const Offset(-50, 0),
+          timeStamp: Duration(milliseconds: 16 * i),
+        );
+      }
+      await gesture.up(timeStamp: const Duration(milliseconds: 96));
+      await tester.pumpAndSettle();
+      expect(selected(tester), 1);
+    });
+
+    testWidgets('inside a screen the swipe does nothing', (tester) async {
+      await _montar(tester, const Size(400, 800), ruta: Rutas.atletas);
+      await swipe(tester, -300);
+      expect(selected(tester), 1);
+      expect(
+        GoRouter.of(tester.element(find.byType(NavigationBar))).state.uri.path,
+        Rutas.atletas,
+      );
+    });
   });
 
   group('planning according to the role', () {
