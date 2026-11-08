@@ -22,5 +22,6 @@ export 'src/reglas/fases.dart';
 export 'src/reglas/fechas.dart';
 export 'src/reglas/load_source.dart';
 export 'src/reglas/permisos.dart';
+export 'src/reglas/ramp.dart';
 export 'src/reglas/porcentajes.dart';
 export 'src/reglas/vigencia.dart';
