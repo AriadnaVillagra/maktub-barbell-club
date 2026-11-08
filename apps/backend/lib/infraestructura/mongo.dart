@@ -39,6 +39,9 @@ abstract final class Colecciones {
 
   /// Fixed weights (F3): one document per (`clubId`, `atletaId`, `ejercicioId`), replaced in place.
   static const kilajesFijos = 'kilajes_fijos';
+
+  /// Plans (F5): one document per plan, saved whole (week models, assignment, days, blocks, sets).
+  static const planes = 'planes';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -104,6 +107,11 @@ Future<void> asegurarIndices(Db db) async {
         name: 'club_atleta_ejercicio_unico',
         unique: true,
       );
+
+  // Listing the plans of a club.
+  await db
+      .collection(Colecciones.planes)
+      .createIndex(keys: {'clubId': 1, 'nombre': 1}, name: 'club_nombre');
 }
 
 /// Documento de Mongo (`_id`) → JSON del dominio (`id`).
