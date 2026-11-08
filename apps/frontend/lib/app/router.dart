@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../features/access/presentation/providers.dart';
+import '../features/atletas/presentation/athlete_sheet_page.dart';
+import '../features/atletas/presentation/athletes_page.dart';
 import '../features/catalogo/presentation/catalog_routes.dart';
 import '../features/catalogo/presentation/categories_page.dart';
 import '../features/catalogo/presentation/team_page.dart';
@@ -22,6 +24,9 @@ import 'shell.dart';
 abstract final class Rutas {
   static const entrenamiento = '/entrenamiento';
   static const planificacion = '/planificacion';
+
+  /// The coach's athlete list; each athlete's sheet is `<atletas>/<athleteId>`.
+  static const atletas = '$planificacion/atletas';
 
   /// What configures the club rather than a plan: catalog, timers, equipment and members.
   static const preferencias = '/preferencias';
@@ -73,6 +78,18 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(
               path: Rutas.planificacion,
               builder: (_, _) => const PaginaPlanificacion(),
+              routes: [
+                GoRoute(
+                  path: 'atletas',
+                  builder: (_, _) => const AthletesPage(basePath: Rutas.atletas),
+                  routes: [
+                    GoRoute(
+                      path: ':id',
+                      builder: (_, state) => AthleteSheetPage(athleteId: state.pathParameters['id']!),
+                    ),
+                  ],
+                ),
+              ],
             ),
           ]),
           StatefulShellBranch(routes: [

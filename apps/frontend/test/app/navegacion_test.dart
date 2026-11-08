@@ -6,9 +6,14 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/app/app.dart';
 import 'package:maktub_frontend/app/router.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
+import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
+import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
+import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
 
 import '../features/access/fakes.dart';
+import '../features/atletas/fakes.dart';
+import '../features/catalogo/catalog_fakes.dart';
 import '../features/session/fakes.dart';
 
 final _gym = club('c1', 'Gimnasio', TipoClub.club);
@@ -28,6 +33,11 @@ Future<void> _montar(
       tokenStoreProvider.overrideWithValue(FakeTokenStore(issued(1))),
       authApiProvider.overrideWithValue(FakeAuthApi()),
       meRepositoryProvider.overrideWithValue(FakeMeRepository(meWith([(_gym, roles)]))),
+      catalogRepositoryProvider.overrideWithValue(FakeCatalog([])),
+      athleteRepositoryProvider.overrideWithValue(FakeAthleteRepository(
+        athletesList: const [AthleteSummary(id: 'a1', userId: 'u2', name: 'Andi')],
+        sheets: {'a1': const AthleteSheet(athleteId: 'a1')},
+      )),
     ],
     child: const MaktubApp(),
   ));
@@ -99,6 +109,25 @@ void main() {
 
       expect(find.text('Atletas y referencias'), findsOneWidget);
       expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Planificación')), findsOneWidget);
+    });
+
+    testWidgets('a coach reaches the athlete sheet from the planning landing page', (tester) async {
+      await _montar(tester, const Size(400, 800), ruta: Rutas.planificacion);
+
+      await tester.tap(find.byKey(const Key('portada-${Rutas.atletas}')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('athlete-a1')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('athlete-a1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('sheet-empty')), findsOneWidget);
+      expect(find.text('Andi'), findsOneWidget);
+    });
+
+    testWidgets('an athlete is sent back to training when opening an athlete sheet by URL', (tester) async {
+      await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: '${Rutas.atletas}/a1');
+      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.byKey(const Key('sheet-empty')), findsNothing);
     });
 
     testWidgets('the catalog lives in Preferences, not in training', (tester) async {

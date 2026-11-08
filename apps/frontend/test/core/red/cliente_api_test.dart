@@ -83,4 +83,17 @@ void main() {
     expect(requests.single.headers['Authorization'], isNull);
     expect(source.renewals, isEmpty);
   });
+
+  test('getList reads a JSON array body and still raises the API error', () async {
+    final api = ClienteApi(
+      base: Uri.parse('http://api.test'),
+      cliente: MockClient(
+        (request) async => request.url.path == '/ok'
+            ? http.Response(jsonEncode([{'id': 'a1'}]), 200)
+            : http.Response(jsonEncode({'error': 'Sin permiso.'}), 403),
+      ),
+    );
+    expect(await api.getList('/ok'), [{'id': 'a1'}]);
+    await expectLater(api.getList('/no'), throwsA(isA<ErrorDeApi>().having((e) => e.mensaje, 'mensaje', 'Sin permiso.')));
+  });
 }
