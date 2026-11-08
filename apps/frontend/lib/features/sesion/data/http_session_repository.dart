@@ -61,14 +61,4 @@ class HttpSessionRepository implements SessionRepository {
         ProposedSet.fromJson((s as Map).cast<String, dynamic>()),
     ];
   }
-
-  /// There is no backend query for this yet: it is E7.13's. Until it lands, no day counts as done, so the
-  /// screen opens on day 1 of the week (D13's rule for "until sessions exist").
-  @override
-  Future<Set<int>> daysWithRecords(
-    String clubId,
-    String assignmentId, {
-    required int cycle,
-    required int week,
-  }) async => const {};
 }

@@ -43,9 +43,12 @@ class _FakeGroups implements AssignmentRepository {
 
 /// Locates dates with the same rule the backend uses.
 class _FakeCalendar implements CalendarRepository {
-  _FakeCalendar({this.hasAssignment = true});
+  _FakeCalendar({this.hasAssignment = true, this.done = const {}});
 
   final bool hasAssignment;
+
+  /// The 1-based days of the week of the queried date with sets recorded.
+  final Set<int> done;
 
   @override
   Future<CalendarLocation?> locate(
@@ -67,6 +70,20 @@ class _FakeCalendar implements CalendarRepository {
   @override
   Future<PublishedPlanView> publishedPlan(String clubId, String planId) async =>
       _plan;
+
+  @override
+  Future<List<DayState>> dayStates(
+    String clubId,
+    String groupId,
+    DateTime from,
+    DateTime to,
+  ) async {
+    final where = UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: from);
+    return [
+      for (final d in done)
+        DayState(cycle: where.ciclo, week: where.semana, day: d, done: true),
+    ];
+  }
 }
 
 class _FakeAthletes implements AthleteRepository {
@@ -88,9 +105,8 @@ class _FakeAthletes implements AthleteRepository {
 }
 
 class _FakeSessions implements SessionRepository {
-  _FakeSessions({this.done = const {}, this.factor});
+  _FakeSessions({this.factor});
 
-  final Set<int> done;
   final double? factor;
   final queries = <(String, AthleteAdjustments)>[];
   Set<String>? openedPresent;
@@ -156,14 +172,6 @@ class _FakeSessions implements SessionRepository {
         ),
     ];
   }
-
-  @override
-  Future<Set<int>> daysWithRecords(
-    String clubId,
-    String assignmentId, {
-    required int cycle,
-    required int week,
-  }) async => done;
 }
 
 // 2026-11-18 is 11 weeks after the start: cycle 3, week 4 (model B).
@@ -274,7 +282,11 @@ void main() {
     testWidgets('it opens on the first day without recorded sets', (
       tester,
     ) async {
-      await _pump(tester, _FakeSessions(done: {1, 3}));
+      await _pump(
+        tester,
+        _FakeSessions(),
+        calendar: _FakeCalendar(done: {1, 3}),
+      );
 
       expect(find.text('Día 2 · Empuje'), findsOneWidget);
     });
@@ -282,7 +294,11 @@ void main() {
     testWidgets('if every day has recorded sets it opens on day 1', (
       tester,
     ) async {
-      await _pump(tester, _FakeSessions(done: {1, 2, 3}));
+      await _pump(
+        tester,
+        _FakeSessions(),
+        calendar: _FakeCalendar(done: {1, 2, 3}),
+      );
 
       expect(find.text('Día 1 · Piernas'), findsOneWidget);
     });
@@ -301,7 +317,7 @@ void main() {
   testWidgets('choosing another week shows its first day and model', (
     tester,
   ) async {
-    await _pump(tester, _FakeSessions(done: {1}));
+    await _pump(tester, _FakeSessions(), calendar: _FakeCalendar(done: {1}));
 
     await tester.tap(find.byKey(const Key('session-week-2')));
     await tester.pumpAndSettle();

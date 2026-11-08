@@ -30,12 +30,4 @@ abstract interface class SessionRepository {
     String athleteId,
     AthleteAdjustments adjustments,
   );
-
-  /// The 1-based days of [week] of [cycle] of the assignment with recorded sets in the group's session (D13).
-  Future<Set<int>> daysWithRecords(
-    String clubId,
-    String assignmentId, {
-    required int cycle,
-    required int week,
-  });
 }

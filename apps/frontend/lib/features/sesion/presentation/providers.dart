@@ -14,7 +14,6 @@ import '../../catalogo/presentation/providers.dart'
     show catalogRepositoryProvider;
 import '../data/http_session_repository.dart';
 import '../domain/athlete_adjustments.dart';
-import '../domain/opening_day.dart';
 import '../domain/session_repository.dart';
 
 final sessionRepositoryProvider = Provider<SessionRepository>(
@@ -76,14 +75,8 @@ final sessionDayProvider = FutureProvider.autoDispose<SessionDayData?>((
   final athletes = access.can(Accion.verReportesDeTodos)
       ? await ref.watch(athleteRepositoryProvider).athletes(clubId)
       : const [];
-  final done = await ref
-      .watch(sessionRepositoryProvider)
-      .daysWithRecords(
-        clubId,
-        location.assignmentId,
-        cycle: location.cycle,
-        week: location.week,
-      );
+  final today = ref.watch(todayProvider);
+  final states = await calendar.dayStates(clubId, group.id, today, today);
   final dayCount = plan.weekModelOf(location.week)?.days.length ?? 0;
   return SessionDayData(
     clubId: clubId,
@@ -92,7 +85,12 @@ final sessionDayProvider = FutureProvider.autoDispose<SessionDayData?>((
     plan: plan,
     exerciseNames: {for (final e in exercises) e.id: e.name},
     athleteNames: {for (final a in athletes) a.id: a.name},
-    openingDay: firstPendingDay(dayCount, done),
+    openingDay: firstPendingDay(
+      states,
+      cycle: location.cycle,
+      week: location.week,
+      dayCount: dayCount,
+    ),
     ownAthleteId: access.athleteId,
   );
 });
@@ -135,18 +133,12 @@ class SessionScreenController extends Notifier<SessionScreenState> {
   SessionScreenState build() => const SessionScreenState();
 
   /// Choosing another week goes to its first day, as the calendar does, and leaves the open session.
-  void selectWeek(int week) => state = SessionScreenState(
-    week: week,
-    day: 1,
-    present: state.present,
-  );
+  void selectWeek(int week) =>
+      state = SessionScreenState(week: week, day: 1, present: state.present);
 
   /// Choosing another day leaves the open session.
-  void selectDay(int week, int day) => state = SessionScreenState(
-    week: week,
-    day: day,
-    present: state.present,
-  );
+  void selectDay(int week, int day) =>
+      state = SessionScreenState(week: week, day: day, present: state.present);
 
   void setPresent(Set<String> present) => state = SessionScreenState(
     week: state.week,
