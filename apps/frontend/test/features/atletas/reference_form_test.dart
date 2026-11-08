@@ -10,7 +10,19 @@ import '../catalogo/catalog_fakes.dart';
 import 'fakes.dart';
 
 void main() {
-  final exercises = [ex('sq', 'Sentadilla'), ex('curl', 'Curl con mancuernas')];
+  final exercises = [
+    ex('sq', 'Sentadilla'),
+    ex(
+      'curl',
+      'Curl con mancuernas',
+      metrics: const [Metric.fixedLoad, Metric.reps],
+    ),
+    ex(
+      'pull',
+      'Dominadas',
+      metrics: const [Metric.bodyweight, Metric.reps],
+    ),
+  ];
 
   FakeAthleteRepository repoWith({Object? writeFailure}) =>
       FakeAthleteRepository(
@@ -94,6 +106,31 @@ void main() {
     expect(repo.calls, contains('fixed:curl:12.5'));
     expect(find.byKey(const Key('fixed-curl')), findsOneWidget);
     expect(find.text('12.5 kg'), findsOneWidget);
+  });
+
+  testWidgets('the RM form only offers exercises loaded by % of RM', (
+    tester,
+  ) async {
+    await open(tester, repoWith());
+    await tester.tap(find.byKey(const Key('edit-rm')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('form-exercise')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sentadilla'), findsWidgets);
+    expect(find.text('Curl con mancuernas'), findsNothing);
+    expect(find.text('Dominadas'), findsNothing);
+  });
+
+  testWidgets('the fixed weight form only offers fixed-load exercises', (
+    tester,
+  ) async {
+    await open(tester, repoWith());
+    await tester.tap(find.byKey(const Key('edit-fixedWeight')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('form-exercise')));
+    await tester.pumpAndSettle();
+    expect(find.text('Curl con mancuernas'), findsOneWidget);
+    expect(find.text('Dominadas'), findsNothing);
   });
 
   testWidgets(

@@ -53,6 +53,9 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 
 - **Datos corporales del atleta** (altura, peso y su seguimiento, cargados por el atleta): van después de
   M1. No tienen diseño. Definir qué datos, si guardan historial, quién los ve y cómo se protegen.
+- **Marcas que no son en kilos** (repeticiones máximas en Dominadas; tiempo, velocidad y km máximos en
+  Bicicleta): van después de M1, junto con cardio. `diseno.md` solo define marcas de cardio por tiempo o
+  distancia. Definir qué marcas tiene cada métrica, en qué unidad y si guardan historial.
 - **Quién lee perfiles.** Decidido: un nivel hacia abajo y nunca hacia arriba; el coach ve a los atletas
   y el atleta solo lo suyo. Falta diseñar qué ven los administradores. Andi y Ari son admin de plataforma,
   y hoy esa marca no da permisos dentro de un club (`permisos.dart`). Como también son coach y atleta en

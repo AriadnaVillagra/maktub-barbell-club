@@ -12,6 +12,7 @@ Future<Exercise?> showExercisePicker(
   BuildContext context, {
   String? categoryId,
   List<String> recentIds = const [],
+  bool Function(Exercise)? filter,
 }) => showModalBottomSheet<Exercise>(
   context: context,
   isScrollControlled: true,
@@ -21,6 +22,7 @@ Future<Exercise?> showExercisePicker(
     child: ExercisePicker(
       categoryId: categoryId,
       recentIds: recentIds,
+      filter: filter,
       onSelected: (e) => Navigator.of(context).pop(e),
     ),
   ),
@@ -32,17 +34,20 @@ Future<Exercise?> showExercisePicker(
 /// - [categoryId]: only exercises of that category; null offers every category.
 /// - [recentIds]: ids of the exercises used lately, most recent first. They are listed first, in
 ///   that order, and the rest follow by name. What counts as "recent" is up to the caller.
+/// - [filter]: when given, only the exercises it accepts are offered.
 /// - [onSelected]: called with the tapped exercise.
 class ExercisePicker extends ConsumerStatefulWidget {
   const ExercisePicker({
     super.key,
     this.categoryId,
     this.recentIds = const [],
+    this.filter,
     required this.onSelected,
   });
 
   final String? categoryId;
   final List<String> recentIds;
+  final bool Function(Exercise)? filter;
   final ValueChanged<Exercise> onSelected;
 
   @override
@@ -89,7 +94,7 @@ class _ExercisePickerState extends ConsumerState<ExercisePicker> {
             ),
             data: (all) {
               final shown = pickableExercises(
-                all,
+                widget.filter == null ? all : all.where(widget.filter!).toList(),
                 clubId: clubId ?? '',
                 categoryId: widget.categoryId,
                 query: _query,

@@ -71,7 +71,10 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
   }
 
   Future<void> _pickExercise() async {
-    final chosen = await showExercisePicker(context);
+    final chosen = await showExercisePicker(
+      context,
+      filter: (e) => acceptsReference(widget.kind, e),
+    );
     if (chosen != null) setState(() => _exercise = chosen);
   }
 
