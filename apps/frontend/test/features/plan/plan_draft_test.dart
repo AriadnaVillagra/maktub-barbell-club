@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/features/plan/domain/plan_draft.dart';
 
+import '../wods/fakes.dart';
 import 'fakes.dart';
 
 void main() {
@@ -219,6 +220,110 @@ void main() {
         identical(d.addPrescription('nope', 0, 0, const Prescription()), d),
         isTrue,
       );
+    });
+  });
+
+  group('adding a WoD from the library', () {
+    const squat = Prescription(exerciseId: 'squat', sets: [PlanSet(reps: 10)]);
+    const plank = Prescription(exerciseId: 'plank', timerId: 'hold');
+
+    (PlanDraft, String) withBlock(PlanBlock block) {
+      final d = empty().addModel('A');
+      final id = d.weekModels[0].id;
+      return (d.addBlock(id, 0, block), id);
+    }
+
+    PlanBlock blockOf(PlanDraft d) => d.weekModels[0].days[0].blocks[0];
+
+    test('an empty block takes the timer, the note and the prescriptions', () {
+      final (d, id) = withBlock(PlanBlock(name: 'WoD', categoryId: 'wod'));
+      final wod = sampleWod(
+        description: ' 20 min ',
+        timerId: 'amrap',
+        prescriptions: [squat, plank],
+      );
+      final b = blockOf(d.addWod(id, 0, 0, wod));
+      expect(b.timerId, 'amrap');
+      expect(b.note, '20 min');
+      expect(b.prescriptions, [squat, plank]);
+      expect((b.name, b.categoryId), ('WoD', 'wod'));
+    });
+
+    test('keeps the timer and the note the block already has', () {
+      final (d, id) = withBlock(
+        PlanBlock(
+          name: 'WoD',
+          categoryId: 'wod',
+          timerId: 'mine',
+          note: 'mía',
+          prescriptions: const [Prescription(exerciseId: 'press')],
+        ),
+      );
+      final wod = sampleWod(
+        description: 'otra',
+        timerId: 'amrap',
+        prescriptions: [squat],
+      );
+      final b = blockOf(d.addWod(id, 0, 0, wod));
+      expect((b.timerId, b.note), ('mine', 'mía'));
+      expect([for (final p in b.prescriptions) p.exerciseId], [
+        'press',
+        'squat',
+      ]);
+    });
+
+    test('a blank block note counts as none; a blank description adds none', () {
+      final (d, id) = withBlock(
+        PlanBlock(name: 'WoD', categoryId: 'wod', note: '  '),
+      );
+      expect(
+        blockOf(d.addWod(id, 0, 0, sampleWod(description: 'desc'))).note,
+        'desc',
+      );
+      expect(
+        blockOf(d.addWod(id, 0, 0, sampleWod(description: '  '))).note,
+        '  ',
+        reason: 'nothing to copy leaves the block as it was',
+      );
+      final (e, eid) = withBlock(PlanBlock(name: 'WoD', categoryId: 'wod'));
+      expect(blockOf(e.addWod(eid, 0, 0, sampleWod())).note, isNull);
+    });
+
+    test('adding twice appends both; the draft is dirty and a plain copy', () {
+      final (d, id) = withBlock(PlanBlock(name: 'WoD', categoryId: 'wod'));
+      final wod = sampleWod(prescriptions: [squat]);
+      final twice = d.addWod(id, 0, 0, wod).addWod(id, 0, 0, wod);
+      expect(blockOf(twice).prescriptions, hasLength(2));
+      expect(twice.isDirty, isTrue);
+      // Editing the copy leaves the library's WoD as it was.
+      final edited = twice.updatePrescription(
+        id,
+        0,
+        0,
+        0,
+        const Prescription(exerciseId: 'squat', sets: [PlanSet(reps: 3)]),
+      );
+      expect(wod.prescriptions.single, squat);
+      expect(blockOf(edited).prescriptions[0].sets.single.reps, 3);
+    });
+
+    test('an unknown block or day changes nothing', () {
+      final (d, id) = withBlock(PlanBlock(name: 'WoD', categoryId: 'wod'));
+      final wod = sampleWod(prescriptions: [squat]);
+      expect(identical(d.addWod(id, 0, 5, wod), d), isTrue);
+      expect(identical(d.addWod(id, 3, 0, wod), d), isTrue);
+      expect(identical(d.addWod('nope', 0, 0, wod), d), isTrue);
+    });
+
+    test('the block note survives adding and removing prescriptions', () {
+      final (d, id) = withBlock(
+        PlanBlock(name: 'WoD', categoryId: 'wod', note: 'nota'),
+      );
+      final next = d
+          .addPrescription(id, 0, 0, squat)
+          .updatePrescription(id, 0, 0, 0, plank)
+          .removePrescription(id, 0, 0, 0);
+      expect(blockOf(next).note, 'nota');
     });
   });
 }

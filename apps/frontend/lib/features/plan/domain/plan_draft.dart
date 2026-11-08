@@ -235,6 +235,30 @@ class PlanDraft {
           ]),
   );
 
+  /// Copies [wod] from the library into the block at [block]: its prescriptions are appended after the
+  /// block's, and its timer and its description (as the block's note) are taken only when the block has none
+  /// of its own. Nothing links the block to the library afterwards: it is a plain copy, so editing either
+  /// side never changes the other.
+  PlanDraft addWod(String modelId, int day, int block, Wod wod) {
+    final description = wod.description?.trim();
+    return updateBlock(
+      modelId,
+      day,
+      block,
+      (b) => PlanBlock(
+        name: b.name,
+        categoryId: b.categoryId,
+        executionMode: b.executionMode,
+        athleteMode: b.athleteMode,
+        timerId: b.timerId ?? wod.timerId,
+        note: _hasText(b.note) || !_hasText(description)
+            ? b.note
+            : description,
+        prescriptions: [...b.prescriptions, ...wod.prescriptions],
+      ),
+    );
+  }
+
   PlanBlock _withPrescriptions(PlanBlock b, List<Prescription> list) =>
       PlanBlock(
         name: b.name,
@@ -242,6 +266,7 @@ class PlanDraft {
         executionMode: b.executionMode,
         athleteMode: b.athleteMode,
         timerId: b.timerId,
+        note: b.note,
         prescriptions: list,
       );
 
@@ -285,6 +310,8 @@ class PlanDraft {
         assignment: assignment ?? this.assignment,
       );
 }
+
+bool _hasText(String? s) => s != null && s.trim().isNotEmpty;
 
 bool _sameList<T>(List<T> a, List<T> b) {
   if (a.length != b.length) return false;

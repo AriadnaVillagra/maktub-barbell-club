@@ -14,6 +14,7 @@ import 'block_dialog.dart';
 import 'plan_dialogs.dart';
 import 'plan_labels.dart';
 import 'prescription_dialog.dart';
+import 'wod_picker.dart';
 import 'providers.dart';
 
 /// Editor of a plan's structure: week models, the assignment of the 4 weeks and the days of each model.
@@ -383,6 +384,7 @@ class _DayTile extends ConsumerWidget {
                       name: fields.name,
                       categoryId: fields.categoryId,
                       timerId: fields.timerId,
+                      note: fields.note,
                     ),
                   );
                 },
@@ -446,6 +448,13 @@ class _BlockTile extends ConsumerWidget {
     );
   }
 
+  /// Copies a WoD of the library into this block (timer, note and exercises with their sets).
+  Future<void> _addWod(BuildContext context) async {
+    final wod = await showWodPicker(context);
+    if (wod == null) return;
+    editor.addWod(modelId, day, index, wod);
+  }
+
   Future<void> _editPrescription(
     BuildContext context,
     int p,
@@ -489,7 +498,15 @@ class _BlockTile extends ConsumerWidget {
     final tile = ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(block.name),
-      subtitle: Text(details),
+      subtitle: block.note == null
+          ? Text(details)
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(details),
+                Text(block.note!, key: Key('block-note-$keyPrefix-$index')),
+              ],
+            ),
       onTap: () async {
         final fields = await askBlock(context, initial: block);
         if (fields == null) return;
@@ -503,6 +520,7 @@ class _BlockTile extends ConsumerWidget {
             executionMode: b.executionMode,
             athleteMode: b.athleteMode,
             timerId: fields.timerId,
+            note: fields.note,
             prescriptions: b.prescriptions,
           ),
         );
@@ -574,6 +592,13 @@ class _BlockTile extends ConsumerWidget {
                 label: const Text('Agregar ejercicio'),
                 onPressed: () => _addExercise(context, ref),
               ),
+              if (block.categoryId == wodCategoryId)
+                TextButton.icon(
+                  key: Key('wod-add-$keyPrefix-$index'),
+                  icon: const Icon(Icons.local_fire_department_outlined),
+                  label: const Text('Agregar WoD'),
+                  onPressed: () => _addWod(context),
+                ),
             ],
           ),
         ),

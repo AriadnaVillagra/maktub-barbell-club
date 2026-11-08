@@ -8,9 +8,15 @@ import '../../catalogo/presentation/exercise_catalog_providers.dart';
 
 /// The fields a coach chooses for a block. Execution and athlete mode keep the model's defaults
 /// (sequential, simultaneous): M1 runs nothing else.
-typedef BlockFields = ({String name, String categoryId, String? timerId});
+typedef BlockFields = ({
+  String name,
+  String categoryId,
+  String? timerId,
+  String? note,
+});
 
-/// Asks for the name, category and timer of a block (any type of timer: a WoD block needs EMOM, tabata...), starting from [initial] when editing.
+/// Asks for the name, category, timer (any type: a WoD block needs EMOM, tabata...) and note of a block,
+/// starting from [initial] when editing. A blank note comes back as null.
 /// Null if cancelled.
 Future<BlockFields?> askBlock(BuildContext context, {PlanBlock? initial}) =>
     showDialog<BlockFields>(
@@ -31,10 +37,12 @@ class _BlockDialogState extends ConsumerState<_BlockDialog> {
   late final _controller = TextEditingController(text: widget.initial?.name);
   late String? _categoryId = widget.initial?.categoryId;
   late String? _timerId = widget.initial?.timerId;
+  late final _note = TextEditingController(text: widget.initial?.note);
 
   @override
   void dispose() {
     _controller.dispose();
+    _note.dispose();
     super.dispose();
   }
 
@@ -46,6 +54,7 @@ class _BlockDialogState extends ConsumerState<_BlockDialog> {
       name: _controller.text.trim(),
       categoryId: _categoryId!,
       timerId: _timerId,
+      note: _note.text.trim().isEmpty ? null : _note.text.trim(),
     ));
   }
 
@@ -110,6 +119,14 @@ class _BlockDialogState extends ConsumerState<_BlockDialog> {
                   DropdownMenuItem<String?>(value: t.id, child: Text(t.nombre)),
               ],
               onChanged: (id) => setState(() => _timerId = id),
+            ),
+            const SizedBox(height: Espacio.l),
+            TextField(
+              key: const Key('block-note-field'),
+              controller: _note,
+              minLines: 2,
+              maxLines: 6,
+              decoration: const InputDecoration(labelText: 'Nota'),
             ),
           ],
         ),
