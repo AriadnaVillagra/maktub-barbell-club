@@ -45,6 +45,9 @@ abstract final class Colecciones {
 
   /// WoDs of the club's library (E5.11): reusable groups of prescriptions copied into plan blocks.
   static const wods = 'wods';
+
+  /// Groups of athletes (E6): created by the seeding script, read by the app. One document per group.
+  static const grupos = 'grupos';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -118,6 +121,9 @@ Future<void> asegurarIndices(Db db) async {
 
   // Listing the WoDs of a club's library.
   await db.collection(Colecciones.wods).createIndex(keys: {'clubId': 1, 'nombre': 1}, name: 'club_nombre');
+
+  // Listing the groups of a club.
+  await db.collection(Colecciones.grupos).createIndex(keys: {'clubId': 1}, name: 'club');
 
   // "In use" checks (E5.4): multikey indexes on the exercise and timer references inside plans.
   const blocks = 'modelosSemana.dias.bloques';

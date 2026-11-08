@@ -18,7 +18,8 @@ class ResultadoAlta {
 }
 
 /// Idempotent seeding (design.md 3.5, D6): the Maktub club, and per user their personal club
-/// (`clubPersonalId`), memberships (coach + atleta) and athlete in both clubs.
+/// (`clubPersonalId`), memberships (coach + atleta) and athlete in both clubs. Then the Maktub group
+/// (E6.2, D14): one group with every seeded user's athlete of the Maktub club as a member.
 ///
 /// Every document is looked up by its natural key and only inserted if missing; nothing existing
 /// is modified, so running it twice leaves the database identical.
@@ -55,6 +56,7 @@ class AltaInicial {
 
     final maktubId = await _clubMaktub(r, creadoPor: ids[emails.first]!);
 
+    final athleteIdsInMaktub = <String>[];
     for (final u in usuarios) {
       final email = normalizarEmail(u.email);
       final id = ids[email]!;
@@ -89,9 +91,17 @@ class AltaInicial {
         id: id,
       );
       for (final clubId in [maktubId, personalId]) {
-        await _membresiaYAtleta(r, clubId, id, u.nombre, auditoria, maktubId: maktubId);
+        final athleteId = await _membresiaYAtleta(r, clubId, id, u.nombre, auditoria, maktubId: maktubId);
+        if (clubId == maktubId) athleteIdsInMaktub.add(athleteId);
       }
     }
+    await _group(
+      r,
+      maktubId,
+      usuarios.map((u) => u.nombre).join(' y '),
+      athleteIdsInMaktub,
+      Auditoria.nueva(ids[emails.first]!, ahora: _ahora()),
+    );
     return r;
   }
 
@@ -119,7 +129,29 @@ class AltaInicial {
     return id;
   }
 
-  Future<void> _membresiaYAtleta(
+  /// The group is keyed by (`clubId`, `nombre`). An existing one is left as it is, members included.
+  Future<void> _group(
+    ResultadoAlta r,
+    String clubId,
+    String name,
+    List<String> memberIds,
+    Auditoria auditoria,
+  ) => _insertarSiFalta(
+    r,
+    Colecciones.grupos,
+    {'clubId': clubId, 'nombre': name},
+    AthleteGroup(
+      id: _nuevoId(),
+      clubId: clubId,
+      name: name,
+      memberIds: memberIds,
+      auditoria: auditoria,
+    ).toJson(),
+    'grupo $name en $clubId',
+  );
+
+  /// Returns the id of the athlete document (existing or new).
+  Future<String> _membresiaYAtleta(
     ResultadoAlta r,
     String clubId,
     String usuarioId,
@@ -144,19 +176,25 @@ class AltaInicial {
       ).toJson(),
       'membresía de $nombre en $clubId',
     );
+    final existingAthlete = await _db
+        .collection(Colecciones.atletas)
+        .findOne(where.eq('clubId', clubId).eq('usuarioId', usuarioId));
+    final athleteId = existingAthlete == null ? _nuevoId() : '${existingAthlete['_id']}';
     await _insertarSiFalta(
       r,
       Colecciones.atletas,
       clave,
       Atleta(
-        id: _nuevoId(),
+        id: athleteId,
         clubId: clubId,
         usuarioId: usuarioId,
         nombreVisible: nombre,
         auditoria: auditoria,
       ).toJson(),
       'atleta $nombre en $clubId',
+      id: athleteId,
     );
+    return athleteId;
   }
 
   Future<void> _insertarSiFalta(
