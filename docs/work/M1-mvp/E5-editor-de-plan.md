@@ -54,6 +54,12 @@ Orden: después de la E2 (5.1 necesita 2.1; 5.4 necesita 2.6) y de la E1 (5.2 ne
 | E5.7 | [App: agregar prescripciones con ejercicio y series por defecto](E5.7-app-prescripciones-con-series-por-defecto.md) | E5.6, E2.10 |
 | E5.8 | [App: editar series una por una, nota y temporizador propio](E5.8-app-series-una-por-una.md) | E5.7 |
 | E5.9 | [App: guardar el plan con validación visible](E5.9-app-guardar-plan.md) | E5.3, E5.8 |
+| E5.10 | [Modelo del WoD de biblioteca y nota del bloque](E5.10-modelo-wod.md) | E5.1 |
+| E5.11 | [Backend: biblioteca de WoDs del club](E5.11-backend-wods.md) | E5.10, E1.10, E1.11 |
+| E5.12 | [App: sección WoDs en Preferencias](E5.12-app-wods-preferencias.md) | E5.11, E5.8 |
+| E5.13 | [App: agregar un WoD de la biblioteca a un bloque](E5.13-app-agregar-wod-a-bloque.md) | E5.12 |
+
+E5.10 a E5.13 se agregaron el 2026-11-08, tras la prueba del editor: el coach arma WoDs reutilizables en Preferencias. Van en orden.
 
 **En paralelo:**
 - La cadena del backend (E5.2 → E5.3 → E5.4) y la de la app (E5.5 → E5.6 → E5.7 → E5.8) avanzan en paralelo una vez que existe E5.2.
