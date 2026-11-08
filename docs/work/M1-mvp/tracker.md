@@ -23,9 +23,9 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E0 | [Cerrar F0](E0-cerrar-f0.md) | hecho | 6 / 6 (mergeada a `main`) | — |
 | E1 | [Acceso](E1-acceso.md) | hecho | 14 / 14 (mergeada a `main`; ingreso probado en localhost:5000 y en Pages, R2 ok) | — |
 | E2 | [Catálogo](E2-catalogo.md) | hecho | 10 / 10 (mergeada a `main` y semilla cargada; prueba en producción ok) | — |
-| E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (probada en local; falta mergear a `main`) | — |
-| E4 | [Reglas de carga](E4-reglas-de-carga.md) | en curso | 6 / 6 (lista para revisar y mergear a `main`) | — |
-| E5 | [Editor de plan](E5-editor-de-plan.md) | pendiente | 0 / 9 | — |
+| E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (probada y revisada; falta mergear a `main`) | — |
+| E4 | [Reglas de carga](E4-reglas-de-carga.md) | en curso | 6 / 6 (revisada; falta mergear a `main`) | — |
+| E5 | [Editor de plan](E5-editor-de-plan.md) | en curso | 9 / 9 (lista para probar y mergear a `main`; falta reescribir a mano el plan de octubre en un navegador real) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | pendiente | 0 / 6 | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | pendiente | 0 / 13 | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
@@ -46,8 +46,15 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **Antes de usarlo en producción:** desplegar la API y la PWA juntas, y correr `tool/ajustes_e2.dart`
   con `ADMIN_PLATAFORMA`. Sin ese paso, los coaches actuales pierden la edición del catálogo.
 - **`diseno.md` quedó atrás** en C1 (ejercicios base) y en Equipo (S3 de F2). Se actualiza desde su sesión.
-- **E5 (editor de plan):** la barra se indica por ejercicio; falta decidir si la prescripción la puede pisar.
+- **E5 (editor de plan):** la barra se indica por ejercicio, y la prescripción la puede pisar con una barra opcional (decidido el 2026-11-08). El control va en el editor (E5.7 o E5.8), y E4/E7 tienen que usar esa barra al calcular.
 - **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja.
+
+## D16 aprobada (2026-11-08)
+
+Se elimina "día sin primario". Cada bloque tiene categoría y cada ejercicio pertenece a la categoría de su
+bloque. Al agregar un ejercicio (E5.7), los bloques de categoría `primario`, `secundario` y `accesorio`
+traen las series por defecto de la referencia y sus descansos (`desc_180`, `desc_120`, `desc_90`); las
+demás categorías no traen nada.
 
 ## Pendientes que salieron de E3 (2026-11-08)
 
