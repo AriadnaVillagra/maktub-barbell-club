@@ -1,5 +1,7 @@
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/plan/usage/usage.dart';
+import 'package:maktub_backend/features/plan/usage/usage_store.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -17,7 +19,7 @@ Future<Response> deleteTimerEndpoint(
   final club = context.read<ClubContext>();
   final result = await DeleteTimer(
     store ?? MongoDeleteTimerStore(context.read<Db>()),
-    usage ?? const NoTimerUsageYet(),
+    usage ?? PlanTimerUsage(MongoPlanUsageStore(context.read<Db>())),
   )(club, id);
   return Response.json(body: {'resultado': result.name});
 }

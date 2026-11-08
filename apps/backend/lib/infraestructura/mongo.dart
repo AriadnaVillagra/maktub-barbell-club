@@ -112,6 +112,16 @@ Future<void> asegurarIndices(Db db) async {
   await db
       .collection(Colecciones.planes)
       .createIndex(keys: {'clubId': 1, 'nombre': 1}, name: 'club_nombre');
+
+  // "In use" checks (E5.4): multikey indexes on the exercise and timer references inside plans.
+  const blocks = 'modelosSemana.dias.bloques';
+  for (final (name, path) in [
+    ('club_uso_ejercicio', '$blocks.prescripciones.ejercicioId'),
+    ('club_uso_temporizador_bloque', '$blocks.temporizadorId'),
+    ('club_uso_temporizador_prescripcion', '$blocks.prescripciones.temporizadorId'),
+  ]) {
+    await db.collection(Colecciones.planes).createIndex(keys: {'clubId': 1, path: 1}, name: name);
+  }
 }
 
 /// Documento de Mongo (`_id`) → JSON del dominio (`id`).

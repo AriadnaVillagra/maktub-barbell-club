@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/plan/usage/usage.dart';
+import 'package:maktub_backend/features/plan/usage/usage_store.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -97,10 +99,28 @@ WriteExercise _useCase(
   DateTime Function()? now,
 ) => WriteExercise(
   store ?? MongoWriteExerciseStore(context.read<Db>()),
-  usage ?? MongoExerciseUsage(context.read<Db>()),
+  usage ?? _exerciseUsage(context.read<Db>()),
   newId: newId,
   now: now,
 );
+
+/// An exercise is in use when another exercise or a plan refers to it.
+ExerciseUsage _exerciseUsage(Db db) =>
+    _AnyExerciseUsage([MongoExerciseUsage(db), PlanExerciseUsage(MongoPlanUsageStore(db))]);
+
+class _AnyExerciseUsage implements ExerciseUsage {
+  _AnyExerciseUsage(this._sources);
+
+  final List<ExerciseUsage> _sources;
+
+  @override
+  Future<bool> isUsed(String clubId, String exerciseId) async {
+    for (final source in _sources) {
+      if (await source.isUsed(clubId, exerciseId)) return true;
+    }
+    return false;
+  }
+}
 
 /// What [WriteExercise.remove] did.
 class RemoveExerciseResult {
