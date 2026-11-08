@@ -206,6 +206,7 @@ class PlanBlock {
     this.executionMode = ExecutionMode.sequential,
     this.athleteMode = AthleteMode.simultaneous,
     this.timerId,
+    this.note,
     this.prescriptions = const [],
   });
 
@@ -220,6 +221,10 @@ class PlanBlock {
 
   /// Default rest timer of the block, or the block's own timer when [executionMode] is `timed`.
   final String? timerId;
+
+  /// Free text for the whole block (a WoD's description lands here); never interpreted. Plans saved before it
+  /// existed have none.
+  final String? note;
   final List<Prescription> prescriptions;
 
   factory PlanBlock.fromJson(Json j) => PlanBlock(
@@ -232,6 +237,7 @@ class PlanBlock {
         ? AthleteMode.simultaneous
         : AthleteMode.deCable(j['modoAtletas']),
     timerId: textoOpcional(j['temporizadorId']),
+    note: textoOpcional(j['nota']),
     prescriptions: [
       for (final p in listaJson(j['prescripciones'])) Prescription.fromJson(p),
     ],
@@ -243,6 +249,7 @@ class PlanBlock {
     'modoEjecucion': executionMode.cable,
     'modoAtletas': athleteMode.cable,
     'temporizadorId': timerId,
+    'nota': note,
     'prescripciones': [for (final p in prescriptions) p.toJson()],
   });
 }
