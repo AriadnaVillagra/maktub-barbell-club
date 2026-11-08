@@ -44,6 +44,15 @@ class FakePlanRepository implements PlanRepository {
   final Object? failure;
   final calls = <String>[];
 
+  /// Plans sent to [save], in order.
+  final saved = <Plan>[];
+
+  /// When set, [save] throws it instead of storing.
+  Object? saveFailure;
+
+  /// When set, [save] waits for it before answering.
+  Future<void>? saveGate;
+
   @override
   Future<List<PlanSummary>> plans(String clubId) async {
     calls.add('plans:$clubId');
@@ -69,6 +78,30 @@ class FakePlanRepository implements PlanRepository {
     final plan = samplePlan(id: 'new${stored.length}', name: name, type: type);
     stored[plan.id] = plan;
     return plan;
+  }
+
+  @override
+  Future<Plan> save(String clubId, Plan plan) async {
+    calls.add('save:$clubId:${plan.id}');
+    saved.add(plan);
+    await saveGate;
+    if (saveFailure != null) throw saveFailure!;
+    final stored = Plan(
+      id: plan.id,
+      clubId: clubId,
+      name: plan.name,
+      type: plan.type,
+      weekModels: plan.weekModels,
+      weekAssignment: plan.weekAssignment,
+      auditoria: Auditoria(
+        creadoPor: 'u1',
+        creadoEn: DateTime.utc(2026, 11, 1),
+        modificadoPor: 'u1',
+        modificadoEn: DateTime.utc(2026, 11, 8),
+      ),
+    );
+    this.stored[plan.id] = stored;
+    return stored;
   }
 
   @override

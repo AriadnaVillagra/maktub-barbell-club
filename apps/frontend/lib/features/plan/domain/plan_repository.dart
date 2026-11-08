@@ -40,4 +40,20 @@ abstract interface class PlanRepository {
 
   /// The full plan. Throws `ErrorDeApi` with the backend's message when it does not exist.
   Future<Plan> plan(String clubId, String planId);
+
+  /// Saves the full [plan] and returns it as stored (with its audit). Coach only. Throws
+  /// [PlanRejected] when the server finds it invalid and `ErrorDeApi` for any other failure.
+  Future<Plan> save(String clubId, Plan plan);
+}
+
+/// The server refused to save the plan because it is invalid (422): it lists every problem, with the
+/// same [PlanProblem]s `validatePlan` returns. Nothing was written.
+class PlanRejected implements Exception {
+  const PlanRejected(this.message, this.problems);
+
+  final String message;
+  final List<PlanProblem> problems;
+
+  @override
+  String toString() => message;
 }

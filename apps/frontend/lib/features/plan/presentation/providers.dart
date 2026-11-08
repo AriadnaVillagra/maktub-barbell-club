@@ -2,10 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
 import '../../../core/red/api_providers.dart';
+import '../../../core/red/cliente_api.dart';
 import '../../access/presentation/providers.dart';
+import '../../catalogo/presentation/exercise_catalog_providers.dart';
 import '../data/http_plan_repository.dart';
 import '../domain/plan_draft.dart';
 import '../domain/plan_repository.dart';
+import 'plan_problem_messages.dart';
 
 final planRepositoryProvider = Provider<PlanRepository>(
   (ref) => HttpPlanRepository(ref.watch(clienteApiProvider)),
@@ -35,7 +38,7 @@ Future<Plan?> createPlan(
   return plan;
 }
 
-/// The plan [planId] being edited in memory. It is discarded when the editor closes: saving is E5.9.
+/// The plan [planId] being edited in memory. It is discarded when the editor closes; [planSaveProvider] saves it.
 final planEditorProvider = AsyncNotifierProvider.autoDispose
     .family<PlanEditor, PlanDraft, String>(PlanEditor.new);
 
@@ -56,6 +59,18 @@ class PlanEditor extends AsyncNotifier<PlanDraft> {
   void _edit(PlanDraft Function(PlanDraft) change) {
     final current = state.value;
     if (current != null) state = AsyncData(change(current));
+  }
+
+  /// After a save: [saved] is what the server stored for [sent]. When nothing was edited since [sent] the
+  /// draft restarts from [saved] (clean); otherwise the edits made while saving are kept on top of it.
+  void commitSaved(PlanDraft sent, Plan saved) {
+    final current = state.value;
+    if (current == null) return;
+    state = AsyncData(
+      identical(current, sent)
+          ? PlanDraft.from(saved)
+          : current.rebasedOn(saved),
+    );
   }
 
   void addModel(String name) => _edit((d) => d.addModel(name));
@@ -98,4 +113,97 @@ class PlanEditor extends AsyncNotifier<PlanDraft> {
   ) => _edit(
     (d) => d.updatePrescription(modelId, day, block, index, prescription),
   );
+}
+
+/// Where saving the plan stands: in flight, refused with a list of problems, failed, or done.
+class PlanSaveState {
+  const PlanSaveState({
+    this.saving = false,
+    this.title,
+    this.problems = const [],
+    this.error,
+    this.justSaved = false,
+  });
+
+  final bool saving;
+
+  /// Heading of the problem list; null when there is no list.
+  final String? title;
+  final List<PlanProblemLine> problems;
+
+  /// A failure that is not a list of problems (network, permission, server).
+  final String? error;
+  final bool justSaved;
+
+  bool get hasFailure => error != null || problems.isNotEmpty;
+}
+
+final planSaveProvider = NotifierProvider.autoDispose
+    .family<PlanSave, PlanSaveState, String>(PlanSave.new);
+
+/// Validates the draft with `validatePlan` (the server's rule) and, only if it passes, sends it. Any failure
+/// leaves the draft as it was; a second save while one is in flight is ignored.
+class PlanSave extends Notifier<PlanSaveState> {
+  PlanSave(this.planId);
+
+  final String planId;
+
+  @override
+  PlanSaveState build() => const PlanSaveState();
+
+  Future<void> save() async {
+    if (state.saving) return;
+    final editor = ref.read(planEditorProvider(planId).notifier);
+    final draft = ref.read(planEditorProvider(planId)).value;
+    if (draft == null) return;
+    state = const PlanSaveState(saving: true);
+    final plan = draft.toPlan();
+    String? Function(String) nameOf = (_) => null;
+    try {
+      final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
+      if (clubId == null) throw StateError('No active club');
+      final exercises = {
+        for (final e in await ref.read(catalogExercisesProvider.future)) e.id: e,
+      };
+      nameOf = (id) => exercises[id]?.name;
+      final problems = validatePlan(plan, exerciseById: (id) => exercises[id]);
+      if (problems.isNotEmpty) {
+        _rejected(plan, problems, nameOf, null);
+        return;
+      }
+      final saved = await ref.read(planRepositoryProvider).save(clubId, plan);
+      if (!ref.mounted) return;
+      editor.commitSaved(draft, saved);
+      ref.invalidate(plansProvider);
+      state = const PlanSaveState(justSaved: true);
+    } on PlanRejected catch (e) {
+      _rejected(plan, e.problems, nameOf, e.message);
+    } on ErrorDeApi catch (e) {
+      if (ref.mounted) state = PlanSaveState(error: e.mensaje);
+    } catch (_) {
+      if (ref.mounted) {
+        state = const PlanSaveState(error: 'No se pudo guardar el plan.');
+      }
+    }
+  }
+
+  void _rejected(
+    Plan plan,
+    List<PlanProblem> problems,
+    String? Function(String) nameOf,
+    String? serverMessage,
+  ) {
+    if (!ref.mounted) return;
+    state = PlanSaveState(
+      title:
+          serverMessage ??
+          (problems.length == 1
+              ? 'El plan tiene 1 problema; no se guardó.'
+              : 'El plan tiene ${problems.length} problemas; no se guardó.'),
+      problems: [
+        for (final p in problems)
+          describePlanProblem(p, plan, exerciseName: nameOf),
+      ],
+    );
+  }
 }

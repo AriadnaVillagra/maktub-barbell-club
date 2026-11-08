@@ -54,6 +54,11 @@ class PlanDraft {
     auditoria: base.auditoria,
   );
 
+  /// This same edited structure on top of [saved], the plan the server returned for it: the draft is
+  /// clean again when [saved] has the structure that was sent.
+  PlanDraft rebasedOn(Plan saved) =>
+      PlanDraft(base: saved, weekModels: weekModels, assignment: assignment);
+
   WeekModel? modelById(String? id) {
     for (final m in weekModels) {
       if (m.id == id) return m;

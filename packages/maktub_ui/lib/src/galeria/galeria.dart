@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../componentes/campo_busqueda.dart';
 import '../componentes/contador_cantidad.dart';
 import '../componentes/insignia.dart';
+import '../componentes/lista_de_problemas.dart';
 import '../componentes/sign_in_panel.dart';
 import '../tema/contexto.dart';
 import '../tema/modo.dart';
@@ -79,6 +80,7 @@ class Muestrario extends StatelessWidget {
             _Seccion('Ingreso', _Ingreso()),
             _Seccion('Insignias', _Insignias()),
             _Seccion('Búsqueda y cantidad', _BusquedaYCantidad()),
+            _Seccion('Lista de problemas', _ListaDeProblemas()),
           ],
         ),
       );
@@ -327,6 +329,19 @@ class _Insignias extends StatelessWidget {
         children: [
           InsigniaMaktub('Default', context.colores.insigniaBase),
           InsigniaMaktub('Custom', context.colores.insigniaPropio),
+        ],
+      );
+}
+
+class _ListaDeProblemas extends StatelessWidget {
+  const _ListaDeProblemas();
+
+  @override
+  Widget build(BuildContext context) => const ListaDeProblemas(
+        titulo: 'El plan tiene 2 problemas; no se guardó.',
+        problemas: [
+          ProblemaMaktub('Falta el % de la serie.', ubicacion: 'Modelo A › Día 2 › Bloque 1 › Sentadilla › Serie 3'),
+          ProblemaMaktub('El plan no tiene nombre.'),
         ],
       );
 }

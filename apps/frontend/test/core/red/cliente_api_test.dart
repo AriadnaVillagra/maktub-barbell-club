@@ -68,6 +68,28 @@ void main() {
     expect(requests, hasLength(1));
   });
 
+  test('an error carries the whole JSON body, not only the message', () async {
+    final api = ClienteApi(
+      base: Uri.parse('http://api.test'),
+      cliente: MockClient(
+        (_) async => http.Response(
+          jsonEncode({'error': 'Inválido.', 'problemas': [{'codigo': 'x'}]}),
+          422,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        ),
+      ),
+    );
+    await expectLater(
+      api.put('/x', {'a': 1}),
+      throwsA(
+        isA<ErrorDeApi>()
+            .having((e) => e.mensaje, 'mensaje', 'Inválido.')
+            .having((e) => e.estado, 'estado', 422)
+            .having((e) => e.cuerpo?['problemas'], 'problemas', [{'codigo': 'x'}]),
+      ),
+    );
+  });
+
   test('a 403 does not renew', () async {
     final source = _Source('old', renewTo: 'new');
     await expectLater(

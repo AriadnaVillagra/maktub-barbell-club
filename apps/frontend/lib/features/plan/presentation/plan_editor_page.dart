@@ -17,9 +17,8 @@ import 'prescription_dialog.dart';
 import 'providers.dart';
 
 /// Editor of a plan's structure: week models, the assignment of the 4 weeks and the days of each model.
-/// Everything is in memory; saving is E5.9. Leaving with changes asks before discarding them.
-///
-/// Extension points: E5.7 and E5.8 add the prescriptions and sets below the blocks in [_BlockTile], and E5.9 the save action in the app bar (it reads `PlanDraft.toPlan`).
+/// Edits stay in memory until the save action in the app bar validates and sends them (E5.9); a failed
+/// save leaves them as they are. Leaving with changes asks before discarding them.
 class PlanEditorPage extends ConsumerWidget {
   const PlanEditorPage({
     super.key,
@@ -37,6 +36,7 @@ class PlanEditorPage extends ConsumerWidget {
     final editor = planEditorProvider(planId);
     final value = ref.watch(editor);
     final dirty = value.value?.isDirty ?? false;
+    final saving = ref.watch(planSaveProvider(planId)).saving;
     return PopScope(
       canPop: !dirty,
       onPopInvokedWithResult: (didPop, _) async {
@@ -61,6 +61,25 @@ class PlanEditorPage extends ConsumerWidget {
                   ),
                 )
               : null,
+          actions: [
+            if (value.hasValue)
+              Padding(
+                padding: const EdgeInsets.only(right: Espacio.s),
+                child: FilledButton.icon(
+                  key: const Key('plan-save'),
+                  icon: saving
+                      ? const SizedBox.square(
+                          dimension: Espacio.l,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.save_outlined),
+                  label: const Text('Guardar'),
+                  onPressed: dirty && !saving
+                      ? () => ref.read(planSaveProvider(planId).notifier).save()
+                      : null,
+                ),
+              ),
+          ],
         ),
         body: asyncView(
           value,
@@ -81,9 +100,35 @@ class _Editor extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final editor = ref.read(planEditorProvider(planId).notifier);
+    final save = ref.watch(planSaveProvider(planId));
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
+        if (save.problems.isNotEmpty) ...[
+          ListaDeProblemas(
+            key: const Key('plan-problems'),
+            titulo: save.title ?? 'No se guardó el plan.',
+            problemas: [
+              for (final p in save.problems)
+                ProblemaMaktub(p.message, ubicacion: p.location),
+            ],
+          ),
+          const SizedBox(height: Espacio.l),
+        ] else if (save.error != null) ...[
+          ListaDeProblemas(
+            key: const Key('plan-save-error'),
+            titulo: 'No se guardó el plan.',
+            problemas: [ProblemaMaktub(save.error!)],
+          ),
+          const SizedBox(height: Espacio.l),
+        ] else if (save.justSaved && !draft.isDirty) ...[
+          Text(
+            'Plan guardado · id ${draft.base.id}',
+            key: const Key('plan-saved'),
+            style: context.textos.labelLarge,
+          ),
+          const SizedBox(height: Espacio.l),
+        ],
         Text(
           '${planTypeLabel(draft.base.type)} · ciclo de $planCycleWeeks semanas',
           style: context.textos.bodyLarge,

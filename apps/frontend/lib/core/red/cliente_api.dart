@@ -8,10 +8,14 @@ import 'package:http/http.dart' as http;
 const urlApi = String.fromEnvironment('API_URL', defaultValue: 'http://localhost:8080');
 
 class ErrorDeApi implements Exception {
-  const ErrorDeApi(this.mensaje, {this.estado});
+  const ErrorDeApi(this.mensaje, {this.estado, this.cuerpo});
 
   final String mensaje;
   final int? estado;
+
+  /// The whole JSON body of the error response when it was an object (for the extra keys next to
+  /// `error`, such as a 422's `problemas`), else null.
+  final Map<String, dynamic>? cuerpo;
 
   @override
   String toString() => mensaje;
@@ -97,7 +101,11 @@ class ClienteApi {
     final Object? cuerpo = respuesta.body.isEmpty ? <String, dynamic>{} : jsonDecode(utf8.decode(respuesta.bodyBytes));
     if (respuesta.statusCode >= 400) {
       final mensaje = cuerpo is Map && cuerpo['error'] != null ? '${cuerpo['error']}' : 'Error ${respuesta.statusCode}';
-      throw ErrorDeApi(mensaje, estado: respuesta.statusCode);
+      throw ErrorDeApi(
+        mensaje,
+        estado: respuesta.statusCode,
+        cuerpo: cuerpo is Map ? cuerpo.cast<String, dynamic>() : null,
+      );
     }
     return cuerpo;
   }
