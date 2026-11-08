@@ -48,6 +48,9 @@ abstract final class Colecciones {
 
   /// Groups of athletes (E6): created by the seeding script, read by the app. One document per group.
   static const grupos = 'grupos';
+
+  /// Assignments of a plan to a group (E6.3): one document per assignment, ended ones are kept.
+  static const asignaciones = 'asignaciones';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -124,6 +127,21 @@ Future<void> asegurarIndices(Db db) async {
 
   // Listing the groups of a club.
   await db.collection(Colecciones.grupos).createIndex(keys: {'clubId': 1}, name: 'club');
+
+  // Assignments (E6.3): listing by club and group, and the rule "a group has at most one active assignment"
+  // (D14). Atomic writes touch one document and the driver has no transactions (D15), so the rule lives in the
+  // database: a unique partial index, which only covers the active ones (ended and paused ones may repeat).
+  await db
+      .collection(Colecciones.asignaciones)
+      .createIndex(keys: {'clubId': 1}, name: 'club');
+  await db
+      .collection(Colecciones.asignaciones)
+      .createIndex(
+        keys: {'clubId': 1, 'grupoId': 1},
+        name: 'club_grupo_activa_unica',
+        unique: true,
+        partialFilterExpression: {'estado': 'activa'},
+      );
 
   // "In use" checks (E5.4): multikey indexes on the exercise and timer references inside plans.
   const blocks = 'modelosSemana.dias.bloques';
