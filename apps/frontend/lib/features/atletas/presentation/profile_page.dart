@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:maktub_core/maktub_core.dart';
+import 'package:maktub_ui/maktub_ui.dart';
 
+import '../../../core/app_version.dart';
 import '../../access/presentation/providers.dart';
+import '../../access/presentation/role_labels.dart';
 import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
 import '../domain/athlete_repository.dart';
 import 'athlete_sheet_widgets.dart';
@@ -18,9 +22,56 @@ class ProfilePage extends ConsumerWidget {
     final athleteId = ref.watch(meProvider).value?.athleteId;
     return Scaffold(
       appBar: AppBar(title: const Text('Perfil')),
-      body: athleteId == null
-          ? const SizedBox.shrink()
-          : _Body(athleteId: athleteId),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const _Identity(),
+          const Divider(),
+          if (athleteId != null) Expanded(child: _Body(athleteId: athleteId)),
+        ],
+      ),
+    );
+  }
+}
+
+/// Who is signed in, what they can do in the active club, and which build of the app is running.
+class _Identity extends ConsumerWidget {
+  const _Identity();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final me = ref.watch(meProvider).value;
+    if (me == null) return const SizedBox.shrink();
+    final roles = me.activeClub?.roles ?? const <Rol>{};
+    return Padding(
+      padding: const EdgeInsets.all(Espacio.l),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: Espacio.xs,
+        children: [
+          Text(me.user.nombre, style: context.textos.titleLarge),
+          Text(me.user.email, style: context.textos.bodyMedium),
+          Wrap(
+            spacing: Espacio.xs,
+            runSpacing: Espacio.xs,
+            children: [
+              for (final role in Rol.values)
+                if (roles.contains(role))
+                  InsigniaMaktub(roleLabel(role), context.colores.insigniaBase),
+              if (me.isPlatformAdmin)
+                InsigniaMaktub(
+                  'Admin de plataforma',
+                  context.colores.insigniaPropio,
+                ),
+            ],
+          ),
+          Text(
+            'Versión $appVersion',
+            key: const Key('profile-version'),
+            style: context.textos.labelSmall,
+          ),
+        ],
+      ),
     );
   }
 }

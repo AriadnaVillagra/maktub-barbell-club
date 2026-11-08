@@ -25,8 +25,8 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E2 | [Catálogo](E2-catalogo.md) | hecho | 10 / 10 (mergeada a `main` y semilla cargada; prueba en producción ok) | — |
 | E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (probada y revisada; falta mergear a `main`) | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | en curso | 6 / 6 (revisada; falta mergear a `main`) | — |
-| E5 | [Editor de plan](E5-editor-de-plan.md) | en curso | 15 / 15 (falta probar Publicar y mergear a `main`) | — |
-| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | en curso | 6 / 6 (lista para probar y mergear a `main`; el día abre en 1 hasta E7.13) | — |
+| E5 | [Editor de plan](E5-editor-de-plan.md) | en curso | 15 / 15 (probada en local; falta mergear a `main`) | — |
+| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | en curso | 6 / 6 (probada en local; falta mergear a `main`; el día abre en 1 hasta E7.13) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | pendiente | 0 / 13 | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
@@ -71,6 +71,7 @@ traen las series por defecto de la referencia y sus descansos (`desc_180`, `desc
 demás categorías no traen nada. Las series solo son obligatorias en esas tres categorías, como en la
 referencia: E7 tiene que mostrar un ejercicio sin series (por ejemplo, un estiramiento). Excepción a D16
 (2026-11-08): un bloque de categoría `wod` acepta ejercicios de cualquier categoría; es la forma de armar un EMOM.
+Un bloque de `estiramiento` puede quedar sin ejercicios, con nota o sin ella, sin impedir la publicación. E7 tiene que mostrarlo.
 
 ## Pendientes que salieron de E3 (2026-11-08)
 

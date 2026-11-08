@@ -421,6 +421,20 @@ void main() {
       expect(_validate(_withBlock(block)), isEmpty);
     });
 
+    test('a stretching block may have no exercises', () {
+      const withNote = PlanBlock(
+        name: 'Stretching',
+        categoryId: stretchingCategoryId,
+        note: '5 min of free mobility',
+      );
+      const empty = PlanBlock(
+        name: 'Stretching',
+        categoryId: stretchingCategoryId,
+      );
+      expect(_validate(_withBlock(withNote)), isEmpty);
+      expect(_validate(_withBlock(empty)), isEmpty);
+    });
+
     test('a WoD block accepts exercises of any category', () {
       const block = PlanBlock(
         name: 'EMOM',

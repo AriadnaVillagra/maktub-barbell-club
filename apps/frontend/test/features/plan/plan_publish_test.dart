@@ -48,6 +48,9 @@ void main() {
 
   final publishButton = find.byKey(const Key('plan-publish'));
 
+  bool canPublish(WidgetTester tester) =>
+      tester.widget<ButtonStyleButton>(publishButton).onPressed != null;
+
   String status(WidgetTester tester) =>
       tester.widget<Text>(find.byKey(const Key('plan-status'))).data!;
 
@@ -69,11 +72,11 @@ void main() {
         await open(tester, validPlan());
 
         expect(status(tester), 'Borrador');
-        expect(publishButton, findsOneWidget);
+        expect(canPublish(tester), isTrue);
       },
     );
 
-    testWidgets('an incomplete plan is a draft without the button', (
+    testWidgets('an incomplete plan is a draft with the button blocked', (
       tester,
     ) async {
       await open(
@@ -85,20 +88,20 @@ void main() {
       );
 
       expect(status(tester), 'Borrador');
-      expect(publishButton, findsNothing);
+      expect(canPublish(tester), isFalse);
     });
 
-    testWidgets('unsaved changes hide the button until they are saved', (
+    testWidgets('unsaved changes block the button until they are saved', (
       tester,
     ) async {
       final c = await open(tester, validPlan());
       editor(c).assign(1, 'b');
       await tester.pumpAndSettle();
-      expect(publishButton, findsNothing);
+      expect(canPublish(tester), isFalse);
 
       await tester.tap(find.byKey(const Key('plan-save')));
       await tester.pumpAndSettle();
-      expect(publishButton, findsOneWidget);
+      expect(canPublish(tester), isTrue);
     });
 
     testWidgets('a plan equal to its published copy has nothing to publish', (
@@ -107,7 +110,7 @@ void main() {
       await open(tester, publishedPlan());
 
       expect(status(tester), 'Publicado');
-      expect(publishButton, findsNothing);
+      expect(canPublish(tester), isFalse);
     });
 
     testWidgets(
@@ -116,13 +119,13 @@ void main() {
         final c = await open(tester, publishedPlan());
         editor(c).assign(1, 'b');
         await tester.pumpAndSettle();
-        expect(publishButton, findsNothing);
+        expect(canPublish(tester), isFalse);
 
         await tester.tap(find.byKey(const Key('plan-save')));
         await tester.pumpAndSettle();
 
         expect(status(tester), 'Publicado con cambios sin publicar');
-        expect(publishButton, findsOneWidget);
+        expect(canPublish(tester), isTrue);
         // Saving left the published copy alone.
         expect(editor(c).state.value!.base.published!.weekAssignment, [
           'a',
@@ -149,7 +152,7 @@ void main() {
         ),
       );
 
-      expect(publishButton, findsNothing);
+      expect(canPublish(tester), isFalse);
     });
   });
 
@@ -163,7 +166,7 @@ void main() {
 
       expect(repo.published, ['p1']);
       expect(status(tester), 'Publicado');
-      expect(publishButton, findsNothing);
+      expect(canPublish(tester), isFalse);
       expect(find.byKey(const Key('plan-dirty')), findsNothing);
       final draft = editor(c).state.value!;
       expect(draft.isDirty, isFalse);
@@ -232,7 +235,7 @@ void main() {
       expect(find.text('Falta el % de la serie.'), findsOneWidget);
       expect(status(tester), 'Borrador');
       expect(editor(c).state.value!.base.published, isNull);
-      expect(publishButton, findsOneWidget);
+      expect(canPublish(tester), isTrue);
     });
 
     testWidgets('other failures are shown and a retry publishes', (
@@ -272,10 +275,10 @@ void main() {
       );
       repo = FakePlanRepository(
         plans: [
-          samplePlan(id: 'p1', name: 'Borrador'),
+          samplePlan(id: 'p1', name: 'Uno'),
           samplePlan(
             id: 'p2',
-            name: 'Publicado',
+            name: 'Dos',
             models: done.weekModels,
             assignment: done.weekAssignment,
             published: done.published,
@@ -285,12 +288,17 @@ void main() {
       );
       await pumpPlanPage(tester, const PlansPage(basePath: '/x'), repo);
 
-      expect(find.text('Regular · 0 modelos · Borrador'), findsOneWidget);
-      expect(find.text('Regular · 2 modelos · Publicado'), findsOneWidget);
-      expect(
-        find.text('Regular · 1 modelo · Publicado con cambios'),
-        findsOneWidget,
-      );
+      expect(find.text('Regular'), findsNWidgets(3));
+      for (final tag in [
+        '0 modelos',
+        '2 modelos',
+        '1 modelo',
+        'Borrador',
+        'Publicado',
+        'Publicado con cambios',
+      ]) {
+        expect(find.text(tag), findsOneWidget);
+      }
     });
   });
 

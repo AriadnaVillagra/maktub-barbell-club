@@ -52,6 +52,7 @@ jobs:
           --no-web-resources-cdn
           --dart-define=API_URL=${{ env.API_URL }}
           --dart-define=GOOGLE_CLIENT_ID=${{ env.GOOGLE_CLIENT_ID }}
+          --dart-define=APP_VERSION=$(awk '/^version:/{print $2}' pubspec.yaml)
 
       # Versions the service worker cache and lists the files to precache.
       - name: Sellar service worker

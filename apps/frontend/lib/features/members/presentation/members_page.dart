@@ -4,6 +4,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../../core/red/api_providers.dart';
+import '../../access/presentation/role_labels.dart';
 import '../../catalogo/presentation/catalog_admin_widgets.dart';
 import '../../catalogo/presentation/providers.dart';
 import '../data/http_members_repository.dart';
@@ -18,12 +19,6 @@ final clubMembersProvider = FutureProvider<List<ClubMember>>((ref) async {
   if (clubId == null) return const [];
   return ref.watch(membersRepositoryProvider).members(clubId);
 });
-
-String _roleLabel(Rol r) => switch (r) {
-  Rol.coach => 'Coach',
-  Rol.atleta => 'Atleta',
-  Rol.adminClub => 'Admin del club',
-};
 
 /// The club's members: a club admin registers people and changes their roles.
 class MembersPage extends ConsumerWidget {
@@ -65,7 +60,7 @@ class MembersPage extends ConsumerWidget {
               key: Key('member-${m.userId}'),
               leading: const Icon(Icons.person_outline),
               title: Text(m.name),
-              subtitle: Text('${m.email}\n${[for (final r in Rol.values) if (m.roles.contains(r)) _roleLabel(r)].join(' · ')}'),
+              subtitle: Text('${m.email}\n${[for (final r in Rol.values) if (m.roles.contains(r)) roleLabel(r)].join(' · ')}'),
               isThreeLine: true,
               onTap: () => _edit(context, ref, m),
             ),
@@ -136,7 +131,7 @@ class _MemberDialogState extends State<_MemberDialog> {
                 for (final r in Rol.values)
                   FilterChip(
                     key: Key('member-role-${r.cable}'),
-                    label: Text(_roleLabel(r)),
+                    label: Text(roleLabel(r)),
                     selected: _roles.contains(r),
                     onSelected: (on) => setState(() {
                       _roles = on ? {..._roles, r} : ({..._roles}..remove(r));

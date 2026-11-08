@@ -30,14 +30,13 @@ class GroupAssignments {
   }
 }
 
-final groupAssignmentsProvider = FutureProvider.autoDispose<GroupAssignments>((
-  ref,
+Future<GroupAssignments> _loadGroupAssignments(
+  String? clubId,
+  AssignmentRepository repo,
 ) async {
-  final clubId = (await ref.watch(meProvider.future))?.activeClub?.club.id;
   if (clubId == null) {
     return const GroupAssignments(group: null, assignments: []);
   }
-  final repo = ref.watch(assignmentRepositoryProvider);
   final groups = await repo.groups(clubId);
   if (groups.isEmpty) {
     return const GroupAssignments(group: null, assignments: []);
@@ -47,7 +46,20 @@ final groupAssignmentsProvider = FutureProvider.autoDispose<GroupAssignments>((
     group: group,
     assignments: await repo.assignments(clubId, groupId: group.id),
   );
+}
+
+final groupAssignmentsProvider = FutureProvider.autoDispose<GroupAssignments>((
+  ref,
+) async {
+  final clubId = (await ref.watch(meProvider.future))?.activeClub?.club.id;
+  return _loadGroupAssignments(clubId, ref.watch(assignmentRepositoryProvider));
 });
+
+/// The group and its assignments right now, for an action outside the assignments screen.
+Future<GroupAssignments> fetchGroupAssignments(WidgetRef ref) async {
+  final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
+  return _loadGroupAssignments(clubId, ref.read(assignmentRepositoryProvider));
+}
 
 /// Assigns [planId] to [groupId] in the active club and refreshes the screen. Errors propagate.
 Future<void> assignPlan(

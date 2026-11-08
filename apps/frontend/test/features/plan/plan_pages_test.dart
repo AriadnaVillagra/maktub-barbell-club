@@ -9,6 +9,7 @@ import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/plan/presentation/plan_editor_page.dart';
 import 'package:maktub_frontend/features/plan/presentation/plans_page.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
+import 'package:maktub_ui/maktub_ui.dart';
 
 import '../catalogo/catalog_admin_fakes.dart';
 import '../catalogo/catalog_fakes.dart' show ex;
@@ -33,8 +34,10 @@ void main() {
       );
       await pumpPlanPage(tester, const PlansPage(basePath: '/x'), repo);
       expect(find.text('Fuerza'), findsOneWidget);
-      expect(find.text('Regular · 2 modelos · Borrador'), findsOneWidget);
-      expect(find.text('RM · 0 modelos · Borrador'), findsOneWidget);
+      for (final tag in ['Regular', '2 modelos', 'RM', '0 modelos']) {
+        expect(find.text(tag), findsOneWidget);
+      }
+      expect(find.text('Borrador'), findsNWidgets(2));
       expect(repo.calls, ['plans:c1']);
     });
 
@@ -84,7 +87,7 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: planOverrides(repo),
-          child: MaterialApp.router(routerConfig: router),
+          child: MaterialApp.router(theme: TemaMaktub.claro(), routerConfig: router),
         ),
       );
       await tester.pumpAndSettle();
@@ -278,7 +281,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: planOverrides(repo),
-            child: MaterialApp.router(routerConfig: router),
+            child: MaterialApp.router(theme: TemaMaktub.claro(), routerConfig: router),
           ),
         );
         await tester.pumpAndSettle();

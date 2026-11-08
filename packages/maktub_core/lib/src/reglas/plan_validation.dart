@@ -13,6 +13,10 @@ import '../modelos/plan.dart';
 /// stretching or warm-up, the exercise alone is enough.
 const categoriesRequiringSets = {'primario', 'secundario', 'accesorio'};
 
+/// The base stretching category. A stretching block may have only a note, or nothing at all: it is the
+/// one kind of block that can stay without exercises in a finished plan.
+const stretchingCategoryId = 'estiramiento';
+
 /// The base WoD category. A WoD block mixes exercises of any category, so it is exempt from the rule
 /// that an exercise belongs to its block's category.
 const wodCategoryId = 'wod';
@@ -168,7 +172,7 @@ void _validateDay(
     if (block.categoryId == null) {
       out.add(at(PlanProblemCode.blockWithoutCategory));
     }
-    if (block.prescriptions.isEmpty) {
+    if (block.prescriptions.isEmpty && block.categoryId != stretchingCategoryId) {
       out.add(at(PlanProblemCode.blockWithoutPrescriptions));
     }
 

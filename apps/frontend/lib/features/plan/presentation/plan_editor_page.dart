@@ -200,7 +200,8 @@ class _Editor extends ConsumerWidget {
 }
 
 /// What the athletes see of the plan (draft, published, or published with unpublished changes) and the
-/// "Publicar" button, which shows only when the saved plan is complete and has something to publish.
+/// "Publicar" button, which is always there and only enabled when the saved plan is complete and has
+/// something to publish.
 class _PublishStatus extends ConsumerWidget {
   const _PublishStatus({required this.planId, required this.draft});
 
@@ -241,22 +242,20 @@ class _PublishStatus extends ConsumerWidget {
                 ],
               ),
             ),
-            if (publishable || publishing) ...[
-              const SizedBox(width: Espacio.m),
-              FilledButton.icon(
-                key: const Key('plan-publish'),
-                icon: publishing
-                    ? const SizedBox.square(
-                        dimension: Espacio.l,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.publish_outlined),
-                label: const Text('Publicar'),
-                onPressed: publishing
-                    ? null
-                    : () => ref.read(planPublishProvider(planId).notifier).publish(),
-              ),
-            ],
+            const SizedBox(width: Espacio.m),
+            FilledButton.icon(
+              key: const Key('plan-publish'),
+              icon: publishing
+                  ? const SizedBox.square(
+                      dimension: Espacio.l,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.publish_outlined),
+              label: const Text('Publicar'),
+              onPressed: publishable && !publishing
+                  ? () => ref.read(planPublishProvider(planId).notifier).publish()
+                  : null,
+            ),
           ],
         ),
       ),

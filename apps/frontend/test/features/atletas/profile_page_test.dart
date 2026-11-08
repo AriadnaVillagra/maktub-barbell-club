@@ -48,6 +48,27 @@ void main() {
     },
   );
 
+  testWidgets('shows who is signed in, their roles and the app version', (
+    tester,
+  ) async {
+    final repo = FakeAthleteRepository(
+      sheets: {'a1': const AthleteSheet(athleteId: 'a1')},
+    );
+    await pumpAthletePage(
+      tester,
+      const ProfilePage(),
+      repo,
+      roles: {Rol.coach, Rol.atleta},
+      athleteIds: ids,
+    );
+    expect(find.text('Ari'), findsOneWidget);
+    expect(find.text('ari@example.com'), findsOneWidget);
+    expect(find.text('Coach'), findsOneWidget);
+    expect(find.text('Atleta'), findsOneWidget);
+    expect(find.text('Admin del club'), findsNothing);
+    expect(find.byKey(const Key('profile-version')), findsOneWidget);
+  });
+
   testWidgets('shows an empty state', (tester) async {
     final repo = FakeAthleteRepository(
       sheets: {'a1': const AthleteSheet(athleteId: 'a1')},

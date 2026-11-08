@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
+import '../../asignacion/presentation/assign_plan_dialog.dart';
+import '../../asignacion/presentation/providers.dart'
+    show assignPlan, assignmentTodayProvider, fetchGroupAssignments;
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show asyncView, showApiError;
+    show asyncView, showApiError, showNotice;
+import '../domain/plan_repository.dart';
 import 'plan_dialogs.dart';
 import 'plan_labels.dart';
 import 'providers.dart';
@@ -29,14 +33,55 @@ class PlansPage extends ConsumerWidget {
     }
   }
 
+  /// Quick way to assign [plan] to the club's group, without going through Asignaciones.
+  Future<void> _assign(
+    BuildContext context,
+    WidgetRef ref,
+    PlanSummary plan,
+  ) async {
+    try {
+      final data = await fetchGroupAssignments(ref);
+      if (!context.mounted) return;
+      final group = data.group;
+      if (group == null) {
+        showNotice(context, 'Todavía no hay un grupo en el club.');
+        return;
+      }
+      if (data.active != null) {
+        showNotice(
+          context,
+          'El grupo ya tiene un plan en curso. Terminalo en Asignaciones para asignar otro.',
+        );
+        return;
+      }
+      final choice = await askAssignment(
+        context,
+        plans: [plan],
+        today: ref.read(assignmentTodayProvider),
+      );
+      if (choice == null || !context.mounted) return;
+      await assignPlan(
+        ref,
+        planId: choice.planId,
+        groupId: group.id,
+        startDate: choice.startDate,
+      );
+      if (context.mounted) {
+        showNotice(context, '"${plan.name}" asignado a ${group.name}.');
+      }
+    } catch (e) {
+      if (context.mounted) showApiError(context, e);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) => Scaffold(
     appBar: AppBar(title: const Text('Planes')),
-    floatingActionButton: FloatingActionButton.extended(
+    floatingActionButton: FloatingActionButton(
       key: const Key('plan-new'),
+      tooltip: 'Nuevo plan',
       onPressed: () => _create(context, ref),
-      icon: const Icon(Icons.add),
-      label: const Text('Nuevo plan'),
+      child: const Icon(Icons.add),
     ),
     body: asyncView(
       ref.watch(plansProvider),
@@ -49,19 +94,65 @@ class PlansPage extends ConsumerWidget {
               ),
             )
           : ListView(
-              padding: const EdgeInsets.only(bottom: Espacio.xxl * 2),
+              // Keeps the cards out of the add button's column, so it never covers them.
+              padding: const EdgeInsets.fromLTRB(
+                Espacio.m,
+                Espacio.m,
+                kFloatingActionButtonMargin +
+                    kMinInteractiveDimension +
+                    Espacio.l,
+                Espacio.m,
+              ),
               children: [
                 for (final p in plans)
-                  ListTile(
-                    key: Key('plan-${p.id}'),
-                    leading: const Icon(Icons.view_week_outlined),
-                    title: Text(p.name),
-                    subtitle: Text(
-                      '${planTypeLabel(p.type)} · ${p.modelCount == 1 ? '1 modelo' : '${p.modelCount} modelos'} · ${!p.published ? 'Borrador' : p.hasUnpublishedChanges ? 'Publicado con cambios' : 'Publicado'}',
+                  Card(
+                    child: ListTile(
+                      key: Key('plan-${p.id}'),
+                      leading: const Icon(Icons.view_week_outlined),
+                      title: Text(p.name),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: Espacio.xs),
+                        child: Wrap(
+                          spacing: Espacio.xs,
+                          runSpacing: Espacio.xs,
+                          children: [
+                            InsigniaMaktub(
+                              planTypeLabel(p.type),
+                              context.colores.insigniaBase,
+                            ),
+                            InsigniaMaktub(
+                              p.modelCount == 1
+                                  ? '1 modelo'
+                                  : '${p.modelCount} modelos',
+                              context.colores.insigniaBase,
+                            ),
+                            switch ((p.published, p.hasUnpublishedChanges)) {
+                              (false, _) => InsigniaMaktub(
+                                'Borrador',
+                                context.colores.insigniaPropio,
+                              ),
+                              (true, true) => InsigniaMaktub(
+                                'Publicado con cambios',
+                                context.colores.alertaContenedor,
+                              ),
+                              (true, false) => InsigniaMaktub(
+                                'Publicado',
+                                context.colores.exitoContenedor,
+                              ),
+                            },
+                          ],
+                        ),
+                      ),
+                      trailing: FilledButton.tonal(
+                        key: Key('plan-assign-${p.id}'),
+                        onPressed: p.published
+                            ? () => _assign(context, ref, p)
+                            : null,
+                        child: const Text('Asignar'),
+                      ),
+                      onTap: () =>
+                          context.go('$basePath/${Uri.encodeComponent(p.id)}'),
                     ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () =>
-                        context.go('$basePath/${Uri.encodeComponent(p.id)}'),
                   ),
               ],
             ),

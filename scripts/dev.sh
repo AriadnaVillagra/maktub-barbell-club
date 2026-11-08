@@ -34,4 +34,4 @@ for _ in $(seq 1 60); do
 done
 
 cd apps/frontend
-flutter run -d web-server --web-port 5000
+flutter run -d web-server --web-port 5000 --dart-define=APP_VERSION="$(awk '/^version:/{print $2}' pubspec.yaml)"
