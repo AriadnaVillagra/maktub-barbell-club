@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../features/access/presentation/providers.dart';
+import '../features/asignacion/presentation/assignments_page.dart';
 import '../features/atletas/presentation/athlete_sheet_page.dart';
 import '../features/atletas/presentation/athletes_page.dart';
 import '../features/atletas/presentation/profile_page.dart';
@@ -35,6 +36,9 @@ abstract final class Rutas {
 
   /// The coach's plan list; a plan's editor is `<planes>/<planId>`.
   static const planes = '$planificacion/planes';
+
+  /// The group's plan assignments.
+  static const asignaciones = '$planificacion/asignaciones';
 
   /// What configures the club rather than a plan: catalog, timers, equipment and members.
   static const preferencias = '/preferencias';
@@ -111,6 +115,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                     ),
                   ],
                 ),
+                GoRoute(path: 'asignaciones', builder: (_, _) => const AssignmentsPage()),
                 GoRoute(
                   path: 'planes',
                   builder: (_, _) => const PlansPage(basePath: Rutas.planes),

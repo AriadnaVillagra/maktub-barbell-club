@@ -33,7 +33,7 @@ class PaginaPlanificacion extends StatelessWidget {
         secciones: [
           (Icons.people_outline, 'Atletas y referencias', 'RMs, marcas, ritmos, FC y factores de trabajo', Rutas.atletas),
           (Icons.view_week_outlined, 'Planes', 'Modelos de semana, días, bloques y prescripciones', Rutas.planes),
-          (Icons.event_available_outlined, 'Asignaciones', 'Plan × grupo × inicio y estado de los días', null),
+          (Icons.event_available_outlined, 'Asignaciones', 'Plan × grupo × inicio y estado de los días', Rutas.asignaciones),
         ],
       );
 }
