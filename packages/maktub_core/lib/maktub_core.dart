@@ -5,10 +5,12 @@
 /// se agregan acá a medida que se construyen, siguiendo "Modelo del dominio" en docs/diseno.md.
 library;
 
+export 'src/modelos/asignacion.dart';
 export 'src/modelos/base.dart';
 export 'src/modelos/cable.dart';
 export 'src/modelos/catalogo.dart';
 export 'src/modelos/clubes.dart';
+export 'src/modelos/grupo.dart';
 export 'src/modelos/json.dart' show Json;
 export 'src/modelos/plan.dart';
 export 'src/modelos/referencias.dart';
