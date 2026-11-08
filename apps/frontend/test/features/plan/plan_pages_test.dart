@@ -11,6 +11,7 @@ import 'package:maktub_frontend/features/plan/presentation/plans_page.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
 
 import '../catalogo/catalog_admin_fakes.dart';
+import '../catalogo/catalog_fakes.dart' show ex;
 import '../session/fakes.dart';
 import 'fakes.dart';
 
@@ -481,6 +482,145 @@ void main() {
       await addBlock(tester, 'Final', 'Principal');
       expect(find.text('Final'), findsOneWidget);
       expect(find.text('1 bloque'), findsOneWidget);
+    });
+  });
+
+  group('prescriptions', () {
+    final squat = ex('squat', 'Sentadilla', categories: ['primario']);
+    final curl = ex(
+      'curl',
+      'Curl',
+      categories: ['primario'],
+      metrics: const [Metric.fixedLoad, Metric.reps],
+    );
+    final plank = ex(
+      'plank',
+      'Plancha',
+      categories: ['wod'],
+      metrics: const [Metric.time],
+    );
+
+    FakeCatalogAdminRepository catalog({bool withRestTimers = true}) =>
+        FakeCatalogAdminRepository(
+          categoriesList: [category('primario', 'Primario'), category('wod', 'WoD')],
+          timersList: [
+            if (withRestTimers) timer('desc_180', 'Descanso 3 min', work: 180),
+          ],
+          exercisesList: [squat, curl, plank],
+        );
+
+    Future<void> open(
+      WidgetTester tester,
+      String categoryId, {
+      bool withRestTimers = true,
+    }) => pumpPlanPage(
+      tester,
+      const PlanEditorPage(planId: 'p1', listPath: '/x'),
+      FakePlanRepository(
+        plans: [
+          samplePlan(
+            models: [
+              WeekModel(
+                id: 'a',
+                name: 'A',
+                days: [
+                  PlanDay(
+                    blocks: [PlanBlock(name: 'Bloque', categoryId: categoryId)],
+                  ),
+                ],
+              ),
+            ],
+            assignment: ['a', 'a', 'a', 'a'],
+          ),
+        ],
+      ),
+      catalog: catalog(withRestTimers: withRestTimers),
+    );
+
+    Future<void> add(WidgetTester tester, String name) async {
+      await tester.tap(find.byKey(const Key('prescription-add-a-0-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(name));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('the picker only offers exercises of the block category', (
+      tester,
+    ) async {
+      await open(tester, 'primario');
+      await tester.tap(find.byKey(const Key('prescription-add-a-0-0')));
+      await tester.pumpAndSettle();
+      expect(find.text('Sentadilla'), findsOneWidget);
+      expect(find.text('Curl'), findsOneWidget);
+      expect(find.text('Plancha'), findsNothing);
+    });
+
+    testWidgets('a percent exercise arrives with the reference sets and timer', (
+      tester,
+    ) async {
+      await open(tester, 'primario');
+      expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
+      await add(tester, 'Sentadilla');
+      expect(find.text('Sentadilla'), findsOneWidget);
+      expect(
+        find.text(
+          '8 × 65 %, 5 × 72,5 %, 3 × 80 %, 3 × 80 % · Temporizador: Descanso 3 min',
+        ),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
+    });
+
+    testWidgets('a fixed-load exercise arrives with reps and no percent', (
+      tester,
+    ) async {
+      await open(tester, 'primario');
+      await add(tester, 'Curl');
+      expect(
+        find.text('8, 5, 3, 3 · Temporizador: Descanso 3 min'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('without the default timer in the club it stays empty', (
+      tester,
+    ) async {
+      await open(tester, 'primario', withRestTimers: false);
+      await add(tester, 'Sentadilla');
+      expect(find.text('8 × 65 %, 5 × 72,5 %, 3 × 80 %, 3 × 80 %'), findsOneWidget);
+      expect(find.textContaining('Temporizador:'), findsNothing);
+    });
+
+    testWidgets('a block of another category gets no defaults', (tester) async {
+      await open(tester, 'wod');
+      await add(tester, 'Plancha');
+      expect(find.byKey(const Key('prescription-a-0-0-0')), findsOneWidget);
+      expect(find.text('Plancha'), findsOneWidget);
+      expect(find.textContaining('Temporizador:'), findsNothing);
+      expect(find.textContaining('×'), findsNothing);
+    });
+
+    testWidgets('dismissing the picker adds nothing; prescriptions are removed', (
+      tester,
+    ) async {
+      await open(tester, 'primario');
+      await tester.tap(find.byKey(const Key('prescription-add-a-0-0')));
+      await tester.pumpAndSettle();
+      await tester.tapAt(const Offset(10, 10));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
+
+      await add(tester, 'Sentadilla');
+      await add(tester, 'Curl');
+      expect(find.byKey(const Key('prescription-a-0-0-1')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('prescription-remove-a-0-0-0')));
+      await tester.pumpAndSettle();
+      expect(find.text('Sentadilla'), findsNothing);
+      expect(find.byKey(const Key('prescription-a-0-0-1')), findsNothing);
+      await tester.tap(find.byKey(const Key('prescription-remove-a-0-0-0')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
+      expect(find.text('Curl'), findsNothing, reason: 'an empty block stays empty');
     });
   });
 

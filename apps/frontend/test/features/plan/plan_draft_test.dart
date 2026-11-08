@@ -167,4 +167,58 @@ void main() {
       expect(identical(one.updateBlock(id, 0, 2, (b) => b), one), isTrue);
     });
   });
+
+  group('prescriptions', () {
+    PlanDraft withBlock() {
+      final d = empty().addModel('A');
+      return d.addBlock(
+        d.weekModels[0].id,
+        0,
+        PlanBlock(name: 'main', categoryId: 'c'),
+      );
+    }
+
+    List<Prescription> list(PlanDraft d) =>
+        d.weekModels[0].days[0].blocks[0].prescriptions;
+
+    test('adds at the end, removes by index, keeps the block fields', () {
+      var d = withBlock();
+      final id = d.weekModels[0].id;
+      d = d.updateBlock(
+        id,
+        0,
+        0,
+        (b) => PlanBlock(name: 'main', categoryId: 'k', timerId: 't'),
+      );
+      d = d
+          .addPrescription(id, 0, 0, const Prescription(exerciseId: 'x'))
+          .addPrescription(id, 0, 0, const Prescription(exerciseId: 'y'))
+          .addPrescription(id, 0, 0, const Prescription(exerciseId: 'z'));
+      expect([for (final p in list(d)) p.exerciseId], ['x', 'y', 'z']);
+      d = d.removePrescription(id, 0, 0, 1);
+      expect([for (final p in list(d)) p.exerciseId], ['x', 'z']);
+      final b = d.weekModels[0].days[0].blocks[0];
+      expect((b.name, b.categoryId, b.timerId), ('main', 'k', 't'));
+      expect(d.isDirty, isTrue);
+      d = d.removePrescription(id, 0, 0, 0).removePrescription(id, 0, 0, 0);
+      expect(list(d), isEmpty, reason: 'a block without prescriptions is empty');
+    });
+
+    test('out-of-range operations change nothing', () {
+      final d = withBlock();
+      final id = d.weekModels[0].id;
+      expect(list(d.removePrescription(id, 0, 0, 3)), isEmpty);
+      expect(
+        identical(
+          d.addPrescription(id, 0, 4, const Prescription()),
+          d,
+        ),
+        isTrue,
+      );
+      expect(
+        identical(d.addPrescription('nope', 0, 0, const Prescription()), d),
+        isTrue,
+      );
+    });
+  });
 }

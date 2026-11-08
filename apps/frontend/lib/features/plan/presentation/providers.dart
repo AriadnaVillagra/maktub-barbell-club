@@ -81,4 +81,12 @@ class PlanEditor extends AsyncNotifier<PlanDraft> {
     int index,
     PlanBlock Function(PlanBlock) change,
   ) => _edit((d) => d.updateBlock(modelId, day, index, change));
+  void addPrescription(
+    String modelId,
+    int day,
+    int block,
+    Prescription prescription,
+  ) => _edit((d) => d.addPrescription(modelId, day, block, prescription));
+  void removePrescription(String modelId, int day, int block, int index) =>
+      _edit((d) => d.removePrescription(modelId, day, block, index));
 }

@@ -55,11 +55,13 @@ class FakeCatalogAdminRepository
   FakeCatalogAdminRepository({
     this.categoriesList = const [],
     this.timersList = const [],
+    this.exercisesList = const [],
     Equipo? team,
   }) : _team = team ?? Equipo.estandarDe('c1');
 
   List<Category> categoriesList;
   List<Temporizador> timersList;
+  List<Exercise> exercisesList;
   Equipo _team;
   final Set<String> inUse = {};
   final calls = <String>[];
@@ -73,7 +75,12 @@ class FakeCatalogAdminRepository
     String clubId, {
     String? categoryId,
     CatalogStatus? status,
-  }) async => const [];
+  }) async => [
+    for (final e in exercisesList)
+      if ((categoryId == null || e.categoryIds.contains(categoryId)) &&
+          (status == null || e.status == status))
+        e,
+  ];
 
   @override
   Future<List<MuscleGroup>> muscleGroups(String clubId) async => const [];

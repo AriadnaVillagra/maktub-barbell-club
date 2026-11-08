@@ -4,8 +4,8 @@ import 'package:maktub_core/maktub_core.dart';
 /// assignment and the days of each model) on top of the [base] plan it came from.
 ///
 /// Immutable; every operation returns a new draft, and an operation that would break a structural limit
-/// (7 days, 4 weeks) returns the same draft. Blocks are edited here (E5.6); prescriptions and sets travel
-/// untouched inside each block: E5.7 and E5.8 add their operations.
+/// (7 days, 4 weeks) returns the same draft. Blocks are edited here (E5.6) and prescriptions are added and removed (E5.7);
+/// E5.8 edits the sets.
 class PlanDraft {
   const PlanDraft({
     required this.base,
@@ -187,6 +187,39 @@ class PlanDraft {
       for (final (i, b) in d.blocks.indexed) i == index ? change(b) : b,
     ]),
   );
+
+  /// Appends [prescription] to the end of the block's prescriptions.
+  PlanDraft addPrescription(
+    String modelId,
+    int day,
+    int block,
+    Prescription prescription,
+  ) => updateBlock(
+    modelId,
+    day,
+    block,
+    (b) => _withPrescriptions(b, [...b.prescriptions, prescription]),
+  );
+
+  PlanDraft removePrescription(String modelId, int day, int block, int index) =>
+      updateBlock(
+        modelId,
+        day,
+        block,
+        (b) => index < 0 || index >= b.prescriptions.length
+            ? b
+            : _withPrescriptions(b, [...b.prescriptions]..removeAt(index)),
+      );
+
+  PlanBlock _withPrescriptions(PlanBlock b, List<Prescription> list) =>
+      PlanBlock(
+        name: b.name,
+        categoryId: b.categoryId,
+        executionMode: b.executionMode,
+        athleteMode: b.athleteMode,
+        timerId: b.timerId,
+        prescriptions: list,
+      );
 
   PlanDay? _dayOf(String modelId, int day) {
     final days = modelById(modelId)?.days;

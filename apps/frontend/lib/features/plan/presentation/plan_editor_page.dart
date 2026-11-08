@@ -5,9 +5,11 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
+import '../../catalogo/presentation/exercise_picker.dart';
 import '../../catalogo/presentation/catalog_admin_providers.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
 import '../domain/plan_draft.dart';
+import '../domain/prescription_defaults.dart';
 import 'block_dialog.dart';
 import 'plan_dialogs.dart';
 import 'plan_labels.dart';
@@ -370,8 +372,9 @@ class _DayTile extends ConsumerWidget {
   }
 }
 
-/// One block of a day. E5.7 and E5.8 render its prescriptions and sets below.
-class _BlockTile extends StatelessWidget {
+/// One block of a day with its prescriptions (add with the category's exercise picker, remove). E5.8
+/// edits their sets.
+class _BlockTile extends ConsumerWidget {
   const _BlockTile({
     super.key,
     required this.keyPrefix,
@@ -395,13 +398,51 @@ class _BlockTile extends StatelessWidget {
   final String? timerName;
   final PlanEditor editor;
 
+  Future<void> _addExercise(BuildContext context, WidgetRef ref) async {
+    final exercise = await showExercisePicker(
+      context,
+      categoryId: block.categoryId,
+    );
+    if (exercise == null) return;
+    final timers = await ref.read(clubTimersProvider.future);
+    editor.addPrescription(
+      modelId,
+      day,
+      index,
+      defaultPrescription(
+        exercise,
+        categoryId: block.categoryId,
+        activeTimerIds: [
+          for (final t in timers)
+            if (t.estado == CatalogStatus.active) t.id,
+        ],
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final exercises = ref.watch(catalogExercisesProvider).value ?? const [];
+    final timers = ref.watch(clubTimersProvider).value ?? const [];
+    String exerciseName(String? id) {
+      for (final e in exercises) {
+        if (e.id == id) return e.name;
+      }
+      return id ?? 'Sin ejercicio';
+    }
+
+    String timerLabel(String id) {
+      for (final t in timers) {
+        if (t.id == id) return t.nombre;
+      }
+      return id;
+    }
+
     final details = [
       categoryName ?? 'Sin categoría',
       if (block.timerId != null) 'Temporizador: ${timerName ?? block.timerId}',
     ].join(' · ');
-    return ListTile(
+    final tile = ListTile(
       contentPadding: EdgeInsets.zero,
       title: Text(block.name),
       subtitle: Text(details),
@@ -449,6 +490,48 @@ class _BlockTile extends StatelessWidget {
           ),
         ],
       ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        tile,
+        Padding(
+          padding: const EdgeInsets.only(left: Espacio.l),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final (p, prescription) in block.prescriptions.indexed)
+                ListTile(
+                  key: Key('prescription-$keyPrefix-$index-$p'),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(exerciseName(prescription.exerciseId)),
+                  subtitle: Text(
+                    [
+                      if (prescription.sets.isNotEmpty)
+                        setsSummary(prescription.sets),
+                      if (prescription.timerId != null)
+                        'Temporizador: ${timerLabel(prescription.timerId!)}',
+                    ].join(' · '),
+                  ),
+                  trailing: IconButton(
+                    key: Key('prescription-remove-$keyPrefix-$index-$p'),
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: 'Quitar ejercicio',
+                    onPressed: () =>
+                        editor.removePrescription(modelId, day, index, p),
+                  ),
+                ),
+              TextButton.icon(
+                key: Key('prescription-add-$keyPrefix-$index'),
+                icon: const Icon(Icons.add),
+                label: const Text('Agregar ejercicio'),
+                onPressed: () => _addExercise(context, ref),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
