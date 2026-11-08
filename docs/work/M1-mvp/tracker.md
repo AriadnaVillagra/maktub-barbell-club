@@ -22,11 +22,11 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 |---|---|---|---|---|
 | E0 | [Cerrar F0](E0-cerrar-f0.md) | hecho | 6 / 6 (mergeada a `main`) | — |
 | E1 | [Acceso](E1-acceso.md) | hecho | 14 / 14 (mergeada a `main`; ingreso probado en localhost:5000 y en Pages, R2 ok) | — |
-| E2 | [Catálogo](E2-catalogo.md) | en curso | 10 / 10 (mergeada a `main` y semilla cargada; falta tu prueba en producción) | — |
-| E3 | [Atletas y referencias](E3-atletas-referencias.md) | pendiente | 0 / 6 | — |
-| E4 | [Reglas de carga](E4-reglas-de-carga.md) | pendiente | 0 / 6 | — |
-| E5 | [Editor de plan](E5-editor-de-plan.md) | pendiente | 0 / 9 | — |
-| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | pendiente | 0 / 6 | — |
+| E2 | [Catálogo](E2-catalogo.md) | hecho | 10 / 10 (mergeada a `main` y semilla cargada; prueba en producción ok) | — |
+| E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (probada y revisada; falta mergear a `main`) | — |
+| E4 | [Reglas de carga](E4-reglas-de-carga.md) | en curso | 6 / 6 (revisada; falta mergear a `main`) | — |
+| E5 | [Editor de plan](E5-editor-de-plan.md) | en curso | 15 / 15 (probada en local; falta mergear a `main`) | — |
+| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | en curso | 6 / 6 (probada en local; falta mergear a `main`; el día abre en 1 hasta E7.13) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | pendiente | 0 / 13 | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
@@ -46,8 +46,46 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **Antes de usarlo en producción:** desplegar la API y la PWA juntas, y correr `tool/ajustes_e2.dart`
   con `ADMIN_PLATAFORMA`. Sin ese paso, los coaches actuales pierden la edición del catálogo.
 - **`diseno.md` quedó atrás** en C1 (ejercicios base) y en Equipo (S3 de F2). Se actualiza desde su sesión.
-- **E5 (editor de plan):** la barra se indica por ejercicio; falta decidir si la prescripción la puede pisar.
-- **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja.
+- **E5 (editor de plan):** la barra se indica por ejercicio, y la prescripción la puede pisar con una barra opcional (decidido el 2026-11-08). El control va en el editor (E5.7 o E5.8), y E4/E7 tienen que usar esa barra al calcular.
+- **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja. El temporizador base `Cronómetro` (for time sin tope, agregado el 2026-11-08) depende de esto: tiene que contar hacia arriba y dejar registrado el tiempo final del WoD.
+- **Alta (E6.2):** el grupo de Andi y Ari lo crea `tool/alta.dart`; hay que volver a correrlo en local y en producción (es idempotente).
+- **Semilla:** `Cronómetro` es nuevo en la lista base; en producción hay que volver a correr `tool/semilla.dart` (no pisa lo existente).
+
+## Para E6 (decidido el 2026-11-08)
+
+Guardar deja un borrador, y publicar (E5.14) exige el plan completo. **E6.3 solo asigna un plan publicado.**
+Editar un plan asignado no afecta a los atletas hasta volver a publicar: **E6 y E7 leen siempre la versión
+publicada**, nunca el borrador.
+
+## Para E8.2 (decidido el 2026-11-08)
+
+Si un ejercicio de la planilla ya existe en el catálogo base con otra categoría (por ejemplo `Plancha`, accesorio
+en la base y calentamiento en la planilla), el importador le suma la categoría de la planilla, sin duplicarlo.
+Hasta correr E8.2, los 14 abdominales de calentamiento de la planilla no aparecen en la app.
+
+## D16 aprobada (2026-11-08)
+
+Se elimina "día sin primario". Cada bloque tiene categoría y cada ejercicio pertenece a la categoría de su
+bloque. Al agregar un ejercicio (E5.7), los bloques de categoría `primario`, `secundario` y `accesorio`
+traen las series por defecto de la referencia y sus descansos (`desc_180`, `desc_120`, `desc_90`); las
+demás categorías no traen nada. Las series solo son obligatorias en esas tres categorías, como en la
+referencia: E7 tiene que mostrar un ejercicio sin series (por ejemplo, un estiramiento). Excepción a D16
+(2026-11-08): un bloque de categoría `wod` acepta ejercicios de cualquier categoría; es la forma de armar un EMOM.
+Un bloque de `estiramiento` puede quedar sin ejercicios, con nota o sin ella, sin impedir la publicación. E7 tiene que mostrarlo.
+
+## Pendientes que salieron de E3 (2026-11-08)
+
+- **Datos corporales del atleta** (altura, peso y su seguimiento, cargados por el atleta): van después de
+  M1. No tienen diseño. Definir qué datos, si guardan historial, quién los ve y cómo se protegen.
+- **Marcas que no son en kilos** (repeticiones máximas en Dominadas; tiempo, velocidad y km máximos en
+  Bicicleta): van después de M1, junto con cardio. `diseno.md` solo define marcas de cardio por tiempo o
+  distancia. Definir qué marcas tiene cada métrica, en qué unidad y si guardan historial.
+- **Factor y kilaje fijo son del coach.** La API de la ficha no se los manda a un atleta. E7 (sesión)
+  tiene que resolver desde el servidor los kilos del atleta, sin depender de ese endpoint.
+- **Quién lee perfiles.** Decidido: un nivel hacia abajo y nunca hacia arriba; el coach ve a los atletas
+  y el atleta solo lo suyo. Falta diseñar qué ven los administradores. Andi y Ari son admin de plataforma,
+  y hoy esa marca no da permisos dentro de un club (`permisos.dart`). Como también son coach y atleta en
+  Maktub, esto no frena M1.
 
 ## Pendientes que salieron de E1
 

@@ -1,5 +1,13 @@
 import 'package:maktub_core/maktub_core.dart';
 
+/// What the exercise form shows as the bar of an exercise that stores [barKg]. One with no bar set
+/// shows what it actually uses: the club's bar if it loads by % of RM, and no bar otherwise.
+double barChoice(
+  double? barKg, {
+  required Iterable<Metric> metrics,
+  required double clubBarKg,
+}) => barKg ?? (metrics.contains(Metric.loadPctRm) ? clubBarKg : noBarKg);
+
 /// The editable fields of an exercise, as the create/edit form handles them and the API receives
 /// them. The server sets `id`, `clubId`, `estado` and `auditoria`.
 class ExerciseDraft {

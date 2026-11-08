@@ -36,6 +36,7 @@ void main() {
       Colecciones.clubes,
       Colecciones.membresias,
       Colecciones.atletas,
+      Colecciones.grupos,
     ])
       c: await db!.collection(c).find().toList(),
   };
@@ -67,10 +68,25 @@ void main() {
       expect(ms, hasLength(2));
       for (final m in ms) {
         final membresia = Membresia.fromJson(desdeDocumento(m));
-        expect(membresia.roles, {Rol.coach, Rol.atleta, Rol.adminClub});
+        // Club admin only in Maktub: a personal club has no one to administer.
+        final isMaktub = clubes[membresia.clubId]?.tipo == TipoClub.club;
+        expect(membresia.roles, {Rol.coach, Rol.atleta, if (isMaktub) Rol.adminClub});
         expect(membresia.esCoachActivo, isTrue);
       }
     }
+
+    // One group, in the Maktub club only, with the Maktub athlete of each user as members.
+    final maktubId = clubes.entries.singleWhere((e) => e.value.tipo == TipoClub.club).key;
+    final groups = antes[Colecciones.grupos]!;
+    expect(groups, hasLength(1));
+    final group = AthleteGroup.fromJson(desdeDocumento(groups.single));
+    expect(group.clubId, maktubId);
+    expect(group.name, 'Andi y Ari');
+    final maktubAthletes = {
+      for (final a in antes[Colecciones.atletas]!.where((a) => a['clubId'] == maktubId)) '${a['_id']}',
+    };
+    expect(group.memberIds, hasLength(2));
+    expect(group.memberIds.toSet(), maktubAthletes);
 
     final segunda = await alta.ejecutar(usuarios);
     expect(segunda.creados, isEmpty);

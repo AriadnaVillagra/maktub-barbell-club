@@ -4,12 +4,15 @@ import 'package:dart_frog/dart_frog.dart';
 
 /// Error de la solicitud del cliente. El middleware lo convierte en un 4xx con `{error}`.
 class ErrorDeSolicitud implements Exception {
-  const ErrorDeSolicitud(this.mensaje, {this.estado = HttpStatus.badRequest});
+  const ErrorDeSolicitud(this.mensaje, {this.estado = HttpStatus.badRequest, this.extra = const {}});
 
-  const ErrorDeSolicitud.noEncontrado(this.mensaje) : estado = HttpStatus.notFound;
+  const ErrorDeSolicitud.noEncontrado(this.mensaje) : estado = HttpStatus.notFound, extra = const {};
 
   final String mensaje;
   final int estado;
+
+  /// Additional fields of the response body, next to `error` (e.g. the list of validation problems).
+  final Map<String, Object?> extra;
 
   @override
   String toString() => 'ErrorDeSolicitud($estado): $mensaje';
@@ -28,7 +31,7 @@ Middleware manejarErrores() => (handler) => (context) async {
       try {
         return await handler(context);
       } on ErrorDeSolicitud catch (e) {
-        return Response.json(statusCode: e.estado, body: {'error': e.mensaje});
+        return Response.json(statusCode: e.estado, body: {...e.extra, 'error': e.mensaje});
       } on FormatException catch (e) {
         return Response.json(statusCode: HttpStatus.badRequest, body: {'error': e.message});
       } catch (e, pila) {

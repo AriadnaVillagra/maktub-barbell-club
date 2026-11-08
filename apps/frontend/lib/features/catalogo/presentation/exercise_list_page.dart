@@ -8,6 +8,7 @@ import '../../access/presentation/providers.dart';
 import '../domain/exercise_list_rules.dart';
 import 'catalog_admin_widgets.dart';
 import 'catalog_labels.dart';
+import 'category_filter_chips.dart';
 import 'exercise_catalog_providers.dart';
 import 'providers.dart';
 
@@ -37,11 +38,11 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Catálogo de ejercicios')),
       floatingActionButton: canEdit
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
+              tooltip: 'Nuevo ejercicio',
               onPressed: () =>
                   context.go('${widget.basePath}/ejercicios/nuevo'),
-              icon: const Icon(Icons.add),
-              label: const Text('Nuevo ejercicio'),
+              child: const Icon(Icons.add),
             )
           : null,
       body: Column(
@@ -54,27 +55,9 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
               onChanged: (v) => setState(() => _query = v),
             ),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: Espacio.m),
-            child: Row(
-              spacing: Espacio.s,
-              children: [
-                ChoiceChip(
-                  label: const Text('Todas'),
-                  selected: _categoryId == null,
-                  onSelected: (_) => setState(() => _categoryId = null),
-                ),
-                for (final c in categories.where(
-                  (c) => c.status == CatalogStatus.active,
-                ))
-                  ChoiceChip(
-                    label: Text(c.name),
-                    selected: _categoryId == c.id,
-                    onSelected: (_) => setState(() => _categoryId = c.id),
-                  ),
-              ],
-            ),
+          CategoryFilterChips(
+            selectedId: _categoryId,
+            onChanged: (id) => setState(() => _categoryId = id),
           ),
           if (canEdit)
             SwitchListTile(
@@ -115,6 +98,14 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
                 }
                 final names = {for (final c in categories) c.id: c.name};
                 return ListView(
+                  // Keeps the rows out of the add button's column, so it never covers them.
+                  padding: canEdit
+                      ? const EdgeInsets.only(
+                          right: kFloatingActionButtonMargin +
+                              kMinInteractiveDimension +
+                              Espacio.l,
+                        )
+                      : null,
                   children: [
                     for (final e in shown)
                       ListTile(

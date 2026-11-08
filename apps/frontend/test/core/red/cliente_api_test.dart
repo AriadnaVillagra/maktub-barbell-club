@@ -68,6 +68,28 @@ void main() {
     expect(requests, hasLength(1));
   });
 
+  test('an error carries the whole JSON body, not only the message', () async {
+    final api = ClienteApi(
+      base: Uri.parse('http://api.test'),
+      cliente: MockClient(
+        (_) async => http.Response(
+          jsonEncode({'error': 'Inválido.', 'problemas': [{'codigo': 'x'}]}),
+          422,
+          headers: {'content-type': 'application/json; charset=utf-8'},
+        ),
+      ),
+    );
+    await expectLater(
+      api.put('/x', {'a': 1}),
+      throwsA(
+        isA<ErrorDeApi>()
+            .having((e) => e.mensaje, 'mensaje', 'Inválido.')
+            .having((e) => e.estado, 'estado', 422)
+            .having((e) => e.cuerpo?['problemas'], 'problemas', [{'codigo': 'x'}]),
+      ),
+    );
+  });
+
   test('a 403 does not renew', () async {
     final source = _Source('old', renewTo: 'new');
     await expectLater(
@@ -82,5 +104,18 @@ void main() {
     await expectLater(client([401], auth: source).get('/me'), throwsA(isA<ErrorDeApi>()));
     expect(requests.single.headers['Authorization'], isNull);
     expect(source.renewals, isEmpty);
+  });
+
+  test('getList reads a JSON array body and still raises the API error', () async {
+    final api = ClienteApi(
+      base: Uri.parse('http://api.test'),
+      cliente: MockClient(
+        (request) async => request.url.path == '/ok'
+            ? http.Response(jsonEncode([{'id': 'a1'}]), 200)
+            : http.Response(jsonEncode({'error': 'Sin permiso.'}), 403),
+      ),
+    );
+    expect(await api.getList('/ok'), [{'id': 'a1'}]);
+    await expectLater(api.getList('/no'), throwsA(isA<ErrorDeApi>().having((e) => e.mensaje, 'mensaje', 'Sin permiso.')));
   });
 }

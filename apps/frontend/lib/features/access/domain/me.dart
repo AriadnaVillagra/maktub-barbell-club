@@ -2,10 +2,13 @@ import 'package:maktub_core/maktub_core.dart';
 
 /// A club the user belongs to, with the roles they hold in it.
 class ClubAccess {
-  const ClubAccess({required this.club, required this.roles});
+  const ClubAccess({required this.club, required this.roles, this.athleteId});
 
   final Club club;
   final Set<Rol> roles;
+
+  /// The user's athlete id in this club (`atletaId` on the wire); null if none or an older response.
+  final String? athleteId;
 
   /// Whether this user can do [action] in this club. The rules live in `maktub_core`.
   bool can(Accion action) => puede(roles, action, club.tipo);
@@ -13,6 +16,7 @@ class ClubAccess {
   factory ClubAccess.fromJson(Json j) => ClubAccess(
     club: Club.fromJson((j['club'] as Map).cast<String, dynamic>()),
     roles: rolesDeCable(j['roles']),
+    athleteId: j['atletaId'] as String?,
   );
 }
 
@@ -65,6 +69,12 @@ class Me {
 
   /// Whether the user can create and change what belongs to the active club.
   bool get canEditClubCatalog => activeClub?.can(Accion.editarCatalogoClub) ?? false;
+
+  /// Whether the user can write athletes' references, factors and fixed weights (coach only).
+  bool get canEditReferences => activeClub?.can(Accion.editarReferencias) ?? false;
+
+  /// The user's athlete id in the active club, or null when they are not an athlete there.
+  String? get athleteId => activeClub?.athleteId;
 
   bool get canManageMembers => activeClub?.can(Accion.gestionarMiembros) ?? false;
 

@@ -28,10 +28,10 @@ api: mongo
 
 # The OAuth client allows only http://localhost and http://localhost:5000.
 app:
-	cd apps/frontend && flutter run -d web-server --web-port 5000
+	cd apps/frontend && flutter run -d web-server --web-port 5000 --dart-define=APP_VERSION=$$(awk '/^version:/{print $$2}' pubspec.yaml)
 
 app-chrome:
-	cd apps/frontend && flutter run -d chrome --web-port 5000
+	cd apps/frontend && flutter run -d chrome --web-port 5000 --dart-define=APP_VERSION=$$(awk '/^version:/{print $$2}' pubspec.yaml)
 
 # ALTA_USUARIOS (or tool/alta.local.json) comes from the environment.
 alta: mongo

@@ -16,6 +16,7 @@ class _FakeStore implements WhoAmIStore {
   final users = <String, Usuario>{};
   final memberships = <Membresia>[];
   final clubs = <Club>[];
+  final athletes = <(String, String), String>{}; // (clubId, userId) -> athleteId
 
   @override
   Future<Usuario?> findUser(String userId) async => users[userId];
@@ -26,6 +27,12 @@ class _FakeStore implements WhoAmIStore {
 
   @override
   Future<List<Club>> clubsByIds(Set<String> clubIds) async => clubs.where((c) => clubIds.contains(c.id)).toList();
+
+  @override
+  Future<Map<String, String>> athleteIdsByClub(String userId, Set<String> clubIds) async => {
+        for (final e in athletes.entries)
+          if (e.key.$2 == userId && clubIds.contains(e.key.$1)) e.key.$1: e.value,
+      };
 }
 
 void main() {
@@ -73,6 +80,22 @@ void main() {
     expect(clubs.first['roles'], ['atleta']);
     expect(clubs.last['roles'], ['coach', 'atleta']);
     expect(json['esAdminPlataforma'], isFalse);
+  });
+
+  test('each club carries the athlete id of the user in that club, or null', () async {
+    store.memberships
+      ..add(membership('cp1', {Rol.coach}))
+      ..add(membership('c1', {Rol.coach, Rol.atleta}))
+      ..add(membership('c2', {Rol.atleta}));
+    store.athletes[('c1', 'u1')] = 'ath-c1';
+    store.athletes[('c2', 'u2')] = 'ath-other-user';
+    store.athletes[('c3', 'u1')] = 'ath-unrelated-club';
+
+    final clubs = ((await WhoAmI(store)('u1')).toJson()['clubes']! as List).cast<Map>();
+    final byClub = {for (final c in clubs) (c['club'] as Map)['id']: c['atletaId']};
+
+    expect(byClub, {'c1': 'ath-c1', 'c2': null, 'cp1': null});
+    expect(clubs.first.keys, containsAll(['club', 'roles', 'atletaId']));
   });
 
   test('an ended membership does not appear', () async {

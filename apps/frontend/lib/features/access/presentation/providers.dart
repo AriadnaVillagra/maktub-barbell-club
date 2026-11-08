@@ -39,8 +39,20 @@ final canConfigureProvider = Provider<bool?>((ref) {
   return me.value?.canConfigure ?? false;
 });
 
+/// Whether the Perfil tab is available (the user has an athlete id in the active club): null
+/// while it is not known yet.
+final hasAthleteProfileProvider = Provider<bool?>((ref) {
+  final me = ref.watch(meProvider);
+  if (me.isLoading && !me.hasValue) {
+    return null;
+  }
+  return me.value?.athleteId != null;
+});
+
 /// Whether the user can create and change what belongs to the active club.
 final canEditClubCatalogProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canEditClubCatalog ?? false);
+
+final canEditReferencesProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canEditReferences ?? false);
 
 final canManageMembersProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canManageMembers ?? false);
 

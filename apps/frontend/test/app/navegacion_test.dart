@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,9 +8,14 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/app/app.dart';
 import 'package:maktub_frontend/app/router.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
+import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
+import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
+import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
 
 import '../features/access/fakes.dart';
+import '../features/atletas/fakes.dart';
+import '../features/catalogo/catalog_fakes.dart';
 import '../features/session/fakes.dart';
 
 final _gym = club('c1', 'Gimnasio', TipoClub.club);
@@ -18,6 +25,7 @@ Future<void> _montar(
   Size tamano, {
   Set<Rol> roles = const {Rol.coach},
   String? ruta,
+  Map<String, String> athleteIds = const {},
 }) async {
   tester.view.physicalSize = tamano;
   tester.view.devicePixelRatio = 1;
@@ -27,7 +35,12 @@ Future<void> _montar(
     overrides: [
       tokenStoreProvider.overrideWithValue(FakeTokenStore(issued(1))),
       authApiProvider.overrideWithValue(FakeAuthApi()),
-      meRepositoryProvider.overrideWithValue(FakeMeRepository(meWith([(_gym, roles)]))),
+      meRepositoryProvider.overrideWithValue(FakeMeRepository(meWith([(_gym, roles)], athleteIds: athleteIds))),
+      catalogRepositoryProvider.overrideWithValue(FakeCatalog([])),
+      athleteRepositoryProvider.overrideWithValue(FakeAthleteRepository(
+        athletesList: const [AthleteSummary(id: 'a1', userId: 'u2', name: 'Andi')],
+        sheets: {'a1': const AthleteSheet(athleteId: 'a1')},
+      )),
     ],
     child: const MaktubApp(),
   ));
@@ -43,13 +56,13 @@ void main() {
     await _montar(tester, const Size(400, 800));
 
     expect(find.byType(NavigationBar), findsOneWidget);
-    expect(find.text('Sesión de hoy'), findsOneWidget);
+    expect(find.text('Calendario'), findsOneWidget);
 
     await tester.tap(find.text('Planificación'));
     await tester.pumpAndSettle();
 
     expect(find.text('Atletas y referencias'), findsOneWidget);
-    expect(find.text('Sesión de hoy'), findsNothing);
+    expect(find.text('Calendario'), findsNothing);
   });
 
   testWidgets('entrenamiento abre en oscuro y planificación sigue al sistema (claro)', (tester) async {
@@ -71,11 +84,62 @@ void main() {
     expect(find.byType(NavigationBar), findsNothing);
   });
 
+  group('swiping between tabs', () {
+    int selected(WidgetTester tester) =>
+        tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex;
+
+    Future<void> swipe(WidgetTester tester, double dx) async {
+      await tester.flingFrom(const Offset(200, 400), Offset(dx, 0), 1000);
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('moves through the tabs and stops at the ends', (tester) async {
+      await _montar(tester, const Size(400, 800), athleteIds: {'c1': 'a1'});
+      expect(selected(tester), 0);
+
+      await swipe(tester, 300); // Already on the first tab.
+      expect(selected(tester), 0);
+
+      for (final expected in [1, 2, 3, 3]) {
+        await swipe(tester, -300);
+        expect(selected(tester), expected);
+      }
+
+      await swipe(tester, 300);
+      expect(selected(tester), 2);
+    });
+
+    testWidgets('a mouse drag also moves through the tabs', (tester) async {
+      await _montar(tester, const Size(400, 800));
+      final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await gesture.down(const Offset(300, 400));
+      for (var i = 1; i <= 5; i++) {
+        await gesture.moveBy(
+          const Offset(-50, 0),
+          timeStamp: Duration(milliseconds: 16 * i),
+        );
+      }
+      await gesture.up(timeStamp: const Duration(milliseconds: 96));
+      await tester.pumpAndSettle();
+      expect(selected(tester), 1);
+    });
+
+    testWidgets('inside a screen the swipe does nothing', (tester) async {
+      await _montar(tester, const Size(400, 800), ruta: Rutas.atletas);
+      await swipe(tester, -300);
+      expect(selected(tester), 1);
+      expect(
+        GoRouter.of(tester.element(find.byType(NavigationBar))).state.uri.path,
+        Rutas.atletas,
+      );
+    });
+  });
+
   group('planning according to the role', () {
     testWidgets('an athlete does not see planning and has no bar with one destination', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta});
 
-      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Calendario'), findsOneWidget);
       expect(find.text('Planificación'), findsNothing);
       expect(find.byType(NavigationBar), findsNothing);
     });
@@ -83,7 +147,7 @@ void main() {
     testWidgets('an athlete is sent back to training when opening planning by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.planificacion);
 
-      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Calendario'), findsOneWidget);
       expect(find.text('Atletas y referencias'), findsNothing);
     });
 
@@ -99,6 +163,60 @@ void main() {
 
       expect(find.text('Atletas y referencias'), findsOneWidget);
       expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Planificación')), findsOneWidget);
+    });
+
+    testWidgets('a coach reaches the athlete sheet from the planning landing page', (tester) async {
+      await _montar(tester, const Size(400, 800), ruta: Rutas.planificacion);
+
+      await tester.tap(find.byKey(const Key('portada-${Rutas.atletas}')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('athlete-a1')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('athlete-a1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('sheet-empty')), findsOneWidget);
+      expect(find.text('Andi'), findsOneWidget);
+    });
+
+    testWidgets('an athlete is sent back to training when opening an athlete sheet by URL', (tester) async {
+      await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: '${Rutas.atletas}/a1');
+      expect(find.text('Calendario'), findsOneWidget);
+      expect(find.byKey(const Key('sheet-empty')), findsNothing);
+    });
+
+    testWidgets('a user without athlete id has no Perfil tab and is redirected from its route', (tester) async {
+      await _montar(tester, const Size(400, 800), ruta: Rutas.perfil);
+
+      expect(find.text('Calendario'), findsOneWidget);
+      expect(find.byKey(const Key('sheet-empty')), findsNothing);
+      expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Perfil')), findsNothing);
+    });
+
+    for (final (name, size) in const [('phone', Size(400, 800)), ('tablet', Size(1200, 800))]) {
+      testWidgets('a user with athlete id sees Perfil last on $name, read-only', (tester) async {
+        await _montar(tester, size, athleteIds: {'c1': 'a1'});
+        final bar = size.width < 600 ? find.byType(NavigationBar) : find.byType(NavigationRail);
+        expect(find.descendant(of: bar, matching: find.text('Perfil')), findsOneWidget);
+
+        await tester.tap(find.descendant(of: bar, matching: find.text('Perfil')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('sheet-empty')), findsOneWidget);
+        expect(find.byKey(const Key('edit-rm')), findsNothing);
+        // Light: Perfil follows the planning theme.
+        expect(Theme.of(tester.element(bar)).brightness, Brightness.light);
+      });
+    }
+
+    testWidgets('hiding Perfil does not shift the other tabs; an athlete-only user keeps Perfil', (tester) async {
+      await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, athleteIds: {'c1': 'a1'});
+      expect(find.text('Calendario'), findsOneWidget);
+      expect(find.text('Planificación'), findsNothing);
+      expect(find.text('Perfil'), findsOneWidget);
+
+      await _montar(tester, const Size(400, 800), ruta: Rutas.preferencias);
+      await tester.tap(find.text('Planificación'));
+      await tester.pumpAndSettle();
+      expect(find.text('Atletas y referencias'), findsOneWidget);
     });
 
     testWidgets('the catalog lives in Preferences, not in training', (tester) async {
@@ -120,7 +238,7 @@ void main() {
 
     testWidgets('an athlete cannot open Preferences by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.preferencias);
-      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Calendario'), findsOneWidget);
     });
   });
 }

@@ -119,7 +119,7 @@ void main() {
     ) async {
       await pump(tester, {Rol.atleta});
       expect(listed(tester), ['Curl de bíceps', 'Press militar', 'Sentadilla']);
-      expect(find.text('Nuevo ejercicio'), findsNothing);
+      expect(find.byTooltip('Nuevo ejercicio'), findsNothing);
       expect(find.byType(Switch), findsNothing);
     });
   });
@@ -185,7 +185,7 @@ void main() {
       'creates an exercise choosing muscles and pattern from the seeded lists',
       (tester) async {
         await pump(tester, {Rol.coach, Rol.adminClub});
-        await tester.tap(find.text('Nuevo ejercicio'));
+        await tester.tap(find.byTooltip('Nuevo ejercicio'));
         await tester.pumpAndSettle();
 
         await tester.enterText(

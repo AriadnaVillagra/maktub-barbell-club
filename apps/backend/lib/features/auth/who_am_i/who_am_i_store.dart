@@ -9,6 +9,10 @@ abstract interface class WhoAmIStore {
   Future<List<Membresia>> activeMemberships(String userId);
 
   Future<List<Club>> clubsByIds(Set<String> clubIds);
+
+  /// The id of the user's `Atleta` in each of [clubIds], keyed by club id. Clubs where the user has no
+  /// athlete are absent. Only matches `usuarioId == userId` within those clubs.
+  Future<Map<String, String>> athleteIdsByClub(String userId, Set<String> clubIds);
 }
 
 class MongoWhoAmIStore implements WhoAmIStore {
@@ -39,5 +43,15 @@ class MongoWhoAmIStore implements WhoAmIStore {
       '_id': {r'$in': clubIds.toList()},
     }).toList();
     return [for (final d in docs) Club.fromJson(desdeDocumento(d))];
+  }
+
+  @override
+  Future<Map<String, String>> athleteIdsByClub(String userId, Set<String> clubIds) async {
+    if (clubIds.isEmpty) return {};
+    final docs = await _db.collection(Colecciones.atletas).find({
+      'usuarioId': userId,
+      'clubId': {r'$in': clubIds.toList()},
+    }).toList();
+    return {for (final d in docs) '${d['clubId']}': '${d['_id']}'};
   }
 }

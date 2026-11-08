@@ -16,9 +16,9 @@ class PaginaEntrenamiento extends StatelessWidget {
         titulo: 'Entrenamiento',
         descripcion: 'Ejecutar el día con los atletas presentes, en el gimnasio.',
         secciones: [
-          (Icons.play_circle_outline, 'Sesión de hoy', 'Objetivos por atleta, pasos y registro en vivo'),
-          (Icons.timer_outlined, 'Temporizadores', 'Descansos, EMOM, tabata, AMRAP, for time'),
-          (Icons.show_chart, 'Historial', 'Progresión, % real del RM, marcas y WoDs'),
+          (Icons.calendar_month_outlined, 'Calendario', 'Semanas y días del plan asignado al grupo', Rutas.calendario),
+          (Icons.timer_outlined, 'Temporizadores', 'Descansos, EMOM, tabata, AMRAP, for time', null),
+          (Icons.show_chart, 'Historial', 'Progresión, % real del RM, marcas y WoDs', null),
         ],
       );
 }
@@ -31,9 +31,9 @@ class PaginaPlanificacion extends StatelessWidget {
         titulo: 'Planificación',
         descripcion: 'Diseñar planes y mantener las referencias de cada atleta.',
         secciones: [
-          (Icons.people_outline, 'Atletas y referencias', 'RMs, marcas, ritmos, FC y factores de trabajo'),
-          (Icons.view_week_outlined, 'Planes', 'Modelos de semana, días, bloques y prescripciones'),
-          (Icons.event_available_outlined, 'Asignaciones', 'Plan × grupo × inicio y estado de los días'),
+          (Icons.people_outline, 'Atletas y referencias', 'RMs, marcas, ritmos, FC y factores de trabajo', Rutas.atletas),
+          (Icons.view_week_outlined, 'Planes', 'Modelos de semana, días, bloques y prescripciones', Rutas.planes),
+          (Icons.event_available_outlined, 'Asignaciones', 'Plan × grupo × inicio y estado de los días', Rutas.asignaciones),
         ],
       );
 }
@@ -52,6 +52,7 @@ class PaginaPreferencias extends ConsumerWidget {
               (Icons.list_alt, 'Ejercicios', Rutas.catalogo),
               (Icons.fitness_center, 'Categorías', Rutas.categorias),
               (Icons.timer_outlined, 'Temporizadores', Rutas.temporizadores),
+              if (ref.watch(canPlanProvider) ?? false) (Icons.local_fire_department_outlined, 'WoDs', Rutas.wods),
               (Icons.inventory_2_outlined, 'Equipo', Rutas.equipo),
               if (ref.watch(canManageMembersProvider)) (Icons.group_outlined, 'Miembros', Rutas.miembros),
             ])
@@ -74,7 +75,8 @@ class _PortadaModo extends StatelessWidget {
 
   final String titulo;
   final String descripcion;
-  final List<(IconData, String, String)> secciones;
+  /// Icon, name, detail and the route it opens (null while the feature is not built).
+  final List<(IconData, String, String, String?)> secciones;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -84,14 +86,16 @@ class _PortadaModo extends StatelessWidget {
           children: [
             Text(descripcion, style: context.textos.bodyLarge),
             const SizedBox(height: Espacio.l),
-            for (final (icono, nombre, detalle) in secciones)
+            for (final (icono, nombre, detalle, ruta) in secciones)
               Card(
                 child: ListTile(
+                  key: ruta == null ? null : Key('portada-$ruta'),
                   leading: Icon(icono),
                   title: Text(nombre),
                   subtitle: Text(detalle),
-                  trailing: const Chip(label: Text('Próximamente')),
-                  enabled: false,
+                  trailing: ruta == null ? const Chip(label: Text('Próximamente')) : const Icon(Icons.chevron_right),
+                  enabled: ruta != null,
+                  onTap: ruta == null ? null : () => context.go(ruta),
                 ),
               ),
           ],

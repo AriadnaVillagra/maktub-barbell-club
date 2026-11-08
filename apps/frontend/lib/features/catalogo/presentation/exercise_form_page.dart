@@ -228,9 +228,17 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
     );
     final patterns = widget.patterns.where(allowed);
     final groups = widget.groups.where(allowed);
-    final bars = ref.watch(clubTeamProvider).value?.barras ?? const <ItemInventario>[];
-    final barWeights = {for (final b in bars) b.kg, ?_barKg}.toList()
+    final team = ref.watch(clubTeamProvider).value;
+    final barWeights = {
+      for (final b in team?.barras ?? const <ItemInventario>[]) b.kg,
+      if ((_barKg ?? noBarKg) != noBarKg) _barKg!,
+    }.toList()
       ..sort((a, b) => b.compareTo(a));
+    final shownBar = barChoice(
+      _barKg,
+      metrics: _metrics,
+      clubBarKg: team?.barraKg ?? noBarKg,
+    );
     final referenceName = widget.exercises
         .where((e) => e.id == _referenceExerciseId)
         .firstOrNull
@@ -359,15 +367,15 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
                 child: Text(referenceName ?? 'Elegir ejercicio'),
               ),
             ),
-          if (_usesBar && barWeights.isNotEmpty)
-            DropdownButtonFormField<double?>(
-              key: ValueKey('field-bar-${barWeights.length}'),
-              initialValue: _barKg,
+          if (_usesBar)
+            DropdownButtonFormField<double>(
+              key: ValueKey('field-bar-${barWeights.length}-$shownBar'),
+              initialValue: shownBar,
               decoration: const InputDecoration(labelText: 'Barra'),
               items: [
-                const DropdownMenuItem(value: null, child: Text('La del club')),
                 for (final kg in barWeights)
                   DropdownMenuItem(value: kg, child: Text('${formatKg(kg)} kg')),
+                const DropdownMenuItem(value: noBarKg, child: Text('Sin barra')),
               ],
               onChanged: (v) => setState(() => _barKg = v),
             ),

@@ -185,6 +185,7 @@ class Exercise implements DelClub {
   final String? notes;
 
   /// Barra del inventario con la que se carga (kg). Nula, o si el club no la tiene: su barra por defecto.
+  /// `noBarKg` (0): el ejercicio no usa barra.
   final double? barKg;
   final CatalogStatus status;
   final Auditoria auditoria;

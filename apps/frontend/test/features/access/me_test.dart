@@ -45,4 +45,17 @@ void main() {
     expect(me.canPlan, isTrue);
     expect(me.activeClub?.roles, {Rol.coach});
   });
+
+  test('parses atletaId when present, null or absent (older responses)', () {
+    final me = Me.fromJson({
+      'usuario': meWith([]).user.toJson(),
+      'clubPersonal': null,
+      'clubes': [
+        {'club': gym.toJson(), 'roles': ['atleta'], 'atletaId': 'ath-1'},
+        {'club': other.toJson(), 'roles': ['coach'], 'atletaId': null},
+        {'club': personal.toJson(), 'roles': ['coach']},
+      ],
+    });
+    expect([for (final c in me.clubs) c.athleteId], ['ath-1', null, null]);
+  });
 }

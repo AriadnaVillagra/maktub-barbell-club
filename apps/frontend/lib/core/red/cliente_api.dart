@@ -8,10 +8,14 @@ import 'package:http/http.dart' as http;
 const urlApi = String.fromEnvironment('API_URL', defaultValue: 'http://localhost:8080');
 
 class ErrorDeApi implements Exception {
-  const ErrorDeApi(this.mensaje, {this.estado});
+  const ErrorDeApi(this.mensaje, {this.estado, this.cuerpo});
 
   final String mensaje;
   final int? estado;
+
+  /// The whole JSON body of the error response when it was an object (for the extra keys next to
+  /// `error`, such as a 422's `problemas`), else null.
+  final Map<String, dynamic>? cuerpo;
 
   @override
   String toString() => mensaje;
@@ -41,6 +45,10 @@ class ClienteApi {
   Future<Map<String, dynamic>> get(String ruta, {Map<String, String>? headers}) =>
       _enviar('GET', ruta, headers: headers);
 
+  /// GET for endpoints whose body is a JSON array.
+  Future<List<dynamic>> getList(String ruta, {Map<String, String>? headers}) async =>
+      (await _enviarCrudo('GET', ruta, headers: headers) as List);
+
   Future<Map<String, dynamic>> put(String ruta, Object cuerpo, {Map<String, String>? headers}) =>
       _enviar('PUT', ruta, cuerpo: cuerpo, headers: headers);
 
@@ -53,7 +61,10 @@ class ClienteApi {
   Future<Map<String, dynamic>> post(String ruta, {Object? cuerpo, Map<String, String>? headers}) =>
       _enviar('POST', ruta, cuerpo: cuerpo, headers: headers);
 
-  Future<Map<String, dynamic>> _enviar(String metodo, String ruta, {Object? cuerpo, Map<String, String>? headers}) async {
+  Future<Map<String, dynamic>> _enviar(String metodo, String ruta, {Object? cuerpo, Map<String, String>? headers}) async =>
+      (await _enviarCrudo(metodo, ruta, cuerpo: cuerpo, headers: headers) as Map).cast<String, dynamic>();
+
+  Future<Object?> _enviarCrudo(String metodo, String ruta, {Object? cuerpo, Map<String, String>? headers}) async {
     final source = auth;
     final token = await source?.accessToken();
     var respuesta = await _pedir(metodo, ruta, cuerpo, headers, token);
@@ -86,13 +97,17 @@ class ClienteApi {
     }
   }
 
-  Map<String, dynamic> _leer(http.Response respuesta) {
-    final cuerpo = respuesta.body.isEmpty ? <String, dynamic>{} : jsonDecode(utf8.decode(respuesta.bodyBytes));
+  Object? _leer(http.Response respuesta) {
+    final Object? cuerpo = respuesta.body.isEmpty ? <String, dynamic>{} : jsonDecode(utf8.decode(respuesta.bodyBytes));
     if (respuesta.statusCode >= 400) {
       final mensaje = cuerpo is Map && cuerpo['error'] != null ? '${cuerpo['error']}' : 'Error ${respuesta.statusCode}';
-      throw ErrorDeApi(mensaje, estado: respuesta.statusCode);
+      throw ErrorDeApi(
+        mensaje,
+        estado: respuesta.statusCode,
+        cuerpo: cuerpo is Map ? cuerpo.cast<String, dynamic>() : null,
+      );
     }
-    return (cuerpo as Map).cast<String, dynamic>();
+    return cuerpo;
   }
 
   void cerrar() => _http.close();
