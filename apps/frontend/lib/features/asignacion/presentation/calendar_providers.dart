@@ -20,19 +20,30 @@ class CalendarData {
     required this.location,
     required this.plan,
     required this.exerciseNames,
+    this.dayStates = const [],
   });
 
   /// No active assignment (or no group).
   const CalendarData.empty()
     : location = null,
       plan = null,
-      exerciseNames = const {};
+      exerciseNames = const {},
+      dayStates = const [];
 
   final CalendarLocation? location;
   final PublishedPlanView? plan;
 
   /// Exercise name by id.
   final Map<String, String> exerciseNames;
+
+  /// Done or pending state of the days of the current cycle (E7.13).
+  final List<DayState> dayStates;
+
+  /// Whether the day is done; false when nothing says so.
+  bool isDone(int week, int day) => dayStates.any(
+    (s) =>
+        s.cycle == location!.cycle && s.week == week && s.day == day && s.done,
+  );
 
   bool get hasPlan => location != null && plan != null;
 }
@@ -53,9 +64,22 @@ final calendarProvider = FutureProvider.autoDispose<CalendarData>((ref) async {
   final exercises = await ref
       .watch(catalogRepositoryProvider)
       .exercises(clubId);
+  // The four weeks of the current cycle, which is what the screen lets the user pick from.
+  final cycleStart = DateTime.utc(
+    location.startDate.year,
+    location.startDate.month,
+    location.startDate.day,
+  ).add(Duration(days: (location.cycle - 1) * 28));
+  final dayStates = await calendar.dayStates(
+    clubId,
+    groups.first.id,
+    cycleStart,
+    cycleStart.add(const Duration(days: 27)),
+  );
   return CalendarData(
     location: location,
     plan: plan,
+    dayStates: dayStates,
     exerciseNames: {for (final e in exercises) e.id: e.name},
   );
 });
@@ -69,7 +93,7 @@ class CalendarSelection {
 }
 
 /// The user's choice of week and day. Null state means "nothing chosen": the screen then opens on the week
-/// the backend gave for today, day 1 (D13, until sessions exist; the first pending day arrives with E7.13).
+/// the backend gave for today, on its first day without sets recorded (D13; day 1 when all are done).
 class CalendarSelectionNotifier extends Notifier<CalendarSelection?> {
   @override
   CalendarSelection? build() => null;

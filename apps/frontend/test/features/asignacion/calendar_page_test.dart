@@ -27,11 +27,13 @@ class _FakeGroups implements AssignmentRepository {
 }
 
 class _FakeCalendar implements CalendarRepository {
-  _FakeCalendar({this.location, this.plan});
+  _FakeCalendar({this.location, this.plan, this.states = const []});
 
   final CalendarLocation? location;
   final PublishedPlanView? plan;
+  final List<DayState> states;
   final dates = <DateTime>[];
+  final ranges = <(DateTime, DateTime)>[];
 
   @override
   Future<CalendarLocation?> locate(
@@ -46,7 +48,21 @@ class _FakeCalendar implements CalendarRepository {
   @override
   Future<PublishedPlanView> publishedPlan(String clubId, String planId) async =>
       plan!;
+
+  @override
+  Future<List<DayState>> dayStates(
+    String clubId,
+    String groupId,
+    DateTime from,
+    DateTime to,
+  ) async {
+    ranges.add((from, to));
+    return states;
+  }
 }
+
+DayState _state(int week, int day, {bool done = true, int cycle = 2}) =>
+    DayState(cycle: cycle, week: week, day: day, done: done);
 
 CalendarLocation _location({int cycle = 2, int week = 3}) => CalendarLocation(
   assignmentId: 'a1',
@@ -213,16 +229,55 @@ void main() {
     expect(find.text('Fuerza · ciclo 2 · semana 3'), findsOneWidget);
   });
 
-  testWidgets('no pill shows a done or pending state', (tester) async {
-    await _pump(tester, _FakeCalendar(location: _location(), plan: _plan()));
-    final pills = find.byType(PildoraMaktub);
-    expect(pills, findsNWidgets(6));
-    for (final icon in [Icons.check, Icons.check_circle, Icons.circle]) {
-      expect(
-        find.descendant(of: pills, matching: find.byIcon(icon)),
-        findsNothing,
-      );
-    }
+  testWidgets('day pills say done or pending', (tester) async {
+    await _pump(
+      tester,
+      _FakeCalendar(
+        location: _location(),
+        plan: _plan(),
+        states: [_state(3, 1), _state(3, 2, done: false)],
+      ),
+    );
+    Finder detail(String key, String text) =>
+        find.descendant(of: find.byKey(Key(key)), matching: find.text(text));
+    expect(detail('calendar-day-1', 'Hecho'), findsOneWidget);
+    expect(detail('calendar-day-2', 'Pendiente'), findsOneWidget);
+  });
+
+  testWidgets('asks for the four weeks of the current cycle', (tester) async {
+    final calendar = _FakeCalendar(location: _location(), plan: _plan());
+    await _pump(tester, calendar);
+    // Cycle 2 of an assignment that started on 2026-09-01.
+    expect(calendar.ranges.single, (
+      DateTime.utc(2026, 9, 29),
+      DateTime.utc(2026, 10, 26),
+    ));
+  });
+
+  testWidgets('opens on the first pending day of the week', (tester) async {
+    await _pump(
+      tester,
+      _FakeCalendar(
+        location: _location(),
+        plan: _plan(),
+        states: [_state(3, 1)],
+      ),
+    );
+    expect(find.text('Día 2 · Empuje'), findsOneWidget);
+  });
+
+  testWidgets('opens on day 1 when every day of the week is done', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      _FakeCalendar(
+        location: _location(),
+        plan: _plan(),
+        states: [_state(3, 1), _state(3, 2)],
+      ),
+    );
+    expect(find.text('Día 1 · Piernas'), findsOneWidget);
   });
 
   testWidgets('a coach without an assignment gets a shortcut to Asignaciones', (

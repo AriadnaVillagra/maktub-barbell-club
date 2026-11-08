@@ -8,10 +8,12 @@ import '../../access/presentation/providers.dart' show canPlanProvider;
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
     show SectionTitle, asyncView;
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
+import '../domain/calendar_repository.dart' show firstPendingDay;
 import 'calendar_providers.dart';
 
-/// The plan's calendar, read-only: opens on the cycle and week the backend gives for today, on day 1 of that
-/// week, and lets the user pick another week and day. [assignmentsPath] is where a coach goes to assign a plan.
+/// The plan's calendar, read-only: opens on the cycle and week the backend gives for today, on the first day of
+/// that week without sets recorded (D13), marks each day done or pending (E7.13) and lets the user pick another
+/// week and day. [assignmentsPath] is where a coach goes to assign a plan.
 class CalendarPage extends ConsumerWidget {
   const CalendarPage({super.key, required this.assignmentsPath});
 
@@ -81,7 +83,15 @@ class _Calendar extends ConsumerWidget {
     final week = picked?.week ?? location.week;
     final model = plan.weekModelOf(week);
     final dayCount = model?.days.length ?? 0;
-    final day = (picked?.day ?? 1).clamp(1, dayCount < 1 ? 1 : dayCount);
+    final day =
+        (picked?.day ??
+                firstPendingDay(
+                  data.dayStates,
+                  cycle: location.cycle,
+                  week: week,
+                  dayCount: dayCount,
+                ))
+            .clamp(1, dayCount < 1 ? 1 : dayCount);
     final notifier = ref.read(calendarSelectionProvider.notifier);
     final planDay = model != null && day <= dayCount
         ? model.days[day - 1]
@@ -130,6 +140,7 @@ class _Calendar extends ConsumerWidget {
                 PildoraMaktub(
                   key: Key('calendar-day-$d'),
                   texto: 'Día $d',
+                  detalle: data.isDone(week, d) ? 'Hecho' : 'Pendiente',
                   seleccionada: d == day,
                   onTap: () => notifier.selectDay(week, d),
                 ),

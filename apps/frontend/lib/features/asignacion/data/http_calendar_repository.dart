@@ -52,4 +52,26 @@ class HttpCalendarRepository implements CalendarRepository {
       publishedAt: DateTime.parse('${j['publicadoEn']}').toUtc(),
     );
   }
+
+  @override
+  Future<List<DayState>> dayStates(
+    String clubId,
+    String groupId,
+    DateTime from,
+    DateTime to,
+  ) async {
+    final j = await _client.get(
+      '${_club(clubId)}/grupos/${Uri.encodeComponent(groupId)}/dias'
+      '?desde=${aIsoFecha(from)}&hasta=${aIsoFecha(to)}',
+    );
+    return [
+      for (final d in (j['dias'] as List? ?? const []))
+        DayState(
+          cycle: ((d as Map)['ciclo'] as num).toInt(),
+          week: (d['semana'] as num).toInt(),
+          day: (d['dia'] as num).toInt(),
+          done: d['estado'] == 'hecho',
+        ),
+    ];
+  }
 }
