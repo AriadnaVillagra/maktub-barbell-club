@@ -24,7 +24,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E1 | [Acceso](E1-acceso.md) | hecho | 14 / 14 (mergeada a `main`; ingreso probado en localhost:5000 y en Pages, R2 ok) | — |
 | E2 | [Catálogo](E2-catalogo.md) | hecho | 10 / 10 (mergeada a `main` y semilla cargada; prueba en producción ok) | — |
 | E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (probada en local; falta mergear a `main`) | — |
-| E4 | [Reglas de carga](E4-reglas-de-carga.md) | pendiente | 0 / 6 | — |
+| E4 | [Reglas de carga](E4-reglas-de-carga.md) | en curso | 6 / 6 (lista para revisar y mergear a `main`) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | pendiente | 0 / 9 | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | pendiente | 0 / 6 | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | pendiente | 0 / 13 | — |
