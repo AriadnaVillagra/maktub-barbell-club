@@ -29,6 +29,7 @@ export 'src/reglas/load_source.dart';
 export 'src/reglas/permisos.dart';
 export 'src/reglas/plan_validation.dart';
 export 'src/reglas/ramp.dart';
+export 'src/reglas/set_load.dart';
 export 'src/reglas/porcentajes.dart';
 export 'src/reglas/vigencia.dart';
 export 'src/reglas/wod_validation.dart';

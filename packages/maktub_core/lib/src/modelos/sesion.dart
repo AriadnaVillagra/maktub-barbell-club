@@ -346,6 +346,57 @@ class SetRecord implements DelClub {
   };
 }
 
+/// The proposed kilos of one set of the session, as the server resolves them for one athlete (it travels without
+/// the athlete's work factor unless the viewer can see references).
+class ProposedSet {
+  const ProposedSet({
+    required this.blockIndex,
+    required this.prescriptionIndex,
+    required this.setIndex,
+    required this.exerciseId,
+    this.kg,
+    this.appliedPct,
+    this.workFactor,
+  });
+
+  /// Position in the plan, as in [SetRecord] (all 0-based).
+  final int blockIndex;
+  final int prescriptionIndex;
+  final int setIndex;
+  final String exerciseId;
+
+  /// Empty, never zero, when there is nothing to propose.
+  final double? kg;
+
+  /// The plan's percent with the day's adjustment, if the set has one.
+  final double? appliedPct;
+
+  /// The work factor applied (a percent), only when it is not neutral and the viewer can see it.
+  final double? workFactor;
+
+  factory ProposedSet.fromJson(Json j) => ProposedSet(
+    blockIndex: enteroOpcional(j['bloque'])!,
+    prescriptionIndex: enteroOpcional(j['prescripcion'])!,
+    setIndex: enteroOpcional(j['serie'])!,
+    exerciseId: '${j['ejercicioId']}',
+    kg: numOpcional(j['kilos']),
+    appliedPct: numOpcional(j['pctAplicado']),
+    workFactor: numOpcional(j['factor']),
+  );
+
+  Json toJson() => {
+    'bloque': blockIndex,
+    'prescripcion': prescriptionIndex,
+    'serie': setIndex,
+    'ejercicioId': exerciseId,
+    ...sinNulos({
+      'kilos': kg,
+      'pctAplicado': appliedPct,
+      'factor': workFactor,
+    }),
+  };
+}
+
 /// The weight the plan proposes for a percent set, with both percents, using the E4.1 rule.
 /// Convenience for tests and the slices; null without a usable RM.
 ({double kg, RecordPcts pcts})? proposedFromPlan({

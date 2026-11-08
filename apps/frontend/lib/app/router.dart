@@ -19,6 +19,7 @@ import '../features/wods/presentation/wod_editor_page.dart';
 import '../features/wods/presentation/wods_page.dart';
 import '../features/plan/presentation/plans_page.dart';
 import '../features/members/presentation/members_page.dart';
+import '../features/sesion/presentation/session_page.dart';
 import '../features/session/domain/session_manager.dart';
 import '../features/session/presentation/providers.dart';
 import '../features/session/presentation/sign_in_page.dart';
@@ -34,6 +35,9 @@ abstract final class Rutas {
 
   /// The plan's calendar for the group, read-only; both coach and athlete.
   static const calendario = '$entrenamiento/calendario';
+
+  /// The day's session.
+  static const sesion = '$entrenamiento/sesion';
 
   /// The coach's athlete list; each athlete's sheet is `<atletas>/<athleteId>`.
   static const atletas = '$planificacion/atletas';
@@ -103,6 +107,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               path: Rutas.entrenamiento,
               builder: (_, _) => const PaginaEntrenamiento(),
               routes: [
+                GoRoute(path: 'sesion', builder: (_, _) => const SessionPage()),
                 GoRoute(
                   path: 'calendario',
                   builder: (_, _) => const CalendarPage(assignmentsPath: Rutas.asignaciones),

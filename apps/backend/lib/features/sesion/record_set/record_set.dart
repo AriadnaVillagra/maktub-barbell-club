@@ -169,61 +169,50 @@ class RecordSet {
     Map<String, Exercise> exercises,
   ) async {
     final clubId = club.clubId;
-    final rmExerciseId = exercise.loadReference.kind == LoadReferenceKind.none
-        ? null
-        : effectiveRmExerciseId(exercise.id, exercises);
+    final rmExerciseId = rmExerciseIdFor(exercise, exercises);
     final references = rmExerciseId == null
         ? const <Reference>[]
         : await _store.references(clubId, input.athleteId, rmExerciseId);
     final factors = rmExerciseId == null
         ? const <WorkFactor>[]
         : await _store.workFactors(clubId, input.athleteId, rmExerciseId);
-    final reference = rmExerciseId == null
-        ? null
-        : currentReference(
-            references,
-            athleteId: input.athleteId,
-            exerciseId: rmExerciseId,
-            type: ReferenceType.rm,
-            on: session.date,
-          );
-    final factor = rmExerciseId == null
-        ? defaultWorkFactor
-        : currentWorkFactor(
-            factors,
-            references,
-            athleteId: input.athleteId,
-            exerciseId: rmExerciseId,
-            on: session.date,
-          );
-    final pct = target.pct;
-    final byRm = rmExerciseId != null && pct != null && pct > 0;
+    final basis = setLoadBasis(
+      rmExerciseId: rmExerciseId,
+      pct: target.pct,
+      athleteId: input.athleteId,
+      on: session.date,
+      references: references,
+      factors: factors,
+    );
 
     if (input.manualKg) {
-      final pcts = byRm
-          ? RecordPcts.fromWeight(input.kg!, reference?.value, workFactor: factor)
+      final pcts = basis.byRm
+          ? RecordPcts.fromWeight(
+              input.kg!,
+              basis.reference?.value,
+              workFactor: basis.workFactor,
+            )
           : null;
-      return _Load.of(input.kg, pcts, reference, factor);
+      return _Load.of(input.kg, pcts, basis.reference, basis.workFactor);
     }
 
-    final applied = pct == null ? null : pctEfectivo(pct, input.adjustment);
-    final fixed = byRm
+    final fixed = basis.byRm
         ? null
         : await _store.fixedWeight(clubId, input.athleteId, exercise.id);
-    final proposal = proposeLoad(
-      hasReference: rmExerciseId != null,
-      pct: applied,
-      rm: reference?.value,
-      fixedKg: fixed?.kg ?? target.kg,
+    final proposal = proposedSetLoad(
+      basis: basis,
+      target: target,
+      adjustment: input.adjustment,
+      athleteFixedKg: fixed?.kg,
       equipo: await _store.equipment(clubId) ?? Equipo.estandarDe(clubId),
-      workFactor: factor,
       barKg: prescription.barKg ?? exercise.barKg,
     );
-    final kg = proposal.weightKg;
-    final pcts = byRm && kg != null
-        ? RecordPcts.fromPlan(applied!, workFactor: factor)
-        : null;
-    return _Load.of(kg, pcts, reference, factor);
+    return _Load.of(
+      proposal.kg,
+      proposal.pcts,
+      basis.reference,
+      basis.workFactor,
+    );
   }
 }
 
