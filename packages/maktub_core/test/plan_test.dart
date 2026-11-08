@@ -98,6 +98,7 @@ Plan _withBlock(PlanBlock block) => _plan(
 );
 
 void main() {
+  publishedPlanTests();
   group('wire contract', () {
     test('a plan round-trips through JSON with every field', () {
       final plan = Plan(
@@ -563,6 +564,70 @@ void main() {
           PlanProblemCode.assignmentUnknownModel,
         ],
       );
+    });
+  });
+}
+
+void publishedPlanTests() {
+  group('published copy', () {
+    final models = [
+      WeekModel(
+        id: 'A',
+        name: 'A',
+        days: [
+          PlanDay(blocks: [PlanBlock(name: 'Fuerza')]),
+        ],
+      ),
+    ];
+    final published = PublishedPlan(
+      weekModels: models,
+      weekAssignment: const ['A', 'A', 'A', 'A'],
+      publishedAt: DateTime.utc(2026, 11, 8, 10),
+      publishedBy: 'coach-1',
+    );
+    Plan plan({PublishedPlan? pub, String name = 'P'}) => Plan(
+      id: 'p1',
+      clubId: 'c1',
+      name: name,
+      weekModels: models,
+      weekAssignment: const ['A', 'A', 'A', 'A'],
+      published: pub,
+      auditoria: _audit,
+    );
+
+    test('a plan stored without it reads as never published', () {
+      final json = plan().toJson();
+      expect(json.containsKey('publicado'), isFalse);
+      expect(Plan.fromJson(json).published, isNull);
+    });
+
+    test('round-trips through JSON with date and author', () {
+      final back = Plan.fromJson(
+        jsonDecode(jsonEncode(plan(pub: published).toJson()))
+            as Map<String, dynamic>,
+      );
+      expect(back.published!.publishedBy, 'coach-1');
+      expect(back.published!.publishedAt, DateTime.utc(2026, 11, 8, 10));
+      expect(back.published!.toJson(), published.toJson());
+    });
+
+    test('has unpublished changes when never published or content differs', () {
+      expect(plan().hasUnpublishedChanges, isTrue);
+      expect(plan(pub: published).hasUnpublishedChanges, isFalse);
+      expect(
+        plan(pub: published, name: 'Other').hasUnpublishedChanges,
+        isFalse,
+      );
+      final edited = Plan(
+        id: 'p1',
+        clubId: 'c1',
+        name: 'P',
+        weekModels: [WeekModel(id: 'A', name: 'A2', days: models.single.days)],
+        weekAssignment: const ['A', 'A', 'A', 'A'],
+        published: published,
+        auditoria: _audit,
+      );
+      expect(edited.hasUnpublishedChanges, isTrue);
     });
   });
 }

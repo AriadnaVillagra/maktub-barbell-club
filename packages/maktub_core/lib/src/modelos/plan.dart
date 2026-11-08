@@ -11,6 +11,8 @@
 /// (wrong types, unknown enum values).
 library;
 
+import 'dart:convert';
+
 import 'base.dart';
 import 'cable.dart';
 import 'json.dart';
@@ -294,6 +296,55 @@ class WeekModel {
   };
 }
 
+/// The last published version of a plan (E5.14): the part athletes see. It is a copy of the week models and the
+/// assignment taken when the coach published, plus when and by whom. Saving a plan never touches it; only
+/// publishing replaces it. The name and type are not part of it.
+class PublishedPlan {
+  const PublishedPlan({
+    this.weekModels = const [],
+    this.weekAssignment = const [],
+    required this.publishedAt,
+    required this.publishedBy,
+  });
+
+  final List<WeekModel> weekModels;
+  final List<String> weekAssignment;
+
+  /// UTC instant of the publication.
+  final DateTime publishedAt;
+
+  /// User id of the coach who published.
+  final String publishedBy;
+
+  /// The week model of the 1-based [week] of the cycle, like [Plan.weekModelOf].
+  WeekModel? weekModelOf(int week) {
+    if (week < 1 || week > weekAssignment.length) return null;
+    final id = weekAssignment[week - 1];
+    for (final m in weekModels) {
+      if (m.id == id) return m;
+    }
+    return null;
+  }
+
+  factory PublishedPlan.fromJson(Json j) => PublishedPlan(
+    weekModels: [
+      for (final m in listaJson(j['modelosSemana'])) WeekModel.fromJson(m),
+    ],
+    weekAssignment: [
+      for (final e in (j['asignacion'] as List? ?? const [])) '$e',
+    ],
+    publishedAt: DateTime.parse('${j['publicadoEn']}').toUtc(),
+    publishedBy: '${j['publicadoPor']}',
+  );
+
+  Json toJson() => {
+    'modelosSemana': [for (final m in weekModels) m.toJson()],
+    'asignacion': weekAssignment,
+    'publicadoEn': publishedAt.toUtc().toIso8601String(),
+    'publicadoPor': publishedBy,
+  };
+}
+
 /// A plan: week models plus the 4-position assignment (`weekAssignment[0]` is the week model of week 1).
 /// A model can repeat (`A, B, B, A`). The plan repeats in identical cycles; the cycle number lives in the
 /// session record, not here.
@@ -305,6 +356,7 @@ class Plan implements DelClub {
     this.type = PlanType.regular,
     this.weekModels = const [],
     this.weekAssignment = const [],
+    this.published,
     required this.auditoria,
   });
 
@@ -317,7 +369,23 @@ class Plan implements DelClub {
 
   /// Ids of [weekModels], one per week of the cycle. Must have [planCycleWeeks] entries.
   final List<String> weekAssignment;
+
+  /// What the athletes see; null while the plan was never published. The saved week models and assignment
+  /// above are the coach's draft.
+  final PublishedPlan? published;
   final Auditoria auditoria;
+
+  /// True when the saved content (week models and assignment, compared through their JSON form) differs
+  /// from the published copy, or there is none. Name and type do not count.
+  bool get hasUnpublishedChanges {
+    final p = published;
+    if (p == null) return true;
+    return jsonEncode([
+          for (final m in weekModels) m.toJson(),
+          weekAssignment,
+        ]) !=
+        jsonEncode([for (final m in p.weekModels) m.toJson(), p.weekAssignment]);
+  }
 
   /// The week model of the 1-based [week] of the cycle, or null if the assignment does not cover it
   /// or points to a model that does not exist.
@@ -341,6 +409,9 @@ class Plan implements DelClub {
     weekAssignment: [
       for (final e in (j['asignacion'] as List? ?? const [])) '$e',
     ],
+    published: j['publicado'] == null
+        ? null
+        : PublishedPlan.fromJson((j['publicado'] as Map).cast<String, dynamic>()),
     auditoria: _auditoria(j['auditoria']),
   );
 
@@ -351,6 +422,7 @@ class Plan implements DelClub {
     'tipo': type.cable,
     'modelosSemana': [for (final m in weekModels) m.toJson()],
     'asignacion': weekAssignment,
+    if (published != null) 'publicado': published!.toJson(),
     'auditoria': auditoria.toJson(),
   };
 }

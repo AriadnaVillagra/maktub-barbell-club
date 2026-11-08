@@ -276,6 +276,8 @@ void main() {
           'nombre': 'abril',
           'tipo': 'test',
           'cantidadModelos': 0,
+          'publicado': false,
+          'cambiosSinPublicar': true,
           'actualizadoEn': _t0.toIso8601String(),
         });
         expect((body[1] as Map)['cantidadModelos'], 1);

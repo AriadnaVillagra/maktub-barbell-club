@@ -1,5 +1,6 @@
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/plan/plan_problem_json.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -10,7 +11,8 @@ import 'guardar_store.dart';
 /// days, blocks, prescriptions, sets) → 200 with the saved plan. It replaces the stored plan entirely, in one
 /// document write, so a failure leaves the previous plan intact. Saving the same body twice gives the same plan.
 ///
-/// The server sets `id` (the one in the URL), `clubId` (the club's) and the audit (creation is kept from the
+/// The server sets `id` (the one in the URL), `clubId` (the club's), `publicado` (kept from the stored plan; the
+/// published version only changes in `/publicar`) and the audit (creation is kept from the
 /// stored plan; modification is the caller and now): whatever the body says for them is ignored.
 /// 404 if the plan does not exist in the club (create it first with `POST`). Needs [Accion.planificar].
 ///
@@ -57,6 +59,8 @@ class SavePlan {
         'auditoria': stored.auditoria
             .modificada(club.userId, ahora: _now())
             .toJson(),
+        // The published copy is never the client's: it only changes by publishing.
+        'publicado': stored.published?.toJson(),
       });
     } on FormatException {
       throw const ErrorDeSolicitud('El plan tiene un formato inválido.');
@@ -74,7 +78,7 @@ class SavePlan {
         'El plan tiene ${problems.length} problema(s); no se guardó.',
         estado: 422,
         extra: {
-          'problemas': [for (final p in problems) _problemJson(p)],
+          'problemas': [for (final p in problems) planProblemJson(p)],
         },
       );
     }
@@ -85,13 +89,3 @@ class SavePlan {
     return plan;
   }
 }
-
-Json _problemJson(PlanProblem p) => {
-  'codigo': p.code.name,
-  if (p.weekModelIndex != null) 'modeloSemana': p.weekModelIndex,
-  if (p.assignmentIndex != null) 'semana': p.assignmentIndex,
-  if (p.dayIndex != null) 'dia': p.dayIndex,
-  if (p.blockIndex != null) 'bloque': p.blockIndex,
-  if (p.prescriptionIndex != null) 'prescripcion': p.prescriptionIndex,
-  if (p.setIndex != null) 'serie': p.setIndex,
-};

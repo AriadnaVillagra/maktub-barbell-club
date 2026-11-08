@@ -10,8 +10,8 @@ abstract interface class SavePlanStore {
   /// The exercises visible to [clubId] (platform base plus the club's own), by id.
   Future<Map<String, Exercise>> exercises(String clubId);
 
-  /// Replaces the whole plan document with that id **of that club** in one write.
-  /// Returns false, and writes nothing, if no such plan exists.
+  /// Replaces the saved content (name, type, week models, assignment, audit) of the plan with that id **of that
+  /// club** in one write, keeping whatever published copy the stored document has. Returns false, and writes nothing, if no such plan exists.
   Future<bool> replace(Plan plan);
 }
 
@@ -42,13 +42,18 @@ class MongoSavePlanStore implements SavePlanStore {
     };
   }
 
-  // A single-document replace is atomic: the previous plan or the new one, never a mix (design D15).
+  // One document, one `$set` of every field but the published copy: atomic (design D15), and a publish that
+  // lands between the read and this write is not undone, because this write never touches `publicado`.
   @override
   Future<bool> replace(Plan plan) async {
-    final result = await _db.collection(Colecciones.planes).replaceOne({
+    final fields = aDocumento(plan.toJson())
+      ..remove('_id')
+      ..remove('clubId')
+      ..remove('publicado');
+    final result = await _db.collection(Colecciones.planes).updateOne({
       '_id': plan.id,
       'clubId': plan.clubId,
-    }, aDocumento(plan.toJson()));
+    }, {r'$set': fields});
     return result.nMatched > 0;
   }
 }
