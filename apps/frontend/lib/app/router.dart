@@ -7,6 +7,7 @@ import 'package:maktub_ui/maktub_ui.dart';
 import '../features/access/presentation/providers.dart';
 import '../features/atletas/presentation/athlete_sheet_page.dart';
 import '../features/atletas/presentation/athletes_page.dart';
+import '../features/atletas/presentation/profile_page.dart';
 import '../features/catalogo/presentation/catalog_routes.dart';
 import '../features/catalogo/presentation/categories_page.dart';
 import '../features/catalogo/presentation/team_page.dart';
@@ -36,6 +37,9 @@ abstract final class Rutas {
   static const equipo = '$preferencias/equipo';
   static const miembros = '$preferencias/miembros';
 
+  /// The athlete's own read-only references.
+  static const perfil = '/perfil';
+
   /// Sign-in with Google. Every route leads here without a session (see [sessionRedirect]).
   static const signIn = '/ingreso';
 
@@ -57,11 +61,21 @@ final routerProvider = Provider<GoRouter>((ref) {
   ref.listen(canConfigureProvider, (_, value) => canConfigure.value = value);
   ref.onDispose(canConfigure.dispose);
 
+  final hasProfile = ValueNotifier<bool?>(ref.read(hasAthleteProfileProvider));
+  ref.listen(hasAthleteProfileProvider, (_, value) => hasProfile.value = value);
+  ref.onDispose(hasProfile.dispose);
+
   final router = GoRouter(
     initialLocation: Rutas.entrenamiento,
-    refreshListenable: Listenable.merge([session, canPlan, canConfigure]),
+    refreshListenable: Listenable.merge([session, canPlan, canConfigure, hasProfile]),
     redirect: (context, state) =>
-        sessionRedirect(session.value, state.uri, canPlan: canPlan.value, canConfigure: canConfigure.value),
+        sessionRedirect(
+      session.value,
+      state.uri,
+      canPlan: canPlan.value,
+      canConfigure: canConfigure.value,
+      hasProfile: hasProfile.value,
+    ),
     routes: [
       GoRoute(path: Rutas.signIn, builder: (_, _) => const SignInPage()),
       GoRoute(path: Rutas.restoring, builder: (_, _) => const SessionRestoringPage()),
@@ -104,6 +118,9 @@ final routerProvider = Provider<GoRouter>((ref) {
                 GoRoute(path: 'miembros', builder: (_, _) => const MembersPage()),
               ],
             ),
+          ]),
+          StatefulShellBranch(routes: [
+            GoRoute(path: Rutas.perfil, builder: (_, _) => const ProfilePage()),
           ]),
         ],
       ),

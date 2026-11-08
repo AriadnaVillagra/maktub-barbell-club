@@ -20,9 +20,13 @@ class AthleteSheetView extends StatelessWidget {
     required this.sheet,
     required this.exerciseNames,
     required this.today,
+    this.emptyMessage = 'Este atleta todavía no tiene referencias.',
   });
 
   final AthleteSheet sheet;
+
+  /// Shown when there is nothing recorded yet.
+  final String emptyMessage;
 
   /// Exercise names by id.
   final Map<String, String> exerciseNames;
@@ -42,7 +46,7 @@ class AthleteSheetView extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.all(Espacio.l),
           child: Text(
-            'Este atleta todavía no tiene referencias.',
+            emptyMessage,
             key: const Key('sheet-empty'),
             style: context.textos.bodyLarge,
             textAlign: TextAlign.center,

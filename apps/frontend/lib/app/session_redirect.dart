@@ -9,8 +9,9 @@ import 'router.dart';
 ///
 /// [canPlan] says whether the user can plan in the active club (null: not known yet). Without
 /// permission the planning routes lead to training; while unknown they wait at the loading screen.
-/// [canConfigure] does the same for the Preferences tab.
-String? sessionRedirect(SessionStatus status, Uri location, {bool? canPlan = true, bool? canConfigure = true}) {
+/// [canConfigure] does the same for the Preferences tab, and [hasProfile] for the Perfil tab
+/// (the user has an athlete id in the active club).
+String? sessionRedirect(SessionStatus status, Uri location, {bool? canPlan = true, bool? canConfigure = true, bool? hasProfile = true}) {
   final path = location.path;
   if (path == Rutas.galeria) return null;
   final inSessionGate = path == Rutas.signIn || path == Rutas.restoring;
@@ -23,11 +24,11 @@ String? sessionRedirect(SessionStatus status, Uri location, {bool? canPlan = tru
   return switch (status) {
     SessionStatus.restoring => path == Rutas.restoring ? null : gate(Rutas.restoring),
     SessionStatus.signedOut => path == Rutas.signIn ? null : gate(Rutas.signIn),
-    SessionStatus.signedIn => _signedIn(location, inSessionGate, canPlan, canConfigure, gate),
+    SessionStatus.signedIn => _signedIn(location, inSessionGate, canPlan, canConfigure, hasProfile, gate),
   };
 }
 
-String? _signedIn(Uri location, bool inSessionGate, bool? canPlan, bool? canConfigure, String Function(String) gate) {
+String? _signedIn(Uri location, bool inSessionGate, bool? canPlan, bool? canConfigure, bool? hasProfile, String Function(String) gate) {
   final target = inSessionGate ? _safeTarget(location.queryParameters[_from]) : location.toString();
   final targetPath = Uri.parse(target).path;
   if (targetPath == Rutas.planificacion || targetPath.startsWith('${Rutas.planificacion}/')) {
@@ -37,6 +38,10 @@ String? _signedIn(Uri location, bool inSessionGate, bool? canPlan, bool? canConf
   if (targetPath == Rutas.preferencias || targetPath.startsWith('${Rutas.preferencias}/')) {
     if (canConfigure == null) return inSessionGate ? null : gate(Rutas.restoring);
     if (!canConfigure) return Rutas.entrenamiento;
+  }
+  if (targetPath == Rutas.perfil || targetPath.startsWith('${Rutas.perfil}/')) {
+    if (hasProfile == null) return inSessionGate ? null : gate(Rutas.restoring);
+    if (!hasProfile) return Rutas.entrenamiento;
   }
   return inSessionGate ? target : null;
 }

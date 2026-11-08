@@ -23,6 +23,7 @@ Future<void> _montar(
   Size tamano, {
   Set<Rol> roles = const {Rol.coach},
   String? ruta,
+  Map<String, String> athleteIds = const {},
 }) async {
   tester.view.physicalSize = tamano;
   tester.view.devicePixelRatio = 1;
@@ -32,7 +33,7 @@ Future<void> _montar(
     overrides: [
       tokenStoreProvider.overrideWithValue(FakeTokenStore(issued(1))),
       authApiProvider.overrideWithValue(FakeAuthApi()),
-      meRepositoryProvider.overrideWithValue(FakeMeRepository(meWith([(_gym, roles)]))),
+      meRepositoryProvider.overrideWithValue(FakeMeRepository(meWith([(_gym, roles)], athleteIds: athleteIds))),
       catalogRepositoryProvider.overrideWithValue(FakeCatalog([])),
       athleteRepositoryProvider.overrideWithValue(FakeAthleteRepository(
         athletesList: const [AthleteSummary(id: 'a1', userId: 'u2', name: 'Andi')],
@@ -128,6 +129,41 @@ void main() {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: '${Rutas.atletas}/a1');
       expect(find.text('Sesión de hoy'), findsOneWidget);
       expect(find.byKey(const Key('sheet-empty')), findsNothing);
+    });
+
+    testWidgets('a user without athlete id has no Perfil tab and is redirected from its route', (tester) async {
+      await _montar(tester, const Size(400, 800), ruta: Rutas.perfil);
+
+      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.byKey(const Key('sheet-empty')), findsNothing);
+      expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Perfil')), findsNothing);
+    });
+
+    for (final (name, size) in const [('phone', Size(400, 800)), ('tablet', Size(1200, 800))]) {
+      testWidgets('a user with athlete id sees Perfil last on $name, read-only', (tester) async {
+        await _montar(tester, size, athleteIds: {'c1': 'a1'});
+        final bar = size.width < 600 ? find.byType(NavigationBar) : find.byType(NavigationRail);
+        expect(find.descendant(of: bar, matching: find.text('Perfil')), findsOneWidget);
+
+        await tester.tap(find.descendant(of: bar, matching: find.text('Perfil')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('sheet-empty')), findsOneWidget);
+        expect(find.byKey(const Key('edit-rm')), findsNothing);
+        // Light: Perfil follows the planning theme.
+        expect(Theme.of(tester.element(bar)).brightness, Brightness.light);
+      });
+    }
+
+    testWidgets('hiding Perfil does not shift the other tabs; an athlete-only user keeps Perfil', (tester) async {
+      await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, athleteIds: {'c1': 'a1'});
+      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Planificación'), findsNothing);
+      expect(find.text('Perfil'), findsOneWidget);
+
+      await _montar(tester, const Size(400, 800), ruta: Rutas.preferencias);
+      await tester.tap(find.text('Planificación'));
+      await tester.pumpAndSettle();
+      expect(find.text('Atletas y referencias'), findsOneWidget);
     });
 
     testWidgets('the catalog lives in Preferences, not in training', (tester) async {

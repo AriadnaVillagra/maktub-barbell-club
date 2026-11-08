@@ -6,7 +6,13 @@ Club club(String id, String name, TipoClub type) =>
     Club(id: id, nombre: name, tipo: type, auditoria: Auditoria(creadoPor: 'u1', creadoEn: DateTime.utc(2026, 11, 7)));
 
 /// A user with a personal club and one membership per entry of [memberships].
-Me meWith(List<(Club, Set<Rol>)> memberships, {bool isPlatformAdmin = false}) {
+///
+/// [athleteIds] gives the athlete id the user has in each club, by club id.
+Me meWith(
+  List<(Club, Set<Rol>)> memberships, {
+  bool isPlatformAdmin = false,
+  Map<String, String> athleteIds = const {},
+}) {
   final personal = club('personal-1', 'Mi entrenamiento', TipoClub.personal);
   return Me(
     user: Usuario(
@@ -17,7 +23,9 @@ Me meWith(List<(Club, Set<Rol>)> memberships, {bool isPlatformAdmin = false}) {
       clubPersonalId: personal.id,
     ),
     personalClub: personal,
-    clubs: [for (final (c, roles) in memberships) ClubAccess(club: c, roles: roles)],
+    clubs: [
+      for (final (c, roles) in memberships) ClubAccess(club: c, roles: roles, athleteId: athleteIds[c.id]),
+    ],
     isPlatformAdmin: isPlatformAdmin,
   );
 }

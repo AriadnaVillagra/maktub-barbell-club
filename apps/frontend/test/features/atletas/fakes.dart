@@ -165,6 +165,7 @@ Future<void> pumpAthletePage(
   List<Exercise> exercises = const [],
   bool settle = true,
   Set<Rol> roles = const {Rol.coach},
+  Map<String, String> athleteIds = const {},
 }) async {
   tester.view.physicalSize = const Size(900, 1600);
   tester.view.devicePixelRatio = 1;
@@ -177,7 +178,7 @@ Future<void> pumpAthletePage(
           FakeMeRepository(
             meWith([
               (club('c1', 'Gimnasio', TipoClub.club), roles),
-            ]),
+            ], athleteIds: athleteIds),
           ),
         ),
         catalogRepositoryProvider.overrideWithValue(

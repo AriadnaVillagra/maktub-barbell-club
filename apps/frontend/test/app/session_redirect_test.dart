@@ -73,4 +73,23 @@ void main() {
       expect(goAs(null, Rutas.entrenamiento), isNull);
     });
   });
+
+  group('signed in, Perfil tab', () {
+    String? goAs(bool? hasProfile, String location) =>
+        sessionRedirect(SessionStatus.signedIn, Uri.parse(location), hasProfile: hasProfile);
+
+    test('without an athlete id Perfil leads to training', () {
+      expect(goAs(false, Rutas.perfil), Rutas.entrenamiento);
+      expect(goAs(false, '${Rutas.signIn}?desde=%2Fperfil'), Rutas.entrenamiento);
+    });
+
+    test('with an athlete id Perfil stays', () {
+      expect(goAs(true, Rutas.perfil), isNull);
+    });
+
+    test('while unknown, Perfil waits at the loading screen', () {
+      expect(goAs(null, Rutas.perfil), '${Rutas.restoring}?desde=%2Fperfil');
+      expect(goAs(null, Rutas.entrenamiento), isNull);
+    });
+  });
 }

@@ -73,6 +73,9 @@ class Me {
   /// Whether the user can write athletes' references, factors and fixed weights (coach only).
   bool get canEditReferences => activeClub?.can(Accion.editarReferencias) ?? false;
 
+  /// The user's athlete id in the active club, or null when they are not an athlete there.
+  String? get athleteId => activeClub?.athleteId;
+
   bool get canManageMembers => activeClub?.can(Accion.gestionarMiembros) ?? false;
 
   /// Whether the Preferences tab (catalog, timers, equipment, members) is available.
