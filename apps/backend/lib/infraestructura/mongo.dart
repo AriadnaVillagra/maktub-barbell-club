@@ -30,6 +30,12 @@ abstract final class Colecciones {
 
   /// One per club: `_id` is the `clubId` (F2 S3). A club with no document uses the standard.
   static const equipos = 'equipos';
+
+  /// Athlete references (F3): one document per entry of the history, never overwritten.
+  static const referencias = 'referencias';
+
+  /// Work factors (F3): one document per entry of the history, never overwritten.
+  static const factoresTrabajo = 'factores_trabajo';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -44,7 +50,9 @@ Future<Db> abrirMongo([String? url]) async {
 /// Índices que necesitan los features; idempotente, se corre al arrancar.
 Future<void> asegurarIndices(Db db) async {
   // To list and revoke a user's sessions (e.g. "close all my other devices").
-  await db.collection(Colecciones.loginSessions).createIndex(keys: {'userId': 1}, name: 'userId');
+  await db
+      .collection(Colecciones.loginSessions)
+      .createIndex(keys: {'userId': 1}, name: 'userId');
   // Mongo deletes each session on its own once `expiresAt` passes (F1: expired sessions clean themselves up).
   // mongo_dart's createIndex has no expireAfterSeconds option, so use the raw command (idempotent).
   await db.runCommand({
@@ -75,6 +83,16 @@ Future<void> asegurarIndices(Db db) async {
         name: 'club_usuario_unico',
         unique: true,
       );
+
+  // History lookups: the entries of one athlete and exercise, by date.
+  for (final name in [Colecciones.referencias, Colecciones.factoresTrabajo]) {
+    await db
+        .collection(name)
+        .createIndex(
+          keys: {'clubId': 1, 'atletaId': 1, 'ejercicioId': 1, 'fecha': 1},
+          name: 'club_atleta_ejercicio_fecha',
+        );
+  }
 }
 
 /// Documento de Mongo (`_id`) → JSON del dominio (`id`).
