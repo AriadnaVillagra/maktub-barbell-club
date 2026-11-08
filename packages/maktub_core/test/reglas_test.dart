@@ -42,6 +42,34 @@ void main() {
       expect(pesoPorPorcentaje(rm: 0, pct: 80, equipo: Equipo.estandar), isNull);
     });
 
+    test('pesoPorPorcentaje: a neutral work factor of 100 changes nothing', () {
+      expect(pesoPorPorcentaje(rm: 80, pct: 80, equipo: Equipo.estandar, workFactor: 100), 63);
+      expect(
+        pesoPorPorcentaje(rm: 100, pct: 61, equipo: Equipo.estandar, workFactor: 100),
+        pesoPorPorcentaje(rm: 100, pct: 61, equipo: Equipo.estandar),
+      );
+    });
+
+    test('pesoPorPorcentaje: another work factor applies rm × factor × pct, rounded to loadable', () {
+      // 100 × 0.8 × 0.75 = 60 (loadable).
+      expect(pesoPorPorcentaje(rm: 100, pct: 75, equipo: Equipo.estandar, workFactor: 80), 60);
+      // 83 × 0.9 × 0.7 = 52.29, nearest loadable is not the raw value.
+      final w = pesoPorPorcentaje(rm: 83, pct: 70, equipo: Equipo.estandar, workFactor: 90)!;
+      expect(w, Equipo.estandar.masCercano(83 * 0.9 * 0.7));
+      expect(Equipo.estandar.cargables, contains(w));
+      expect(pesoPorPorcentaje(rm: 100, pct: 80, equipo: Equipo.estandar, workFactor: 110), 88);
+    });
+
+    test('pesoPorPorcentaje: no RM gives null whatever the work factor', () {
+      expect(pesoPorPorcentaje(rm: null, pct: 80, equipo: Equipo.estandar, workFactor: 80), isNull);
+      expect(pesoPorPorcentaje(rm: 0, pct: 80, equipo: Equipo.estandar, workFactor: 80), isNull);
+    });
+
+    test('pesoPorPorcentaje: a tie between loadables goes to the lower one', () {
+      // 50 × 0.5 × 0.85 = 21.25, halfway between 20 and 22.5.
+      expect(pesoPorPorcentaje(rm: 50, pct: 85, equipo: Equipo.estandar, workFactor: 50), 20);
+    });
+
     test('pctDesdePeso mantiene el invariante rm × pct ≈ peso', () {
       expect(pctDesdePeso(63, 80), 78.75);
     });
