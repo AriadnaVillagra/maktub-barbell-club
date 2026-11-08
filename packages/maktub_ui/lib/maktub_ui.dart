@@ -10,6 +10,7 @@ export 'src/componentes/campo_busqueda.dart';
 export 'src/componentes/contador_cantidad.dart';
 export 'src/componentes/insignia.dart';
 export 'src/componentes/lista_de_problemas.dart';
+export 'src/componentes/pildora.dart';
 export 'src/componentes/sign_in_panel.dart';
 export 'src/galeria/galeria.dart' show GaleriaMaktub, GaleriaDeModo, Muestrario;
 export 'src/tema/contexto.dart';

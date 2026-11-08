@@ -4,6 +4,7 @@ import '../componentes/campo_busqueda.dart';
 import '../componentes/contador_cantidad.dart';
 import '../componentes/insignia.dart';
 import '../componentes/lista_de_problemas.dart';
+import '../componentes/pildora.dart';
 import '../componentes/sign_in_panel.dart';
 import '../tema/contexto.dart';
 import '../tema/modo.dart';
@@ -79,6 +80,7 @@ class Muestrario extends StatelessWidget {
             _Seccion('Controles', _Controles()),
             _Seccion('Ingreso', _Ingreso()),
             _Seccion('Insignias', _Insignias()),
+            _Seccion('Píldoras', _Pildoras()),
             _Seccion('Búsqueda y cantidad', _BusquedaYCantidad()),
             _Seccion('Lista de problemas', _ListaDeProblemas()),
           ],
@@ -329,6 +331,21 @@ class _Insignias extends StatelessWidget {
         children: [
           InsigniaMaktub('Default', context.colores.insigniaBase),
           InsigniaMaktub('Custom', context.colores.insigniaPropio),
+        ],
+      );
+}
+
+class _Pildoras extends StatelessWidget {
+  const _Pildoras();
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+        spacing: Espacio.s,
+        runSpacing: Espacio.s,
+        children: [
+          PildoraMaktub(texto: 'S1', detalle: 'Modelo A', seleccionada: true, onTap: () {}),
+          PildoraMaktub(texto: 'S2', detalle: 'Modelo B', seleccionada: false, onTap: () {}),
+          PildoraMaktub(texto: 'Día 1', seleccionada: false, onTap: () {}),
         ],
       );
 }

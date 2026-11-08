@@ -54,13 +54,13 @@ void main() {
     await _montar(tester, const Size(400, 800));
 
     expect(find.byType(NavigationBar), findsOneWidget);
-    expect(find.text('Sesión de hoy'), findsOneWidget);
+    expect(find.text('Calendario'), findsOneWidget);
 
     await tester.tap(find.text('Planificación'));
     await tester.pumpAndSettle();
 
     expect(find.text('Atletas y referencias'), findsOneWidget);
-    expect(find.text('Sesión de hoy'), findsNothing);
+    expect(find.text('Calendario'), findsNothing);
   });
 
   testWidgets('entrenamiento abre en oscuro y planificación sigue al sistema (claro)', (tester) async {
@@ -86,7 +86,7 @@ void main() {
     testWidgets('an athlete does not see planning and has no bar with one destination', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta});
 
-      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Calendario'), findsOneWidget);
       expect(find.text('Planificación'), findsNothing);
       expect(find.byType(NavigationBar), findsNothing);
     });
@@ -94,7 +94,7 @@ void main() {
     testWidgets('an athlete is sent back to training when opening planning by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.planificacion);
 
-      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Calendario'), findsOneWidget);
       expect(find.text('Atletas y referencias'), findsNothing);
     });
 
@@ -127,14 +127,14 @@ void main() {
 
     testWidgets('an athlete is sent back to training when opening an athlete sheet by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: '${Rutas.atletas}/a1');
-      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Calendario'), findsOneWidget);
       expect(find.byKey(const Key('sheet-empty')), findsNothing);
     });
 
     testWidgets('a user without athlete id has no Perfil tab and is redirected from its route', (tester) async {
       await _montar(tester, const Size(400, 800), ruta: Rutas.perfil);
 
-      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Calendario'), findsOneWidget);
       expect(find.byKey(const Key('sheet-empty')), findsNothing);
       expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Perfil')), findsNothing);
     });
@@ -156,7 +156,7 @@ void main() {
 
     testWidgets('hiding Perfil does not shift the other tabs; an athlete-only user keeps Perfil', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, athleteIds: {'c1': 'a1'});
-      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Calendario'), findsOneWidget);
       expect(find.text('Planificación'), findsNothing);
       expect(find.text('Perfil'), findsOneWidget);
 
@@ -185,7 +185,7 @@ void main() {
 
     testWidgets('an athlete cannot open Preferences by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.preferencias);
-      expect(find.text('Sesión de hoy'), findsOneWidget);
+      expect(find.text('Calendario'), findsOneWidget);
     });
   });
 }

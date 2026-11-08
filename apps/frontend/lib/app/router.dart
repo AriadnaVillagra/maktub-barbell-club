@@ -6,6 +6,7 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../features/access/presentation/providers.dart';
 import '../features/asignacion/presentation/assignments_page.dart';
+import '../features/asignacion/presentation/calendar_page.dart';
 import '../features/atletas/presentation/athlete_sheet_page.dart';
 import '../features/atletas/presentation/athletes_page.dart';
 import '../features/atletas/presentation/profile_page.dart';
@@ -30,6 +31,9 @@ import 'shell.dart';
 abstract final class Rutas {
   static const entrenamiento = '/entrenamiento';
   static const planificacion = '/planificacion';
+
+  /// The plan's calendar for the group, read-only; both coach and athlete.
+  static const calendario = '$entrenamiento/calendario';
 
   /// The coach's athlete list; each athlete's sheet is `<atletas>/<athleteId>`.
   static const atletas = '$planificacion/atletas';
@@ -98,6 +102,12 @@ final routerProvider = Provider<GoRouter>((ref) {
             GoRoute(
               path: Rutas.entrenamiento,
               builder: (_, _) => const PaginaEntrenamiento(),
+              routes: [
+                GoRoute(
+                  path: 'calendario',
+                  builder: (_, _) => const CalendarPage(assignmentsPath: Rutas.asignaciones),
+                ),
+              ],
             ),
           ]),
           StatefulShellBranch(routes: [

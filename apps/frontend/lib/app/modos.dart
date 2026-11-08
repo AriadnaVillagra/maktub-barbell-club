@@ -16,7 +16,7 @@ class PaginaEntrenamiento extends StatelessWidget {
         titulo: 'Entrenamiento',
         descripcion: 'Ejecutar el día con los atletas presentes, en el gimnasio.',
         secciones: [
-          (Icons.play_circle_outline, 'Sesión de hoy', 'Objetivos por atleta, pasos y registro en vivo', null),
+          (Icons.calendar_month_outlined, 'Calendario', 'Semanas y días del plan asignado al grupo', Rutas.calendario),
           (Icons.timer_outlined, 'Temporizadores', 'Descansos, EMOM, tabata, AMRAP, for time', null),
           (Icons.show_chart, 'Historial', 'Progresión, % real del RM, marcas y WoDs', null),
         ],
