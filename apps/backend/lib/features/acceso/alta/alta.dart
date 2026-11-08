@@ -89,7 +89,7 @@ class AltaInicial {
         id: id,
       );
       for (final clubId in [maktubId, personalId]) {
-        await _membresiaYAtleta(r, clubId, id, u.nombre, auditoria);
+        await _membresiaYAtleta(r, clubId, id, u.nombre, auditoria, maktubId: maktubId);
       }
     }
     return r;
@@ -124,8 +124,9 @@ class AltaInicial {
     String clubId,
     String usuarioId,
     String nombre,
-    Auditoria auditoria,
-  ) async {
+    Auditoria auditoria, {
+    required String maktubId,
+  }) async {
     final clave = {'clubId': clubId, 'usuarioId': usuarioId};
     final ahora = _ahora().toUtc();
     await _insertarSiFalta(
@@ -136,7 +137,7 @@ class AltaInicial {
         id: _nuevoId(),
         clubId: clubId,
         usuarioId: usuarioId,
-        roles: {Rol.coach, Rol.atleta},
+        roles: {Rol.coach, Rol.atleta, if (clubId == maktubId) Rol.adminClub},
         estado: EstadoMembresia.activa,
         desde: ahora,
         auditoria: auditoria,

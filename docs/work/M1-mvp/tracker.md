@@ -22,7 +22,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 |---|---|---|---|---|
 | E0 | [Cerrar F0](E0-cerrar-f0.md) | hecho | 6 / 6 (mergeada a `main`) | — |
 | E1 | [Acceso](E1-acceso.md) | hecho | 14 / 14 (mergeada a `main`; ingreso probado en localhost:5000 y en Pages, R2 ok) | — |
-| E2 | [Catálogo](E2-catalogo.md) | en curso | 10 / 10 (lista para revisión y merge; la semilla se corre en producción después del merge) | — |
+| E2 | [Catálogo](E2-catalogo.md) | en curso | 10 / 10 (mergeada a `main` y semilla cargada; falta tu prueba en producción) | — |
 | E3 | [Atletas y referencias](E3-atletas-referencias.md) | pendiente | 0 / 6 | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | pendiente | 0 / 6 | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | pendiente | 0 / 9 | — |
@@ -37,6 +37,17 @@ Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados
 ## Preguntas abiertas que vienen del diseño
 
 - R4 (`diseno.md` no refleja el recorte de M1): no frena nada. Ver design.md §6.
+
+## Ajustes tras la prueba de E2 (2026-11-08)
+
+Hechos en `m1-mvp`: etiquetas Default/Custom, rol `admin_club` y alta de miembros,
+pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos de temporizador.
+
+- **Antes de usarlo en producción:** desplegar la API y la PWA juntas, y correr `tool/ajustes_e2.dart`
+  con `ADMIN_PLATAFORMA`. Sin ese paso, los coaches actuales pierden la edición del catálogo.
+- **`diseno.md` quedó atrás** en C1 (ejercicios base) y en Equipo (S3 de F2). Se actualiza desde su sesión.
+- **E5 (editor de plan):** la barra se indica por ejercicio; falta decidir si la prescripción la puede pisar.
+- **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja.
 
 ## Pendientes que salieron de E1
 

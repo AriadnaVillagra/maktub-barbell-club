@@ -6,10 +6,10 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'save_team_store.dart';
 
-/// `PUT /clubes/{clubId}/equipo` with `{barraKg, paresDiscos}` → the saved equipment, with `cargables`.
-/// Coaches only (`planificar`).
+/// `PUT /clubes/{clubId}/equipo` with `{barras: [{kg, cantidad}], discos: [{kg, cantidad}]}` → the saved
+/// inventory, with `cargables`. Needs `editarCatalogoClub`.
 Future<Response> saveTeamEndpoint(RequestContext context, {SaveTeamStore? store}) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>().authorize(Accion.editarCatalogoClub);
   final body = await leerCuerpoJson(context.request);
   final team = await SaveTeam(store ?? MongoSaveTeamStore(context.read<Db>()))(club, body);
   return Response.json(body: {...team.toJson(), 'cargables': team.cargables});
@@ -22,27 +22,26 @@ class SaveTeam {
   final DateTime Function() _now;
 
   Future<Equipo> call(ClubContext club, Json body) async {
-    if (body['barraKg'] is! num ||
-        body['paresDiscos'] is! List ||
-        (body['paresDiscos'] as List).any((d) => d is! num)) {
-      throw const ErrorDeSolicitud('El equipo necesita barraKg y paresDiscos numéricos.');
+    bool isItem(Object? e) => e is Map && e['kg'] is num && e['cantidad'] is num;
+    final bars = body['barras'];
+    final plates = body['discos'];
+    if (bars is! List || plates is! List || !bars.every(isItem) || !plates.every(isItem)) {
+      throw const ErrorDeSolicitud('El equipo necesita barras y discos con kg y cantidad numéricos.');
     }
     // The club is the path's, never the body's.
-    final draft = Equipo.fromJson({
-      'clubId': club.clubId,
-      'barraKg': body['barraKg'],
-      'paresDiscos': body['paresDiscos'],
-    });
-    if (draft.paresDiscos.length > maxParesDiscos) {
-      throw ErrorDeSolicitud('Un equipo admite hasta $maxParesDiscos pares de discos.');
-    }
+    final draft = Equipo.fromJson({'clubId': club.clubId, 'barras': bars, 'discos': plates});
     final problems = draft.validar();
     if (problems.isNotEmpty) throw ErrorDeSolicitud('Equipo inválido: ${problems.map((p) => p.name).join(', ')}.');
 
     final current = await _store.find(club.clubId);
     final now = _now();
     final audit = current?.auditoria?.modificada(club.userId, ahora: now) ?? Auditoria.nueva(club.userId, ahora: now);
-    final team = draft.copyWith(paresDiscos: [...draft.paresDiscos]..sort((a, b) => b.compareTo(a)), auditoria: audit);
+    List<ItemInventario> heaviestFirst(List<ItemInventario> items) => [...items]..sort((a, b) => b.kg.compareTo(a.kg));
+    final team = draft.copyWith(
+      barras: heaviestFirst(draft.barras),
+      discos: heaviestFirst(draft.discos),
+      auditoria: audit,
+    );
     await _store.upsert(team);
     return team;
   }

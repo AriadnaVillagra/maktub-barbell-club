@@ -8,8 +8,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'write_exercise_store.dart';
 
-/// Writes of the club's own exercises (F2). Every endpoint needs [Accion.planificar] ("editar el
-/// catálogo del club"); the route group only requires the read action, so each one authorizes itself.
+/// Writes of exercises (F2). Creating needs [Accion.editarCatalogoClub]; changing an existing one is
+/// authorized once it is loaded, because a default one needs a platform admin instead.
 ///
 /// `POST   .../catalogo/ejercicios` body: the exercise without `id`, `clubId`, `estado`, `auditoria` → the
 ///   created exercise (200, active)
@@ -18,7 +18,7 @@ import 'write_exercise_store.dart';
 /// `DELETE .../catalogo/ejercicios/<id>` → `{resultado: borrado|archivado, id, ejercicio?}`: deleted when
 ///   nothing uses it, archived otherwise.
 ///
-/// Base exercises (`clubId` = `plataforma`) can't be changed from a club. The server sets `id`, `clubId`,
+/// A change to a default exercise (`clubId` = `plataforma`) reaches every club. The server sets `id`, `clubId`,
 /// `estado` and `auditoria`. [store], [usage], [newId] and [now] are for tests.
 Future<Response> createExerciseEndpoint(
   RequestContext context, {
@@ -27,7 +27,7 @@ Future<Response> createExerciseEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>().authorize(Accion.editarCatalogoClub);
   final created = await _useCase(context, store, usage, newId, now).create(club, await leerCuerpoJson(context.request));
   return Response.json(body: created.toJson());
 }
@@ -40,7 +40,7 @@ Future<Response> updateExerciseEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>();
   final updated = await _useCase(
     context,
     store,
@@ -59,7 +59,7 @@ Future<Response> setExerciseStatusEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>();
   final updated = await _useCase(
     context,
     store,
@@ -78,7 +78,7 @@ Future<Response> deleteExerciseEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>();
   final result = await _useCase(context, store, usage, newId, now).remove(club, id);
   return Response.json(
     body: {
@@ -136,11 +136,11 @@ class WriteExercise {
 
   Future<Exercise> update(ClubContext club, String id, Json body) async {
     final view = await _store.view({clubPlataforma, club.clubId});
-    final current = _own(club, view, id);
+    final current = _writable(club, view, id);
     final exercise = _parse(
       body,
       id: id,
-      clubId: club.clubId,
+      clubId: current.clubId,
       audit: current.auditoria.modificada(club.userId, ahora: _now()),
       status: current.status,
     );
@@ -156,7 +156,7 @@ class WriteExercise {
     } on Object {
       throw const ErrorDeSolicitud('El estado debe ser "activo" o "archivado".');
     }
-    final current = _own(club, await _store.view({clubPlataforma, club.clubId}), id);
+    final current = _writable(club, await _store.view({clubPlataforma, club.clubId}), id);
     final updated = current.copyWith(
       status: status,
       auditoria: current.auditoria.modificada(club.userId, ahora: _now()),
@@ -167,9 +167,9 @@ class WriteExercise {
 
   /// Deletes the exercise if nothing uses it; otherwise archives it (it keeps resolving where it is used).
   Future<RemoveExerciseResult> remove(ClubContext club, String id) async {
-    final current = _own(club, await _store.view({clubPlataforma, club.clubId}), id);
-    if (!await _usage.isUsed(club.clubId, id)) {
-      await _store.delete(club.clubId, id);
+    final current = _writable(club, await _store.view({clubPlataforma, club.clubId}), id);
+    if (!await _usage.isUsed(current.clubId, id)) {
+      await _store.delete(current.clubId, id);
       return const RemoveExerciseResult.deleted();
     }
     final archived = current.copyWith(
@@ -218,15 +218,13 @@ class WriteExercise {
     }
   }
 
-  /// The club's own exercise [id]; 404 if not visible, 403 if it is a base one.
-  Exercise _own(ClubContext club, CatalogView view, String id) {
+  /// The exercise [id] if the user can change it; 404 if not visible, 403 without permission.
+  Exercise _writable(ClubContext club, CatalogView view, String id) {
     final found = view.exercises[id];
     if (found == null || !isVisibleTo(found, club.clubId)) {
       throw const ErrorDeSolicitud.noEncontrado('Ejercicio no encontrado.');
     }
-    if (found.scope == CatalogScope.base) {
-      throw const ErrorDeSolicitud('Los ejercicios base no se modifican desde un club.', estado: HttpStatus.forbidden);
-    }
+    club.authorizeCatalogWrite(found);
     return found;
   }
 
@@ -236,9 +234,11 @@ class WriteExercise {
     CatalogProblem.defaultMetricNotInMetrics => 'La métrica objetivo debe estar entre las métricas del ejercicio.',
     CatalogProblem.referenceTargetNotVisible => 'El ejercicio de referencia no existe.',
     CatalogProblem.referenceCycle => 'Las referencias de carga forman un ciclo.',
-    CatalogProblem.baseReferencesClub => 'Un ejercicio base no puede referenciar a uno del club.',
+    CatalogProblem.baseReferencesClub => 'Un ejercicio default no puede referenciar a uno del club.',
     CatalogProblem.itemNotVisible => 'Una categoría, patrón, músculo o sugerencia no existe.',
-    CatalogProblem.baseUsesClubItem => 'Un ejercicio base no puede usar elementos del club.',
+    CatalogProblem.baseUsesClubItem => 'Un ejercicio default no puede usar elementos del club.',
+    CatalogProblem.notesTooLong => 'Las notas superan los $maxExerciseNotes caracteres.',
+    CatalogProblem.barNotPositive => 'La barra debe pesar más de 0.',
     CatalogProblem.baseNodeWithParent ||
     CatalogProblem.parentNotVisible ||
     CatalogProblem.depthExceeded => 'Jerarquía inválida.',

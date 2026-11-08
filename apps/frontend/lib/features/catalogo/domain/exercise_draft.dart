@@ -13,6 +13,7 @@ class ExerciseDraft {
     this.loadReference = const LoadReference.none(),
     this.suggestionIds = const [],
     this.notes,
+    this.barKg,
   });
 
   factory ExerciseDraft.from(Exercise e, {String? name}) => ExerciseDraft(
@@ -25,6 +26,7 @@ class ExerciseDraft {
     loadReference: e.loadReference,
     suggestionIds: e.suggestionIds,
     notes: e.notes,
+    barKg: e.barKg,
   );
 
   final String name;
@@ -36,6 +38,7 @@ class ExerciseDraft {
   final LoadReference loadReference;
   final List<String> suggestionIds;
   final String? notes;
+  final double? barKg;
 
   Json toJson() => {
     'nombre': name.trim(),
@@ -47,5 +50,6 @@ class ExerciseDraft {
     'referencia': loadReference.toJson(),
     'sugerencias': suggestionIds,
     'notas': ?(notes == null || notes!.trim().isEmpty ? null : notes!.trim()),
+    'barraKg': ?barKg,
   };
 }

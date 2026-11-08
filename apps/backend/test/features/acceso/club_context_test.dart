@@ -27,6 +27,9 @@ class _FakeStore implements ClubContextStore {
 
   @override
   Future<TipoClub?> clubType(String clubId) async => clubs[clubId];
+
+  @override
+  Future<bool> isPlatformAdmin(String userId) async => false;
 }
 
 void main() {

@@ -5,24 +5,33 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../access/presentation/providers.dart';
 import '../domain/catalog_admin_repository.dart';
+import '../domain/catalog_filters.dart';
 import 'catalog_admin_providers.dart';
 import 'catalog_admin_widgets.dart';
 import 'providers.dart';
 
-/// The club's categories: base ones are listed fixed; coaches create, rename, archive and delete the
-/// club's own. Anyone else only reads (F2 §5, §6).
-class CategoriesPage extends ConsumerWidget {
+/// Default and custom categories in a single filterable list. Tapping one renames it, for whoever can
+/// change it (platform admin for default ones, club admin for the club's).
+class CategoriesPage extends ConsumerStatefulWidget {
   const CategoriesPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final canEdit = ref.watch(canPlanProvider) ?? false;
+  ConsumerState<CategoriesPage> createState() => _CategoriesPageState();
+}
+
+class _CategoriesPageState extends ConsumerState<CategoriesPage> {
+  ScopeFilter _scope = ScopeFilter.all;
+  bool _showArchived = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final canCreate = ref.watch(canEditClubCatalogProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Categorías')),
-      floatingActionButton: canEdit
+      floatingActionButton: canCreate
           ? FloatingActionButton.extended(
               key: const Key('category-add'),
-              onPressed: () => _create(context, ref),
+              onPressed: _create,
               icon: const Icon(Icons.add),
               label: const Text('Nueva categoría'),
             )
@@ -31,26 +40,28 @@ class CategoriesPage extends ConsumerWidget {
         ref.watch(clubCategoriesProvider),
         onRetry: () => ref.invalidate(clubCategoriesProvider),
         builder: (all) {
-          final base = [
+          final shown = [
             for (final c in all)
-              if (c.scope == CatalogScope.base) c,
+              if (matchesCatalogFilters(c, c.status, scope: _scope, showArchived: _showArchived)) c,
           ];
-          final own = [
-            for (final c in all)
-              if (c.scope == CatalogScope.club) c,
-          ];
-          return ListView(
-            padding: const EdgeInsets.only(bottom: Espacio.xxxl * 2),
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SectionTitle('Base'),
-              for (final c in base) _CategoryTile(category: c, canEdit: false),
-              const SectionTitle('Del club'),
-              if (own.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.all(Espacio.l),
-                  child: Text('El club todavía no tiene categorías propias.'),
-                ),
-              for (final c in own) _CategoryTile(category: c, canEdit: canEdit),
+              CatalogFilters(
+                scope: _scope,
+                onScope: (v) => setState(() => _scope = v),
+                showArchived: _showArchived,
+                onShowArchived: (v) => setState(() => _showArchived = v),
+                archivedLabel: 'Solo archivadas',
+              ),
+              Expanded(
+                child: shown.isEmpty
+                    ? const Center(child: Text('No hay categorías.'))
+                    : ListView(
+                        padding: const EdgeInsets.only(bottom: Espacio.xxxl * 2),
+                        children: [for (final c in shown) _CategoryTile(category: c)],
+                      ),
+              ),
             ],
           );
         },
@@ -58,16 +69,11 @@ class CategoriesPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _create(BuildContext context, WidgetRef ref) async {
+  Future<void> _create() async {
     final clubId = ref.read(catalogClubIdProvider);
     final name = await _askName(context, title: 'Nueva categoría');
-    if (name == null || clubId == null || !context.mounted) return;
-    await _run(
-      context,
-      ref,
-      () =>
-          ref.read(catalogAdminRepositoryProvider).createCategory(clubId, name),
-    );
+    if (name == null || clubId == null || !mounted) return;
+    await _run(context, ref, () => ref.read(catalogAdminRepositoryProvider).createCategory(clubId, name));
   }
 }
 
@@ -130,60 +136,55 @@ class _NameDialogState extends State<_NameDialog> {
       onSubmitted: (_) => _submit(),
     ),
     actions: [
-      TextButton(
-        onPressed: () => Navigator.pop(context),
-        child: const Text('Cancelar'),
-      ),
-      FilledButton(
-        key: const Key('category-save'),
-        onPressed: _submit,
-        child: const Text('Guardar'),
-      ),
+      TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+      FilledButton(key: const Key('category-save'), onPressed: _submit, child: const Text('Guardar')),
     ],
   );
 }
 
-enum _Action { rename, toggle, delete }
+enum _Action { toggle, delete }
 
 class _CategoryTile extends ConsumerWidget {
-  const _CategoryTile({required this.category, required this.canEdit});
+  const _CategoryTile({required this.category});
 
   final Category category;
-  final bool canEdit;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final archived = category.status == CatalogStatus.archived;
+    final canWrite = ref.watch(canWriteCatalogProvider)(category);
     return ListTile(
       key: Key('category-${category.id}'),
+      leading: const Icon(Icons.fitness_center),
       title: Text(category.name),
       subtitle: archived ? const Text('Archivada') : null,
-      leading: Icon(
-        category.scope == CatalogScope.base
-            ? Icons.lock_outline
-            : Icons.label_outline,
-      ),
-      trailing: canEdit
-          ? PopupMenuButton<_Action>(
+      onTap: canWrite ? () => _rename(context, ref) : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: Espacio.s,
+        children: [
+          ScopeBadge(category.scope),
+          if (canWrite)
+            PopupMenuButton<_Action>(
               key: Key('category-menu-${category.id}'),
               onSelected: (a) => _act(context, ref, a),
               itemBuilder: (_) => [
-                const PopupMenuItem(
-                  value: _Action.rename,
-                  child: Text('Renombrar'),
-                ),
-                PopupMenuItem(
-                  value: _Action.toggle,
-                  child: Text(archived ? 'Reactivar' : 'Archivar'),
-                ),
-                const PopupMenuItem(
-                  value: _Action.delete,
-                  child: Text('Borrar'),
-                ),
+                PopupMenuItem(value: _Action.toggle, child: Text(archived ? 'Reactivar' : 'Archivar')),
+                const PopupMenuItem(value: _Action.delete, child: Text('Borrar')),
               ],
-            )
-          : null,
+            ),
+        ],
+      ),
     );
+  }
+
+  Future<void> _rename(BuildContext context, WidgetRef ref) async {
+    final clubId = ref.read(catalogClubIdProvider);
+    if (clubId == null) return;
+    final repo = ref.read(catalogAdminRepositoryProvider);
+    final name = await _askName(context, title: 'Editar categoría', initial: category.name);
+    if (name == null || !context.mounted) return;
+    await _run(context, ref, () => repo.renameCategory(clubId, category.id, name));
   }
 
   Future<void> _act(BuildContext context, WidgetRef ref, _Action action) async {
@@ -191,32 +192,16 @@ class _CategoryTile extends ConsumerWidget {
     if (clubId == null) return;
     final repo = ref.read(catalogAdminRepositoryProvider);
     switch (action) {
-      case _Action.rename:
-        final name = await _askName(
-          context,
-          title: 'Renombrar categoría',
-          initial: category.name,
-        );
-        if (name == null || !context.mounted) return;
-        await _run(
-          context,
-          ref,
-          () => repo.renameCategory(clubId, category.id, name),
-        );
       case _Action.toggle:
-        final next = category.status == CatalogStatus.archived
-            ? CatalogStatus.active
-            : CatalogStatus.archived;
-        await _run(
-          context,
-          ref,
-          () => repo.setCategoryStatus(clubId, category.id, next),
-        );
+        final next = category.status == CatalogStatus.archived ? CatalogStatus.active : CatalogStatus.archived;
+        await _run(context, ref, () => repo.setCategoryStatus(clubId, category.id, next));
       case _Action.delete:
         final ok = await confirmAction(
           context,
           title: 'Borrar categoría',
-          body: 'Si algún ejercicio la usa, se archiva en vez de borrarse.',
+          body: category.scope == CatalogScope.base
+              ? 'Es una categoría default: desaparece para todos los clubes. Si algún ejercicio la usa, se archiva en vez de borrarse.'
+              : 'Si algún ejercicio la usa, se archiva en vez de borrarse.',
           action: 'Borrar',
         );
         if (!ok || !context.mounted) return;
@@ -226,9 +211,7 @@ class _CategoryTile extends ConsumerWidget {
           if (context.mounted) {
             showNotice(
               context,
-              outcome == RemovalOutcome.deleted
-                  ? 'Categoría borrada.'
-                  : 'La categoría está en uso: quedó archivada.',
+              outcome == RemovalOutcome.deleted ? 'Categoría borrada.' : 'La categoría está en uso: quedó archivada.',
             );
           }
         } catch (e) {

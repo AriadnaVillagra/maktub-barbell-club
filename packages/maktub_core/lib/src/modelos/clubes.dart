@@ -7,7 +7,10 @@ import 'json.dart';
 
 enum Rol implements ConCable {
   coach('coach'),
-  atleta('atleta');
+  atleta('atleta'),
+
+  /// Modifica todo lo del club (catálogo, temporizadores, equipo) y registra miembros. Se suma a los otros.
+  adminClub('admin_club');
 
   const Rol(this.cable);
   @override

@@ -7,14 +7,14 @@ import 'package:mongo_dart/mongo_dart.dart';
 import 'delete_timer_store.dart';
 
 /// `DELETE /clubes/{clubId}/temporizadores/{id}` → `{resultado: 'borrado' | 'archivado'}`.
-/// Coaches only (`planificar`). A used timer is archived instead of deleted (F2 §5).
+/// A used timer is archived instead of deleted (F2 §5).
 Future<Response> deleteTimerEndpoint(
   RequestContext context,
   String id, {
   DeleteTimerStore? store,
   TimerUsage? usage,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>();
   final result = await DeleteTimer(
     store ?? MongoDeleteTimerStore(context.read<Db>()),
     usage ?? const NoTimerUsageYet(),
@@ -34,11 +34,9 @@ class DeleteTimer {
   Future<DeleteTimerResult> call(ClubContext club, String id) async {
     final current = await _store.findVisible(club.clubId, id);
     if (current == null) throw const ErrorDeSolicitud.noEncontrado('Temporizador no encontrado.');
-    if (scopeOf(current) == CatalogScope.base) {
-      throw const ErrorDeSolicitud('Un temporizador base no se borra desde un club.', estado: 403);
-    }
-    if (!await _usage.isUsed(club.clubId, id)) {
-      await _store.delete(club.clubId, id);
+    club.authorizeCatalogWrite(current);
+    if (!await _usage.isUsed(current.clubId, id)) {
+      await _store.delete(current.clubId, id);
       return DeleteTimerResult.borrado;
     }
     if (current.estado != CatalogStatus.archived) {

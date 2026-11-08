@@ -97,17 +97,25 @@ class HttpCatalogAdminRepository implements CatalogAdminRepository {
   @override
   Future<Equipo> saveTeam(String clubId, Equipo team) async => Equipo.fromJson(
     await _client.put('${_club(clubId)}/equipo', {
-      'barraKg': team.barraKg,
-      'paresDiscos': team.paresDiscos,
+      'barras': [for (final b in team.barras) b.toJson()],
+      'discos': [for (final d in team.discos) d.toJson()],
     }),
   );
 
+  /// Every field goes, nulls included: the server merges the body over what it has, so leaving
+  /// a cleared time cap out would keep the old one.
   static Json _content(Temporizador t) => {
     'nombre': t.nombre,
     'tipo': t.tipo.cable,
     'trabajoSeg': t.trabajoSeg,
     'descansoSeg': t.descansoSeg,
     'rondas': t.rondas,
+    'series': t.series,
+    'descansoSeriesSeg': t.descansoSeriesSeg,
+    'limiteSeg': t.limiteSeg,
+    'senalCadaSeg': t.senalCadaSeg,
+    'deathBy': t.deathBy,
+    'bloques': [for (final b in t.bloques) _content(b)],
   };
 
   static RemovalOutcome _outcome(Json json) => json['resultado'] == 'borrado'

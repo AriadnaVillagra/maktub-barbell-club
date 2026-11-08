@@ -8,8 +8,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'write_category_store.dart';
 
-/// Writes of the club's own categories (F2). Every endpoint needs [Accion.planificar] ("editar el
-/// catálogo del club"); the route group only requires the read action, so each one authorizes itself.
+/// Writes of categories (F2). Creating needs [Accion.editarCatalogoClub]; changing an existing one is
+/// authorized once it is loaded, because a default one needs a platform admin instead.
 ///
 /// `POST   .../catalogo/categorias` `{nombre}` → the created category (200, active)
 /// `PUT    .../catalogo/categorias/<id>` `{nombre}` → the category renamed
@@ -17,7 +17,7 @@ import 'write_category_store.dart';
 /// `DELETE .../catalogo/categorias/<id>` → `{resultado: borrado|archivado, id, categoria?}`: deleted when
 ///   nothing uses it, archived otherwise.
 ///
-/// Base categories (`clubId` = `plataforma`) can't be changed from a club. The server sets `id`, `clubId`
+/// A change to a default category (`clubId` = `plataforma`) reaches every club. The server sets `id`, `clubId`
 /// and `auditoria`. [store], [usage], [newId] and [now] are for tests.
 Future<Response> createCategoryEndpoint(
   RequestContext context, {
@@ -26,7 +26,7 @@ Future<Response> createCategoryEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>().authorize(Accion.editarCatalogoClub);
   final created = await _useCase(context, store, usage, newId, now).create(club, await leerCuerpoJson(context.request));
   return Response.json(body: created.toJson());
 }
@@ -39,7 +39,7 @@ Future<Response> updateCategoryEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>();
   final updated = await _useCase(
     context,
     store,
@@ -58,7 +58,7 @@ Future<Response> setCategoryStatusEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>();
   final updated = await _useCase(
     context,
     store,
@@ -77,7 +77,7 @@ Future<Response> deleteCategoryEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>();
   final result = await _useCase(context, store, usage, newId, now).remove(club, id);
   return Response.json(
     body: {
@@ -137,7 +137,7 @@ class WriteCategory {
   Future<Category> rename(ClubContext club, String id, Json body) async {
     final name = _name(body);
     final visible = await _store.visible({clubPlataforma, club.clubId});
-    final current = _own(club, visible, id);
+    final current = _writable(club, visible, id);
     _rejectTakenName(name, visible, exceptId: id);
     final updated = current.copyWith(
       name: name,
@@ -149,7 +149,7 @@ class WriteCategory {
 
   Future<Category> setStatus(ClubContext club, String id, Json body) async {
     final status = _status(body);
-    final current = _own(club, await _store.visible({clubPlataforma, club.clubId}), id);
+    final current = _writable(club, await _store.visible({clubPlataforma, club.clubId}), id);
     final updated = current.copyWith(
       status: status,
       auditoria: current.auditoria.modificada(club.userId, ahora: _now()),
@@ -160,9 +160,9 @@ class WriteCategory {
 
   /// Deletes the category if nothing uses it; otherwise archives it (it keeps resolving where it is used).
   Future<RemoveCategoryResult> remove(ClubContext club, String id) async {
-    final current = _own(club, await _store.visible({clubPlataforma, club.clubId}), id);
-    if (!await _usage.isUsed(club.clubId, id)) {
-      await _store.delete(club.clubId, id);
+    final current = _writable(club, await _store.visible({clubPlataforma, club.clubId}), id);
+    if (!await _usage.isUsed(current.clubId, id)) {
+      await _store.delete(current.clubId, id);
       return const RemoveCategoryResult.deleted();
     }
     final archived = current.copyWith(
@@ -194,13 +194,11 @@ class WriteCategory {
     }
   }
 
-  /// The club's own category [id]; 404 if not visible, 403 if it is a base one.
-  Category _own(ClubContext club, List<Category> visible, String id) {
+  /// The category [id] if the user can change it; 404 if not visible, 403 without permission.
+  Category _writable(ClubContext club, List<Category> visible, String id) {
     final found = visible.where((c) => c.id == id && isVisibleTo(c, club.clubId)).firstOrNull;
     if (found == null) throw const ErrorDeSolicitud.noEncontrado('Categoría no encontrada.');
-    if (found.scope == CatalogScope.base) {
-      throw const ErrorDeSolicitud('Las categorías base no se modifican desde un club.', estado: HttpStatus.forbidden);
-    }
+    club.authorizeCatalogWrite(found);
     return found;
   }
 }

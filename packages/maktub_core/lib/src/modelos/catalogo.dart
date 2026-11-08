@@ -158,6 +158,7 @@ class Exercise implements DelClub {
     this.loadReference = const LoadReference.none(),
     this.suggestionIds = const [],
     this.notes,
+    this.barKg,
     this.status = CatalogStatus.active,
     required this.auditoria,
   });
@@ -182,6 +183,9 @@ class Exercise implements DelClub {
   /// Ids de ejercicios que suele acompañar (relación dirigida).
   final List<String> suggestionIds;
   final String? notes;
+
+  /// Barra del inventario con la que se carga (kg). Nula, o si el club no la tiene: su barra por defecto.
+  final double? barKg;
   final CatalogStatus status;
   final Auditoria auditoria;
 
@@ -201,6 +205,7 @@ class Exercise implements DelClub {
     LoadReference? loadReference,
     List<String>? suggestionIds,
     String? notes,
+    double? barKg,
     CatalogStatus? status,
     Auditoria? auditoria,
   }) => Exercise(
@@ -215,6 +220,7 @@ class Exercise implements DelClub {
     loadReference: loadReference ?? this.loadReference,
     suggestionIds: suggestionIds ?? this.suggestionIds,
     notes: notes ?? this.notes,
+    barKg: barKg ?? this.barKg,
     status: status ?? this.status,
     auditoria: auditoria ?? this.auditoria,
   );
@@ -233,6 +239,7 @@ class Exercise implements DelClub {
         : LoadReference.fromJson((j['referencia'] as Map).cast<String, dynamic>()),
     suggestionIds: _ids(j['sugerencias']),
     notes: textoOpcional(j['notas']),
+    barKg: (j['barraKg'] as num?)?.toDouble(),
     status: j['estado'] == null ? CatalogStatus.active : CatalogStatus.deCable(j['estado']),
     auditoria: _auditoria(j['auditoria']),
   );
@@ -249,6 +256,7 @@ class Exercise implements DelClub {
     'referencia': loadReference.toJson(),
     'sugerencias': suggestionIds,
     'notas': notes,
+    'barraKg': barKg,
     'estado': status.cable,
     'auditoria': auditoria.toJson(),
   });

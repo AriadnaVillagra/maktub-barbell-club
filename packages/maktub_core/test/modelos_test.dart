@@ -17,7 +17,7 @@ void main() {
 
   test('desdeCable tolera mayúsculas y espacios y rechaza lo desconocido', () {
     expect(TipoTemporizador.deCable(' EMOM '), TipoTemporizador.emom);
-    expect(() => TipoTemporizador.deCable('amrap'), throwsFormatException);
+    expect(() => TipoTemporizador.deCable('otro'), throwsFormatException);
   });
 
   test('Temporizador viaja ida y vuelta por JSON', () {

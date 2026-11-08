@@ -8,9 +8,9 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'create_timer_store.dart';
 
-/// `POST /clubes/{clubId}/temporizadores` → 201 with the new timer. Coaches only (`planificar`).
+/// `POST /clubes/{clubId}/temporizadores` → 201 with the new timer. Needs `editarCatalogoClub`.
 Future<Response> createTimerEndpoint(RequestContext context, {CreateTimerStore? store}) async {
-  final club = context.read<ClubContext>().authorize(Accion.planificar);
+  final club = context.read<ClubContext>().authorize(Accion.editarCatalogoClub);
   final body = await leerCuerpoJson(context.request);
   final timer = await CreateTimer(store ?? MongoCreateTimerStore(context.read<Db>()))(club, body);
   return Response.json(statusCode: HttpStatus.created, body: timer.toJson());

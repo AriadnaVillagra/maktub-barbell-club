@@ -8,6 +8,8 @@ abstract interface class ClubContextStore {
   Future<Membresia?> activeMembership({required String clubId, required String userId});
 
   Future<TipoClub?> clubType(String clubId);
+
+  Future<bool> isPlatformAdmin(String userId);
 }
 
 class MongoClubContextStore implements ClubContextStore {
@@ -29,5 +31,11 @@ class MongoClubContextStore implements ClubContextStore {
   Future<TipoClub?> clubType(String clubId) async {
     final doc = await _db.collection(Colecciones.clubes).findOne(where.eq('_id', clubId).fields(['tipo']));
     return doc == null ? null : TipoClub.deCable(doc['tipo']);
+  }
+
+  @override
+  Future<bool> isPlatformAdmin(String userId) async {
+    final doc = await _db.collection(Colecciones.usuarios).findOne(where.eq('_id', userId).fields(['esAdminPlataforma']));
+    return doc?['esAdminPlataforma'] == true;
   }
 }

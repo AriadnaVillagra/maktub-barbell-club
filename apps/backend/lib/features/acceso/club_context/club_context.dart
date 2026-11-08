@@ -11,7 +11,13 @@ import 'club_context_store.dart';
 /// The club a request acts in (D7: `/clubes/{clubId}/…`) and what the user is in it.
 /// Every slice under that route reads it and filters each query by [clubId].
 class ClubContext {
-  const ClubContext({required this.clubId, required this.userId, required this.roles, required this.clubType});
+  const ClubContext({
+    required this.clubId,
+    required this.userId,
+    required this.roles,
+    required this.clubType,
+    this.isPlatformAdmin = false,
+  });
 
   final String clubId;
   final String userId;
@@ -19,6 +25,9 @@ class ClubContext {
   /// Roles of the active membership. Never empty.
   final Set<Rol> roles;
   final TipoClub clubType;
+
+  /// Can change what is shared by every club (the default catalog).
+  final bool isPlatformAdmin;
 
   /// Whether the permission matrix (F1) lets this membership do [action].
   bool can(Accion action) => puede(roles, action, clubType);
@@ -28,6 +37,12 @@ class ClubContext {
   ClubContext authorize(Accion action) {
     if (!can(action)) throw forbiddenRole;
     return this;
+  }
+
+  /// Throws a 403 unless the user can change [item]: a default one needs a platform admin, one of the
+  /// club needs [Accion.editarCatalogoClub].
+  void authorizeCatalogWrite(DelClub item) {
+    if (!puedeEscribirCatalogo(item, roles, clubType, esAdminPlataforma: isPlatformAdmin)) throw forbiddenRole;
   }
 }
 
@@ -48,7 +63,13 @@ class ResolveClubContext {
     }
     final type = await _store.clubType(clubId);
     if (type == null) throw notAMember;
-    return ClubContext(clubId: clubId, userId: userId, roles: membership.roles, clubType: type);
+    return ClubContext(
+      clubId: clubId,
+      userId: userId,
+      roles: membership.roles,
+      clubType: type,
+      isPlatformAdmin: await _store.isPlatformAdmin(userId),
+    );
   }
 }
 

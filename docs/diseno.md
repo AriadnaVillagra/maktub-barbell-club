@@ -588,5 +588,9 @@ la sección 3 antes de construir encima.
 
 ## 13. Preguntas abiertas
 
-Ninguna a nivel de diseño. Las que aparezcan al detallar cada feature se agregan acá, con lo que
-frenan.
+- **Métricas de un ejercicio (necesita revisión).** Hay demasiadas opciones, se pueden combinar de
+  formas incompatibles y "Carga (% del RM)" está fuera de lugar: el RM es un récord del tipo de
+  métrica que usa el ejercicio, no una métrica en sí. Marcado en la prueba de E2 (2026-11-08). Por
+  ahora el modelo y la pantalla quedan como están. No frena nada de M1.
+
+Las que aparezcan al detallar cada feature se agregan acá, con lo que frenan.

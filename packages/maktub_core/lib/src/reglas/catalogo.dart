@@ -35,7 +35,16 @@ enum CatalogProblem {
 
   /// El padre es del club o es el propio nodo: pasaría de dos niveles (base → hijo del club).
   depthExceeded,
+
+  /// Las notas superan [maxExerciseNotes] caracteres.
+  notesTooLong,
+
+  /// La barra del ejercicio no pesa más de 0.
+  barNotPositive,
 }
+
+/// Máximo de caracteres de las notas de un ejercicio.
+const maxExerciseNotes = 500;
 
 /// Lo visible para un club, por id: base + del club. Es lo que el backend lee antes de validar.
 class CatalogView {
@@ -109,6 +118,9 @@ List<CatalogProblem> validateExercise(Exercise e, CatalogView view) {
   if (e.defaultMetric != null && !e.metrics.contains(e.defaultMetric)) {
     problems.add(CatalogProblem.defaultMetricNotInMetrics);
   }
+
+  if ((e.notes?.length ?? 0) > maxExerciseNotes) problems.add(CatalogProblem.notesTooLong);
+  if (e.barKg != null && !(e.barKg! > 0)) problems.add(CatalogProblem.barNotPositive);
 
   void check(DelClub? item) {
     if (item == null) {

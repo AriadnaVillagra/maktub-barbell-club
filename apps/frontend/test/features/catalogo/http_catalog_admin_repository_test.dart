@@ -96,7 +96,7 @@ void main() {
     expect((requests[1].$3! as Map).containsKey('id'), isFalse);
   });
 
-  test('equipment is read and saved with bar and plates only', () async {
+  test('equipment is read and saved as an inventory', () async {
     final r = repo(
       (_) => {
         'clubId': 'c1',
@@ -110,7 +110,7 @@ void main() {
     await r.saveTeam('c1', team);
     expect(
       show(requests.last),
-      'PUT /clubes/c1/equipo {"barraKg":15.0,"paresDiscos":[10.0,5.0]}',
+      'PUT /clubes/c1/equipo {"barras":[{"kg":15.0,"cantidad":1}],"discos":[{"kg":10.0,"cantidad":1},{"kg":5.0,"cantidad":1}]}',
     );
   });
 }

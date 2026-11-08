@@ -63,7 +63,7 @@ class _FakeTeams implements GetTeamStore, SaveTeamStore {
 
 void main() {
   final now = DateTime.utc(2026, 11, 7, 12);
-  const club = ClubContext(clubId: 'club-a', userId: 'coach-1', roles: {Rol.coach}, clubType: TipoClub.club);
+  const club = ClubContext(clubId: 'club-a', userId: 'coach-1', roles: {Rol.coach, Rol.adminClub}, clubType: TipoClub.club);
   const athlete = ClubContext(clubId: 'club-a', userId: 'ath-1', roles: {Rol.atleta}, clubType: TipoClub.club);
 
   Temporizador timer(
@@ -132,6 +132,27 @@ void main() {
       expect(store.timers.single.rondas, 12);
     });
 
+    test('a platform admin edits a default timer, for every club', () async {
+      final store = _FakeTimers()..timers.add(timer('base-1', clubPlataforma));
+      const admin = ClubContext(clubId: 'club-a', userId: 'a', roles: {Rol.coach}, clubType: TipoClub.club, isPlatformAdmin: true);
+      final edited = await UpdateTimer(store)(admin, 'base-1', {'nombre': 'Nuevo'});
+      expect(edited.nombre, 'Nuevo');
+      expect(edited.clubId, clubPlataforma);
+    });
+
+    test('a coach without club admin cannot edit the club timers', () async {
+      final store = _FakeTimers()..timers.add(timer('t1', 'club-a'));
+      const coach = ClubContext(clubId: 'club-a', userId: 'c', roles: {Rol.coach}, clubType: TipoClub.club);
+      await expectLater(UpdateTimer(store)(coach, 't1', {'nombre': 'X'}), rejects(HttpStatus.forbidden));
+    });
+
+    test('clearing the cap of a timer removes it', () async {
+      final store = _FakeTimers()
+        ..timers.add(const Temporizador(id: 't1', clubId: 'club-a', nombre: 'F', tipo: TipoTemporizador.forTime, limiteSeg: 600));
+      final edited = await UpdateTimer(store)(club, 't1', {'limiteSeg': null});
+      expect(edited.limiteSeg, isNull);
+    });
+
     test('rejects editing a base timer', () async {
       final store = _FakeTimers()..timers.add(timer('base-1', clubPlataforma));
       await expectLater(UpdateTimer(store)(club, 'base-1', {'nombre': 'Mío'}), rejects(HttpStatus.forbidden));
@@ -185,28 +206,28 @@ void main() {
       final team = await GetTeam(_FakeTeams())(club);
       expect(team.clubId, 'club-a');
       expect(team.barraKg, 20);
-      expect(team.paresDiscos, [20, 15, 10, 5, 2.5, 1.5, 1.25]);
+      expect(team.discos.map((d) => d.kg), [20, 15, 10, 5, 2.5, 1.5, 1.25]);
       expect(team.cargables, Equipo.estandar.cargables);
     });
 
     test('saving a new team changes the loadable weights', () async {
       final store = _FakeTeams();
       final saved = await SaveTeam(store, now: () => now)(club, {
-        'barraKg': 15,
-        'paresDiscos': [5, 10],
+        'barras': [{'kg': 15, 'cantidad': 1}],
+        'discos': [{'kg': 5, 'cantidad': 1}, {'kg': 10, 'cantidad': 1}],
       });
       expect(saved.cargables, [15, 25, 35, 45]);
-      expect(saved.paresDiscos, [10, 5]);
+      expect(saved.discos.map((d) => d.kg), [10, 5]);
       expect(saved.auditoria!.creadoPor, 'coach-1');
       final read = await GetTeam(store)(club);
       expect(read.cargables, [15, 25, 35, 45]);
       expect(read.masCercano(30), 25);
 
       final again = await SaveTeam(store, now: () => now)(
-        const ClubContext(clubId: 'club-a', userId: 'coach-2', roles: {Rol.coach}, clubType: TipoClub.club),
+        const ClubContext(clubId: 'club-a', userId: 'coach-2', roles: {Rol.coach, Rol.adminClub}, clubType: TipoClub.club),
         {
-          'barraKg': 20,
-          'paresDiscos': [20],
+          'barras': [{'kg': 20, 'cantidad': 1}],
+        'discos': [{'kg': 20, 'cantidad': 1}],
         },
       );
       expect(again.auditoria!.creadoPor, 'coach-1');
@@ -218,27 +239,26 @@ void main() {
       final save = SaveTeam(_FakeTeams());
       expect(
         save(club, {
-          'barraKg': 0,
-          'paresDiscos': [5],
+          'barras': [{'kg': 0, 'cantidad': 1}],
+        'discos': [{'kg': 5, 'cantidad': 1}],
         }),
         rejects(HttpStatus.badRequest),
       );
       expect(
         save(club, {
-          'barraKg': 20,
-          'paresDiscos': [5, 5],
+          'barras': [{'kg': 20, 'cantidad': 1}],
+        'discos': [{'kg': 5, 'cantidad': 1}, {'kg': 5, 'cantidad': 1}],
         }),
         rejects(HttpStatus.badRequest),
       );
-      expect(save(club, {'barraKg': 20, 'paresDiscos': List.filled(13, 1.0)}), rejects(HttpStatus.badRequest));
-      expect(save(club, {'barraKg': 20}), rejects(HttpStatus.badRequest));
+      expect(save(club, {'barras': [{'kg': 20, 'cantidad': 1}]}), rejects(HttpStatus.badRequest));
     });
 
     test('the club comes from the path, so another club keeps its own team', () async {
       final store = _FakeTeams();
       await SaveTeam(store)(club, {
-        'barraKg': 15,
-        'paresDiscos': [10],
+        'barras': [{'kg': 15, 'cantidad': 1}],
+        'discos': [{'kg': 10, 'cantidad': 1}],
         'clubId': 'club-b',
       });
       expect(store.teams.keys, ['club-a']);
@@ -253,8 +273,8 @@ void main() {
     test('the write endpoint rejects an athlete, the read endpoint does not', () async {
       final store = _FakeTeams();
       final put = await _call(athlete, (c) => saveTeamEndpoint(c, store: store), 'PUT', {
-        'barraKg': 15,
-        'paresDiscos': <num>[],
+        'barras': [{'kg': 15, 'cantidad': 1}],
+        'discos': [],
       });
       expect(put.statusCode, HttpStatus.forbidden);
       expect(store.teams, isEmpty);
@@ -282,7 +302,7 @@ void main() {
       'PUT /clubes/{clubId}/temporizadores/t1',
       endpoint: (c) => updateTimerEndpoint(c, 't1', store: timers),
       path: '/clubes/{clubId}/temporizadores/t1',
-      action: Accion.planificar,
+      action: Accion.editarCatalogoClub,
       method: 'PUT',
       body: '{}',
       seed: seedTimer,
@@ -291,7 +311,7 @@ void main() {
       'POST /clubes/{clubId}/temporizadores/t1/archivar',
       endpoint: (c) => archiveTimerEndpoint(c, 't1', store: timers),
       path: '/clubes/{clubId}/temporizadores/t1/archivar',
-      action: Accion.planificar,
+      action: Accion.editarCatalogoClub,
       method: 'POST',
       seed: seedTimer,
     );
@@ -306,9 +326,9 @@ void main() {
       'PUT /clubes/{clubId}/equipo',
       endpoint: (c) => saveTeamEndpoint(c, store: teams),
       path: '/clubes/{clubId}/equipo',
-      action: Accion.planificar,
+      action: Accion.editarCatalogoClub,
       method: 'PUT',
-      body: '{"barraKg": 20, "paresDiscos": [20, 10]}',
+      body: '{"barras": [{"kg": 20, "cantidad": 1}], "discos": [{"kg": 20, "cantidad": 1}, {"kg": 10, "cantidad": 1}]}',
       seed: seedTeam,
     );
 
@@ -330,7 +350,7 @@ void main() {
       final check = ClubIsolationCheck(
         endpoint: endpoint,
         path: name.split(' ').last,
-        action: Accion.planificar,
+        action: Accion.editarCatalogoClub,
         seed: seedTimer,
         method: method,
         body: body,

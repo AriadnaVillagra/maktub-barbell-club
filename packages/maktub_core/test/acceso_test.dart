@@ -104,8 +104,26 @@ void main() {
       expect(permitidas, {Accion.verCatalogoYPlanes, Accion.registrar, Accion.verReportesPropios});
     });
 
-    test('el coach planifica y gestiona, pero no sigue planes por defecto ni edita plataforma', () {
-      for (final a in [Accion.planificar, Accion.gestionarMiembros, Accion.editarReferencias, Accion.verReportesDeTodos, Accion.registrar]) {
+    test('el coach planifica, pero no toca el catálogo del club ni los miembros sin ser admin del club', () {
+      expect(puede(coach, Accion.editarCatalogoClub, TipoClub.club), isFalse);
+      expect(puede(coach, Accion.gestionarMiembros, TipoClub.club), isFalse);
+      expect(puede({Rol.coach, Rol.adminClub}, Accion.editarCatalogoClub, TipoClub.club), isTrue);
+      expect(puede({Rol.coach, Rol.adminClub}, Accion.gestionarMiembros, TipoClub.club), isTrue);
+      expect(puede({Rol.adminClub}, Accion.editarCatalogoClub, TipoClub.personal), isFalse);
+    });
+
+    test('lo default solo lo cambia el admin de plataforma; lo del club, el admin del club', () {
+      final cat = Category(id: 'x', clubId: clubPlataforma, name: 'x', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));
+      final propia = Category(id: 'y', clubId: 'c1', name: 'y', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));
+      const admin = {Rol.coach, Rol.adminClub};
+      expect(puedeEscribirCatalogo(cat, admin, TipoClub.club), isFalse);
+      expect(puedeEscribirCatalogo(cat, const {Rol.coach}, TipoClub.club, esAdminPlataforma: true), isTrue);
+      expect(puedeEscribirCatalogo(propia, admin, TipoClub.club), isTrue);
+      expect(puedeEscribirCatalogo(propia, const {Rol.coach}, TipoClub.club, esAdminPlataforma: true), isFalse);
+    });
+
+    test('el coach planifica y gestiona su trabajo, pero no sigue planes por defecto ni edita plataforma', () {
+      for (final a in [Accion.planificar, Accion.editarReferencias, Accion.verReportesDeTodos, Accion.registrar]) {
         expect(puede(coach, a, TipoClub.club), isTrue, reason: a.name);
       }
       expect(puede(coach, Accion.seguirPlanPorDefecto, TipoClub.club), isFalse);

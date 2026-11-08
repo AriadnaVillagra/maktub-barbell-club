@@ -6,7 +6,7 @@ abstract interface class UpdateTimerStore {
   /// A timer by id if it is visible to [clubId] (base or the club's own), else null.
   Future<Temporizador?> findVisible(String clubId, String id);
 
-  /// Replaces the club's own timer; the filter includes `clubId`, so it can never touch a base one.
+  /// Replaces the timer; the filter includes its `clubId`.
   Future<void> replace(Temporizador timer);
 }
 

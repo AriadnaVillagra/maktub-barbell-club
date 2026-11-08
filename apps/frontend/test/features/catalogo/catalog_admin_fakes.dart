@@ -221,7 +221,8 @@ Future<void> pumpAdminPage(
   WidgetTester tester,
   Widget page,
   FakeCatalogAdminRepository repo, {
-  Set<Rol> roles = const {Rol.coach},
+  Set<Rol> roles = const {Rol.coach, Rol.adminClub},
+  bool isPlatformAdmin = false,
 }) async {
   tester.view.physicalSize = const Size(900, 1600);
   tester.view.devicePixelRatio = 1;
@@ -232,7 +233,7 @@ Future<void> pumpAdminPage(
         sessionControllerProvider.overrideWith(_SignedIn.new),
         meRepositoryProvider.overrideWithValue(
           FakeMeRepository(
-            meWith([(club('c1', 'Gimnasio', TipoClub.club), roles)]),
+            meWith([(club('c1', 'Gimnasio', TipoClub.club), roles)], isPlatformAdmin: isPlatformAdmin),
           ),
         ),
         catalogRepositoryProvider.overrideWithValue(repo),

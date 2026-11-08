@@ -5,13 +5,13 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../access/presentation/providers.dart';
+import 'catalog_admin_widgets.dart';
 import 'catalog_labels.dart';
 import 'exercise_catalog_providers.dart';
-import 'exercise_list_page.dart';
 import 'providers.dart';
 
-/// Exercise sheet. A base exercise is read-only and offers "create my own from this one"; the
-/// club's own can be edited, archived or restored, and deleted. Athletes see no actions.
+/// Exercise sheet. Whoever can change it (platform admin for default ones, club admin for the club's)
+/// can edit, archive or restore and delete it; a club admin can also duplicate a default one as custom.
 class ExerciseDetailPage extends ConsumerStatefulWidget {
   const ExerciseDetailPage({
     super.key,
@@ -51,7 +51,9 @@ class _ExerciseDetailPageState extends ConsumerState<ExerciseDetailPage> {
       builder: (ctx) => AlertDialog(
         title: const Text('Eliminar ejercicio'),
         content: Text(
-          '¿Eliminar "${e.name}"? Si ya se usa, se archiva en lugar de borrarse.',
+          e.scope == CatalogScope.base
+              ? '¿Eliminar "${e.name}"? Es un ejercicio default: desaparece para todos los clubes. Si ya se usa, se archiva en lugar de borrarse.'
+              : '¿Eliminar "${e.name}"? Si ya se usa, se archiva en lugar de borrarse.',
         ),
         actions: [
           TextButton(
@@ -89,7 +91,8 @@ class _ExerciseDetailPageState extends ConsumerState<ExerciseDetailPage> {
         ref.watch(muscleGroupsProvider).value ?? const <MuscleGroup>[];
     final patterns =
         ref.watch(movementPatternsProvider).value ?? const <MovementPattern>[];
-    final canEdit = ref.watch(canPlanProvider) ?? false;
+    final canEditClub = ref.watch(canEditClubCatalogProvider);
+    final canWrite = ref.watch(canWriteCatalogProvider);
     final clubId = ref.watch(catalogClubIdProvider);
 
     return Scaffold(
@@ -152,15 +155,17 @@ class _ExerciseDetailPageState extends ConsumerState<ExerciseDetailPage> {
               ),
               if (e.notes != null) _Field('Notas', e.notes!),
               const SizedBox(height: Espacio.l),
-              if (canEdit && isBase)
-                FilledButton.icon(
+              if (canEditClub && isBase) ...[
+                OutlinedButton.icon(
                   onPressed: () => context.go(
                     '${widget.basePath}/ejercicios/nuevo?desde=${e.id}',
                   ),
                   icon: const Icon(Icons.copy_outlined),
-                  label: const Text('Crear uno propio a partir de este'),
+                  label: const Text('Duplicar como custom'),
                 ),
-              if (canEdit && !isBase) ...[
+                const SizedBox(height: Espacio.s),
+              ],
+              if (canWrite(e)) ...[
                 FilledButton.icon(
                   onPressed: _busy
                       ? null

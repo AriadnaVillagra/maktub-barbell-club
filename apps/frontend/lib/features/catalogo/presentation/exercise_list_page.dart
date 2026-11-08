@@ -6,12 +6,13 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../access/presentation/providers.dart';
 import '../domain/exercise_list_rules.dart';
+import 'catalog_admin_widgets.dart';
 import 'catalog_labels.dart';
 import 'exercise_catalog_providers.dart';
 import 'providers.dart';
 
-/// The club's exercise catalog (base and own), searchable and filterable by category. Coaches also get
-/// the create action and can show archived exercises. [basePath] is the catalog route in the current mode.
+/// The club's exercise catalog (default and custom), searchable and filterable by category. Club admins
+/// also get the create action and can list the archived exercises. [basePath] is the catalog route in the current mode.
 class ExerciseListPage extends ConsumerStatefulWidget {
   const ExerciseListPage({super.key, required this.basePath});
 
@@ -32,7 +33,7 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
     final categories =
         ref.watch(catalogCategoriesProvider).value ?? const <Category>[];
     final clubId = ref.watch(catalogClubIdProvider);
-    final canEdit = ref.watch(canPlanProvider) ?? false;
+    final canEdit = ref.watch(canEditClubCatalogProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Catálogo de ejercicios')),
       floatingActionButton: canEdit
@@ -48,11 +49,8 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
         children: [
           Padding(
             padding: const EdgeInsets.all(Espacio.m),
-            child: TextField(
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.search),
-                hintText: 'Buscar ejercicio',
-              ),
+            child: CampoBusqueda(
+              hint: 'Buscar ejercicio',
               onChanged: (v) => setState(() => _query = v),
             ),
           ),
@@ -80,7 +78,7 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
           ),
           if (canEdit)
             SwitchListTile(
-              title: const Text('Mostrar archivados'),
+              title: const Text('Solo archivados'),
               value: _showArchived,
               onChanged: (v) => setState(() => _showArchived = v),
             ),
@@ -150,16 +148,4 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
       ),
     );
   }
-}
-
-/// "Base" or "Propio", so the origin of an entry is clear at a glance.
-class ScopeBadge extends StatelessWidget {
-  const ScopeBadge(this.scope, {super.key});
-
-  final CatalogScope scope;
-
-  @override
-  Widget build(BuildContext context) => scope == CatalogScope.base
-      ? InsigniaMaktub('Base', context.colores.insigniaBase)
-      : InsigniaMaktub('Propio', context.colores.insigniaPropio);
 }

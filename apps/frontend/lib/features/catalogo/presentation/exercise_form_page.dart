@@ -5,14 +5,18 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../domain/exercise_draft.dart';
+import '../domain/exercise_list_rules.dart';
+import 'catalog_admin_providers.dart';
+import 'catalog_admin_widgets.dart';
 import 'catalog_labels.dart';
 import 'exercise_catalog_providers.dart';
+import 'exercise_picker.dart';
 import 'providers.dart';
 
 /// Create / edit form of an exercise of the club.
 ///
 /// - [exerciseId]: edits that exercise.
-/// - [copyFromId]: creates a new one prefilled from that (base) exercise: "create my own from this one".
+/// - [copyFromId]: creates a new custom one prefilled from that (default) exercise.
 /// - neither: a blank new exercise.
 class ExerciseFormPage extends ConsumerWidget {
   const ExerciseFormPage({
@@ -89,6 +93,8 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
   late LoadReferenceKind _referenceKind;
   String? _referenceExerciseId;
   late List<String> _suggestionIds;
+  double? _barKg;
+  late bool _isBase;
   String? _error;
   bool _saving = false;
 
@@ -103,7 +109,7 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
         ? const ExerciseDraft(name: '')
         : ExerciseDraft.from(
             source,
-            name: copying ? '${source.name} (propio)' : null,
+            name: copying ? '${source.name} (custom)' : null,
           );
     _name = TextEditingController(text: draft.name);
     _notes = TextEditingController(text: draft.notes ?? '');
@@ -115,6 +121,9 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
     _referenceKind = draft.loadReference.kind;
     _referenceExerciseId = draft.loadReference.exerciseId;
     _suggestionIds = draft.suggestionIds;
+    _barKg = draft.barKg;
+    // Only editing a default keeps it default: a default can only use other default items.
+    _isBase = widget.exerciseId != null && source?.scope == CatalogScope.base;
   }
 
   @override
@@ -139,7 +148,31 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
         : LoadReference(_referenceKind),
     suggestionIds: _suggestionIds,
     notes: _notes.text,
+    barKg: _usesBar ? _barKg : null,
   );
+
+  bool get _usesBar => _metrics.any((m) => m.isLoad);
+
+  List<Exercise> get _referenceTargets => referenceCandidates(
+    widget.exercises,
+    clubId: ref.read(catalogClubIdProvider) ?? '',
+    exerciseId: widget.exerciseId,
+    defaultMetric: _defaultMetric,
+    metrics: _metrics,
+    baseOnly: _isBase,
+  );
+
+  /// Forgets the chosen reference when the new metrics no longer allow it.
+  void _dropInvalidReference() {
+    if (!_referenceTargets.any((e) => e.id == _referenceExerciseId)) {
+      _referenceExerciseId = null;
+    }
+  }
+
+  Future<void> _pickReference() async {
+    final chosen = await showExerciseSearchSheet(context, _referenceTargets);
+    if (chosen != null && mounted) setState(() => _referenceExerciseId = chosen.id);
+  }
 
   String? _validate() {
     if (_name.text.trim().isEmpty) return 'El nombre es obligatorio.';
@@ -187,17 +220,21 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
   @override
   Widget build(BuildContext context) {
     final t = context.textos;
-    final clubId = ref.watch(catalogClubIdProvider);
+    bool allowed(DelClub item) => !_isBase || scopeOf(item) == CatalogScope.base;
     final categories = widget.categories.where(
-      (c) => c.status == CatalogStatus.active || _categoryIds.contains(c.id),
+      (c) =>
+          allowed(c) &&
+          (c.status == CatalogStatus.active || _categoryIds.contains(c.id)),
     );
-    final referenceTargets = [
-      for (final e in widget.exercises)
-        if (e.id != widget.exerciseId &&
-            e.isActive &&
-            isVisibleTo(e, clubId ?? ''))
-          e,
-    ];
+    final patterns = widget.patterns.where(allowed);
+    final groups = widget.groups.where(allowed);
+    final bars = ref.watch(clubTeamProvider).value?.barras ?? const <ItemInventario>[];
+    final barWeights = {for (final b in bars) b.kg, ?_barKg}.toList()
+      ..sort((a, b) => b.compareTo(a));
+    final referenceName = widget.exercises
+        .where((e) => e.id == _referenceExerciseId)
+        .firstOrNull
+        ?.name;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(Espacio.l),
       child: Column(
@@ -237,6 +274,7 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
                     if (!_metrics.contains(_defaultMetric)) {
                       _defaultMetric = null;
                     }
+                    _dropInvalidReference();
                   }),
                 ),
             ],
@@ -250,7 +288,10 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
               for (final m in Metric.values.where(_metrics.contains))
                 DropdownMenuItem(value: m, child: Text(metricLabel(m))),
             ],
-            onChanged: (v) => setState(() => _defaultMetric = v),
+            onChanged: (v) => setState(() {
+              _defaultMetric = v;
+              _dropInvalidReference();
+            }),
           ),
           DropdownButtonFormField<String?>(
             key: const ValueKey('field-pattern'),
@@ -260,13 +301,13 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
             ),
             items: [
               const DropdownMenuItem(value: null, child: Text('Sin patrón')),
-              for (final p in widget.patterns)
+              for (final p in patterns)
                 DropdownMenuItem(value: p.id, child: Text(p.name)),
             ],
             onChanged: (v) => setState(() => _patternId = v),
           ),
           Text('Músculos', style: t.titleMedium),
-          for (final g in widget.groups)
+          for (final g in groups)
             Row(
               key: ValueKey('muscle-${g.id}'),
               spacing: Espacio.s,
@@ -307,23 +348,35 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
             }),
           ),
           if (_referenceKind == LoadReferenceKind.otherExercise)
-            DropdownButtonFormField<String>(
-              key: const ValueKey('field-reference-exercise'),
-              initialValue: _referenceExerciseId,
+            InputDecorator(
               decoration: const InputDecoration(
                 labelText: 'Ejercicio de referencia',
+                suffixIcon: Icon(Icons.search),
               ),
+              child: InkWell(
+                key: const ValueKey('field-reference-exercise'),
+                onTap: _pickReference,
+                child: Text(referenceName ?? 'Elegir ejercicio'),
+              ),
+            ),
+          if (_usesBar && barWeights.isNotEmpty)
+            DropdownButtonFormField<double?>(
+              key: ValueKey('field-bar-${barWeights.length}'),
+              initialValue: _barKg,
+              decoration: const InputDecoration(labelText: 'Barra'),
               items: [
-                for (final e in referenceTargets)
-                  DropdownMenuItem(value: e.id, child: Text(e.name)),
+                const DropdownMenuItem(value: null, child: Text('La del club')),
+                for (final kg in barWeights)
+                  DropdownMenuItem(value: kg, child: Text('${formatKg(kg)} kg')),
               ],
-              onChanged: (v) => setState(() => _referenceExerciseId = v),
+              onChanged: (v) => setState(() => _barKg = v),
             ),
           TextField(
             key: const ValueKey('field-notes'),
             controller: _notes,
             minLines: 2,
             maxLines: 5,
+            maxLength: maxExerciseNotes,
             decoration: const InputDecoration(labelText: 'Notas'),
           ),
           if (_error != null)
