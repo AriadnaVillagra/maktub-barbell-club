@@ -181,7 +181,7 @@ void main() {
     expect(store.plans.firstWhere((p) => p.clubId == 'club-b').name, 'Old');
   });
 
-  test('an invalid plan is 422 with every problem and its location, and nothing is written', () async {
+  test('a plan without a name is 422, lists only that, and nothing is written', () async {
     final store = storeWithPlan();
     final body = _validBody(pct: 0)
       ..['nombre'] = '  '
@@ -193,28 +193,24 @@ void main() {
     expect(json['error'], isA<String>());
     expect(json['problemas'], [
       {'codigo': 'nameEmpty'},
-      {
-        'codigo': 'setWithoutPct',
-        'modeloSemana': 0,
-        'dia': 0,
-        'bloque': 0,
-        'prescripcion': 0,
-        'serie': 0,
-      },
-      {'codigo': 'assignmentUnknownModel', 'semana': 1},
     ]);
     expect(store.plans.single.name, 'Old');
   });
 
-  test('an exercise unknown to the club is a problem', () async {
+  test('an unfinished plan is saved so the work is not lost', () async {
+    final store = storeWithPlan();
+    final body = _validBody(pct: 0)..['asignacion'] = ['A', 'Z', 'A', 'A'];
+    final r = await _save(coachA, store, body);
+
+    expect(r.statusCode, HttpStatus.ok);
+    expect(store.plans.single.weekAssignment, ['A', 'Z', 'A', 'A']);
+  });
+
+  test('an exercise unknown to the club does not stop a save', () async {
     final store = storeWithPlan()..catalog.clear();
     final r = await _save(coachA, store, _validBody());
 
-    expect(r.statusCode, HttpStatus.unprocessableEntity);
-    expect(
-      (await _json(r))['problemas'],
-      contains(containsPair('codigo', 'prescriptionUnknownExercise')),
-    );
+    expect(r.statusCode, HttpStatus.ok);
   });
 
   test('a write that fails midway leaves the previous plan intact', () async {

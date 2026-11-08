@@ -34,7 +34,7 @@ void main() {
       await pumpPlanPage(tester, const PlansPage(basePath: '/x'), repo);
       expect(find.text('Fuerza'), findsOneWidget);
       expect(find.text('Regular · 2 modelos'), findsOneWidget);
-      expect(find.text('Test · 0 modelos'), findsOneWidget);
+      expect(find.text('RM · 0 modelos'), findsOneWidget);
       expect(repo.calls, ['plans:c1']);
     });
 
@@ -227,21 +227,9 @@ void main() {
         isNull,
       );
 
-      // Day 1 moves down: the day titled "Da1" is now second.
-      expect(find.text('Da1'), findsOneWidget);
-      await tester.tap(find.byKey(const Key('day-down-a-0')));
-      await tester.pump();
-      expect(
-        tester.getTopLeft(find.text('Da1')).dy >
-            tester.getTopLeft(find.text('Da2')).dy,
-        isTrue,
-      );
-      expect(
-        tester
-            .widget<IconButton>(find.byKey(const Key('day-up-a-0')))
-            .onPressed,
-        isNull,
-      );
+      // Days have no move arrows.
+      expect(find.byKey(const Key('day-up-a-0')), findsNothing);
+      expect(find.byKey(const Key('day-down-a-0')), findsNothing);
 
       await tester.tap(find.byKey(const Key('day-remove-a-0')));
       await tester.pump();
@@ -386,7 +374,7 @@ void main() {
       tester,
     ) async {
       await open(tester);
-      expect(find.text('0 bloques'), findsOneWidget);
+      expect(find.byKey(const Key('block-a-0-0')), findsNothing);
       await tester.tap(find.byKey(const Key('block-add-a-0')));
       await tester.pumpAndSettle();
       FilledButton ok() =>
@@ -411,7 +399,7 @@ void main() {
         await addBlock(tester, n, 'Calentamiento');
       }
       await addBlock(tester, 'WoD', 'Principal', timer: 'Descanso 90');
-      expect(find.text('5 bloques'), findsOneWidget);
+      expect(find.byKey(const Key('block-a-0-5')), findsNothing);
       for (var i = 0; i < 5; i++) {
         expect(find.byKey(Key('block-a-0-$i')), findsOneWidget);
       }
@@ -431,27 +419,16 @@ void main() {
       expect(find.text('Archivado'), findsNothing);
     });
 
-    testWidgets('a block can be edited, reordered and removed', (tester) async {
+    testWidgets('a block can be edited and removed, and has no move arrows', (
+      tester,
+    ) async {
       await open(tester);
       await addBlock(tester, 'Uno', 'Calentamiento');
       await addBlock(tester, 'Dos', 'Principal');
+      expect(find.byTooltip('Subir bloque'), findsNothing);
+      expect(find.byTooltip('Bajar bloque'), findsNothing);
 
-      await tester.tap(find.byKey(const Key('block-down-a-0-0')));
-      await tester.pump();
-      expect(
-        tester.getTopLeft(find.text('Uno')).dy >
-            tester.getTopLeft(find.text('Dos')).dy,
-        isTrue,
-      );
-      expect(
-        tester
-            .widget<IconButton>(find.byKey(const Key('block-up-a-0-0')))
-            .onPressed,
-        isNull,
-      );
-
-      // "Uno" is now second: edit it.
-      await tester.tap(find.byKey(const Key('block-a-0-1')));
+      await tester.tap(find.byKey(const Key('block-a-0-0')));
       await tester.pumpAndSettle();
       expect(
         tester
@@ -471,17 +448,17 @@ void main() {
       expect(find.text('Uno bis'), findsOneWidget);
       expect(find.text('Principal · Temporizador: Descanso 90'), findsOneWidget);
 
-      await tester.tap(find.byKey(const Key('block-remove-a-0-0')));
+      await tester.tap(find.byKey(const Key('block-remove-a-0-1')));
       await tester.pump();
       expect(find.text('Dos'), findsNothing);
-      expect(find.text('1 bloque'), findsOneWidget);
+      expect(find.byKey(const Key('block-a-0-1')), findsNothing);
     });
 
     testWidgets('an empty block stays empty', (tester) async {
       await open(tester);
       await addBlock(tester, 'Final', 'Principal');
       expect(find.text('Final'), findsOneWidget);
-      expect(find.text('1 bloque'), findsOneWidget);
+      expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
     });
   });
 
@@ -562,12 +539,8 @@ void main() {
       expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
       await add(tester, 'Sentadilla');
       expect(find.text('Sentadilla'), findsOneWidget);
-      expect(
-        find.text(
-          '8 × 65 %, 5 × 72,5 %, 3 × 80 %, 3 × 80 % · Temporizador: Descanso 3 min',
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('1x8 al 65 %, 1x5 al 72,5 %, 2x3 al 80 %'), findsOneWidget);
+      expect(find.text('Temporizador: Descanso 3 min'), findsOneWidget);
       expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
     });
 
@@ -576,8 +549,9 @@ void main() {
     ) async {
       await open(tester, 'primario');
       await add(tester, 'Curl');
+      expect(find.text('1x8, 1x5, 2x3'), findsOneWidget);
       expect(
-        find.text('8, 5, 3, 3 · Temporizador: Descanso 3 min'),
+        find.text('Temporizador: Descanso 3 min'),
         findsOneWidget,
       );
     });
@@ -587,8 +561,15 @@ void main() {
     ) async {
       await open(tester, 'primario', withRestTimers: false);
       await add(tester, 'Sentadilla');
-      expect(find.text('8 × 65 %, 5 × 72,5 %, 3 × 80 %, 3 × 80 %'), findsOneWidget);
+      expect(find.text('1x8 al 65 %, 1x5 al 72,5 %, 2x3 al 80 %'), findsOneWidget);
       expect(find.textContaining('Temporizador:'), findsNothing);
+    });
+
+    testWidgets('a WoD block offers exercises of every category', (tester) async {
+      await open(tester, 'wod');
+      await add(tester, 'Sentadilla');
+      expect(find.byKey(const Key('prescription-a-0-0-0')), findsOneWidget);
+      expect(find.text('Sentadilla'), findsOneWidget);
     });
 
     testWidgets('a block of another category gets no defaults', (tester) async {
@@ -597,7 +578,7 @@ void main() {
       expect(find.byKey(const Key('prescription-a-0-0-0')), findsOneWidget);
       expect(find.text('Plancha'), findsOneWidget);
       expect(find.textContaining('Temporizador:'), findsNothing);
-      expect(find.textContaining('×'), findsNothing);
+      expect(find.textContaining(RegExp(r'\dx\d')), findsNothing);
     });
 
     testWidgets('dismissing the picker adds nothing; prescriptions are removed', (
@@ -702,7 +683,7 @@ void main() {
       await tester.enterText(find.byKey(const ValueKey('set-reps-0-0')), '6');
       await tester.enterText(find.byKey(const ValueKey('set-pct-1-0')), '75,5');
       await accept(tester);
-      expect(find.text('6 × 65 %, 5 × 75,5 %'), findsOneWidget);
+      expect(find.text('1x6 al 65 %, 1x5 al 75,5 %'), findsOneWidget);
       expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
     });
 
@@ -725,9 +706,9 @@ void main() {
       await tester.pump();
       expect(find.text('12'), findsOneWidget);
       expect(find.text('70,5'), findsNothing);
-      expect(find.textContaining('x'), findsNothing);
+      expect(find.text('7x0,5'), findsNothing);
       await accept(tester);
-      expect(find.textContaining('12 × '), findsOneWidget);
+      expect(find.textContaining('1x12 al '), findsOneWidget);
     });
 
     testWidgets('adding a set copies the previous one; removing keeps one', (
@@ -738,7 +719,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('set-row-2')), findsOneWidget);
       await accept(tester);
-      expect(find.text('8 × 65 %, 5 × 72,5 %, 5 × 72,5 %'), findsOneWidget);
+      expect(find.text('1x8 al 65 %, 2x5 al 72,5 %'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('prescription-a-0-0-0')));
       await tester.pumpAndSettle();
@@ -750,7 +731,7 @@ void main() {
       final last = tester.widget<IconButton>(find.byKey(const Key('set-remove-0')));
       expect(last.onPressed, isNull);
       await accept(tester);
-      expect(find.text('5 × 72,5 %'), findsOneWidget);
+      expect(find.text('1x5 al 72,5 %'), findsOneWidget);
     });
 
     testWidgets('note, own timer and bar are stored; empty timer uses the block', (
@@ -767,8 +748,9 @@ void main() {
       await tester.tap(find.text('Descanso 90 s').last);
       await tester.pumpAndSettle();
       await accept(tester);
+      expect(find.text('1x8 al 65 %, 1x5 al 72,5 %'), findsOneWidget);
       expect(
-        find.text('8 × 65 %, 5 × 72,5 % · Temporizador: Descanso 90 s · Barra: 15,5 kg · RPE 8'),
+        find.text('Temporizador: Descanso 90 s · Barra: 15,5 kg · RPE 8'),
         findsOneWidget,
       );
 
@@ -781,7 +763,7 @@ void main() {
       await tester.enterText(find.byKey(const Key('prescription-bar-field')), '');
       await tester.enterText(find.byKey(const Key('prescription-note-field')), '');
       await accept(tester);
-      expect(find.text('8 × 65 %, 5 × 72,5 %'), findsOneWidget);
+      expect(find.text('1x8 al 65 %, 1x5 al 72,5 %'), findsOneWidget);
     });
 
     testWidgets('cancelling changes nothing', (tester) async {
@@ -789,7 +771,7 @@ void main() {
       await tester.enterText(find.byKey(const ValueKey('set-reps-0-0')), '1');
       await tester.tap(find.text('Cancelar'));
       await tester.pumpAndSettle();
-      expect(find.text('8 × 65 %, 5 × 72,5 %'), findsOneWidget);
+      expect(find.text('1x8 al 65 %, 1x5 al 72,5 %'), findsOneWidget);
       expect(find.byKey(const Key('plan-dirty')), findsNothing);
     });
   });

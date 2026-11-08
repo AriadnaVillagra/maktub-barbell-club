@@ -19,6 +19,10 @@ void main() {
       expect(equipo.masCercano(21.25), 20); // empate entre 20 y 22.5
       expect(equipo.masCercano(5), 20); // nunca menos que la barra
     });
+
+    test('an exercise with no bar rounds with plates alone', () {
+      expect(equipo.masCercano(5, barKg: noBarKg), 5);
+    });
   });
 
   group('porcentajes', () {

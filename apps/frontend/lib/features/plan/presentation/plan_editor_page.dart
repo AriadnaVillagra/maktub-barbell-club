@@ -240,12 +240,26 @@ class _ModelCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                Expanded(
+                Flexible(
                   child: Text(
                     model.name.isEmpty ? 'Sin nombre' : model.name,
                     style: context.textos.titleSmall,
                   ),
                 ),
+                const SizedBox(width: Espacio.s),
+                TextButton.icon(
+                  key: Key('day-add-$id'),
+                  icon: const Icon(Icons.add),
+                  label: Text(
+                    draft.canAddDay(id)
+                        ? 'Agregar día'
+                        : 'Máximo $maxDaysPerWeek días',
+                  ),
+                  onPressed: draft.canAddDay(id)
+                      ? () => editor.addDay(id)
+                      : null,
+                ),
+                const Spacer(),
                 IconButton(
                   key: Key('model-rename-$id'),
                   icon: const Icon(Icons.edit_outlined),
@@ -267,27 +281,17 @@ class _ModelCard extends StatelessWidget {
                 ),
               ],
             ),
-            for (final (i, _) in model.days.indexed)
+            for (final (i, _) in model.days.indexed) ...[
+              if (i > 0) const Divider(),
               _DayTile(
                 key: Key('day-$id-$i'),
                 modelId: id,
                 index: i,
-                count: model.days.length,
                 day: model.days[i],
                 draft: draft,
                 editor: editor,
               ),
-            const SizedBox(height: Espacio.xs),
-            TextButton.icon(
-              key: Key('day-add-$id'),
-              icon: const Icon(Icons.add),
-              label: Text(
-                draft.canAddDay(id)
-                    ? 'Agregar día'
-                    : 'Máximo $maxDaysPerWeek días',
-              ),
-              onPressed: draft.canAddDay(id) ? () => editor.addDay(id) : null,
-            ),
+            ],
           ],
         ),
       ),
@@ -295,13 +299,12 @@ class _ModelCard extends StatelessWidget {
   }
 }
 
-/// One day of a week model with its ordered blocks (add, edit, reorder, remove).
+/// One day of a week model with its blocks (add, edit, remove).
 class _DayTile extends ConsumerWidget {
   const _DayTile({
     super.key,
     required this.modelId,
     required this.index,
-    required this.count,
     required this.day,
     required this.draft,
     required this.editor,
@@ -309,7 +312,6 @@ class _DayTile extends ConsumerWidget {
 
   final String modelId;
   final int index;
-  final int count;
   final PlanDay day;
   final PlanDraft draft;
   final PlanEditor editor;
@@ -339,39 +341,13 @@ class _DayTile extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.today_outlined),
           title: Text(day.name ?? 'Día ${index + 1}'),
-          subtitle: Text(
-            day.blocks.length == 1
-                ? '1 bloque'
-                : '${day.blocks.length} bloques',
-          ),
-          trailing: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              IconButton(
-                key: Key('day-up-$modelId-$index'),
-                icon: const Icon(Icons.arrow_upward),
-                tooltip: 'Subir',
-                onPressed: index == 0
-                    ? null
-                    : () => editor.moveDay(modelId, index, index - 1),
-              ),
-              IconButton(
-                key: Key('day-down-$modelId-$index'),
-                icon: const Icon(Icons.arrow_downward),
-                tooltip: 'Bajar',
-                onPressed: index == count - 1
-                    ? null
-                    : () => editor.moveDay(modelId, index, index + 1),
-              ),
-              IconButton(
-                key: Key('day-remove-$modelId-$index'),
-                icon: const Icon(Icons.delete_outline),
-                tooltip: 'Quitar día',
-                onPressed: draft.canRemoveDay(modelId)
-                    ? () => editor.removeDay(modelId, index)
-                    : null,
-              ),
-            ],
+          trailing: IconButton(
+            key: Key('day-remove-$modelId-$index'),
+            icon: const Icon(Icons.delete_outline),
+            tooltip: 'Quitar día',
+            onPressed: draft.canRemoveDay(modelId)
+                ? () => editor.removeDay(modelId, index)
+                : null,
           ),
         ),
         Padding(
@@ -379,12 +355,12 @@ class _DayTile extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final (b, block) in day.blocks.indexed)
+              for (final (b, block) in day.blocks.indexed) ...[
+                if (b > 0) const Divider(),
                 _BlockTile(
                   key: Key('block-$modelId-$index-$b'),
                   keyPrefix: '$modelId-$index',
                   index: b,
-                  count: day.blocks.length,
                   block: block,
                   categoryName: categoryName(block.categoryId),
                   timerName: timerName(block.timerId),
@@ -392,6 +368,7 @@ class _DayTile extends ConsumerWidget {
                   modelId: modelId,
                   day: index,
                 ),
+              ],
               TextButton.icon(
                 key: Key('block-add-$modelId-$index'),
                 icon: const Icon(Icons.add),
@@ -420,6 +397,9 @@ class _DayTile extends ConsumerWidget {
 
 /// One block of a day with its prescriptions (add with the category's exercise picker, remove). E5.8
 /// edits their sets.
+/// A subtitle that takes no space when there is nothing to say.
+Widget? _textOrNull(String text) => text.isEmpty ? null : Text(text);
+
 class _BlockTile extends ConsumerWidget {
   const _BlockTile({
     super.key,
@@ -427,7 +407,6 @@ class _BlockTile extends ConsumerWidget {
     required this.modelId,
     required this.day,
     required this.index,
-    required this.count,
     required this.block,
     required this.categoryName,
     required this.timerName,
@@ -438,16 +417,17 @@ class _BlockTile extends ConsumerWidget {
   final String modelId;
   final int day;
   final int index;
-  final int count;
   final PlanBlock block;
   final String? categoryName;
   final String? timerName;
   final PlanEditor editor;
 
   Future<void> _addExercise(BuildContext context, WidgetRef ref) async {
+    final isWod = block.categoryId == wodCategoryId;
     final exercise = await showExercisePicker(
       context,
-      categoryId: block.categoryId,
+      categoryId: isWod ? null : block.categoryId,
+      showCategoryFilter: isWod,
     );
     if (exercise == null) return;
     final timers = await ref.read(clubTimersProvider.future);
@@ -531,22 +511,6 @@ class _BlockTile extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           IconButton(
-            key: Key('block-up-$keyPrefix-$index'),
-            icon: const Icon(Icons.arrow_upward),
-            tooltip: 'Subir bloque',
-            onPressed: index == 0
-                ? null
-                : () => editor.moveBlock(modelId, day, index, index - 1),
-          ),
-          IconButton(
-            key: Key('block-down-$keyPrefix-$index'),
-            icon: const Icon(Icons.arrow_downward),
-            tooltip: 'Bajar bloque',
-            onPressed: index == count - 1
-                ? null
-                : () => editor.moveBlock(modelId, day, index, index + 1),
-          ),
-          IconButton(
             key: Key('block-remove-$keyPrefix-$index'),
             icon: const Icon(Icons.delete_outline),
             tooltip: 'Quitar bloque',
@@ -564,7 +528,8 @@ class _BlockTile extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final (p, prescription) in block.prescriptions.indexed)
+              for (final (p, prescription) in block.prescriptions.indexed) ...[
+                if (p > 0) const Divider(),
                 ListTile(
                   key: Key('prescription-$keyPrefix-$index-$p'),
                   dense: true,
@@ -575,11 +540,18 @@ class _BlockTile extends ConsumerWidget {
                     prescription,
                     exerciseOf(prescription.exerciseId),
                   ),
-                  title: Text(exerciseName(prescription.exerciseId)),
-                  subtitle: Text(
-                    [
+                  title: Row(
+                    spacing: Espacio.l,
+                    children: [
+                      Flexible(
+                        child: Text(exerciseName(prescription.exerciseId)),
+                      ),
                       if (prescription.sets.isNotEmpty)
-                        setsSummary(prescription.sets),
+                        Flexible(child: Text(setsSummary(prescription.sets))),
+                    ],
+                  ),
+                  subtitle: _textOrNull(
+                    [
                       if (prescription.timerId != null)
                         'Temporizador: ${timerLabel(prescription.timerId!)}',
                       if (prescription.barKg != null)
@@ -595,6 +567,7 @@ class _BlockTile extends ConsumerWidget {
                         editor.removePrescription(modelId, day, index, p),
                   ),
                 ),
+              ],
               TextButton.icon(
                 key: Key('prescription-add-$keyPrefix-$index'),
                 icon: const Icon(Icons.add),

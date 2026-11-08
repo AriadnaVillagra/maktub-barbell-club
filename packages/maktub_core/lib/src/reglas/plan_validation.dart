@@ -1,13 +1,21 @@
 /// Plan validations shared by backend and app (E5.1). They return every problem, not just the first.
 ///
 /// Reference: `reference/Plan.html`, `validar()` (name, exercise per day, sets, reps, % on percentage
-/// exercises). Translation of its "primary / secondary / accessory" slots (decision D16, pending
-/// approval): "day without primary" becomes "block without category" and "exercise outside the block's
-/// category", because the category is what a block uses to say what it is.
+/// exercises). Translation of its "primary / secondary / accessory" slots (decision D16, approved):
+/// "day without primary" becomes "block without category" and "exercise outside the block's category",
+/// because the category is what a block uses to say what it is.
 library;
 
 import '../modelos/catalogo.dart';
 import '../modelos/plan.dart';
+
+/// Base categories whose exercises must have sets. As in the reference, in any other block, such as
+/// stretching or warm-up, the exercise alone is enough.
+const categoriesRequiringSets = {'primario', 'secundario', 'accesorio'};
+
+/// The base WoD category. A WoD block mixes exercises of any category, so it is exempt from the rule
+/// that an exercise belongs to its block's category.
+const wodCategoryId = 'wod';
 
 enum PlanProblemCode {
   nameEmpty,
@@ -48,6 +56,12 @@ class PlanProblem {
   final int? blockIndex;
   final int? prescriptionIndex;
   final int? setIndex;
+
+  /// Whether this stops a plan from being saved. Only what makes the plan unusable as a document does:
+  /// everything else marks unfinished work, so a coach can save and continue later.
+  bool get blocksSaving =>
+      code == PlanProblemCode.nameEmpty ||
+      code == PlanProblemCode.weekModelIdDuplicated;
 
   @override
   bool operator ==(Object other) =>
@@ -168,7 +182,7 @@ void _validateDay(
         out.add(at(PlanProblemCode.prescriptionWithoutExercise, p: p));
         continue;
       }
-      if (rx.sets.isEmpty) {
+      if (rx.sets.isEmpty && categoriesRequiringSets.contains(block.categoryId)) {
         out.add(at(PlanProblemCode.prescriptionWithoutSets, p: p));
       }
 
@@ -178,6 +192,7 @@ void _validateDay(
         continue;
       }
       if (block.categoryId != null &&
+          block.categoryId != wodCategoryId &&
           !exercise.categoryIds.contains(block.categoryId)) {
         out.add(at(PlanProblemCode.exerciseOutsideBlockCategory, p: p));
       }

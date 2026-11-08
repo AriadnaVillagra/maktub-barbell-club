@@ -49,12 +49,25 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **E5 (editor de plan):** la barra se indica por ejercicio, y la prescripción la puede pisar con una barra opcional (decidido el 2026-11-08). El control va en el editor (E5.7 o E5.8), y E4/E7 tienen que usar esa barra al calcular.
 - **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja.
 
+## Para E6 (decidido el 2026-11-08)
+
+Un plan sin terminar se puede guardar. Por eso **E6.3 tiene que rechazar la asignación de un plan con
+problemas de `validatePlan`**, y definir qué pasa si se edita un plan ya asignado y queda incompleto.
+
+## Para E8.2 (decidido el 2026-11-08)
+
+Si un ejercicio de la planilla ya existe en el catálogo base con otra categoría (por ejemplo `Plancha`, accesorio
+en la base y calentamiento en la planilla), el importador le suma la categoría de la planilla, sin duplicarlo.
+Hasta correr E8.2, los 14 abdominales de calentamiento de la planilla no aparecen en la app.
+
 ## D16 aprobada (2026-11-08)
 
 Se elimina "día sin primario". Cada bloque tiene categoría y cada ejercicio pertenece a la categoría de su
 bloque. Al agregar un ejercicio (E5.7), los bloques de categoría `primario`, `secundario` y `accesorio`
 traen las series por defecto de la referencia y sus descansos (`desc_180`, `desc_120`, `desc_90`); las
-demás categorías no traen nada.
+demás categorías no traen nada. Las series solo son obligatorias en esas tres categorías, como en la
+referencia: E7 tiene que mostrar un ejercicio sin series (por ejemplo, un estiramiento). Excepción a D16
+(2026-11-08): un bloque de categoría `wod` acepta ejercicios de cualquier categoría; es la forma de armar un EMOM.
 
 ## Pendientes que salieron de E3 (2026-11-08)
 

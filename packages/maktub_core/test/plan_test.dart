@@ -20,6 +20,12 @@ Exercise _ex(
 
 final _catalog = {
   'squat': _ex('squat'),
+  'clean': _ex('clean', categories: const ['primario']),
+  'stretch': _ex(
+    'stretch',
+    metrics: const [Metric.time],
+    categories: const ['estiramiento'],
+  ),
   'curl': _ex(
     'curl',
     metrics: const [Metric.fixedLoad, Metric.reps],
@@ -405,11 +411,34 @@ void main() {
       },
     );
 
-    test('a prescription without sets', () {
+    test('a stretching exercise needs no sets', () {
       const block = PlanBlock(
-        name: 'Strength',
-        categoryId: 'strength',
-        prescriptions: [Prescription(exerciseId: 'squat')],
+        name: 'Stretching',
+        categoryId: 'estiramiento',
+        prescriptions: [Prescription(exerciseId: 'stretch')],
+      );
+      expect(_validate(_withBlock(block)), isEmpty);
+    });
+
+    test('a WoD block accepts exercises of any category', () {
+      const block = PlanBlock(
+        name: 'EMOM',
+        categoryId: wodCategoryId,
+        prescriptions: [
+          Prescription(
+            exerciseId: 'squat',
+            sets: [PlanSet(reps: 8, pct: 60)],
+          ),
+        ],
+      );
+      expect(_validate(_withBlock(block)), isEmpty);
+    });
+
+    test('a prescription without sets in a block that requires them', () {
+      const block = PlanBlock(
+        name: 'Main',
+        categoryId: 'primario',
+        prescriptions: [Prescription(exerciseId: 'clean')],
       );
       expect(_validate(_withBlock(block)), [
         const PlanProblem(

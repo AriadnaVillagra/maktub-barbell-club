@@ -141,8 +141,9 @@ class PlanSaveState {
 final planSaveProvider = NotifierProvider.autoDispose
     .family<PlanSave, PlanSaveState, String>(PlanSave.new);
 
-/// Validates the draft with `validatePlan` (the server's rule) and, only if it passes, sends it. Any failure
-/// leaves the draft as it was; a second save while one is in flight is ignored.
+/// Validates the draft with `validatePlan` (the server's rule) and sends it unless a problem blocks saving.
+/// An unfinished plan is saved and what it still lacks is listed. Any failure leaves the draft as it was; a
+/// second save while one is in flight is ignored.
 class PlanSave extends Notifier<PlanSaveState> {
   PlanSave(this.planId);
 
@@ -167,15 +168,25 @@ class PlanSave extends Notifier<PlanSaveState> {
       };
       nameOf = (id) => exercises[id]?.name;
       final problems = validatePlan(plan, exerciseById: (id) => exercises[id]);
-      if (problems.isNotEmpty) {
-        _rejected(plan, problems, nameOf, null);
+      final blocking = problems.where((p) => p.blocksSaving).toList();
+      if (blocking.isNotEmpty) {
+        _rejected(plan, blocking, nameOf, null);
         return;
       }
       final saved = await ref.read(planRepositoryProvider).save(clubId, plan);
       if (!ref.mounted) return;
       editor.commitSaved(draft, saved);
       ref.invalidate(plansProvider);
-      state = const PlanSaveState(justSaved: true);
+      state = PlanSaveState(
+        justSaved: true,
+        title: problems.isEmpty
+            ? null
+            : 'Plan guardado. Para poder asignarlo falta completar:',
+        problems: [
+          for (final p in problems)
+            describePlanProblem(p, plan, exerciseName: nameOf),
+        ],
+      );
     } on PlanRejected catch (e) {
       _rejected(plan, e.problems, nameOf, e.message);
     } on ErrorDeApi catch (e) {

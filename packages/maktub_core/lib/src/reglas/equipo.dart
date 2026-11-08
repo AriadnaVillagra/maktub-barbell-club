@@ -31,6 +31,9 @@ const maxTiposDisco = 30;
 /// Máximo de unidades de una misma fila del inventario.
 const maxCantidadInventario = 50;
 
+/// The bar weight of an exercise that uses no bar, such as one with dumbbells.
+const noBarKg = 0.0;
+
 /// Una fila del inventario: un peso y cuántos hay. En discos, [cantidad] son pares.
 class ItemInventario {
   const ItemInventario(this.kg, [this.cantidad = 1]);
@@ -115,7 +118,11 @@ class Equipo implements DelClub {
 
   /// La barra con la que se carga un ejercicio que pide [pedida]: esa si está en el inventario, y si no
   /// (o si no pide ninguna) la barra por defecto.
-  double barraPara(double? pedida) => pedida != null && barras.any((b) => b.kg == pedida) ? pedida : barraKg;
+  /// [noBarKg] means the exercise uses no bar.
+  double barraPara(double? pedida) {
+    if (pedida == noBarKg) return noBarKg;
+    return pedida != null && barras.any((b) => b.kg == pedida) ? pedida : barraKg;
+  }
 
   /// Todos los totales armables con una barra de [barra] kg, de menor a mayor.
   ///

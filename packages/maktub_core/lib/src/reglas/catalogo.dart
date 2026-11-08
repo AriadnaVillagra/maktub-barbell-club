@@ -4,6 +4,7 @@ library;
 
 import '../modelos/base.dart';
 import '../modelos/catalogo.dart';
+import 'equipo.dart';
 
 enum CatalogProblem {
   /// Referencia `propia` en un ejercicio sin carga × repeticiones.
@@ -120,7 +121,7 @@ List<CatalogProblem> validateExercise(Exercise e, CatalogView view) {
   }
 
   if ((e.notes?.length ?? 0) > maxExerciseNotes) problems.add(CatalogProblem.notesTooLong);
-  if (e.barKg != null && !(e.barKg! > 0)) problems.add(CatalogProblem.barNotPositive);
+  if (e.barKg != null && e.barKg! < noBarKg) problems.add(CatalogProblem.barNotPositive);
 
   void check(DelClub? item) {
     if (item == null) {

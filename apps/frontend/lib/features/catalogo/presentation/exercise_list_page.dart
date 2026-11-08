@@ -38,11 +38,11 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
     return Scaffold(
       appBar: AppBar(title: const Text('Catálogo de ejercicios')),
       floatingActionButton: canEdit
-          ? FloatingActionButton.extended(
+          ? FloatingActionButton(
+              tooltip: 'Nuevo ejercicio',
               onPressed: () =>
                   context.go('${widget.basePath}/ejercicios/nuevo'),
-              icon: const Icon(Icons.add),
-              label: const Text('Nuevo ejercicio'),
+              child: const Icon(Icons.add),
             )
           : null,
       body: Column(
@@ -98,6 +98,14 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
                 }
                 final names = {for (final c in categories) c.id: c.name};
                 return ListView(
+                  // Keeps the rows out of the add button's column, so it never covers them.
+                  padding: canEdit
+                      ? const EdgeInsets.only(
+                          right: kFloatingActionButtonMargin +
+                              kMinInteractiveDimension +
+                              Espacio.l,
+                        )
+                      : null,
                   children: [
                     for (final e in shown)
                       ListTile(

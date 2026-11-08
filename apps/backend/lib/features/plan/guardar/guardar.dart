@@ -14,7 +14,8 @@ import 'guardar_store.dart';
 /// stored plan; modification is the caller and now): whatever the body says for them is ignored.
 /// 404 if the plan does not exist in the club (create it first with `POST`). Needs [Accion.planificar].
 ///
-/// An invalid plan is 422 and nothing is written, with every problem and where it is:
+/// An unfinished plan is saved as it is, so a coach can continue later. Only a problem that
+/// [PlanProblem.blocksSaving] (no name, repeated week model ids) is 422 and writes nothing, with each one and where it is:
 /// `{"error": "...", "problemas": [{"codigo": "setWithoutPct", "modeloSemana": 0, "dia": 1, "bloque": 0,
 /// "prescripcion": 2, "serie": 1}, ...]}`. `codigo` is a `PlanProblemCode` name; the location keys are
 /// 0-based and only present when the problem is at that level (`semana` is the position in the assignment).
@@ -64,7 +65,10 @@ class SavePlan {
     }
 
     final exercises = await _store.exercises(club.clubId);
-    final problems = validatePlan(plan, exerciseById: (id) => exercises[id]);
+    final problems = validatePlan(
+      plan,
+      exerciseById: (id) => exercises[id],
+    ).where((p) => p.blocksSaving).toList();
     if (problems.isNotEmpty) {
       throw ErrorDeSolicitud(
         'El plan tiene ${problems.length} problema(s); no se guardó.',

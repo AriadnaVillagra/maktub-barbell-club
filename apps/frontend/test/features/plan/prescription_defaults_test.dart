@@ -76,8 +76,20 @@ void main() {
   test('setsSummary reads reps and %', () {
     expect(
       setsSummary(make(pct, 'primario').sets),
-      '8 × 65 %, 5 × 72,5 %, 3 × 80 %, 3 × 80 %',
+      '1x8 al 65 %, 1x5 al 72,5 %, 2x3 al 80 %',
     );
-    expect(setsSummary(make(pct, 'accesorio').sets), '10, 10, 10');
+    expect(setsSummary(make(pct, 'accesorio').sets), '3x10');
+  });
+
+  test('setsSummary only groups equal consecutive sets', () {
+    expect(
+      setsSummary(const [
+        PlanSet(reps: 10),
+        PlanSet(reps: 8),
+        PlanSet(reps: 10, kg: 12.5),
+        PlanSet(reps: 10, kg: 12.5),
+      ]),
+      '1x10, 1x8, 2x10 con 12,5 kg',
+    );
   });
 }

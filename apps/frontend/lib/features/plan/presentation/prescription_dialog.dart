@@ -230,9 +230,11 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                 inputFormatters: [_decimalFormatter],
                 decoration: InputDecoration(
                   labelText: 'Barra (kg)',
-                  helperText: exerciseBar == null
-                      ? 'Vacío: la del ejercicio'
-                      : 'Vacío: la del ejercicio (${formatNumber(exerciseBar)} kg)',
+                  helperText: switch (exerciseBar) {
+                    null => 'Vacío: la del ejercicio',
+                    noBarKg => 'Vacío: el ejercicio va sin barra',
+                    final kg => 'Vacío: la del ejercicio (${formatNumber(kg)} kg)',
+                  },
                 ),
                 onChanged: (t) => _bar = t,
               ),

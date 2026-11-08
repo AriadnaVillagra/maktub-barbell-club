@@ -83,7 +83,32 @@ void main() {
       expect(saveAction(tester), isNull);
     });
 
-    testWidgets('an invalid plan sends nothing and lists every problem', (
+    testWidgets('a plan without a name sends nothing, draft intact', (
+      tester,
+    ) async {
+      final c = await open(
+        tester,
+        samplePlan(
+          name: ' ',
+          models: [
+            completeModel('a', sets: [pctSet()]),
+          ],
+          assignment: ['a', 'a', 'a', 'a'],
+        ),
+      );
+      editor(c).addModel('B');
+      await tester.pumpAndSettle();
+      await tapSave(tester);
+
+      expect(repo.saved, isEmpty);
+      expect(
+        find.text('El plan tiene 1 problema; no se guardó.'),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
+    });
+
+    testWidgets('an unfinished plan is saved and lists what it lacks', (
       tester,
     ) async {
       final c = await open(
@@ -107,10 +132,10 @@ void main() {
       await tester.pumpAndSettle();
       await tapSave(tester);
 
-      expect(repo.saved, isEmpty);
+      expect(repo.saved, hasLength(1));
       expect(find.byKey(const Key('plan-problems')), findsOneWidget);
       expect(
-        find.text('El plan tiene 3 problemas; no se guardó.'),
+        find.text('Plan guardado. Para poder asignarlo falta completar:'),
         findsOneWidget,
       );
       expect(find.text('Modelo A › Día 1 › Bloque 1 "Fuerza"'), findsOneWidget);
@@ -124,9 +149,8 @@ void main() {
         ),
         findsOneWidget,
       );
-      // The draft is intact and still unsaved.
-      expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
-      expect(saveAction(tester), isNotNull);
+      // Nothing is left to save, and the work is still there to continue.
+      expect(find.byKey(const Key('plan-dirty')), findsNothing);
       expect(editor(c).state.value!.weekModels.single.days, hasLength(2));
     });
 
@@ -146,7 +170,7 @@ void main() {
       await tester.pumpAndSettle();
       await tapSave(tester);
 
-      expect(repo.saved, isEmpty);
+      expect(repo.saved, hasLength(1));
       expect(
         find.text(
           'Modelo A › Día 1 › Bloque 1 "Fuerza" › Sentadilla › Serie 2',
