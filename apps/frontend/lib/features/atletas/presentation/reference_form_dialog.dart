@@ -47,7 +47,18 @@ class ReferenceFormDialog extends StatefulWidget {
   State<ReferenceFormDialog> createState() => _ReferenceFormDialogState();
 }
 
+const _factorHelpText =
+    'Porcentaje por atleta y ejercicio para entrenar sobre un máximo menor al RM testeado.\n'
+    'Ejemplo: con un RM de 100 kg y un factor de 80 %, se entrena como si el máximo fuera 80 kg.\n'
+    'Cada factor se guarda con su fecha. Cuando entra un RM nuevo, vuelve a 100 %.';
+
+const _fixedWeightHelpText =
+    'Peso por atleta y ejercicio para lo que no se carga por porcentaje del RM, como las mancuernas.\n'
+    'Ejemplo: con Curl con mancuernas fijado en 12 kg, el plan le propone 12 kg a ese atleta.\n'
+    'Es un solo valor: si lo volvés a fijar, reemplaza al anterior.';
+
 class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
+  final _help = GlobalKey<TooltipState>();
   final _value = TextEditingController();
   Exercise? _exercise;
   late DateTime _date = widget.today;
@@ -62,6 +73,12 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
     ReferenceKind.fixedWeight => 'Fijar kilaje',
   };
 
+  String? get _helpText => switch (widget.kind) {
+    ReferenceKind.rm => null,
+    ReferenceKind.factor => _factorHelpText,
+    ReferenceKind.fixedWeight => _fixedWeightHelpText,
+  };
+
   String get _valueLabel => widget.kind == ReferenceKind.factor ? '%' : 'kg';
 
   @override
@@ -74,6 +91,7 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
     final chosen = await showExercisePicker(
       context,
       filter: (e) => acceptsReference(widget.kind, e),
+      showCategoryFilter: true,
     );
     if (chosen != null) setState(() => _exercise = chosen);
   }
@@ -118,7 +136,21 @@ class _ReferenceFormDialogState extends State<ReferenceFormDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: Text(_title),
+    title: Row(
+      children: [
+        Flexible(child: Text(_title)),
+        if (_helpText case final help?)
+          Tooltip(
+            key: _help,
+            message: help,
+            child: IconButton(
+              key: const Key('form-help'),
+              icon: const Icon(Icons.info_outline),
+              onPressed: () => _help.currentState?.ensureTooltipVisible(),
+            ),
+          ),
+      ],
+    ),
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,

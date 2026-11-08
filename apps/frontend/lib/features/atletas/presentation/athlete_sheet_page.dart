@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
+import '../../catalogo/presentation/category_filter_chips.dart';
+import '../../catalogo/presentation/exercise_catalog_providers.dart';
+import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../access/presentation/providers.dart';
@@ -11,14 +14,34 @@ import 'athlete_sheet_widgets.dart';
 import 'reference_form_dialog.dart';
 import 'providers.dart';
 
-/// An athlete's references as the coach reads them (E3.5). The coach also gets the forms to record RMs, factors and fixed weights (E3.6).
-class AthleteSheetPage extends ConsumerWidget {
+/// An athlete's references as the coach reads them (E3.5), filterable by category. The coach also
+/// gets the forms to record RMs, factors and fixed weights (E3.6).
+class AthleteSheetPage extends ConsumerStatefulWidget {
   const AthleteSheetPage({super.key, required this.athleteId});
 
   final String athleteId;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<AthleteSheetPage> createState() => _AthleteSheetPageState();
+}
+
+class _AthleteSheetPageState extends ConsumerState<AthleteSheetPage> {
+  String? _categoryId;
+
+  String get athleteId => widget.athleteId;
+
+  /// Exercises of the chosen category; null when every category is shown.
+  Set<String>? _exercisesInCategory() {
+    final categoryId = _categoryId;
+    if (categoryId == null) return null;
+    return {
+      for (final e in ref.watch(catalogExercisesProvider).value ?? const <Exercise>[])
+        if (e.categoryIds.contains(categoryId)) e.id,
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final name = ref
         .watch(athletesProvider)
         .value
@@ -51,6 +74,10 @@ class AthleteSheetPage extends ConsumerWidget {
             sheet: v.$1,
             exerciseNames: v.$2,
             today: today,
+            onlyExerciseIds: _exercisesInCategory(),
+            emptyMessage: _categoryId == null
+                ? 'Este atleta todavía no tiene referencias.'
+                : 'No hay referencias en esta categoría.',
           );
           if (!ref.watch(canEditReferencesProvider)) return view;
           return Column(
@@ -73,12 +100,17 @@ class AthleteSheetPage extends ConsumerWidget {
                     ])
                       OutlinedButton.icon(
                         key: Key('edit-${kind.name}'),
-                        onPressed: () => _openForm(context, ref, kind, today),
+                        onPressed: () => _openForm(kind, today),
                         icon: Icon(icon),
                         label: Text(label),
                       ),
                   ],
                 ),
+              ),
+              const SizedBox(height: Espacio.s),
+              CategoryFilterChips(
+                selectedId: _categoryId,
+                onChanged: (id) => setState(() => _categoryId = id),
               ),
               Expanded(child: view),
             ],
@@ -88,12 +120,7 @@ class AthleteSheetPage extends ConsumerWidget {
     );
   }
 
-  Future<void> _openForm(
-    BuildContext context,
-    WidgetRef ref,
-    ReferenceKind kind,
-    DateTime today,
-  ) async {
+  Future<void> _openForm(ReferenceKind kind, DateTime today) async {
     final clubId = ref.read(meProvider).value?.activeClub?.club.id;
     if (clubId == null) return;
     final repo = ref.read(athleteRepositoryProvider);

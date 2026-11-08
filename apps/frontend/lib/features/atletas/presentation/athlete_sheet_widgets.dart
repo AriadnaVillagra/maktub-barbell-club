@@ -21,9 +21,17 @@ class AthleteSheetView extends StatelessWidget {
     required this.exerciseNames,
     required this.today,
     this.emptyMessage = 'Este atleta todavía no tiene referencias.',
+    this.rmOnly = false,
+    this.onlyExerciseIds,
   });
 
   final AthleteSheet sheet;
+
+  /// When given, only these exercises are shown.
+  final Set<String>? onlyExerciseIds;
+
+  /// Shows only the RMs, for the athlete's own view: factors and fixed weights are the coach's.
+  final bool rmOnly;
 
   /// Shown when there is nothing recorded yet.
   final String emptyMessage;
@@ -34,7 +42,12 @@ class AthleteSheetView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final rows = sheetRows(sheet, today: today)
+    final shown = rmOnly
+        ? AthleteSheet(athleteId: sheet.athleteId, references: sheet.references)
+        : sheet;
+    final only = onlyExerciseIds;
+    final rows = sheetRows(shown, today: today)
+      ..removeWhere((r) => only != null && !only.contains(r.exerciseId))
       ..sort(
         (a, b) =>
             _name(a.exerciseId)
@@ -62,6 +75,7 @@ class AthleteSheetView extends StatelessWidget {
             key: Key('sheet-exercise-${row.exerciseId}'),
             name: _name(row.exerciseId),
             row: row,
+            rmOnly: rmOnly,
           ),
       ],
     );
@@ -76,10 +90,12 @@ class ExerciseReferenceCard extends StatelessWidget {
     super.key,
     required this.name,
     required this.row,
+    this.rmOnly = false,
   });
 
   final String name;
   final ExerciseSheetRow row;
+  final bool rmOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -98,18 +114,20 @@ class ExerciseReferenceCard extends StatelessWidget {
               for (final rm in row.rms)
                 _RmLine(rm: rm, current: identical(rm, row.currentRm)),
             ],
-            Text('Factor de trabajo', style: text.labelLarge),
-            Text(
-              'Vigente: ${_percent(row.factor)}',
-              key: Key('factor-current-${row.exerciseId}'),
-            ),
-            for (final f in row.factors)
+            if (!rmOnly) ...[
+              Text('Factor de trabajo', style: text.labelLarge),
               Text(
-                '${_percent(f.value)} desde ${formatDate(f.date)}',
-                key: Key('factor-${f.id}'),
-                style: text.bodySmall,
+                'Vigente: ${_percent(row.factor)}',
+                key: Key('factor-current-${row.exerciseId}'),
               ),
-            if (row.fixedWeight != null) ...[
+              for (final f in row.factors)
+                Text(
+                  '${_percent(f.value)} desde ${formatDate(f.date)}',
+                  key: Key('factor-${f.id}'),
+                  style: text.bodySmall,
+                ),
+            ],
+            if (!rmOnly && row.fixedWeight != null) ...[
               Text('Kilaje fijo', style: text.labelLarge),
               Text(
                 '${formatKg(row.fixedWeight!.kg)} kg',

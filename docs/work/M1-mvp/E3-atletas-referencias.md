@@ -16,7 +16,7 @@ Lo que el diseño no dice y esta épica fija:
 - **Un RM nuevo no pisa nada.** Se agrega al historial y el factor de ese ejercicio vuelve a 100 %, en el mismo paso. El coach puede volver a bajarlo después.
 - **La vigencia es por fecha**, no por orden de carga. Cargar un RM con fecha pasada no cambia lo que rigió para fechas anteriores a él.
 - **El factor también tiene historial**; no se sobrescribe el valor anterior.
-- **Permisos**: solo el coach escribe. El atleta ve solamente lo suyo (sus RMs, su factor, sus kilajes), nunca los de otro atleta.
+- **Permisos**: solo el coach escribe. El atleta ve solamente sus RMs, nunca los de otro atleta. El factor y los kilajes fijos los ve solo el coach (decidido el 2026-11-08).
 - **Orden**: va después de E2 (los modelos dependen del catálogo) y de E1 (los endpoints necesitan el contexto de club). E4 (reglas de carga) necesita los modelos y la vigencia; E6 (asignación y calendario) necesita el backend de factores y kilajes.
 
 Para modelos, slices y rutas, ver `design.md`, secciones "`maktub_core`" y "Backend: contexto de club y dominio".

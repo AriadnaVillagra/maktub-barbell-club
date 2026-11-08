@@ -39,9 +39,15 @@ class ReadAthleteSheet {
     if (!allowed) {
       throw const ErrorDeSolicitud.noEncontrado('Atleta no encontrado.');
     }
+    // Work factors and fixed weights are the coach's: an athlete only gets their RMs.
+    final seesAll = club.can(Accion.editarReferencias);
     final references = await _store.references(club.clubId, athleteId);
-    final factors = await _store.workFactors(club.clubId, athleteId);
-    final weights = await _store.fixedWeights(club.clubId, athleteId);
+    final factors = seesAll
+        ? await _store.workFactors(club.clubId, athleteId)
+        : const <WorkFactor>[];
+    final weights = seesAll
+        ? await _store.fixedWeights(club.clubId, athleteId)
+        : const <FixedWeight>[];
     return {
       'atletaId': athleteId,
       'referencias': [for (final r in references) r.toJson()],

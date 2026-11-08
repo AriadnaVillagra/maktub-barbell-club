@@ -84,6 +84,58 @@ void main() {
     },
   );
 
+  testWidgets('the coach narrows the sheet to one category', (tester) async {
+    final repo = FakeAthleteRepository(
+      sheets: {
+        'a1': AthleteSheet(
+          athleteId: 'a1',
+          references: [rm('r1', 'sq', 100, DateTime.utc(2026, 1, 1))],
+          fixedWeights: [fixed('curl', 12.5)],
+        ),
+      },
+    );
+    await pumpAthletePage(
+      tester,
+      const AthleteSheetPage(athleteId: 'a1'),
+      repo,
+      exercises: [
+        ex('sq', 'Sentadilla'),
+        ex('curl', 'Curl con mancuernas', categories: const ['accessory']),
+      ],
+    );
+    expect(find.text('Sentadilla'), findsOneWidget);
+    expect(find.text('Curl con mancuernas'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('category-chip-accessory')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sentadilla'), findsNothing);
+    expect(find.text('Curl con mancuernas'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('category-chip-all')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sentadilla'), findsOneWidget);
+  });
+
+  testWidgets('a category with nothing loaded says so', (tester) async {
+    final repo = FakeAthleteRepository(
+      sheets: {
+        'a1': AthleteSheet(
+          athleteId: 'a1',
+          references: [rm('r1', 'sq', 100, DateTime.utc(2026, 1, 1))],
+        ),
+      },
+    );
+    await pumpAthletePage(
+      tester,
+      const AthleteSheetPage(athleteId: 'a1'),
+      repo,
+      exercises: [ex('sq', 'Sentadilla')],
+    );
+    await tester.tap(find.byKey(const Key('category-chip-accessory')));
+    await tester.pumpAndSettle();
+    expect(find.text('No hay referencias en esta categoría.'), findsOneWidget);
+  });
+
   testWidgets('an athlete with nothing loaded shows the empty state', (
     tester,
   ) async {

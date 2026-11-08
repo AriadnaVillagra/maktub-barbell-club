@@ -67,7 +67,9 @@ void main() {
       expect(ms, hasLength(2));
       for (final m in ms) {
         final membresia = Membresia.fromJson(desdeDocumento(m));
-        expect(membresia.roles, {Rol.coach, Rol.atleta, Rol.adminClub});
+        // Club admin only in Maktub: a personal club has no one to administer.
+        final isMaktub = clubes[membresia.clubId]?.tipo == TipoClub.club;
+        expect(membresia.roles, {Rol.coach, Rol.atleta, if (isMaktub) Rol.adminClub});
         expect(membresia.esCoachActivo, isTrue);
       }
     }

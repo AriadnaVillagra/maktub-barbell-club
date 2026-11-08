@@ -23,7 +23,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E0 | [Cerrar F0](E0-cerrar-f0.md) | hecho | 6 / 6 (mergeada a `main`) | — |
 | E1 | [Acceso](E1-acceso.md) | hecho | 14 / 14 (mergeada a `main`; ingreso probado en localhost:5000 y en Pages, R2 ok) | — |
 | E2 | [Catálogo](E2-catalogo.md) | hecho | 10 / 10 (mergeada a `main` y semilla cargada; prueba en producción ok) | — |
-| E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (lista para revisar y mergear a `main`; falta probarla en un navegador real) | — |
+| E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (probada en local; falta mergear a `main`) | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | pendiente | 0 / 6 | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | pendiente | 0 / 9 | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | pendiente | 0 / 6 | — |
@@ -56,6 +56,8 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **Marcas que no son en kilos** (repeticiones máximas en Dominadas; tiempo, velocidad y km máximos en
   Bicicleta): van después de M1, junto con cardio. `diseno.md` solo define marcas de cardio por tiempo o
   distancia. Definir qué marcas tiene cada métrica, en qué unidad y si guardan historial.
+- **Factor y kilaje fijo son del coach.** La API de la ficha no se los manda a un atleta. E7 (sesión)
+  tiene que resolver desde el servidor los kilos del atleta, sin depender de ese endpoint.
 - **Quién lee perfiles.** Decidido: un nivel hacia abajo y nunca hacia arriba; el coach ve a los atletas
   y el atleta solo lo suyo. Falta diseñar qué ven los administradores. Andi y Ari son admin de plataforma,
   y hoy esa marca no da permisos dentro de un club (`permisos.dart`). Como también son coach y atleta en

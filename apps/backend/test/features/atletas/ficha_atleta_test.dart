@@ -165,6 +165,24 @@ void main() {
     expect((await read(r))['referencias'], hasLength(2));
   });
 
+  test('an athlete gets no work factors or fixed weights, even their own', () async {
+    final sheet = await read(await _call(athlete1, seeded(), 'ath-1'));
+    expect(sheet['factores'], isEmpty);
+    expect(sheet['kilajes'], isEmpty);
+  });
+
+  test('a coach who is also the athlete gets the whole sheet', () async {
+    const coachAthlete = ClubContext(
+      clubId: 'club-a',
+      userId: 'user-1',
+      roles: {Rol.coach, Rol.atleta},
+      clubType: TipoClub.club,
+    );
+    final sheet = await read(await _call(coachAthlete, seeded(), 'ath-1'));
+    expect(sheet['factores'], hasLength(1));
+    expect(sheet['kilajes'], hasLength(1));
+  });
+
   test(
     'an athlete asking for another athlete of the club gets a 404 with no data',
     () async {

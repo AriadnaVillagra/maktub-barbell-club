@@ -4,6 +4,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../domain/exercise_picker_rules.dart';
+import 'category_filter_chips.dart';
 import 'providers.dart';
 
 /// Opens the exercise picker in a modal bottom sheet. Resolves to the chosen exercise, or null when
@@ -13,6 +14,7 @@ Future<Exercise?> showExercisePicker(
   String? categoryId,
   List<String> recentIds = const [],
   bool Function(Exercise)? filter,
+  bool showCategoryFilter = false,
 }) => showModalBottomSheet<Exercise>(
   context: context,
   isScrollControlled: true,
@@ -23,6 +25,7 @@ Future<Exercise?> showExercisePicker(
       categoryId: categoryId,
       recentIds: recentIds,
       filter: filter,
+      showCategoryFilter: showCategoryFilter,
       onSelected: (e) => Navigator.of(context).pop(e),
     ),
   ),
@@ -35,6 +38,7 @@ Future<Exercise?> showExercisePicker(
 /// - [recentIds]: ids of the exercises used lately, most recent first. They are listed first, in
 ///   that order, and the rest follow by name. What counts as "recent" is up to the caller.
 /// - [filter]: when given, only the exercises it accepts are offered.
+/// - [showCategoryFilter]: adds category chips so the user can narrow the list.
 /// - [onSelected]: called with the tapped exercise.
 class ExercisePicker extends ConsumerStatefulWidget {
   const ExercisePicker({
@@ -42,12 +46,14 @@ class ExercisePicker extends ConsumerStatefulWidget {
     this.categoryId,
     this.recentIds = const [],
     this.filter,
+    this.showCategoryFilter = false,
     required this.onSelected,
   });
 
   final String? categoryId;
   final List<String> recentIds;
   final bool Function(Exercise)? filter;
+  final bool showCategoryFilter;
   final ValueChanged<Exercise> onSelected;
 
   @override
@@ -56,6 +62,7 @@ class ExercisePicker extends ConsumerStatefulWidget {
 
 class _ExercisePickerState extends ConsumerState<ExercisePicker> {
   String _query = '';
+  String? _chosenCategoryId;
 
   @override
   Widget build(BuildContext context) {
@@ -71,6 +78,11 @@ class _ExercisePickerState extends ConsumerState<ExercisePicker> {
             onChanged: (v) => setState(() => _query = v),
           ),
         ),
+        if (widget.showCategoryFilter)
+          CategoryFilterChips(
+            selectedId: _chosenCategoryId,
+            onChanged: (id) => setState(() => _chosenCategoryId = id),
+          ),
         Expanded(
           child: exercises.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -96,7 +108,7 @@ class _ExercisePickerState extends ConsumerState<ExercisePicker> {
               final shown = pickableExercises(
                 widget.filter == null ? all : all.where(widget.filter!).toList(),
                 clubId: clubId ?? '',
-                categoryId: widget.categoryId,
+                categoryId: _chosenCategoryId ?? widget.categoryId,
                 query: _query,
                 recentIds: widget.recentIds,
               );

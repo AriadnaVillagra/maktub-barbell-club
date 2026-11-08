@@ -7,9 +7,9 @@ import '../domain/athlete_repository.dart';
 import 'athlete_sheet_widgets.dart';
 import 'providers.dart';
 
-/// The athlete's own references (E3.8): current RM with its date, work factor and fixed weight,
-/// for today. Read-only on purpose, even for a user who is also a coach: editing is the coach's
-/// job and happens in the athlete sheet (E3.6).
+/// The athlete's own RMs (E3.8), with the one in force today marked. Work factors and fixed weights
+/// are the coach's, so they don't show here, even for a user who is also a coach; that user sees and
+/// edits them in the athlete sheet (E3.6).
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({super.key});
 
@@ -54,7 +54,8 @@ class _Body extends ConsumerWidget {
         sheet: v.$1,
         exerciseNames: v.$2,
         today: ref.watch(todayProvider),
-        emptyMessage: 'Todavía no tenés referencias cargadas.',
+        emptyMessage: 'Todavía no tenés RMs cargados.',
+        rmOnly: true,
       ),
     );
   }

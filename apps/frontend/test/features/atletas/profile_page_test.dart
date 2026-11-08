@@ -13,7 +13,7 @@ void main() {
   const ids = {'c1': 'a1'};
 
   testWidgets(
-    'shows the own RM with its date, the factor and the fixed weight, with no edit controls',
+    'shows only the own RMs: no factor, no fixed weight and no edit controls',
     (tester) async {
       final repo = FakeAthleteRepository(
         sheets: {
@@ -37,8 +37,10 @@ void main() {
       expect(repo.calls, contains('sheet:c1:a1'));
       expect(find.text('Sentadilla'), findsOneWidget);
       expect(find.byKey(const Key('rm-r2')), findsOneWidget);
-      expect(find.byKey(const Key('factor-current-sq')), findsOneWidget);
-      expect(find.byKey(const Key('fixed-curl')), findsOneWidget);
+      expect(find.byKey(const Key('factor-current-sq')), findsNothing);
+      expect(find.text('Factor de trabajo'), findsNothing);
+      expect(find.byKey(const Key('fixed-curl')), findsNothing);
+      expect(find.text('Curl con mancuernas'), findsNothing);
       expect(find.byKey(const Key('edit-rm')), findsNothing);
       expect(find.byKey(const Key('edit-factor')), findsNothing);
       expect(find.byKey(const Key('edit-fixedWeight')), findsNothing);

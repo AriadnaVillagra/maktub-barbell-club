@@ -121,6 +121,66 @@ void main() {
     expect(find.text('Dominadas'), findsNothing);
   });
 
+  testWidgets('the exercise picker of the forms filters by category', (
+    tester,
+  ) async {
+    final repo = FakeAthleteRepository(
+      sheets: {'a1': const AthleteSheet(athleteId: 'a1')},
+    );
+    await pumpAthletePage(
+      tester,
+      const AthleteSheetPage(athleteId: 'a1'),
+      repo,
+      exercises: [
+        ex('sq', 'Sentadilla'),
+        ex('bench', 'Press banca', categories: const ['accessory']),
+      ],
+    );
+    await tester.tap(find.byKey(const Key('edit-rm')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('form-exercise')));
+    await tester.pumpAndSettle();
+    expect(find.text('Sentadilla'), findsOneWidget);
+    expect(find.text('Press banca'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('category-chip-accessory')).last);
+    await tester.pumpAndSettle();
+    expect(find.text('Sentadilla'), findsNothing);
+    expect(find.text('Press banca'), findsOneWidget);
+  });
+
+  testWidgets('the fixed weight form explains itself too', (tester) async {
+    await open(tester, repoWith());
+    await tester.tap(find.byKey(const Key('edit-fixedWeight')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('form-help')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('no se carga por porcentaje'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('form-exercise')));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('the factor form explains itself with a tap, the RM form does not', (
+    tester,
+  ) async {
+    await open(tester, repoWith());
+    await tester.tap(find.byKey(const Key('edit-rm')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('form-help')), findsNothing);
+    await tester.tap(find.text('Cancelar'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('edit-factor')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('form-help')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('un máximo menor al RM'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('form-exercise')));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('un máximo menor al RM'), findsNothing);
+  });
+
   testWidgets('the fixed weight form only offers fixed-load exercises', (
     tester,
   ) async {

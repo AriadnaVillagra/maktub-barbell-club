@@ -8,6 +8,7 @@ import '../../access/presentation/providers.dart';
 import '../domain/exercise_list_rules.dart';
 import 'catalog_admin_widgets.dart';
 import 'catalog_labels.dart';
+import 'category_filter_chips.dart';
 import 'exercise_catalog_providers.dart';
 import 'providers.dart';
 
@@ -54,27 +55,9 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
               onChanged: (v) => setState(() => _query = v),
             ),
           ),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: Espacio.m),
-            child: Row(
-              spacing: Espacio.s,
-              children: [
-                ChoiceChip(
-                  label: const Text('Todas'),
-                  selected: _categoryId == null,
-                  onSelected: (_) => setState(() => _categoryId = null),
-                ),
-                for (final c in categories.where(
-                  (c) => c.status == CatalogStatus.active,
-                ))
-                  ChoiceChip(
-                    label: Text(c.name),
-                    selected: _categoryId == c.id,
-                    onSelected: (_) => setState(() => _categoryId = c.id),
-                  ),
-              ],
-            ),
+          CategoryFilterChips(
+            selectedId: _categoryId,
+            onChanged: (id) => setState(() => _categoryId = id),
           ),
           if (canEdit)
             SwitchListTile(
