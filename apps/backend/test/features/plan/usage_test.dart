@@ -68,10 +68,15 @@ class _FakeUsageStore implements PlanUsageStore {
   Iterable<Plan> _scoped(String? clubId) =>
       plans.where((p) => clubId == null || p.clubId == clubId);
 
+  List<WeekModel> _models(Plan p) => [
+    ...p.weekModels,
+    ...?p.published?.weekModels,
+  ];
+
   @override
   Future<bool> exerciseInPlans(String? clubId, String exerciseId) async =>
       _scoped(clubId).any(
-        (p) => p.weekModels.any(
+        (p) => _models(p).any(
           (w) => w.days.any(
             (d) => d.blocks.any(
               (b) => b.prescriptions.any((x) => x.exerciseId == exerciseId),
@@ -83,7 +88,7 @@ class _FakeUsageStore implements PlanUsageStore {
   @override
   Future<bool> timerInPlans(String? clubId, String timerId) async =>
       _scoped(clubId).any(
-        (p) => p.weekModels.any(
+        (p) => _models(p).any(
           (w) => w.days.any(
             (d) => d.blocks.any(
               (b) =>
@@ -127,6 +132,35 @@ void _usageCases(
     String id, [
     List<Wod> wods = const [],
   ]) async => PlanTimerUsage(await build(plans, wods)).isUsed(clubId, id);
+
+  Plan onlyPublished(Plan source) => Plan(
+    id: source.id,
+    clubId: source.clubId,
+    name: source.name,
+    auditoria: source.auditoria,
+    published: PublishedPlan(
+      weekModels: source.weekModels,
+      weekAssignment: source.weekAssignment,
+      publishedAt: DateTime.utc(2026, 11, 2),
+      publishedBy: 'coach',
+    ),
+  );
+
+  test('what only the published copy still uses is in use', () async {
+    final plan = onlyPublished(
+      _plan(
+        'p1',
+        'a',
+        exerciseId: 'e1',
+        blockTimer: 't1',
+        prescriptionTimer: 't2',
+      ),
+    );
+    expect(await exercise([plan], 'a', 'e1'), isTrue);
+    expect(await timer([plan], 'a', 't1'), isTrue);
+    expect(await timer([plan], 'a', 't2'), isTrue);
+    expect(await exercise([plan], 'b', 'e1'), isFalse);
+  });
 
   test('an exercise in a prescription of a club plan is in use', () async {
     expect(

@@ -17,6 +17,7 @@ abstract interface class PlanUsageStore {
   Future<bool> timerInWods(String? clubId, String timerId);
 }
 
+const _published = 'publicado.';
 const _blocks = 'modelosSemana.dias.bloques';
 const _exercisePath = '$_blocks.prescripciones.ejercicioId';
 const _blockTimerPath = '$_blocks.temporizadorId';
@@ -43,9 +44,16 @@ class MongoPlanUsageStore implements PlanUsageStore {
     return doc != null;
   }
 
+  // A plan counts by its draft and by its published copy: athletes train the published one even when
+  // the draft has already dropped an exercise.
   @override
   Future<bool> exerciseInPlans(String? clubId, String exerciseId) =>
-      _any(Colecciones.planes, clubId, {_exercisePath: exerciseId});
+      _any(Colecciones.planes, clubId, {
+        r'$or': [
+          {_exercisePath: exerciseId},
+          {'$_published$_exercisePath': exerciseId},
+        ],
+      });
 
   @override
   Future<bool> timerInPlans(String? clubId, String timerId) =>
@@ -53,6 +61,8 @@ class MongoPlanUsageStore implements PlanUsageStore {
         r'$or': [
           {_blockTimerPath: timerId},
           {_prescriptionTimerPath: timerId},
+          {'$_published$_blockTimerPath': timerId},
+          {'$_published$_prescriptionTimerPath': timerId},
         ],
       });
 

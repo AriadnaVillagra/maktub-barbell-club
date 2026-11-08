@@ -149,6 +149,9 @@ Future<void> asegurarIndices(Db db) async {
     ('club_uso_ejercicio', '$blocks.prescripciones.ejercicioId'),
     ('club_uso_temporizador_bloque', '$blocks.temporizadorId'),
     ('club_uso_temporizador_prescripcion', '$blocks.prescripciones.temporizadorId'),
+    ('club_uso_publicado_ejercicio', 'publicado.$blocks.prescripciones.ejercicioId'),
+    ('club_uso_publicado_temporizador_bloque', 'publicado.$blocks.temporizadorId'),
+    ('club_uso_publicado_temporizador_prescripcion', 'publicado.$blocks.prescripciones.temporizadorId'),
   ]) {
     await db.collection(Colecciones.planes).createIndex(keys: {'clubId': 1, path: 1}, name: name);
   }
