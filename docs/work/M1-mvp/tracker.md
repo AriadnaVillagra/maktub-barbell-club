@@ -25,8 +25,8 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E2 | [Catálogo](E2-catalogo.md) | hecho | 10 / 10 (mergeada a `main` y semilla cargada; prueba en producción ok) | — |
 | E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (probada y revisada; falta mergear a `main`) | — |
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | en curso | 6 / 6 (revisada; falta mergear a `main`) | — |
-| E5 | [Editor de plan](E5-editor-de-plan.md) | en curso | 13 / 13 (probada en local; falta mergear a `main`) | — |
-| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | pendiente | 0 / 6 | — |
+| E5 | [Editor de plan](E5-editor-de-plan.md) | en curso | 15 / 15 (falta probar Publicar y mergear a `main`) | — |
+| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | en curso | 3 / 6 (E6.1 a E6.3 hechos; siguen E6.4 y E6.5) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | pendiente | 0 / 13 | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
@@ -48,12 +48,14 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **`diseno.md` quedó atrás** en C1 (ejercicios base) y en Equipo (S3 de F2). Se actualiza desde su sesión.
 - **E5 (editor de plan):** la barra se indica por ejercicio, y la prescripción la puede pisar con una barra opcional (decidido el 2026-11-08). El control va en el editor (E5.7 o E5.8), y E4/E7 tienen que usar esa barra al calcular.
 - **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja. El temporizador base `Cronómetro` (for time sin tope, agregado el 2026-11-08) depende de esto: tiene que contar hacia arriba y dejar registrado el tiempo final del WoD.
+- **Alta (E6.2):** el grupo de Andi y Ari lo crea `tool/alta.dart`; hay que volver a correrlo en local y en producción (es idempotente).
 - **Semilla:** `Cronómetro` es nuevo en la lista base; en producción hay que volver a correr `tool/semilla.dart` (no pisa lo existente).
 
 ## Para E6 (decidido el 2026-11-08)
 
-Un plan sin terminar se puede guardar. Por eso **E6.3 tiene que rechazar la asignación de un plan con
-problemas de `validatePlan`**, y definir qué pasa si se edita un plan ya asignado y queda incompleto.
+Guardar deja un borrador, y publicar (E5.14) exige el plan completo. **E6.3 solo asigna un plan publicado.**
+Editar un plan asignado no afecta a los atletas hasta volver a publicar: **E6 y E7 leen siempre la versión
+publicada**, nunca el borrador.
 
 ## Para E8.2 (decidido el 2026-11-08)
 

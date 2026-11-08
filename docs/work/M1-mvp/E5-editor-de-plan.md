@@ -58,6 +58,8 @@ Orden: después de la E2 (5.1 necesita 2.1; 5.4 necesita 2.6) y de la E1 (5.2 ne
 | E5.11 | [Backend: biblioteca de WoDs del club](E5.11-backend-wods.md) | E5.10, E1.10, E1.11 |
 | E5.12 | [App: sección WoDs en Preferencias](E5.12-app-wods-preferencias.md) | E5.11, E5.8 |
 | E5.13 | [App: agregar un WoD de la biblioteca a un bloque](E5.13-app-agregar-wod-a-bloque.md) | E5.12 |
+| E5.14 | [Modelo y backend: publicar un plan](E5.14-publicar-plan-backend.md) | E5.3 |
+| E5.15 | [App: botón Publicar en el editor de plan](E5.15-publicar-plan-app.md) | E5.14, E5.9 |
 
 E5.10 a E5.13 se agregaron el 2026-11-08, tras la prueba del editor: el coach arma WoDs reutilizables en Preferencias. Van en orden.
 
