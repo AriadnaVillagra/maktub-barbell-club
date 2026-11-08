@@ -15,6 +15,7 @@ export 'src/modelos/temporizador.dart';
 export 'src/modelos/usuario.dart';
 export 'src/models/issued_session.dart';
 export 'src/reglas/catalogo.dart';
+export 'src/reglas/daily_adjustment.dart';
 export 'src/reglas/ciclo.dart';
 export 'src/reglas/equipo.dart';
 export 'src/reglas/fases.dart';
