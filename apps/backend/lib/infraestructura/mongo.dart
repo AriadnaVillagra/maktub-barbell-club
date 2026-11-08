@@ -51,6 +51,12 @@ abstract final class Colecciones {
 
   /// Assignments of a plan to a group (E6.3): one document per assignment, ended ones are kept.
   static const asignaciones = 'asignaciones';
+
+  /// Sessions (E7.3): one per (`clubId`, `asignacionId`, `fecha`, `semana`, `dia`).
+  static const sesiones = 'sesiones';
+
+  /// Per-set records (E7.3): one per (`clubId`, `sesionId`, `atletaId`, `bloque`, `prescripcion`, `serie`).
+  static const registros = 'registros';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -164,7 +170,57 @@ Future<void> asegurarIndices(Db db) async {
   ]) {
     await db.collection(Colecciones.wods).createIndex(keys: {'clubId': 1, path: 1}, name: name);
   }
+
+  // The keys of the atomic upserts of a session and of a set record (D15, diseno "Multi-dispositivo").
+  await db
+      .collection(Colecciones.sesiones)
+      .createIndex(
+        keys: {'clubId': 1, 'asignacionId': 1, 'fecha': 1, 'semana': 1, 'dia': 1},
+        name: 'club_asignacion_fecha_semana_dia_unico',
+        unique: true,
+      );
+  await db
+      .collection(Colecciones.registros)
+      .createIndex(
+        keys: {
+          'clubId': 1,
+          'sesionId': 1,
+          'atletaId': 1,
+          'bloque': 1,
+          'prescripcion': 1,
+          'serie': 1,
+        },
+        name: 'club_sesion_atleta_posicion_unico',
+        unique: true,
+      );
 }
+
+/// Atomically applies [update] to the document [filter] matches, inserting it if there is none, and returns the
+/// document as it ended up. [filter] must be exactly the fields of a unique index: under concurrency one of the
+/// inserts can lose the race with a duplicate key error, and retrying then finds and updates the winner's
+/// document, so no write is lost and the key never repeats.
+Future<Map<String, dynamic>> upsertByUniqueKey(
+  DbCollection collection,
+  Map<String, dynamic> filter,
+  Map<String, dynamic> update,
+) async {
+  const attempts = 5;
+  for (var attempt = 1; ; attempt++) {
+    final result = await collection.modernFindAndModify(
+      query: filter,
+      update: update,
+      upsert: true,
+      returnNew: true,
+    );
+    final doc = result.value;
+    if (result.success && doc != null) return doc;
+    if (result.code != _duplicateKey || attempt == attempts) {
+      throw StateError('Upsert failed on ${collection.collectionName}: ${result.errmsg}');
+    }
+  }
+}
+
+const _duplicateKey = 11000;
 
 /// Documento de Mongo (`_id`) → JSON del dominio (`id`).
 Json desdeDocumento(Map<String, dynamic> doc) {

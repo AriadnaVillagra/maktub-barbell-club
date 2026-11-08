@@ -48,6 +48,7 @@ class LoadProposal {
 /// missing: it does NOT fall back to the fixed weight, as in the old app). Otherwise it is [fixedKg]
 /// exactly as loaded; rounding it to the nearest loadable is a pending decision.
 /// [pct] is taken as is: normalize a spreadsheet-style value with `normalizarPct` first.
+/// [barKg] is the bar the RM-based weight is rounded on (null: the default bar).
 LoadProposal proposeLoad({
   required bool hasReference,
   required double? pct,
@@ -55,6 +56,7 @@ LoadProposal proposeLoad({
   required double? fixedKg,
   required Equipo equipo,
   double workFactor = 100,
+  double? barKg,
 }) {
   if (hasReference && pct != null && pct > 0) {
     return LoadProposal(
@@ -64,6 +66,7 @@ LoadProposal proposeLoad({
         pct: pct,
         equipo: equipo,
         workFactor: workFactor,
+        barKg: barKg,
       ),
     );
   }

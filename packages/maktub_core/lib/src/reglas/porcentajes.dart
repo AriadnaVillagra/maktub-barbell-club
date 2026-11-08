@@ -26,15 +26,17 @@ double pctEfectivo(double pctPlan, int ajuste) => (pctPlan * ajuste).round() / 1
 /// [workFactor] is the athlete's work factor for the exercise as a percent (80 = 80 %), already
 /// resolved (see `currentWorkFactor`). The target is `rm × workFactor × pct`, rounded to the nearest
 /// loadable weight of [equipo]. 100 is neutral and gives exactly `rm × pct`. Inputs are not modified.
+/// [barKg] is the bar it is loaded on (see [Equipo.masCercano]); null uses the default bar.
 double? pesoPorPorcentaje({
   required double? rm,
   required double pct,
   required Equipo equipo,
   double workFactor = 100,
+  double? barKg,
 }) {
   if (rm == null || rm <= 0) return null;
   final base = workFactor == 100 ? rm : rm * workFactor / 100;
-  return equipo.masCercano(base * pct / 100);
+  return equipo.masCercano(base * pct / 100, barKg: barKg);
 }
 
 /// % a registrar cuando el atleta escribió el kilaje a mano: sale del peso,
