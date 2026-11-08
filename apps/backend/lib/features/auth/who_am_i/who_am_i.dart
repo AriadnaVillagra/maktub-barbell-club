@@ -8,19 +8,22 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'who_am_i_store.dart';
 
-/// `GET /me` (needs `requireUser`) → `{usuario, clubPersonal, clubes: [{club, roles}], esAdminPlataforma}`.
+/// `GET /me` (needs `requireUser`) → `{usuario, clubPersonal, clubes: [{club, roles, atletaId}], esAdminPlataforma}`.
 Future<Response> whoAmIEndpoint(RequestContext context) async {
   final me = await WhoAmI(MongoWhoAmIStore(context.read<Db>()))(context.read<CurrentUser>().userId);
   return Response.json(body: me.toJson());
 }
 
 class ClubAccess {
-  const ClubAccess({required this.club, required this.roles});
+  const ClubAccess({required this.club, required this.roles, this.atletaId});
 
   final Club club;
   final Set<Rol> roles;
 
-  Json toJson() => {'club': club.toJson(), 'roles': rolesACable(roles)};
+  /// The user's `Atleta` id in this club, or null if they have none.
+  final String? atletaId;
+
+  Json toJson() => {'club': club.toJson(), 'roles': rolesACable(roles), 'atletaId': atletaId};
 }
 
 class Me {
@@ -54,13 +57,14 @@ class WhoAmI {
     final memberships = (await _store.activeMemberships(userId)).where((m) => m.activa).toList();
     final clubIds = {...memberships.map((m) => m.clubId), user.clubPersonalId};
     final byId = {for (final c in await _store.clubsByIds(clubIds)) c.id: c};
+    final athleteIds = await _store.athleteIdsByClub(userId, {for (final m in memberships) m.clubId});
 
     return Me(
       user: user,
       personalClub: byId[user.clubPersonalId],
       clubs: [
         for (final m in memberships)
-          if (byId[m.clubId] != null) ClubAccess(club: byId[m.clubId]!, roles: m.roles),
+          if (byId[m.clubId] != null) ClubAccess(club: byId[m.clubId]!, roles: m.roles, atletaId: athleteIds[m.clubId]),
       ]..sort((a, b) => a.club.nombre.compareTo(b.club.nombre)),
     );
   }
