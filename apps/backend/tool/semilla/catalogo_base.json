@@ -2686,6 +2686,15 @@
    "descansoSeg": 0,
    "rondas": 20,
    "origen": "general"
+  },
+  {
+   "id": "cronometro",
+   "nombre": "Cronómetro",
+   "tipo": "for_time",
+   "trabajoSeg": 0,
+   "descansoSeg": 0,
+   "rondas": 1,
+   "origen": "general"
   }
  ]
 }
