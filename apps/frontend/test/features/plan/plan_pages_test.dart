@@ -823,5 +823,29 @@ void main() {
         expect(find.text('Sesión de hoy'), findsOneWidget);
       },
     );
+
+    testWidgets('a coach reaches the WoD library from Preferencias', (
+      tester,
+    ) async {
+      await mount(tester, {Rol.coach});
+      await tester.tap(find.text('Preferencias'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('preferencia-${Rutas.wods}')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('wods-empty')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('wod-add')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('wod-name-field')), findsOneWidget);
+    });
+
+    testWidgets('who cannot plan does not see WoDs in Preferencias', (
+      tester,
+    ) async {
+      await mount(tester, {Rol.adminClub});
+      await tester.tap(find.text('Preferencias'));
+      await tester.pumpAndSettle();
+      expect(find.text('Miembros'), findsOneWidget);
+      expect(find.text('WoDs'), findsNothing);
+    });
   });
 }

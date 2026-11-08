@@ -10,14 +10,20 @@ import 'plan_labels.dart';
 
 /// Edits a prescription: its sets one by one (reps always; `%` if the exercise is loaded by % of RM; kg
 /// if it has a fixed load), the note, its own timer and the bar override. Returns the edited prescription,
-/// or null if cancelled. Nothing is validated here (E5.9 does it when saving).
+/// or null if cancelled. Nothing is validated here (E5.9 does it when saving). [inheritedTimerLabel] names
+/// what an empty timer means: the block's timer in a plan, the WoD's in the library.
 Future<Prescription?> askPrescription(
   BuildContext context, {
   required Prescription initial,
   required Exercise? exercise,
+  String inheritedTimerLabel = 'El del bloque',
 }) => showDialog<Prescription>(
   context: context,
-  builder: (_) => _PrescriptionDialog(initial: initial, exercise: exercise),
+  builder: (_) => _PrescriptionDialog(
+    initial: initial,
+    exercise: exercise,
+    inheritedTimerLabel: inheritedTimerLabel,
+  ),
 );
 
 final _decimalText = RegExp(r'^\d*[.,]?\d*$');
@@ -31,10 +37,15 @@ final _decimalFormatter = TextInputFormatter.withFunction(
 );
 
 class _PrescriptionDialog extends ConsumerStatefulWidget {
-  const _PrescriptionDialog({required this.initial, required this.exercise});
+  const _PrescriptionDialog({
+    required this.initial,
+    required this.exercise,
+    required this.inheritedTimerLabel,
+  });
 
   final Prescription initial;
   final Exercise? exercise;
+  final String inheritedTimerLabel;
 
   @override
   ConsumerState<_PrescriptionDialog> createState() =>
@@ -208,9 +219,9 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                 isExpanded: true,
                 decoration: const InputDecoration(labelText: 'Temporizador'),
                 items: [
-                  const DropdownMenuItem<String?>(
+                  DropdownMenuItem<String?>(
                     value: null,
-                    child: Text('El del bloque'),
+                    child: Text(widget.inheritedTimerLabel),
                   ),
                   for (final t in timerItems)
                     DropdownMenuItem<String?>(
@@ -233,7 +244,8 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                   helperText: switch (exerciseBar) {
                     null => 'Vacío: la del ejercicio',
                     noBarKg => 'Vacío: el ejercicio va sin barra',
-                    final kg => 'Vacío: la del ejercicio (${formatNumber(kg)} kg)',
+                    final kg =>
+                      'Vacío: la del ejercicio (${formatNumber(kg)} kg)',
                   },
                 ),
                 onChanged: (t) => _bar = t,

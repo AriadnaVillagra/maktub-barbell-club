@@ -13,6 +13,8 @@ import '../features/catalogo/presentation/categories_page.dart';
 import '../features/catalogo/presentation/team_page.dart';
 import '../features/catalogo/presentation/timers_page.dart';
 import '../features/plan/presentation/plan_editor_page.dart';
+import '../features/wods/presentation/wod_editor_page.dart';
+import '../features/wods/presentation/wods_page.dart';
 import '../features/plan/presentation/plans_page.dart';
 import '../features/members/presentation/members_page.dart';
 import '../features/session/domain/session_manager.dart';
@@ -39,6 +41,7 @@ abstract final class Rutas {
   static const catalogo = '$preferencias/catalogo';
   static const categorias = '$preferencias/categorias';
   static const temporizadores = '$preferencias/temporizadores';
+  static const wods = '$preferencias/wods';
   static const equipo = '$preferencias/equipo';
   static const miembros = '$preferencias/miembros';
 
@@ -130,6 +133,19 @@ final routerProvider = Provider<GoRouter>((ref) {
                 exerciseCatalogRoute(),
                 GoRoute(path: 'categorias', builder: (_, _) => const CategoriesPage()),
                 GoRoute(path: 'temporizadores', builder: (_, _) => const TimersPage()),
+                GoRoute(
+                  path: 'wods',
+                  builder: (_, _) => const WodsPage(basePath: Rutas.wods),
+                  routes: [
+                    // Declared before ':id' so "nuevo" is not read as an id.
+                    GoRoute(path: 'nuevo', builder: (_, _) => const WodEditorPage(listPath: Rutas.wods)),
+                    GoRoute(
+                      path: ':id',
+                      builder: (_, state) =>
+                          WodEditorPage(wodId: state.pathParameters['id']!, listPath: Rutas.wods),
+                    ),
+                  ],
+                ),
                 GoRoute(path: 'equipo', builder: (_, _) => const TeamPage()),
                 GoRoute(path: 'miembros', builder: (_, _) => const MembersPage()),
               ],

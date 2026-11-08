@@ -9,10 +9,12 @@ import 'package:maktub_frontend/features/plan/domain/plan_repository.dart';
 import 'package:maktub_frontend/features/plan/presentation/providers.dart';
 import 'package:maktub_frontend/features/session/domain/session_manager.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
+import 'package:maktub_frontend/features/wods/presentation/providers.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../access/fakes.dart';
 import '../catalogo/catalog_admin_fakes.dart';
+import '../wods/fakes.dart';
 
 Plan samplePlan({
   String id = 'p1',
@@ -122,6 +124,7 @@ List<Override> planOverrides(
   FakePlanRepository repo, {
   Set<Rol> roles = const {Rol.coach},
   FakeCatalogAdminRepository? catalog,
+  FakeWodRepository? wods,
 }) => [
   catalogRepositoryProvider.overrideWithValue(
     catalog ?? FakeCatalogAdminRepository(),
@@ -134,6 +137,7 @@ List<Override> planOverrides(
     FakeMeRepository(meWith([(club('c1', 'Gimnasio', TipoClub.club), roles)])),
   ),
   planRepositoryProvider.overrideWithValue(repo),
+  wodRepositoryProvider.overrideWithValue(wods ?? FakeWodRepository()),
 ];
 
 Future<void> pumpPlanPage(
@@ -141,13 +145,14 @@ Future<void> pumpPlanPage(
   Widget page,
   FakePlanRepository repo, {
   FakeCatalogAdminRepository? catalog,
+  FakeWodRepository? wods,
 }) async {
   tester.view.physicalSize = const Size(900, 1800);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: planOverrides(repo, catalog: catalog),
+      overrides: planOverrides(repo, catalog: catalog, wods: wods),
       child: MaterialApp(theme: TemaMaktub.claro(), home: page),
     ),
   );

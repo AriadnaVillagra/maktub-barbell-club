@@ -52,6 +52,7 @@ class PaginaPreferencias extends ConsumerWidget {
               (Icons.list_alt, 'Ejercicios', Rutas.catalogo),
               (Icons.fitness_center, 'Categorías', Rutas.categorias),
               (Icons.timer_outlined, 'Temporizadores', Rutas.temporizadores),
+              if (ref.watch(canPlanProvider) ?? false) (Icons.local_fire_department_outlined, 'WoDs', Rutas.wods),
               (Icons.inventory_2_outlined, 'Equipo', Rutas.equipo),
               if (ref.watch(canManageMembersProvider)) (Icons.group_outlined, 'Miembros', Rutas.miembros),
             ])
