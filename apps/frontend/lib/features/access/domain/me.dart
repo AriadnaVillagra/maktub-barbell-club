@@ -70,6 +70,9 @@ class Me {
   /// Whether the user can create and change what belongs to the active club.
   bool get canEditClubCatalog => activeClub?.can(Accion.editarCatalogoClub) ?? false;
 
+  /// Whether the user can write athletes' references, factors and fixed weights (coach only).
+  bool get canEditReferences => activeClub?.can(Accion.editarReferencias) ?? false;
+
   bool get canManageMembers => activeClub?.can(Accion.gestionarMiembros) ?? false;
 
   /// Whether the Preferences tab (catalog, timers, equipment, members) is available.

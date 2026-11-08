@@ -42,6 +42,8 @@ final canConfigureProvider = Provider<bool?>((ref) {
 /// Whether the user can create and change what belongs to the active club.
 final canEditClubCatalogProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canEditClubCatalog ?? false);
 
+final canEditReferencesProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canEditReferences ?? false);
+
 final canManageMembersProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canManageMembers ?? false);
 
 /// Whether the user can change a given catalog item (see [Me.canWriteCatalog]).

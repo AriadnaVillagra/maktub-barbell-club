@@ -53,4 +53,30 @@ abstract interface class AthleteRepository {
 
   /// Throws `ErrorDeApi` with the backend's message when the sheet is missing or not allowed.
   Future<AthleteSheet> sheet(String clubId, String athleteId);
+
+  /// Records a new RM. It does not touch the work factor. Coach only.
+  Future<void> addReference(
+    String clubId,
+    String athleteId, {
+    required String exerciseId,
+    required double value,
+    required DateTime date,
+  });
+
+  /// Records a new work factor (a percent) from [date]; the earlier ones stay as history.
+  Future<void> addFactor(
+    String clubId,
+    String athleteId, {
+    required String exerciseId,
+    required double percent,
+    required DateTime date,
+  });
+
+  /// Sets the single fixed weight of the exercise, replacing the previous one.
+  Future<void> setFixedWeight(
+    String clubId,
+    String athleteId, {
+    required String exerciseId,
+    required double kg,
+  });
 }

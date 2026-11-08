@@ -62,12 +62,16 @@ FixedWeight fixed(String exerciseId, double kg) => FixedWeight(
 class FakeAthleteRepository implements AthleteRepository {
   FakeAthleteRepository({
     this.athletesList = const [],
-    this.sheets = const {},
+    Map<String, AthleteSheet> sheets = const {},
     this.failure,
-  });
+    this.writeFailure,
+  }) : sheets = {...sheets};
 
   final List<AthleteSummary> athletesList;
   final Map<String, AthleteSheet> sheets;
+
+  /// Thrown by the write methods when set.
+  final Object? writeFailure;
   final Object? failure;
   final calls = <String>[];
 
@@ -84,6 +88,68 @@ class FakeAthleteRepository implements AthleteRepository {
     if (failure != null) throw failure!;
     return sheets[athleteId] ?? (throw StateError('no sheet $athleteId'));
   }
+
+  @override
+  Future<void> addReference(
+    String clubId,
+    String athleteId, {
+    required String exerciseId,
+    required double value,
+    required DateTime date,
+  }) async => _write(
+    'rm:$exerciseId:$value:${aIsoFecha(date)}',
+    (s) => AthleteSheet(
+      athleteId: s.athleteId,
+      references: [...s.references, rm('new', exerciseId, value, date)],
+      factors: s.factors,
+      fixedWeights: s.fixedWeights,
+    ),
+  );
+
+  @override
+  Future<void> addFactor(
+    String clubId,
+    String athleteId, {
+    required String exerciseId,
+    required double percent,
+    required DateTime date,
+  }) async => _write(
+    'factor:$exerciseId:$percent:${aIsoFecha(date)}',
+    (s) => AthleteSheet(
+      athleteId: s.athleteId,
+      references: s.references,
+      factors: [...s.factors, factor('new', exerciseId, percent, date)],
+      fixedWeights: s.fixedWeights,
+    ),
+  );
+
+  @override
+  Future<void> setFixedWeight(
+    String clubId,
+    String athleteId, {
+    required String exerciseId,
+    required double kg,
+  }) async => _write(
+    'fixed:$exerciseId:$kg',
+    (s) => AthleteSheet(
+      athleteId: s.athleteId,
+      references: s.references,
+      factors: s.factors,
+      fixedWeights: [
+        for (final f in s.fixedWeights)
+          if (f.exerciseId != exerciseId) f,
+        fixed(exerciseId, kg),
+      ],
+    ),
+  );
+}
+
+extension on FakeAthleteRepository {
+  void _write(String call, AthleteSheet Function(AthleteSheet) change) {
+    calls.add(call);
+    if (writeFailure != null) throw writeFailure!;
+    sheets['a1'] = change(sheets['a1']!);
+  }
 }
 
 class _SignedIn extends SessionController {
@@ -98,6 +164,7 @@ Future<void> pumpAthletePage(
   FakeAthleteRepository repo, {
   List<Exercise> exercises = const [],
   bool settle = true,
+  Set<Rol> roles = const {Rol.coach},
 }) async {
   tester.view.physicalSize = const Size(900, 1600);
   tester.view.devicePixelRatio = 1;
@@ -109,7 +176,7 @@ Future<void> pumpAthletePage(
         meRepositoryProvider.overrideWithValue(
           FakeMeRepository(
             meWith([
-              (club('c1', 'Gimnasio', TipoClub.club), {Rol.coach}),
+              (club('c1', 'Gimnasio', TipoClub.club), roles),
             ]),
           ),
         ),
