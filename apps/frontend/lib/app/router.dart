@@ -12,6 +12,8 @@ import '../features/catalogo/presentation/catalog_routes.dart';
 import '../features/catalogo/presentation/categories_page.dart';
 import '../features/catalogo/presentation/team_page.dart';
 import '../features/catalogo/presentation/timers_page.dart';
+import '../features/plan/presentation/plan_editor_page.dart';
+import '../features/plan/presentation/plans_page.dart';
 import '../features/members/presentation/members_page.dart';
 import '../features/session/domain/session_manager.dart';
 import '../features/session/presentation/providers.dart';
@@ -28,6 +30,9 @@ abstract final class Rutas {
 
   /// The coach's athlete list; each athlete's sheet is `<atletas>/<athleteId>`.
   static const atletas = '$planificacion/atletas';
+
+  /// The coach's plan list; a plan's editor is `<planes>/<planId>`.
+  static const planes = '$planificacion/planes';
 
   /// What configures the club rather than a plan: catalog, timers, equipment and members.
   static const preferencias = '/preferencias';
@@ -100,6 +105,17 @@ final routerProvider = Provider<GoRouter>((ref) {
                     GoRoute(
                       path: ':id',
                       builder: (_, state) => AthleteSheetPage(athleteId: state.pathParameters['id']!),
+                    ),
+                  ],
+                ),
+                GoRoute(
+                  path: 'planes',
+                  builder: (_, _) => const PlansPage(basePath: Rutas.planes),
+                  routes: [
+                    GoRoute(
+                      path: ':id',
+                      builder: (_, state) =>
+                          PlanEditorPage(planId: state.pathParameters['id']!, listPath: Rutas.planes),
                     ),
                   ],
                 ),
