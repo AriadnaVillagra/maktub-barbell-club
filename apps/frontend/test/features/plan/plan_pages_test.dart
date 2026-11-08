@@ -624,6 +624,176 @@ void main() {
     });
   });
 
+  group('editing a prescription', () {
+    final squat = ex('squat', 'Sentadilla', categories: ['primario']);
+    final curl = ex(
+      'curl',
+      'Curl',
+      categories: ['primario'],
+      metrics: const [Metric.fixedLoad, Metric.reps],
+    );
+
+    Future<void> open(WidgetTester tester) => pumpPlanPage(
+      tester,
+      const PlanEditorPage(planId: 'p1', listPath: '/x'),
+      FakePlanRepository(
+        plans: [
+          samplePlan(
+            models: [
+              WeekModel(
+                id: 'a',
+                name: 'A',
+                days: [
+                  PlanDay(
+                    blocks: [
+                      PlanBlock(
+                        name: 'Bloque',
+                        categoryId: 'primario',
+                        prescriptions: const [
+                          Prescription(
+                            exerciseId: 'squat',
+                            sets: [
+                              PlanSet(reps: 8, pct: 65),
+                              PlanSet(reps: 5, pct: 72.5),
+                            ],
+                          ),
+                          Prescription(
+                            exerciseId: 'curl',
+                            sets: [PlanSet(reps: 10, kg: 12.5)],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+            assignment: ['a', 'a', 'a', 'a'],
+          ),
+        ],
+      ),
+      catalog: FakeCatalogAdminRepository(
+        categoriesList: [category('primario', 'Primario')],
+        timersList: [
+          timer('desc_180', 'Descanso 3 min', work: 180),
+          timer('desc_90', 'Descanso 90 s', work: 90),
+        ],
+        exercisesList: [squat, curl],
+      ),
+    );
+
+    Future<void> openFirst(WidgetTester tester, [int p = 0]) async {
+      await open(tester);
+      await tester.tap(find.byKey(Key('prescription-a-0-0-$p')));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> accept(WidgetTester tester) async {
+      await tester.tap(find.byKey(const Key('prescription-ok')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('percent exercise shows reps and %, and edits each set', (
+      tester,
+    ) async {
+      await openFirst(tester);
+      expect(find.byKey(const Key('set-row-1')), findsOneWidget);
+      expect(find.byKey(const Key('set-kg-0-0')), findsNothing);
+      await tester.enterText(find.byKey(const ValueKey('set-reps-0-0')), '6');
+      await tester.enterText(find.byKey(const ValueKey('set-pct-1-0')), '75,5');
+      await accept(tester);
+      expect(find.text('6 × 65 %, 5 × 75,5 %'), findsOneWidget);
+      expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
+    });
+
+    testWidgets('fixed-load exercise shows reps and kg, no %', (tester) async {
+      await openFirst(tester, 1);
+      expect(find.byKey(const ValueKey('set-kg-0-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('set-pct-0-0')), findsNothing);
+      await tester.enterText(find.byKey(const ValueKey('set-kg-0-0')), '15');
+      await accept(tester);
+      await tester.tap(find.byKey(const Key('prescription-a-0-0-1')));
+      await tester.pumpAndSettle();
+      expect(find.text('15'), findsOneWidget);
+    });
+
+    testWidgets('numeric fields do not accept letters', (tester) async {
+      await openFirst(tester);
+      await tester.enterText(find.byKey(const ValueKey('set-reps-0-0')), '1a2');
+      await tester.enterText(find.byKey(const ValueKey('set-pct-0-0')), '7x0,5');
+      await tester.enterText(find.byKey(const Key('prescription-bar-field')), '1b5');
+      await tester.pump();
+      expect(find.text('12'), findsOneWidget);
+      expect(find.text('70,5'), findsNothing);
+      expect(find.textContaining('x'), findsNothing);
+      await accept(tester);
+      expect(find.textContaining('12 × '), findsOneWidget);
+    });
+
+    testWidgets('adding a set copies the previous one; removing keeps one', (
+      tester,
+    ) async {
+      await openFirst(tester);
+      await tester.tap(find.byKey(const Key('set-add')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('set-row-2')), findsOneWidget);
+      await accept(tester);
+      expect(find.text('8 × 65 %, 5 × 72,5 %, 5 × 72,5 %'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('prescription-a-0-0-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('set-remove-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('set-remove-0')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('set-row-1')), findsNothing);
+      final last = tester.widget<IconButton>(find.byKey(const Key('set-remove-0')));
+      expect(last.onPressed, isNull);
+      await accept(tester);
+      expect(find.text('5 × 72,5 %'), findsOneWidget);
+    });
+
+    testWidgets('note, own timer and bar are stored; empty timer uses the block', (
+      tester,
+    ) async {
+      await openFirst(tester);
+      await tester.enterText(
+        find.byKey(const Key('prescription-note-field')),
+        'RPE 8',
+      );
+      await tester.enterText(find.byKey(const Key('prescription-bar-field')), '15,5');
+      await tester.tap(find.byKey(const Key('prescription-timer-field')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Descanso 90 s').last);
+      await tester.pumpAndSettle();
+      await accept(tester);
+      expect(
+        find.text('8 × 65 %, 5 × 72,5 % · Temporizador: Descanso 90 s · Barra: 15,5 kg · RPE 8'),
+        findsOneWidget,
+      );
+
+      await tester.tap(find.byKey(const Key('prescription-a-0-0-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('prescription-timer-field')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('El del bloque').last);
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('prescription-bar-field')), '');
+      await tester.enterText(find.byKey(const Key('prescription-note-field')), '');
+      await accept(tester);
+      expect(find.text('8 × 65 %, 5 × 72,5 %'), findsOneWidget);
+    });
+
+    testWidgets('cancelling changes nothing', (tester) async {
+      await openFirst(tester);
+      await tester.enterText(find.byKey(const ValueKey('set-reps-0-0')), '1');
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(find.text('8 × 65 %, 5 × 72,5 %'), findsOneWidget);
+      expect(find.byKey(const Key('plan-dirty')), findsNothing);
+    });
+  });
+
   group('navigation', () {
     Future<void> mount(WidgetTester tester, Set<Rol> roles) async {
       tester.view.physicalSize = const Size(400, 800);

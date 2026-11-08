@@ -211,6 +211,25 @@ class PlanDraft {
             : _withPrescriptions(b, [...b.prescriptions]..removeAt(index)),
       );
 
+  /// Replaces the prescription at [index] of the block; sets, note and timer are edited this way (E5.8).
+  PlanDraft updatePrescription(
+    String modelId,
+    int day,
+    int block,
+    int index,
+    Prescription prescription,
+  ) => updateBlock(
+    modelId,
+    day,
+    block,
+    (b) => index < 0 || index >= b.prescriptions.length
+        ? b
+        : _withPrescriptions(b, [
+            for (final (i, p) in b.prescriptions.indexed)
+              i == index ? prescription : p,
+          ]),
+  );
+
   PlanBlock _withPrescriptions(PlanBlock b, List<Prescription> list) =>
       PlanBlock(
         name: b.name,

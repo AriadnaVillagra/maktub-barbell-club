@@ -5,7 +5,7 @@ String planTypeLabel(PlanType type) => switch (type) {
   PlanType.test => 'Test',
 };
 
-String _number(double v) => v == v.roundToDouble()
+String formatNumber(double v) => v == v.roundToDouble()
     ? '${v.toInt()}'
     : '$v'.replaceAll('.', ',');
 
@@ -14,5 +14,5 @@ String setsSummary(List<PlanSet> sets) => [
   for (final s in sets)
     s.pct == null
         ? (s.maxReps ? 'Max.' : '${s.reps ?? '?'}')
-        : '${s.maxReps ? 'Max.' : '${s.reps ?? '?'}'} × ${_number(s.pct!)} %',
+        : '${s.maxReps ? 'Max.' : '${s.reps ?? '?'}'} × ${formatNumber(s.pct!)} %',
 ].join(', ');

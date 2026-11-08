@@ -13,6 +13,7 @@ import '../domain/prescription_defaults.dart';
 import 'block_dialog.dart';
 import 'plan_dialogs.dart';
 import 'plan_labels.dart';
+import 'prescription_dialog.dart';
 import 'providers.dart';
 
 /// Editor of a plan's structure: week models, the assignment of the 4 weeks and the days of each model.
@@ -420,16 +421,34 @@ class _BlockTile extends ConsumerWidget {
     );
   }
 
+  Future<void> _editPrescription(
+    BuildContext context,
+    int p,
+    Prescription prescription,
+    Exercise? exercise,
+  ) async {
+    final edited = await askPrescription(
+      context,
+      initial: prescription,
+      exercise: exercise,
+    );
+    if (edited == null) return;
+    editor.updatePrescription(modelId, day, index, p, edited);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final exercises = ref.watch(catalogExercisesProvider).value ?? const [];
     final timers = ref.watch(clubTimersProvider).value ?? const [];
-    String exerciseName(String? id) {
+    Exercise? exerciseOf(String? id) {
       for (final e in exercises) {
-        if (e.id == id) return e.name;
+        if (e.id == id) return e;
       }
-      return id ?? 'Sin ejercicio';
+      return null;
     }
+
+    String exerciseName(String? id) =>
+        exerciseOf(id)?.name ?? id ?? 'Sin ejercicio';
 
     String timerLabel(String id) {
       for (final t in timers) {
@@ -505,6 +524,12 @@ class _BlockTile extends ConsumerWidget {
                   key: Key('prescription-$keyPrefix-$index-$p'),
                   dense: true,
                   contentPadding: EdgeInsets.zero,
+                  onTap: () => _editPrescription(
+                    context,
+                    p,
+                    prescription,
+                    exerciseOf(prescription.exerciseId),
+                  ),
                   title: Text(exerciseName(prescription.exerciseId)),
                   subtitle: Text(
                     [
@@ -512,6 +537,9 @@ class _BlockTile extends ConsumerWidget {
                         setsSummary(prescription.sets),
                       if (prescription.timerId != null)
                         'Temporizador: ${timerLabel(prescription.timerId!)}',
+                      if (prescription.barKg != null)
+                        'Barra: ${formatNumber(prescription.barKg!)} kg',
+                      if (prescription.note != null) prescription.note!,
                     ].join(' · '),
                   ),
                   trailing: IconButton(
