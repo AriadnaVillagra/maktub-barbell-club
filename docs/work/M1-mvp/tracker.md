@@ -23,10 +23,10 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E0 | [Cerrar F0](E0-cerrar-f0.md) | hecho | 6 / 6 (mergeada a `main`) | — |
 | E1 | [Acceso](E1-acceso.md) | hecho | 14 / 14 (mergeada a `main`; ingreso probado en localhost:5000 y en Pages, R2 ok) | — |
 | E2 | [Catálogo](E2-catalogo.md) | hecho | 10 / 10 (mergeada a `main` y semilla cargada; prueba en producción ok) | — |
-| E3 | [Atletas y referencias](E3-atletas-referencias.md) | en curso | 8 / 8 (probada y revisada; falta mergear a `main`) | — |
-| E4 | [Reglas de carga](E4-reglas-de-carga.md) | en curso | 6 / 6 (revisada; falta mergear a `main`) | — |
-| E5 | [Editor de plan](E5-editor-de-plan.md) | en curso | 15 / 15 (probada en local; falta mergear a `main`) | — |
-| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | en curso | 6 / 6 (probada en local; falta mergear a `main`; el día abre en 1 hasta E7.13) | — |
+| E3 | [Atletas y referencias](E3-atletas-referencias.md) | hecho | 8 / 8 (mergeada a `main`; en producción) | — |
+| E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
+| E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
+| E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | pendiente | 0 / 13 | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
@@ -48,8 +48,7 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **`diseno.md` quedó atrás** en C1 (ejercicios base) y en Equipo (S3 de F2). Se actualiza desde su sesión.
 - **E5 (editor de plan):** la barra se indica por ejercicio, y la prescripción la puede pisar con una barra opcional (decidido el 2026-11-08). El control va en el editor (E5.7 o E5.8), y E4/E7 tienen que usar esa barra al calcular.
 - **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja. El temporizador base `Cronómetro` (for time sin tope, agregado el 2026-11-08) depende de esto: tiene que contar hacia arriba y dejar registrado el tiempo final del WoD.
-- **Alta (E6.2):** el grupo de Andi y Ari lo crea `tool/alta.dart`; hay que volver a correrlo en local y en producción (es idempotente).
-- **Semilla:** `Cronómetro` es nuevo en la lista base; en producción hay que volver a correr `tool/semilla.dart` (no pisa lo existente).
+- **Datos en producción (2026-11-08):** ya están el grupo de Andi y Ari, el temporizador `Cronómetro` y los roles de E2.
 
 ## Para E6 (decidido el 2026-11-08)
 
