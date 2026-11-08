@@ -206,6 +206,23 @@ void main() {
     expect(store.plans.single.weekAssignment, ['A', 'Z', 'A', 'A']);
   });
 
+  test('a block note is saved and returned; a block without one has none', () async {
+    final store = storeWithPlan();
+    final body = _validBody();
+    final blocks = ((body['modelosSemana'] as List).first['dias'] as List).first['bloques'] as List;
+    (blocks.first as Map)['nota'] = '21-15-9, time cap 10';
+    blocks.add({'nombre': 'Sin nota', 'categoriaId': 'cat-1', 'prescripciones': <Object>[]});
+    final r = await _save(coachA, store, body);
+
+    expect(r.statusCode, HttpStatus.ok);
+    final saved = store.plans.single.weekModels.single.days.single.blocks;
+    expect(saved[0].note, '21-15-9, time cap 10');
+    expect(saved[1].note, isNull);
+    final returned = ((await _json(r))['modelosSemana'] as List).first['dias'].first['bloques'] as List;
+    expect(returned[0]['nota'], '21-15-9, time cap 10');
+    expect((returned[1] as Map).containsKey('nota'), isFalse);
+  });
+
   test('an exercise unknown to the club does not stop a save', () async {
     final store = storeWithPlan()..catalog.clear();
     final r = await _save(coachA, store, _validBody());

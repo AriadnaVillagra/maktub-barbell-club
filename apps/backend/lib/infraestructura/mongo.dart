@@ -42,6 +42,9 @@ abstract final class Colecciones {
 
   /// Plans (F5): one document per plan, saved whole (week models, assignment, days, blocks, sets).
   static const planes = 'planes';
+
+  /// WoDs of the club's library (E5.11): reusable groups of prescriptions copied into plan blocks.
+  static const wods = 'wods';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -112,6 +115,9 @@ Future<void> asegurarIndices(Db db) async {
   await db
       .collection(Colecciones.planes)
       .createIndex(keys: {'clubId': 1, 'nombre': 1}, name: 'club_nombre');
+
+  // Listing the WoDs of a club's library.
+  await db.collection(Colecciones.wods).createIndex(keys: {'clubId': 1, 'nombre': 1}, name: 'club_nombre');
 
   // "In use" checks (E5.4): multikey indexes on the exercise and timer references inside plans.
   const blocks = 'modelosSemana.dias.bloques';
