@@ -27,7 +27,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 7 / 13 (E7.1 a E7.5, E7.7 y E7.13 hechos; E7.8 en curso; sigue E7.6) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 8 / 13 (E7.1 a E7.5, E7.7, E7.8 y E7.13 hechos; sigue E7.6) | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
@@ -53,7 +53,9 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 ## Para E7 (salió de E7.3, 2026-11-08)
 
 - **Kilos propuestos (E7.7):** el servidor los entrega en un endpoint nuevo, por atleta y sesión. El atleta no recibe su factor, así que la app no los puede calcular sola.
-- **Nota (E7.8):** el issue pide guardar la nota con el registro y `SetRecord` no tiene ese campo.
+- **Nota (E7.8, decidido el 2026-11-09):** hay una por ejercicio, en `SetRecord.note` de la primera serie, y una por sesión, en `Session.note` (`PUT .../sesiones/{id}/nota`). Un ejercicio sin series no tiene dónde guardarla, así que no ofrece nota. `diseno.md` todavía no tiene estos dos campos.
+- **Restaurar (E7.8, decidido el 2026-11-09):** "Volver a lo planificado" es por ejercicio. Devuelve kilos y reps a lo propuesto y deja las series marcadas como estaban; distinto de la referencia, que las desmarcaba.
+- **Sin probar en real (E7.8):** marcar, editar, notas y restaurar solo pasaron tests. Los stores corrieron contra MongoDB, pero la pantalla no se abrió en un navegador contra la API.
 - **Republicar a mitad de sesión:** la sesión no guarda copia del plan y los registros se ubican por posición, así que pueden quedar apuntando a otro ejercicio. Decidido: no se cubre en M1, no republicar con una sesión a medias.
 - **Pendiente:** `presentes` solo acumula, no hay forma de quitar a alguien. `AthleteDay` todavía no se escribe, y E7.13 deriva hecho o pendiente de las sesiones y sus series.
 - **Sin probar en real (E7.7):** la pantalla de sesión solo pasó tests, no se abrió en un navegador contra la API. `MongoProposedLoadsStore` no corrió contra MongoDB.

@@ -15,6 +15,7 @@ import '../../catalogo/presentation/providers.dart'
 import '../data/http_session_repository.dart';
 import '../domain/athlete_adjustments.dart';
 import '../domain/session_repository.dart';
+import '../domain/set_write.dart';
 
 final sessionRepositoryProvider = Provider<SessionRepository>(
   (ref) => HttpSessionRepository(ref.watch(clienteApiProvider)),
@@ -179,6 +180,47 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     }
   }
 
+  /// Writes one set and keeps what the server stored. Rethrows the backend's error so the screen can show it.
+  Future<void> writeSet(String clubId, SetWrite write) async {
+    final sessionId = state.live?.session.id;
+    if (sessionId == null) return;
+    final stored = await ref
+        .read(sessionRepositoryProvider)
+        .recordSet(clubId, sessionId, write);
+    final live = state.live;
+    if (live == null || live.session.id != sessionId) return;
+    state = _with(
+      live: LiveSession(
+        session: live.session,
+        records: [
+          for (final r in live.records)
+            if (!_sameSet(r, stored)) r,
+          stored,
+        ],
+      ),
+    );
+  }
+
+  /// Writes the session's note. Rethrows the backend's error so the screen can show it.
+  Future<void> saveSessionNote(String clubId, String note) async {
+    final sessionId = state.live?.session.id;
+    if (sessionId == null) return;
+    final session = await ref
+        .read(sessionRepositoryProvider)
+        .saveSessionNote(clubId, sessionId, note);
+    final live = state.live;
+    if (live == null || live.session.id != sessionId) return;
+    state = _with(
+      live: LiveSession(session: session, records: live.records),
+    );
+  }
+
+  static bool _sameSet(SetRecord a, SetRecord b) =>
+      a.athleteId == b.athleteId &&
+      a.blockIndex == b.blockIndex &&
+      a.prescriptionIndex == b.prescriptionIndex &&
+      a.setIndex == b.setIndex;
+
   void selectAthlete(String athleteId) => state = _with(athleteId: athleteId);
 
   void stepSessionAdjustment(String athleteId, int delta) =>
@@ -203,16 +245,19 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     opening: state.opening,
   );
 
-  SessionScreenState _with({bool? opening, String? athleteId}) =>
-      SessionScreenState(
-        week: state.week,
-        day: state.day,
-        present: state.present,
-        live: state.live,
-        athleteId: athleteId ?? state.athleteId,
-        adjustments: state.adjustments,
-        opening: opening ?? state.opening,
-      );
+  SessionScreenState _with({
+    bool? opening,
+    String? athleteId,
+    LiveSession? live,
+  }) => SessionScreenState(
+    week: state.week,
+    day: state.day,
+    present: state.present,
+    live: live ?? state.live,
+    athleteId: athleteId ?? state.athleteId,
+    adjustments: state.adjustments,
+    opening: opening ?? state.opening,
+  );
 }
 
 final sessionScreenProvider =

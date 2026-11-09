@@ -3,6 +3,7 @@ import 'package:maktub_core/maktub_core.dart';
 import '../../../core/red/cliente_api.dart';
 import '../domain/athlete_adjustments.dart';
 import '../domain/session_repository.dart';
+import '../domain/set_write.dart';
 
 class HttpSessionRepository implements SessionRepository {
   HttpSessionRepository(this._client);
@@ -61,4 +62,28 @@ class HttpSessionRepository implements SessionRepository {
         ProposedSet.fromJson((s as Map).cast<String, dynamic>()),
     ];
   }
+
+  @override
+  Future<SetRecord> recordSet(
+    String clubId,
+    String sessionId,
+    SetWrite write,
+  ) async => SetRecord.fromJson(
+    await _client.put(
+      '${_sessions(clubId)}/${Uri.encodeComponent(sessionId)}/registros',
+      write.toJson(),
+    ),
+  );
+
+  @override
+  Future<Session> saveSessionNote(
+    String clubId,
+    String sessionId,
+    String note,
+  ) async => Session.fromJson(
+    await _client.put(
+      '${_sessions(clubId)}/${Uri.encodeComponent(sessionId)}/nota',
+      {'nota': note},
+    ),
+  );
 }

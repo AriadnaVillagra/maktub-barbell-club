@@ -42,8 +42,9 @@ abstract interface class RecordSetStore {
 
   /// Atomically writes [record] under its key (club, session, athlete, block, prescription and set) and returns
   /// what is stored. If the key exists, its id and creation audit stay and everything else becomes [record]'s,
-  /// including the optional fields [record] no longer has. Touches that one document only.
-  Future<SetRecord> upsert(SetRecord record);
+  /// including the optional fields [record] no longer has. With [keepNote] the stored note stays whatever [record]
+  /// says. Touches that one document only.
+  Future<SetRecord> upsert(SetRecord record, {bool keepNote = false});
 }
 
 class MongoRecordSetStore implements RecordSetStore {
@@ -159,14 +160,17 @@ class MongoRecordSetStore implements RecordSetStore {
   }
 
   @override
-  Future<SetRecord> upsert(SetRecord record) async {
+  Future<SetRecord> upsert(SetRecord record, {bool keepNote = false}) async {
     final doc = aDocumento(record.toJson());
     final filter = <String, dynamic>{
       for (final key in _keyFields) key: doc[key],
     };
     final set = <String, dynamic>{
       for (final e in doc.entries)
-        if (e.key != '_id' && e.key != 'auditoria' && !filter.containsKey(e.key))
+        if (e.key != '_id' &&
+            e.key != 'auditoria' &&
+            !filter.containsKey(e.key) &&
+            !(keepNote && e.key == 'nota'))
           e.key: e.value,
     };
     final auditoria = record.auditoria.toJson();
@@ -186,7 +190,8 @@ class MongoRecordSetStore implements RecordSetStore {
         },
         r'$unset': {
           for (final field in _optionalFields)
-            if (!doc.containsKey(field)) field: '',
+            if (!doc.containsKey(field) && !(keepNote && field == 'nota'))
+              field: '',
         },
       },
     );
@@ -217,4 +222,5 @@ const _optionalFields = [
   'pctReal',
   'rpe',
   'kilosManual',
+  'nota',
 ];

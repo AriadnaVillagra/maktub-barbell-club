@@ -13,6 +13,7 @@ import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
+import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 import 'package:maktub_frontend/features/sesion/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/presentation/session_page.dart';
 import 'package:maktub_ui/maktub_ui.dart';
@@ -171,6 +172,70 @@ class _FakeSessions implements SessionRepository {
           workFactor: factor,
         ),
     ];
+  }
+
+  final writes = <SetWrite>[];
+  final stored = <(String, int, int, int), SetRecord>{};
+  String? refuseWith;
+  String? savedSessionNote;
+
+  /// Stores like the server: one record per set, computed kilos unless typed, and a missing note keeps the old one.
+  @override
+  Future<SetRecord> recordSet(
+    String clubId,
+    String sessionId,
+    SetWrite write,
+  ) async {
+    if (refuseWith case final message?) throw ErrorDeApi(message, estado: 422);
+    writes.add(write);
+    final key = (
+      write.athleteId,
+      write.blockIndex,
+      write.prescriptionIndex,
+      write.setIndex,
+    );
+    final note = write.note ?? stored[key]?.note;
+    return stored[key] = SetRecord(
+      id: 'r-$key',
+      clubId: clubId,
+      sessionId: sessionId,
+      athleteId: write.athleteId,
+      exerciseId: 'sq',
+      exerciseName: 'Sentadilla',
+      blockIndex: write.blockIndex,
+      prescriptionIndex: write.prescriptionIndex,
+      setIndex: write.setIndex,
+      target: const PlanSet(reps: 5, pct: 80),
+      done: write.done,
+      kg: write.manualKg ?? _kg(write.athleteId, write.adjustment),
+      reps: write.reps ?? 5,
+      manualKg: write.manualKg != null,
+      note: note == null || note.isEmpty ? null : note,
+      writtenBy: 'u1',
+      auditoria: audit(),
+    );
+  }
+
+  @override
+  Future<Session> saveSessionNote(
+    String clubId,
+    String sessionId,
+    String note,
+  ) async {
+    savedSessionNote = note;
+    return Session(
+      id: sessionId,
+      clubId: clubId,
+      assignmentId: 'a1',
+      planId: 'p1',
+      cycle: 3,
+      week: 4,
+      day: 1,
+      date: _today,
+      presentAthleteIds: const ['ari'],
+      note: note,
+      auditoria: audit(),
+    );
   }
 }
 
@@ -526,6 +591,249 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('session-adjust-ex-1-0-plus')), findsNothing);
+    });
+  });
+
+  group('marking and editing a set', () {
+    Key check(String id) => Key('session-check-$id');
+    Finder marked(String id) => find.descendant(
+      of: find.byKey(check(id)),
+      matching: find.byIcon(Icons.check_circle),
+    );
+
+    Future<void> typeSet(
+      WidgetTester tester,
+      String id, {
+      String? kg,
+      String? reps,
+    }) async {
+      await tester.tap(find.byKey(Key('session-edit-$id')));
+      await tester.pumpAndSettle();
+      if (kg != null) {
+        await tester.enterText(find.byKey(const Key('session-set-kg')), kg);
+      }
+      if (reps != null) {
+        await tester.enterText(find.byKey(const Key('session-set-reps')), reps);
+      }
+      await tester.tap(find.byKey(const Key('session-set-save')));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> writeNote(WidgetTester tester, String key, String text) async {
+      await tester.ensureVisible(find.byKey(Key('$key-edit')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(Key('$key-edit')));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byKey(const Key('session-note-field')), text);
+      await tester.tap(find.byKey(const Key('session-note-save')));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('marking sends a write of that set only', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await _open(tester);
+
+      await tester.tap(find.byKey(check('0-0-1')));
+      await tester.pumpAndSettle();
+
+      final write = sessions.writes.single;
+      expect(
+        [write.blockIndex, write.prescriptionIndex, write.setIndex],
+        [0, 0, 1],
+      );
+      expect(write.done, isTrue);
+      expect(write.manualKg, isNull);
+      expect(marked('0-0-1'), findsOneWidget);
+      expect(marked('0-0-0'), findsNothing);
+    });
+
+    testWidgets('marking the same set twice at once leaves one marked record', (
+      tester,
+    ) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await _open(tester);
+
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pumpAndSettle();
+
+      expect(sessions.writes.map((w) => w.done), [true, true]);
+      expect(sessions.stored, hasLength(1));
+      expect(marked('0-0-0'), findsOneWidget);
+    });
+
+    testWidgets('tapping a marked set unmarks it', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await _open(tester);
+
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pumpAndSettle();
+
+      expect(sessions.writes.last.done, isFalse);
+      expect(marked('0-0-0'), findsNothing);
+    });
+
+    testWidgets('typed kilos travel as manual and accept a comma', (
+      tester,
+    ) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await _open(tester);
+
+      await typeSet(tester, '0-0-0', kg: '72,5', reps: '3');
+
+      final write = sessions.writes.single;
+      expect(write.toJson()['kilosManual'], isTrue);
+      expect(write.manualKg, 72.5);
+      expect(write.reps, 3);
+      expect(write.done, isFalse);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('session-kg-0-0-0'))).data,
+        '72.5 kg',
+      );
+    });
+
+    testWidgets(
+      'saving only the reps does not turn the kilos into typed ones',
+      (tester) async {
+        final sessions = _FakeSessions();
+        await _pump(tester, sessions);
+        await _open(tester);
+
+        await typeSet(tester, '0-0-0', reps: '3');
+
+        expect(sessions.writes.single.manualKg, isNull);
+        expect(sessions.writes.single.reps, 3);
+      },
+    );
+
+    testWidgets('invalid values stay in the dialog and write nothing', (
+      tester,
+    ) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await _open(tester);
+
+      await typeSet(tester, '0-0-0', kg: 'mucho');
+
+      expect(find.byKey(const Key('session-set-error')), findsOneWidget);
+      expect(sessions.writes, isEmpty);
+    });
+
+    testWidgets('the day adjustment does not move typed kilos', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await _open(tester);
+      await typeSet(tester, '0-0-0', kg: '72.5');
+
+      await tester.tap(find.byKey(const Key('session-adjust-session-plus')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('session-kg-0-0-0'))).data,
+        '72.5 kg',
+      );
+    });
+
+    testWidgets('marking keeps what was typed', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await _open(tester);
+      await typeSet(tester, '0-0-0', kg: '72.5', reps: '3');
+
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pumpAndSettle();
+
+      final write = sessions.writes.last;
+      expect([write.done, write.manualKg, write.reps], [true, 72.5, 3]);
+    });
+
+    testWidgets('a refused write shows the backend error', (tester) async {
+      final sessions = _FakeSessions()..refuseWith = 'Ese atleta no está.';
+      await _pump(tester, sessions);
+      await _open(tester);
+
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ese atleta no está.'), findsOneWidget);
+      expect(marked('0-0-0'), findsNothing);
+    });
+
+    testWidgets('going back to the plan undoes the edits and keeps the marks', (
+      tester,
+    ) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await _open(tester);
+      const restore = Key('session-restore-0-0');
+      expect(find.byKey(restore), findsNothing);
+
+      await tester.tap(find.byKey(check('0-0-1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(restore), findsNothing);
+
+      await typeSet(tester, '0-0-0', kg: '72.5');
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pumpAndSettle();
+      sessions.writes.clear();
+
+      await tester.ensureVisible(find.byKey(restore));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(restore));
+      await tester.pumpAndSettle();
+
+      final write = sessions.writes.single;
+      expect(write.setIndex, 0);
+      expect(write.manualKg, isNull);
+      expect(write.done, isTrue);
+      expect(marked('0-0-0'), findsOneWidget);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('session-kg-0-0-0'))).data,
+        '80 kg',
+      );
+      expect(find.byKey(restore), findsNothing);
+    });
+
+    testWidgets(
+      'the exercise note goes on its first set and survives marking',
+      (tester) async {
+        final sessions = _FakeSessions();
+        await _pump(tester, sessions);
+        await _open(tester);
+
+        await writeNote(tester, 'session-note-0-0', 'Liviano');
+
+        final write = sessions.writes.single;
+        expect([write.setIndex, write.note, write.done], [0, 'Liviano', false]);
+        expect(find.byKey(const Key('session-note-0-0-text')), findsOneWidget);
+        expect(marked('0-0-0'), findsNothing);
+
+        await tester.ensureVisible(find.byKey(check('0-0-0')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(check('0-0-0')));
+        await tester.pumpAndSettle();
+
+        expect(sessions.writes.last.note, isNull);
+        expect(find.text('Liviano'), findsOneWidget);
+      },
+    );
+
+    testWidgets('the session note is saved and shown', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await _open(tester);
+
+      await writeNote(tester, 'session-note-day', 'Buen día');
+
+      expect(sessions.savedSessionNote, 'Buen día');
+      expect(find.byKey(const Key('session-note-day-text')), findsOneWidget);
+      expect(sessions.writes, isEmpty);
     });
   });
 

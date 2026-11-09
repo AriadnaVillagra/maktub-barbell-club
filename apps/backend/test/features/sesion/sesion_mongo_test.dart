@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:maktub_backend/features/sesion/open_session/open_session_store.dart';
 import 'package:maktub_backend/features/sesion/record_set/record_set_store.dart';
+import 'package:maktub_backend/features/sesion/set_session_note/set_session_note_store.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -69,6 +70,7 @@ void main() {
     int? reps = 5,
     double? workFactor,
     bool manualKg = false,
+    String? note,
     String user = 'u1',
     DateTime? at,
   }) {
@@ -88,6 +90,7 @@ void main() {
       reps: reps,
       workFactor: workFactor,
       manualKg: manualKg,
+      note: note,
       writtenBy: user,
       auditoria: Auditoria.nueva(user, ahora: now).modificada(user, ahora: now),
     );
@@ -206,6 +209,36 @@ void main() {
     });
   });
 
+  group('session note', () {
+    Future<void> insertSession() => db!.collection(Colecciones.sesiones).insertOne({
+      '_id': 's1',
+      'clubId': 'club-a',
+      'asignacionId': 'a1',
+      'planId': 'p1',
+      'ciclo': 1,
+      'semana': 1,
+      'dia': 1,
+      'fecha': '2026-11-16',
+      'presentes': ['ari'],
+      'auditoria': Auditoria.nueva('u1', ahora: DateTime.utc(2026, 11, 16, 9)).toJson(),
+    });
+
+    mongoTest('writes only the note and the modification audit, and clears it', () async {
+      await insertSession();
+      final store = MongoSetSessionNoteStore(db!);
+      final at = DateTime.utc(2026, 11, 16, 10);
+
+      final written = await store.setNote('club-a', 's1', 'Buen día', userId: 'u2', at: at);
+      final cleared = await store.setNote('club-a', 's1', null, userId: 'u2', at: at);
+
+      expect(written.note, 'Buen día');
+      expect(written.presentAthleteIds, ['ari']);
+      expect(written.auditoria.creadoPor, 'u1');
+      expect(written.auditoria.modificadoPor, 'u2');
+      expect(cleared.note, isNull);
+    });
+  });
+
   group('record a set', () {
     mongoTest('repeating a write keeps one record and its identity', () async {
       final store = MongoRecordSetStore(db!);
@@ -222,6 +255,19 @@ void main() {
       expect(retry.auditoria.modificadoEn, DateTime.utc(2026, 11, 16, 11));
       expect(retry.writtenBy, 'u2');
       expect(await count(Colecciones.registros), 1);
+    });
+
+    mongoTest('keepNote leaves the stored note, otherwise it follows the record', () async {
+      final store = MongoRecordSetStore(db!);
+
+      await store.upsert(record(note: 'Liviano'));
+      final kept = await store.upsert(record(kg: 85), keepNote: true);
+      final cleared = await store.upsert(record(kg: 85));
+
+      expect(kept.note, 'Liviano');
+      expect(kept.kg, 85);
+      expect(cleared.note, isNull);
+      expect(await db!.collection(Colecciones.registros).findOne(), isNot(contains('nota')));
     });
 
     mongoTest('a rewrite replaces values and clears what it dropped', () async {

@@ -1,6 +1,7 @@
 import 'package:maktub_core/maktub_core.dart';
 
 import 'athlete_adjustments.dart';
+import 'set_write.dart';
 
 /// The session of a day as the backend opens it, with what was recorded so far.
 class LiveSession {
@@ -30,4 +31,10 @@ abstract interface class SessionRepository {
     String athleteId,
     AthleteAdjustments adjustments,
   );
+
+  /// Writes that one set and returns what is stored. Repeating it changes nothing.
+  Future<SetRecord> recordSet(String clubId, String sessionId, SetWrite write);
+
+  /// Writes the note of the whole session, or clears it when [note] is empty.
+  Future<Session> saveSessionNote(String clubId, String sessionId, String note);
 }

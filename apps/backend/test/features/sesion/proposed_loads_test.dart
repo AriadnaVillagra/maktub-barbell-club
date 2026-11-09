@@ -153,7 +153,8 @@ class _RecordStore implements RecordSetStore {
   Future<Equipo?> equipment(String clubId) => _proposals.equipment(clubId);
 
   @override
-  Future<SetRecord> upsert(SetRecord record) async => record;
+  Future<SetRecord> upsert(SetRecord record, {bool keepNote = false}) async =>
+      record;
 }
 
 Exercise _exercise(

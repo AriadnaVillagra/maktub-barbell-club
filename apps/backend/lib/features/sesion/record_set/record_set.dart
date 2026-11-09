@@ -10,7 +10,7 @@ import 'package:mongo_dart/mongo_dart.dart';
 import 'record_set_store.dart';
 
 /// `PUT /clubes/{clubId}/sesiones/{sesionId}/registros` body `{atletaId, bloque, prescripcion, serie, hecha?, kilos?,
-/// kilosManual?, ajuste?, reps?, segundos?, distanciaM?, calorias?, rpe?}` → 200 with the stored `SetRecord`.
+/// kilosManual?, ajuste?, reps?, segundos?, distanciaM?, calorias?, rpe?, nota?}` → 200 with the stored `SetRecord`.
 /// Needs [Accion.registrar]. Writes that one set and nothing else, so repeating it changes nothing and two
 /// devices writing different sets do not touch each other (diseno, "Multi-dispositivo").
 ///
@@ -20,6 +20,7 @@ import 'record_set_store.dart';
 ///   resolved for this exercise (50..150, default 100).
 /// - With `kilosManual: true`, `kilos` is mandatory and both percents follow from it (E4.5).
 /// - `reps`, `segundos`, `distanciaM` and `calorias` default to the target's when omitted.
+/// - `nota` left out keeps the stored note, so marking a set never loses it; empty clears it.
 ///
 /// A coach writes for any present athlete, and an athlete present in the session for any present athlete
 /// (in a personal club, only for themselves). 400 if the body is malformed, 403 if the user cannot write for that
@@ -113,12 +114,14 @@ class RecordSet {
         pctReal: load.pcts?.pctReal,
         rpe: input.rpe,
         manualKg: input.manualKg,
+        note: input.note,
         writtenBy: club.userId,
         auditoria: Auditoria.nueva(
           club.userId,
           ahora: now,
         ).modificada(club.userId, ahora: now),
       ),
+      keepNote: !input.writesNote,
     );
   }
 
@@ -252,12 +255,14 @@ class _SetInput {
     required this.done,
     required this.manualKg,
     required this.adjustment,
+    required this.writesNote,
     this.kg,
     this.reps,
     this.seconds,
     this.distanceM,
     this.calories,
     this.rpe,
+    this.note,
   });
 
   factory _SetInput.fromBody(Json body) {
@@ -296,6 +301,8 @@ class _SetInput {
       distanceM: _nonNegative(body['distanciaM'], 'distanciaM'),
       calories: _nonNegative(body['calorias'], 'calorias'),
       rpe: rpe,
+      writesNote: body.containsKey('nota'),
+      note: _note(body['nota']),
     );
   }
 
@@ -314,6 +321,20 @@ class _SetInput {
   final double? distanceM;
   final double? calories;
   final double? rpe;
+
+  /// Whether the body carries `nota`. Without it the stored note is left alone.
+  final bool writesNote;
+  final String? note;
+}
+
+String? _note(Object? value) {
+  if (value == null) return null;
+  if (value is! String) throw const ErrorDeSolicitud('"nota" debe ser texto.');
+  if (value.length > maxNoteLength) {
+    throw const ErrorDeSolicitud('"nota" es demasiado larga.');
+  }
+  final note = value.trim();
+  return note.isEmpty ? null : note;
 }
 
 int _index(Object? value, String field) {

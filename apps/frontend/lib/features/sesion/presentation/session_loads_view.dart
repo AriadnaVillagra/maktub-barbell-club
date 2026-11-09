@@ -4,14 +4,28 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show asyncView, formatKg;
+    show asyncView, formatKg, showApiError;
 import '../domain/athlete_adjustments.dart';
 import '../domain/session_repository.dart';
+import '../domain/set_write.dart';
 import 'providers.dart';
 import 'session_block_card.dart';
 import 'session_page.dart';
+import 'session_set_dialogs.dart';
 
-/// The open session: which present athlete is on screen, their day adjustment and the kilos of each set.
+/// Runs a write and shows the backend's error if it refuses.
+Future<void> _guarded(
+  BuildContext context,
+  Future<void> Function() write,
+) async {
+  try {
+    await write();
+  } catch (e) {
+    if (context.mounted) showApiError(context, e);
+  }
+}
+
+/// The open session: which present athlete is on screen, their day adjustment and each set to mark and edit.
 class SessionLoadsView extends ConsumerWidget {
   const SessionLoadsView({
     super.key,
@@ -79,9 +93,22 @@ class SessionLoadsView extends ConsumerWidget {
               for (final s in sets)
                 (s.blockIndex, s.prescriptionIndex, s.setIndex): s,
             },
+            records: {
+              for (final r in live.records)
+                if (r.athleteId == athleteId)
+                  (r.blockIndex, r.prescriptionIndex, r.setIndex): r,
+            },
+            clubId: data.clubId,
             athleteId: athleteId,
             adjustments: adjustments,
           ),
+        ),
+        const SizedBox(height: Espacio.m),
+        _NoteRow(
+          keyPrefix: 'session-note-day',
+          title: 'Nota de la sesión',
+          note: live.session.note,
+          onSave: (note) => notifier.saveSessionNote(data.clubId, note),
         ),
       ],
     );
@@ -93,6 +120,8 @@ class _Blocks extends ConsumerWidget {
     required this.day,
     required this.names,
     required this.sets,
+    required this.records,
+    required this.clubId,
     required this.athleteId,
     required this.adjustments,
   });
@@ -100,12 +129,25 @@ class _Blocks extends ConsumerWidget {
   final PlanDay day;
   final Map<String, String> names;
   final Map<(int, int, int), ProposedSet> sets;
+
+  /// What the athlete on screen recorded, by position.
+  final Map<(int, int, int), SetRecord> records;
+  final String clubId;
   final String athleteId;
   final AthleteAdjustments adjustments;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(sessionScreenProvider.notifier);
+    SetWrite writeOf(int b, int p, int s, String exerciseId) => SetWrite.of(
+      records[(b, p, s)],
+      athleteId: athleteId,
+      blockIndex: b,
+      prescriptionIndex: p,
+      setIndex: s,
+      adjustment: adjustments.effectiveFor(exerciseId),
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -142,7 +184,45 @@ class _Blocks extends ConsumerWidget {
                       index: s,
                       target: day.blocks[b].prescriptions[p].sets[s],
                       proposed: sets[(b, p, s)],
+                      record: records[(b, p, s)],
                       keyId: '$b-$p-$s',
+                      onToggle: () => notifier.writeSet(
+                        clubId,
+                        writeOf(b, p, s, exerciseId).toggled(),
+                      ),
+                      onEdit: (kg, reps) => notifier.writeSet(
+                        clubId,
+                        writeOf(
+                          b,
+                          p,
+                          s,
+                          exerciseId,
+                        ).edited(manualKg: kg, reps: reps),
+                      ),
+                    ),
+                  if (day.blocks[b].prescriptions[p].sets.isNotEmpty)
+                    _NoteRow(
+                      keyPrefix: 'session-note-$b-$p',
+                      title: 'Nota del ejercicio',
+                      note: records[(b, p, 0)]?.note,
+                      onSave: (note) => notifier.writeSet(
+                        clubId,
+                        writeOf(b, p, 0, exerciseId).withNote(note),
+                      ),
+                    ),
+                  if (_editedSets(b, p, day.blocks[b].prescriptions[p])
+                      case final edited when edited.isNotEmpty)
+                    TextButton(
+                      key: Key('session-restore-$b-$p'),
+                      onPressed: () => _guarded(context, () async {
+                        for (final s in edited) {
+                          await notifier.writeSet(
+                            clubId,
+                            writeOf(b, p, s, exerciseId).restored(),
+                          );
+                        }
+                      }),
+                      child: const Text('Volver a lo planificado'),
                     ),
                 ],
             ],
@@ -150,6 +230,12 @@ class _Blocks extends ConsumerWidget {
       ],
     );
   }
+
+  /// The indexes of the sets of that prescription the athlete changed away from the plan.
+  List<int> _editedSets(int b, int p, Prescription prescription) => [
+    for (var s = 0; s < prescription.sets.length; s++)
+      if (records[(b, p, s)] case final record? when setIsEdited(record)) s,
+  ];
 }
 
 class _SetRow extends StatelessWidget {
@@ -157,30 +243,69 @@ class _SetRow extends StatelessWidget {
     required this.index,
     required this.target,
     required this.proposed,
+    required this.record,
     required this.keyId,
+    required this.onToggle,
+    required this.onEdit,
   });
 
   final int index;
   final PlanSet target;
   final ProposedSet? proposed;
+  final SetRecord? record;
   final String keyId;
+  final Future<void> Function() onToggle;
+
+  /// A null [kg] lets the server compute them; a null [reps] takes the plan's.
+  final Future<void> Function(double? kg, int? reps) onEdit;
+
+  Future<void> _edit(BuildContext context, double? kg, int? reps) async {
+    final values = await showSetValuesDialog(
+      context,
+      title: 'Serie ${index + 1}',
+      kg: kg,
+      reps: reps,
+    );
+    if (values == null || !context.mounted) return;
+    // Saving without touching the proposed kilos must not turn them into typed ones.
+    final typed = values.kg != kg || (record?.manualKg ?? false);
+    await _guarded(
+      context,
+      () => onEdit(typed ? values.kg : null, values.reps),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final kg = proposed?.kg;
+    final kg = shownKg(record, proposed);
+    final reps = record?.reps ?? target.reps;
+    final done = record?.done ?? false;
     final factor = proposed?.workFactor;
+    final fromRecord = record != null && (record!.manualKg || done);
+    final pct = fromRecord ? record!.pctPlan : proposed?.appliedPct;
     final detail = [
-      if (target.maxReps)
+      if (record?.reps != null)
+        '${record!.reps} reps'
+      else if (target.maxReps)
         'Máx.'
       else if (target.reps != null)
         '${target.reps} reps',
-      if (proposed?.appliedPct != null) '${formatKg(proposed!.appliedPct!)} %',
+      if (pct != null) '${formatKg(pct)} %',
       if (factor != null) 'factor ${formatKg(factor)} %',
     ].join(' · ');
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: Espacio.xs),
       child: Row(
         children: [
+          IconButton(
+            key: Key('session-check-$keyId'),
+            icon: Icon(
+              done ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: done ? context.esquema.primary : null,
+            ),
+            tooltip: done ? 'Desmarcar la serie' : 'Marcar la serie',
+            onPressed: () => _guarded(context, onToggle),
+          ),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -195,15 +320,58 @@ class _SetRow extends StatelessWidget {
               ],
             ),
           ),
-          Text(
-            kg == null ? '—' : '${formatKg(kg)} kg',
-            key: Key('session-kg-$keyId'),
-            style: context.numeros.medio,
+          TextButton(
+            key: Key('session-edit-$keyId'),
+            onPressed: () => _edit(context, kg, reps),
+            child: Text(
+              kg == null ? '—' : '${formatKg(kg)} kg',
+              key: Key('session-kg-$keyId'),
+              style: context.numeros.medio,
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+/// A free note: what it says, and a button to write or change it.
+class _NoteRow extends StatelessWidget {
+  const _NoteRow({
+    required this.keyPrefix,
+    required this.title,
+    required this.note,
+    required this.onSave,
+  });
+
+  final String keyPrefix;
+  final String title;
+  final String? note;
+  final Future<void> Function(String note) onSave;
+
+  Future<void> _write(BuildContext context) async {
+    final written = await showNoteDialog(context, title: title, note: note);
+    if (written == null || written == (note ?? '') || !context.mounted) return;
+    await _guarded(context, () => onSave(written));
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      if (note case final text?)
+        Text(
+          text,
+          key: Key('$keyPrefix-text'),
+          style: context.textos.bodyMedium,
+        ),
+      TextButton(
+        key: Key('$keyPrefix-edit'),
+        onPressed: () => _write(context),
+        child: Text(note == null ? 'Agregar nota' : 'Editar nota'),
+      ),
+    ],
+  );
 }
 
 class _AdjustmentRow extends StatelessWidget {

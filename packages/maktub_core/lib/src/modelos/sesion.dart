@@ -14,6 +14,9 @@ import '../reglas/equipo.dart';
 import '../reglas/fechas.dart';
 import '../reglas/porcentajes.dart';
 
+/// The longest free note, on a session or on an exercise.
+const maxNoteLength = 1000;
+
 Auditoria _auditoria(Object? v) =>
     Auditoria.fromJson((v as Map).cast<String, dynamic>());
 
@@ -52,6 +55,7 @@ class Session implements DelClub {
     required this.day,
     required this.date,
     this.presentAthleteIds = const [],
+    this.note,
     required this.auditoria,
   });
 
@@ -77,6 +81,9 @@ class Session implements DelClub {
 
   /// Athletes present, chosen when the session opens among the group's members.
   final List<String> presentAthleteIds;
+
+  /// Free note about the whole session, shared by everyone in it.
+  final String? note;
   final Auditoria auditoria;
 
   factory Session.fromJson(Json j) => Session(
@@ -91,6 +98,7 @@ class Session implements DelClub {
     presentAthleteIds: [
       for (final a in (j['presentes'] as List? ?? const [])) '$a',
     ],
+    note: textoOpcional(j['nota']),
     auditoria: _auditoria(j['auditoria']),
   );
 
@@ -104,6 +112,7 @@ class Session implements DelClub {
     'dia': day,
     'fecha': aIsoFecha(date),
     'presentes': presentAthleteIds,
+    ...sinNulos({'nota': note}),
     'auditoria': auditoria.toJson(),
   };
 }
@@ -231,6 +240,7 @@ class SetRecord implements DelClub {
     this.pctReal,
     this.rpe,
     this.manualKg = false,
+    this.note,
     required this.writtenBy,
     required this.auditoria,
   });
@@ -281,6 +291,9 @@ class SetRecord implements DelClub {
   /// The athlete typed the kilos by hand, so the percents come from them.
   final bool manualKg;
 
+  /// Free note about the exercise. It lives on the exercise's first set (`setIndex` 0).
+  final String? note;
+
   /// Id of the user who wrote it, which may be a coach writing for the athlete.
   final String writtenBy;
   final Auditoria auditoria;
@@ -311,6 +324,7 @@ class SetRecord implements DelClub {
     pctReal: numOpcional(j['pctReal']),
     rpe: numOpcional(j['rpe']),
     manualKg: j['kilosManual'] == true,
+    note: textoOpcional(j['nota']),
     writtenBy: '${j['escritoPor']}',
     auditoria: _auditoria(j['auditoria']),
   );
@@ -340,6 +354,7 @@ class SetRecord implements DelClub {
       'pctReal': pctReal,
       'rpe': rpe,
       'kilosManual': manualKg ? true : null,
+      'nota': note,
     }),
     'escritoPor': writtenBy,
     'auditoria': auditoria.toJson(),

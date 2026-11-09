@@ -20,6 +20,7 @@ void main() {
         day: 4,
         date: DateTime.utc(2026, 11, 9),
         presentAthleteIds: const ['u1', 'u2'],
+        note: 'Buen día',
         auditoria: _audit,
       );
       final json = _roundTrip(s.toJson());
@@ -32,6 +33,7 @@ void main() {
         ['a1', 'p1', 2, 3, 4],
       );
       expect(back.presentAthleteIds, ['u1', 'u2']);
+      expect(back.note, 'Buen día');
     });
   });
 
@@ -115,6 +117,25 @@ void main() {
       expect(back.done, isTrue);
     });
 
+    test('the note survives a JSON round trip', () {
+      final json = SetRecord(
+        id: 'r',
+        clubId: 'c',
+        sessionId: 's',
+        athleteId: 'u',
+        exerciseId: 'e',
+        exerciseName: 'x',
+        blockIndex: 0,
+        prescriptionIndex: 0,
+        setIndex: 0,
+        note: 'Liviano',
+        writtenBy: 'u',
+        auditoria: _audit,
+      ).toJson();
+      expect(json['nota'], 'Liviano');
+      expect(SetRecord.fromJson(_roundTrip(json)).note, 'Liviano');
+    });
+
     test('optional fields stay out of the JSON when absent', () {
       final json = SetRecord(
         id: 'r',
@@ -131,6 +152,7 @@ void main() {
       ).toJson();
       expect(json.containsKey('rpe'), isFalse);
       expect(json.containsKey('kilos'), isFalse);
+      expect(json.containsKey('nota'), isFalse);
       expect(SetRecord.fromJson(_roundTrip(json)).rpe, isNull);
     });
   });

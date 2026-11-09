@@ -89,12 +89,13 @@ class _FakeStore implements RecordSetStore {
   Future<Equipo?> equipment(String clubId) async => equipments[clubId];
 
   @override
-  Future<SetRecord> upsert(SetRecord r) async {
+  Future<SetRecord> upsert(SetRecord r, {bool keepNote = false}) async {
     final key =
         '${r.clubId}/${r.sessionId}/${r.athleteId}/${r.blockIndex}/${r.prescriptionIndex}/${r.setIndex}';
     final old = stored[key];
     final merged = SetRecord.fromJson({
       ...r.toJson(),
+      if (keepNote) 'nota': old?.note,
       'id': old?.id ?? r.id,
       'auditoria': Auditoria(
         creadoPor: old?.auditoria.creadoPor ?? r.auditoria.creadoPor,
@@ -658,6 +659,47 @@ void main() {
       expect(json['factor'], 90);
       expect(json['pctReal'], 72);
     });
+  });
+
+  group('the note', () {
+    test('is stored with the record', () async {
+      final record = await _record(_store(), _body(extra: {'nota': ' Liviano '}));
+
+      expect(record.note, 'Liviano');
+    });
+
+    test('marking the set again without it does not lose it', () async {
+      final store = _store();
+      await _record(store, _body(extra: {'hecha': false, 'nota': 'Liviano'}));
+
+      final record = await _record(store, _body());
+
+      expect(record.done, isTrue);
+      expect(record.note, 'Liviano');
+    });
+
+    test('an empty one clears it', () async {
+      final store = _store();
+      await _record(store, _body(extra: {'nota': 'Liviano'}));
+
+      final record = await _record(store, _body(extra: {'nota': ''}));
+
+      expect(record.note, isNull);
+    });
+
+    for (final (name, note) in [
+      ('that is not text', 5),
+      ('that is too long', 'x' * (maxNoteLength + 1)),
+    ]) {
+      test('one $name is a bad request', () async {
+        final store = _store();
+
+        final response = await _put(store, _body(extra: {'nota': note}));
+
+        expect(response.statusCode, HttpStatus.badRequest);
+        expect(store.stored, isEmpty);
+      });
+    }
   });
 
   group('malformed bodies', () {
