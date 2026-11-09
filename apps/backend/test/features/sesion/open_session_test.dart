@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/sesion/live_broadcast.dart';
 import 'package:maktub_backend/features/sesion/open_session/open_session.dart';
 import 'package:maktub_backend/features/sesion/open_session/open_session_store.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
@@ -38,9 +40,30 @@ class _FakeStore implements OpenSessionStore {
   Future<String?> athleteIdOfUser(String clubId, String userId) async =>
       athletes['$clubId/$userId'];
 
+  int sequence = 0;
+
+  String _keyOf(Session c) =>
+      '${c.clubId}/${c.assignmentId}/${c.date}/${c.week}/${c.day}';
+
+  @override
+  Future<Session?> existing(Session c) async => sessions[_keyOf(c)];
+
+  @override
+  Future<Session> markChanged(String clubId, String sessionId) async {
+    final entry = sessions.entries.firstWhere(
+      (e) => e.value.id == sessionId && e.value.clubId == clubId,
+    );
+    sequence++;
+    return sessions[entry.key] = Session.fromJson({
+      ...entry.value.toJson(),
+      'secuencia': sequence,
+      'secuenciaSesion': sequence,
+    });
+  }
+
   @override
   Future<Session> openOrResume(Session c) async {
-    final key = '${c.clubId}/${c.assignmentId}/${c.date}/${c.week}/${c.day}';
+    final key = _keyOf(c);
     final old = sessions[key];
     final present = {...?old?.presentAthleteIds, ...c.presentAthleteIds};
     return sessions[key] = Session(
@@ -53,6 +76,8 @@ class _FakeStore implements OpenSessionStore {
       day: c.day,
       date: c.date,
       presentAthleteIds: present.toList(),
+      sequence: old?.sequence ?? 0,
+      lastSessionChange: old?.lastSessionChange ?? 0,
       auditoria: old?.auditoria ?? c.auditoria,
     );
   }
@@ -127,6 +152,7 @@ Future<Response> _post(
   _FakeStore store,
   Map<String, dynamic> body, {
   ClubContext? club,
+  LiveBroadcast? broadcast,
 }) async {
   final context = _Context();
   when(() => context.request).thenReturn(
@@ -141,6 +167,7 @@ Future<Response> _post(
     (c) => openSessionEndpoint(
       c,
       store: store,
+      broadcast: broadcast ?? MemoryLiveBroadcast(),
       newId: () => 'session-${_ids++}',
       now: () => DateTime.utc(2026, 11, 18, 9),
     ),
@@ -364,10 +391,66 @@ void main() {
     }
   });
 
+  group('who is present is a change of the session', () {
+    Future<List<SessionChange>> changesOf(
+      _FakeStore store,
+      List<Map<String, dynamic>> bodies,
+    ) async {
+      final broadcast = MemoryLiveBroadcast();
+      final seen = <SessionChange>[];
+      final sessionIds = <String>{};
+      final subscriptions = <StreamSubscription<SessionChange>>[];
+      for (final body in bodies) {
+        // A session id is known only after its first open, so the first one is opened with no listener.
+        final response = await _post(store, body, broadcast: broadcast);
+        final id = (await _json(response))['sesion']['id'] as String;
+        if (sessionIds.add(id)) {
+          subscriptions.add(
+            broadcast.changesOf('club-a', id).listen(seen.add),
+          );
+        }
+      }
+      await pumpEventQueue();
+      for (final s in subscriptions) {
+        await s.cancel();
+      }
+      return seen;
+    }
+
+    test('adding someone publishes the session with them, once', () async {
+      final store = _store();
+
+      final changes = await changesOf(store, [
+        _body(present: ['ari']),
+        _body(present: ['andi']),
+      ]);
+
+      expect(changes, hasLength(1));
+      expect(changes.single.session!.presentAthleteIds, ['ari', 'andi']);
+      expect(changes.single.sequence, 2);
+    });
+
+    test('opening again with the same people changes nothing', () async {
+      final store = _store();
+
+      final changes = await changesOf(store, [
+        _body(present: ['ari']),
+        _body(present: ['ari']),
+      ]);
+
+      expect(changes, isEmpty);
+      expect(store.sequence, 1);
+    });
+  });
+
   final isolated = _FakeStore();
   testClubIsolation(
     'POST /clubes/{clubId}/sesiones',
-    endpoint: (context) => openSessionEndpoint(context, store: isolated),
+    endpoint: (context) => openSessionEndpoint(
+      context,
+      store: isolated,
+      broadcast: MemoryLiveBroadcast(),
+    ),
     path: '/clubes/{clubId}/sesiones',
     action: Accion.registrar,
     method: 'POST',

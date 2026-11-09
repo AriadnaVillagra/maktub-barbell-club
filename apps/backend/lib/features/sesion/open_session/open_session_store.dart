@@ -1,3 +1,4 @@
+import 'package:maktub_backend/features/sesion/session_sequence.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -15,6 +16,12 @@ abstract interface class OpenSessionStore {
 
   /// The athlete of [clubId] linked to the user [userId], or null if the user is not an athlete there.
   Future<String?> athleteIdOfUser(String clubId, String userId);
+
+  /// The session already stored with the key of [candidate], or null.
+  Future<Session?> existing(Session candidate);
+
+  /// Numbers a change of the session itself (who is present) and returns the session with its new number.
+  Future<Session> markChanged(String clubId, String sessionId);
 
   /// Atomically returns the session with the key of [candidate] (club, assignment, date, week and day), inserting
   /// [candidate] if there is none, and adds its present athletes to the ones already there: concurrent opens
@@ -68,16 +75,36 @@ class MongoOpenSessionStore implements OpenSessionStore {
     return doc == null ? null : '${doc['_id']}';
   }
 
+  Map<String, dynamic> _keyOf(Session candidate) => {
+    'clubId': candidate.clubId,
+    'asignacionId': candidate.assignmentId,
+    'fecha': aDocumento(candidate.toJson())['fecha'],
+    'semana': candidate.week,
+    'dia': candidate.day,
+  };
+
+  @override
+  Future<Session?> existing(Session candidate) async {
+    final doc = await _db
+        .collection(Colecciones.sesiones)
+        .findOne(_keyOf(candidate));
+    return doc == null ? null : Session.fromJson(desdeDocumento(doc));
+  }
+
+  @override
+  Future<Session> markChanged(String clubId, String sessionId) async =>
+      updateSessionAsChange(
+        _db,
+        clubId,
+        sessionId,
+        await nextSessionSequence(_db, clubId, sessionId),
+        const {},
+      );
+
   @override
   Future<Session> openOrResume(Session candidate) async {
     final doc = aDocumento(candidate.toJson());
-    final filter = {
-      'clubId': candidate.clubId,
-      'asignacionId': candidate.assignmentId,
-      'fecha': doc['fecha'],
-      'semana': candidate.week,
-      'dia': candidate.day,
-    };
+    final filter = _keyOf(candidate);
     final onInsert = Map<String, dynamic>.of(doc)
       ..removeWhere((key, _) => filter.containsKey(key) || key == 'presentes');
     final stored = await upsertByUniqueKey(

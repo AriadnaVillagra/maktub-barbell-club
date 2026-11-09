@@ -1,7 +1,10 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:maktub_backend/features/sesion/open_session/open_session_store.dart';
 import 'package:maktub_backend/features/sesion/record_set/record_set_store.dart';
+import 'package:maktub_backend/features/sesion/session_changes/session_changes_store.dart';
+import 'package:maktub_backend/features/sesion/session_sequence.dart';
 import 'package:maktub_backend/features/sesion/set_session_note/set_session_note_store.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
@@ -228,14 +231,80 @@ void main() {
       final store = MongoSetSessionNoteStore(db!);
       final at = DateTime.utc(2026, 11, 16, 10);
 
-      final written = await store.setNote('club-a', 's1', 'Buen día', userId: 'u2', at: at);
-      final cleared = await store.setNote('club-a', 's1', null, userId: 'u2', at: at);
+      final written = await store.setNote('club-a', 's1', 'Buen día', sequence: 3, userId: 'u2', at: at);
+      final cleared = await store.setNote('club-a', 's1', null, sequence: 4, userId: 'u2', at: at);
 
       expect(written.note, 'Buen día');
       expect(written.presentAthleteIds, ['ari']);
       expect(written.auditoria.creadoPor, 'u1');
       expect(written.auditoria.modificadoPor, 'u2');
+      expect(written.lastSessionChange, 3);
       expect(cleared.note, isNull);
+      expect(cleared.lastSessionChange, 4);
+    });
+
+    mongoTest('the change counter goes up by one and stays per session', () async {
+      await insertSession();
+
+      expect(await nextSessionSequence(db!, 'club-a', 's1'), 1);
+      expect(await nextSessionSequence(db!, 'club-a', 's1'), 2);
+      expect(
+        () => nextSessionSequence(db!, 'club-b', 's1'),
+        throwsStateError,
+      );
+    });
+
+    mongoTest('a change of who is present takes a number', () async {
+      await insertSession();
+
+      final changed = await MongoOpenSessionStore(db!).markChanged('club-a', 's1');
+
+      expect(changed.sequence, 1);
+      expect(changed.lastSessionChange, 1);
+    });
+
+    mongoTest('resync: only records above the number, of that club and session', () async {
+      final write = MongoRecordSetStore(db!);
+      final store = MongoSessionChangesStore(db!);
+      SetRecord numbered(int set, int sequence, {String clubId = 'club-a', String sessionId = 's1'}) =>
+          SetRecord.fromJson({
+            ...record(setIndex: set, clubId: clubId, sessionId: sessionId).toJson(),
+            'secuencia': sequence,
+          });
+      await write.upsert(numbered(0, 1));
+      await write.upsert(numbered(1, 2));
+      await write.upsert(numbered(2, 3));
+      await write.upsert(numbered(3, 4, clubId: 'club-b'));
+      await write.upsert(numbered(4, 5, sessionId: 's2'));
+      await write.upsert(record(setIndex: 5));
+
+      final found = await store.recordsAfter('club-a', 's1', 1);
+
+      expect(found.map((r) => r.sequence).toSet(), {2, 3});
+    });
+
+    mongoTest('what comes back reads the same as what went in, so a repeat is detected', () async {
+      final store = MongoRecordSetStore(db!);
+      String content(SetRecord r) => jsonEncode(
+        r.toJson()
+          ..remove('id')
+          ..remove('auditoria'),
+      );
+      final sent = record(kg: 80, workFactor: 90, note: 'Liviano');
+
+      await store.upsert(sent);
+
+      expect(content((await store.stored(sent))!), content(sent));
+    });
+
+    mongoTest('a record finds what is stored under its key', () async {
+      final store = MongoRecordSetStore(db!);
+      expect(await store.stored(record()), isNull);
+
+      await store.upsert(record(note: 'Liviano'));
+
+      expect((await store.stored(record()))!.note, 'Liviano');
+      expect(await store.stored(record(setIndex: 1)), isNull);
     });
   });
 

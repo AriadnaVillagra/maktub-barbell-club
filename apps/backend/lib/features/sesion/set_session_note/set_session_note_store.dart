@@ -1,3 +1,4 @@
+import 'package:maktub_backend/features/sesion/session_sequence.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -10,12 +11,16 @@ abstract interface class SetSessionNoteStore {
   /// The athlete of [clubId] linked to the user [userId], or null if the user is not an athlete there.
   Future<String?> athleteIdOfUser(String clubId, String userId);
 
-  /// Writes [note] on an existing session, or clears it when null, touching nothing but the note and the
-  /// modification audit. Returns the stored session.
+  /// Takes the next change number of the session.
+  Future<int> nextSequence(String clubId, String sessionId);
+
+  /// Writes [note] on an existing session as change number [sequence], or clears it when null, touching nothing but
+  /// the note, the change number and the modification audit. Returns the stored session.
   Future<Session> setNote(
     String clubId,
     String sessionId,
     String? note, {
+    required int sequence,
     required String userId,
     required DateTime at,
   });
@@ -45,10 +50,15 @@ class MongoSetSessionNoteStore implements SetSessionNoteStore {
   }
 
   @override
+  Future<int> nextSequence(String clubId, String sessionId) =>
+      nextSessionSequence(_db, clubId, sessionId);
+
+  @override
   Future<Session> setNote(
     String clubId,
     String sessionId,
     String? note, {
+    required int sequence,
     required String userId,
     required DateTime at,
   }) async {
@@ -56,24 +66,13 @@ class MongoSetSessionNoteStore implements SetSessionNoteStore {
       userId,
       ahora: at,
     ).modificada(userId, ahora: at).toJson();
-    final result = await _db
-        .collection(Colecciones.sesiones)
-        .modernFindAndModify(
-          query: {'_id': sessionId, 'clubId': clubId},
-          update: {
-            r'$set': {
-              'nota': ?note,
-              'auditoria.modificadoPor': audit['modificadoPor'],
-              'auditoria.modificadoEn': audit['modificadoEn'],
-            },
-            if (note == null) r'$unset': {'nota': ''},
-          },
-          returnNew: true,
-        );
-    final doc = result.value;
-    if (!result.success || doc == null) {
-      throw StateError('Setting the session note failed: ${result.errmsg}');
-    }
-    return Session.fromJson(desdeDocumento(doc));
+    return updateSessionAsChange(_db, clubId, sessionId, sequence, {
+      r'$set': {
+        'nota': ?note,
+        'auditoria.modificadoPor': audit['modificadoPor'],
+        'auditoria.modificadoEn': audit['modificadoEn'],
+      },
+      if (note == null) r'$unset': {'nota': ''},
+    });
   }
 }

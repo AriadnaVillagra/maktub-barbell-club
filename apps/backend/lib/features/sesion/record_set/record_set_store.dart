@@ -1,3 +1,4 @@
+import 'package:maktub_backend/features/sesion/session_sequence.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -39,6 +40,12 @@ abstract interface class RecordSetStore {
 
   /// The club's equipment, or null if it never saved one.
   Future<Equipo?> equipment(String clubId);
+
+  /// The record already stored under the key of [record], or null.
+  Future<SetRecord?> stored(SetRecord record);
+
+  /// Takes the next change number of the session.
+  Future<int> nextSequence(String clubId, String sessionId);
 
   /// Atomically writes [record] under its key (club, session, athlete, block, prescription and set) and returns
   /// what is stored. If the key exists, its id and creation audit stay and everything else becomes [record]'s,
@@ -87,8 +94,7 @@ class MongoRecordSetStore implements RecordSetStore {
       },
     }).toList();
     return {
-      for (final d in docs)
-        '${d['_id']}': Exercise.fromJson(desdeDocumento(d)),
+      for (final d in docs) '${d['_id']}': Exercise.fromJson(desdeDocumento(d)),
     };
   }
 
@@ -158,6 +164,19 @@ class MongoRecordSetStore implements RecordSetStore {
     });
     return doc == null ? null : Equipo.fromJson(desdeDocumento(doc));
   }
+
+  @override
+  Future<SetRecord?> stored(SetRecord record) async {
+    final doc = aDocumento(record.toJson());
+    final found = await _db.collection(Colecciones.registros).findOne({
+      for (final key in _keyFields) key: doc[key],
+    });
+    return found == null ? null : SetRecord.fromJson(desdeDocumento(found));
+  }
+
+  @override
+  Future<int> nextSequence(String clubId, String sessionId) =>
+      nextSessionSequence(_db, clubId, sessionId);
 
   @override
   Future<SetRecord> upsert(SetRecord record, {bool keepNote = false}) async {

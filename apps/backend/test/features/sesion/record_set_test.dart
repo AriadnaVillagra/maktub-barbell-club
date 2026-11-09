@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/sesion/live_broadcast.dart';
 import 'package:maktub_backend/features/sesion/record_set/record_set.dart';
 import 'package:maktub_backend/features/sesion/record_set/record_set_store.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
@@ -25,7 +26,7 @@ class _FakeStore implements RecordSetStore {
   final allFactors = <WorkFactor>[];
   final allFixed = <FixedWeight>[];
   final equipments = <String, Equipo>{};
-  final stored = <String, SetRecord>{};
+  final stored_ = <String, SetRecord>{};
 
   @override
   Future<Session?> session(String clubId, String sessionId) async =>
@@ -89,10 +90,21 @@ class _FakeStore implements RecordSetStore {
   Future<Equipo?> equipment(String clubId) async => equipments[clubId];
 
   @override
+  Future<SetRecord?> stored(SetRecord r) async => stored_[_keyOf(r)];
+
+  int sequence = 0;
+
+  @override
+  Future<int> nextSequence(String clubId, String sessionId) async => ++sequence;
+
+  String _keyOf(SetRecord r) =>
+      '${r.clubId}/${r.sessionId}/${r.athleteId}/${r.blockIndex}/${r.prescriptionIndex}/${r.setIndex}';
+
+  @override
   Future<SetRecord> upsert(SetRecord r, {bool keepNote = false}) async {
     final key =
         '${r.clubId}/${r.sessionId}/${r.athleteId}/${r.blockIndex}/${r.prescriptionIndex}/${r.setIndex}';
-    final old = stored[key];
+    final old = stored_[key];
     final merged = SetRecord.fromJson({
       ...r.toJson(),
       if (keepNote) 'nota': old?.note,
@@ -104,7 +116,7 @@ class _FakeStore implements RecordSetStore {
         modificadoEn: r.auditoria.modificadoEn,
       ).toJson(),
     });
-    return stored[key] = merged;
+    return stored_[key] = merged;
   }
 }
 
@@ -254,6 +266,7 @@ Future<Response> _put(
   ClubContext? club,
   String sessionId = 's1',
   DateTime? now,
+  LiveBroadcast? broadcast,
 }) async {
   final context = _Context();
   when(() => context.request).thenReturn(
@@ -269,6 +282,7 @@ Future<Response> _put(
       c,
       sessionId,
       store: store,
+      broadcast: broadcast ?? MemoryLiveBroadcast(),
       newId: () => 'record-${_ids++}',
       now: () => now ?? DateTime.utc(2026, 11, 16, 10),
     ),
@@ -315,11 +329,11 @@ void main() {
         now: DateTime.utc(2026, 11, 16, 11),
       );
 
-      expect(store.stored, hasLength(1));
+      expect(store.stored_, hasLength(1));
       expect(retry.id, first.id);
       expect(retry.kg, first.kg);
       expect(retry.auditoria.creadoEn, first.auditoria.creadoEn);
-      expect(retry.auditoria.modificadoEn, DateTime.utc(2026, 11, 16, 11));
+      expect(retry.auditoria.modificadoEn, first.auditoria.modificadoEn);
     });
 
     test('writes of different sets from different devices do not overwrite each other', () async {
@@ -336,9 +350,9 @@ void main() {
         _body(athleteId: 'andi', extra: {'kilosManual': true, 'kilos': 50}),
       );
 
-      expect(store.stored, hasLength(3));
+      expect(store.stored_, hasLength(3));
       expect(
-        [for (final r in store.stored.values) r.kg],
+        [for (final r in store.stored_.values) r.kg],
         unorderedEquals([70, 75, 50]),
       );
     });
@@ -349,7 +363,7 @@ void main() {
       await _record(store, _body());
       final unmarked = await _record(store, _body(extra: {'hecha': false}));
 
-      expect(store.stored, hasLength(1));
+      expect(store.stored_, hasLength(1));
       expect(unmarked.done, isFalse);
     });
   });
@@ -388,7 +402,7 @@ void main() {
         final store = _store();
         final response = await _put(store, body);
         expect(response.statusCode, HttpStatus.unprocessableEntity);
-        expect(store.stored, isEmpty);
+        expect(store.stored_, isEmpty);
       }
     });
 
@@ -587,7 +601,7 @@ void main() {
       final response = await _put(store, _body(), club: _athlete());
 
       expect(response.statusCode, HttpStatus.forbidden);
-      expect(store.stored, isEmpty);
+      expect(store.stored_, isEmpty);
     });
 
     test('a user with no athlete in the club cannot write', () async {
@@ -608,7 +622,7 @@ void main() {
       );
 
       expect(response.statusCode, HttpStatus.forbidden);
-      expect(store.stored, isEmpty);
+      expect(store.stored_, isEmpty);
     });
 
     test('nobody writes for an athlete who is not present', () async {
@@ -617,7 +631,7 @@ void main() {
       final response = await _put(store, _body(athleteId: 'stranger'));
 
       expect(response.statusCode, HttpStatus.unprocessableEntity);
-      expect(store.stored, isEmpty);
+      expect(store.stored_, isEmpty);
     });
 
     test('a session of another club is not found', () async {
@@ -649,8 +663,8 @@ void main() {
 
       await _put(store, _body(), club: _athlete());
 
-      expect(store.stored.values.single.workFactor, 90);
-      expect(store.stored.values.single.pctReal, 72);
+      expect(store.stored_.values.single.workFactor, 90);
+      expect(store.stored_.values.single.pctReal, 72);
     });
 
     test('the coach gets it', () async {
@@ -658,6 +672,95 @@ void main() {
 
       expect(json['factor'], 90);
       expect(json['pctReal'], 72);
+    });
+  });
+
+  group('the live channel', () {
+    late MemoryLiveBroadcast broadcast;
+    late List<SessionChange> seen;
+
+    setUp(() {
+      broadcast = MemoryLiveBroadcast();
+      seen = [];
+      broadcast.changesOf('club-a', 's1').listen(seen.add);
+    });
+
+    Future<void> write(_FakeStore store, Map<String, dynamic> body) async {
+      final response = await _put(store, body, broadcast: broadcast);
+      expect(response.statusCode, HttpStatus.ok);
+      await pumpEventQueue();
+    }
+
+    test('a write publishes the stored record with its number', () async {
+      final store = _store();
+
+      await write(store, _body());
+
+      expect(seen.single.sequence, 1);
+      expect(seen.single.record!.sequence, 1);
+      expect(store.stored_.values.single.sequence, 1);
+    });
+
+    test('each change takes the next number', () async {
+      final store = _store();
+
+      await write(store, _body());
+      await write(store, _body(set: 1));
+      await write(store, _body(extra: {'kilosManual': true, 'kilos': 70}));
+
+      expect(seen.map((c) => c.sequence), [1, 2, 3]);
+    });
+
+    test('repeating a write is not a change and publishes nothing', () async {
+      final store = _store();
+
+      await write(store, _body());
+      await write(store, _body());
+
+      expect(seen, hasLength(1));
+      expect(store.sequence, 1);
+      expect(store.stored_.values.single.sequence, 1);
+    });
+
+    test('repeating it with the stored note still changes nothing', () async {
+      final store = _store();
+
+      await write(store, _body(extra: {'nota': 'Liviano'}));
+      await write(store, _body());
+      await write(store, _body(extra: {'nota': 'Liviano'}));
+
+      expect(seen, hasLength(1));
+    });
+
+    test('a different note is a change', () async {
+      final store = _store();
+
+      await write(store, _body(extra: {'nota': 'Liviano'}));
+      await write(store, _body(extra: {'nota': 'Pesado'}));
+
+      expect(seen, hasLength(2));
+    });
+
+    test('concurrent writes publish in number order', () async {
+      final store = _store();
+
+      await Future.wait([
+        for (final set in [0, 1, 0, 1])
+          _put(store, _body(set: set), broadcast: broadcast),
+      ]);
+      await pumpEventQueue();
+
+      expect(seen.map((c) => c.sequence), [1, 2]);
+    });
+
+    test('a refused write publishes nothing', () async {
+      final store = _store();
+
+      await _put(store, _body(set: 99), broadcast: broadcast);
+      await pumpEventQueue();
+
+      expect(seen, isEmpty);
+      expect(store.sequence, 0);
     });
   });
 
@@ -697,7 +800,7 @@ void main() {
         final response = await _put(store, _body(extra: {'nota': note}));
 
         expect(response.statusCode, HttpStatus.badRequest);
-        expect(store.stored, isEmpty);
+        expect(store.stored_, isEmpty);
       });
     }
   });
@@ -718,7 +821,7 @@ void main() {
         final response = await _put(store, body);
 
         expect(response.statusCode, HttpStatus.badRequest);
-        expect(store.stored, isEmpty);
+        expect(store.stored_, isEmpty);
       });
     }
 
@@ -732,7 +835,12 @@ void main() {
   final isolated = _FakeStore();
   testClubIsolation(
     'PUT /clubes/{clubId}/sesiones/{sesionId}/registros',
-    endpoint: (context) => recordSetEndpoint(context, 's1', store: isolated),
+    endpoint: (context) => recordSetEndpoint(
+      context,
+      's1',
+      store: isolated,
+      broadcast: MemoryLiveBroadcast(),
+    ),
     path: '/clubes/{clubId}/sesiones/s1/registros',
     action: Accion.registrar,
     method: 'PUT',

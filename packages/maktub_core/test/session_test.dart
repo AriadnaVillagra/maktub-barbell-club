@@ -21,6 +21,8 @@ void main() {
         date: DateTime.utc(2026, 11, 9),
         presentAthleteIds: const ['u1', 'u2'],
         note: 'Buen día',
+        sequence: 9,
+        lastSessionChange: 4,
         auditoria: _audit,
       );
       final json = _roundTrip(s.toJson());
@@ -34,6 +36,7 @@ void main() {
       );
       expect(back.presentAthleteIds, ['u1', 'u2']);
       expect(back.note, 'Buen día');
+      expect([back.sequence, back.lastSessionChange], [9, 4]);
     });
   });
 
@@ -64,6 +67,54 @@ void main() {
         'recuperado',
         'falta',
       ]);
+    });
+  });
+
+  group('SessionChange', () {
+    final session = Session(
+      id: 's1',
+      clubId: 'c1',
+      assignmentId: 'a1',
+      planId: 'p1',
+      cycle: 1,
+      week: 1,
+      day: 1,
+      date: DateTime.utc(2026, 11, 9),
+      auditoria: _audit,
+    );
+    final setRecord = SetRecord(
+      id: 'r',
+      clubId: 'c1',
+      sessionId: 's1',
+      athleteId: 'u',
+      exerciseId: 'e',
+      exerciseName: 'x',
+      blockIndex: 0,
+      prescriptionIndex: 0,
+      setIndex: 0,
+      sequence: 3,
+      writtenBy: 'u',
+      auditoria: _audit,
+    );
+
+    test('a record change survives a JSON round trip', () {
+      final json = _roundTrip(SessionChange.ofRecord(3, setRecord).toJson());
+      final back = SessionChange.fromJson(json);
+
+      expect(json['tipo'], 'registro');
+      expect(back.toJson(), json);
+      expect(back.record!.sequence, 3);
+      expect([back.clubId, back.sessionId], ['c1', 's1']);
+    });
+
+    test('a session change survives a JSON round trip', () {
+      final json = _roundTrip(SessionChange.ofSession(4, session).toJson());
+      final back = SessionChange.fromJson(json);
+
+      expect(json['tipo'], 'sesion');
+      expect(back.toJson(), json);
+      expect(back.record, isNull);
+      expect([back.clubId, back.sessionId], ['c1', 's1']);
     });
   });
 

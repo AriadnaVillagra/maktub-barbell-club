@@ -1,21 +1,30 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/auth/tokens.dart';
 import 'package:maktub_backend/features/sesion/connect_live_session/connect_live_session.dart';
 import 'package:maktub_backend/features/sesion/connect_live_session/connect_live_session_store.dart';
+import 'package:maktub_backend/features/sesion/live_broadcast.dart';
 import 'package:maktub_backend/features/sesion/live_tickets.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
+import 'package:maktub_core/maktub_core.dart';
 import 'package:test/test.dart';
 
 void main() {
   final issuedAt = DateTime.utc(2026, 11, 8, 18);
   late DateTime now;
   late LiveTickets tickets;
+  late MemoryLiveBroadcast broadcast;
   late HttpServer server;
 
-  void issue(String value, {String clubId = 'c1', String sessionId = 's1'}) {
+  void issue(
+    String value, {
+    String clubId = 'c1',
+    String sessionId = 's1',
+    bool canSeeFactors = false,
+  }) {
     tickets.save(
       value,
       LiveTicket(
@@ -23,6 +32,7 @@ void main() {
         sessionId: sessionId,
         userId: 'u1',
         expiresAt: issuedAt.add(liveTicketLifetime),
+        canSeeFactors: canSeeFactors,
       ),
       now: issuedAt,
     );
@@ -43,6 +53,7 @@ void main() {
   setUp(() async {
     now = issuedAt;
     tickets = LiveTickets();
+    broadcast = MemoryLiveBroadcast();
     server = await serve(
       // Behind the same error and CORS middleware as the real route.
       manejarErrores()(
@@ -53,6 +64,7 @@ void main() {
             segments[0],
             segments[1],
             store: MemoryConnectLiveSessionStore(tickets),
+            broadcast: broadcast,
             now: () => now,
           );
         }),
@@ -149,6 +161,119 @@ void main() {
     await expectLater(connect('c1/s1?ticket=nope'), rejected());
     await expectLater(connect('c1/s1?ticket='), rejected());
     await expectLater(connect('c1/s1'), rejected());
+  });
+
+  group('changes', () {
+    SetRecord record({String clubId = 'c1', String sessionId = 's1'}) =>
+        SetRecord(
+          id: 'r1',
+          clubId: clubId,
+          sessionId: sessionId,
+          athleteId: 'ari',
+          exerciseId: 'sq',
+          exerciseName: 'Sentadilla',
+          blockIndex: 0,
+          prescriptionIndex: 0,
+          setIndex: 0,
+          kg: 72,
+          workFactor: 90,
+          pctPlan: 80,
+          pctReal: 72,
+          sequence: 7,
+          writtenBy: 'u1',
+          auditoria: Auditoria.nueva('u1', ahora: issuedAt),
+        );
+
+    /// Waits for the server to have the socket subscribed: the upgrade answers before its callback runs.
+    Future<void> settle() =>
+        Future<void>.delayed(const Duration(milliseconds: 50));
+
+    Future<Map<String, dynamic>> next(StreamIterator<dynamic> socket) async {
+      expect(
+        await socket.moveNext().timeout(const Duration(seconds: 5)),
+        isTrue,
+      );
+      return jsonDecode(socket.current as String) as Map<String, dynamic>;
+    }
+
+    test('a change reaches every connection of that session', () async {
+      issue('t1', canSeeFactors: true);
+      issue('t2', canSeeFactors: true);
+      final one = await connect('c1/s1?ticket=t1');
+      final two = await connect('c1/s1?ticket=t2');
+      addTearDown(one.close);
+      addTearDown(two.close);
+      final fromOne = StreamIterator<dynamic>(one);
+      final fromTwo = StreamIterator<dynamic>(two);
+      await settle();
+
+      broadcast.publish(SessionChange.ofRecord(7, record()));
+
+      for (final socket in [fromOne, fromTwo]) {
+        final change = SessionChange.fromJson(await next(socket));
+        expect(change.sequence, 7);
+        expect(change.record!.kg, 72);
+      }
+    });
+
+    test('a change of another session or club does not arrive', () async {
+      issue('t1');
+      final socket = await connect('c1/s1?ticket=t1');
+      addTearDown(socket.close);
+      final received = StreamIterator<dynamic>(socket);
+      await settle();
+
+      broadcast
+        ..publish(SessionChange.ofRecord(1, record(sessionId: 's2')))
+        ..publish(SessionChange.ofRecord(2, record(clubId: 'c2')))
+        ..publish(SessionChange.ofRecord(3, record()));
+
+      expect((await next(received))['secuencia'], 3);
+    });
+
+    test('without permission the factor and the real percent stay out', () async {
+      issue('t1');
+      final socket = await connect('c1/s1?ticket=t1');
+      addTearDown(socket.close);
+      final received = StreamIterator<dynamic>(socket);
+      await settle();
+
+      broadcast.publish(SessionChange.ofRecord(7, record()));
+
+      final sent = (await next(received))['registro'] as Map<String, dynamic>;
+      expect(sent, isNot(contains('factor')));
+      expect(sent, isNot(contains('pctReal')));
+      expect(sent['pctPlan'], 80);
+    });
+
+    test('with permission they travel', () async {
+      issue('t1', canSeeFactors: true);
+      final socket = await connect('c1/s1?ticket=t1');
+      addTearDown(socket.close);
+      final received = StreamIterator<dynamic>(socket);
+      await settle();
+
+      broadcast.publish(SessionChange.ofRecord(7, record()));
+
+      final sent = (await next(received))['registro'] as Map<String, dynamic>;
+      expect([sent['factor'], sent['pctReal']], [90, 72]);
+    });
+
+    test('a closed connection stops listening', () async {
+      issue('t1');
+      final socket = await connect('c1/s1?ticket=t1');
+      final closed = socket.drain<void>();
+      await settle();
+
+      await socket.close(WebSocketStatus.normalClosure);
+      await closed.timeout(const Duration(seconds: 5));
+      await settle();
+
+      expect(
+        () => broadcast.publish(SessionChange.ofRecord(1, record())),
+        returnsNormally,
+      );
+    });
   });
 
   group('the access token never opens the channel', () {

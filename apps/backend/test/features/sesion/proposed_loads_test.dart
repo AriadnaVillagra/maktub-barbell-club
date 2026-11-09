@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/sesion/live_broadcast.dart';
 import 'package:maktub_backend/features/sesion/proposed_loads/proposed_loads.dart';
 import 'package:maktub_backend/features/sesion/proposed_loads/proposed_loads_store.dart';
 import 'package:maktub_backend/features/sesion/record_set/record_set.dart';
@@ -151,6 +152,12 @@ class _RecordStore implements RecordSetStore {
 
   @override
   Future<Equipo?> equipment(String clubId) => _proposals.equipment(clubId);
+
+  @override
+  Future<SetRecord?> stored(SetRecord record) async => null;
+
+  @override
+  Future<int> nextSequence(String clubId, String sessionId) async => 1;
 
   @override
   Future<SetRecord> upsert(SetRecord record, {bool keepNote = false}) async =>
@@ -351,6 +358,7 @@ Future<SetRecord> _recorded(_Data data, Map<String, dynamic> position) async {
       c,
       's1',
       store: _RecordStore(data),
+      broadcast: MemoryLiveBroadcast(),
       newId: () => 'r1',
       now: () => DateTime.utc(2026, 11, 16, 10),
     ),

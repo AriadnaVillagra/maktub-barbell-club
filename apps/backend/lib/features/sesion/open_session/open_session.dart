@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/sesion/live_broadcast.dart';
 import 'package:maktub_backend/features/sesion/record_view.dart';
 import 'package:maktub_backend/infraestructura/fechas_http.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
@@ -20,6 +21,8 @@ import 'open_session_store.dart';
 ///   never removes the athletes another one chose.
 /// - An athlete can only open a session of their own group; a coach, of any group of the club.
 ///
+/// Adding someone to `presentes` is published as a change of the session. [broadcast] is for tests, like the rest.
+///
 /// The plan is always read from its published version. 400 if the body is malformed, 404 if the assignment is not
 /// in the club or is another group's for an athlete, 409 if it is not active, 422 if the plan has no published
 /// version, the day is not in that week, or a present athlete is not in the group. [store], [newId] and [now] are
@@ -27,6 +30,7 @@ import 'open_session_store.dart';
 Future<Response> openSessionEndpoint(
   RequestContext context, {
   OpenSessionStore? store,
+  LiveBroadcast? broadcast,
   String Function()? newId,
   DateTime Function()? now,
 }) async {
@@ -34,6 +38,7 @@ Future<Response> openSessionEndpoint(
   final body = await leerCuerpoJson(context.request);
   final opened = await OpenSession(
     store ?? MongoOpenSessionStore(context.read<Db>()),
+    broadcast ?? context.read<LiveBroadcast>(),
     newId: newId,
     now: now,
   )(club, body);
@@ -47,13 +52,15 @@ Future<Response> openSessionEndpoint(
 
 class OpenSession {
   OpenSession(
-    this._store, {
+    this._store,
+    this._broadcast, {
     String Function()? newId,
     DateTime Function()? now,
   }) : _newId = newId ?? (() => ObjectId().oid),
-       _now = now ?? DateTime.now;
+      _now = now ?? DateTime.now;
 
   final OpenSessionStore _store;
+  final LiveBroadcast _broadcast;
   final String Function() _newId;
   final DateTime Function() _now;
 
@@ -124,20 +131,30 @@ class OpenSession {
       );
     }
 
-    final session = await _store.openOrResume(
-      Session(
-        id: _newId(),
-        clubId: club.clubId,
-        assignmentId: assignment.id,
-        planId: assignment.planId,
-        cycle: location.ciclo,
-        week: week,
-        day: day,
-        date: date,
-        presentAthleteIds: present,
-        auditoria: Auditoria.nueva(club.userId, ahora: _now()),
-      ),
+    final candidate = Session(
+      id: _newId(),
+      clubId: club.clubId,
+      assignmentId: assignment.id,
+      planId: assignment.planId,
+      cycle: location.ciclo,
+      week: week,
+      day: day,
+      date: date,
+      presentAthleteIds: present,
+      auditoria: Auditoria.nueva(club.userId, ahora: _now()),
     );
+    final before = await _store.existing(candidate);
+    var session = await _store.openOrResume(candidate);
+    if (!{...?before?.presentAthleteIds}.containsAll(present)) {
+      final id = session.id;
+      session = await _broadcast.inOrder(id, () async {
+        final changed = await _store.markChanged(club.clubId, id);
+        _broadcast.publish(
+          SessionChange.ofSession(changed.lastSessionChange, changed),
+        );
+        return changed;
+      });
+    }
     return (
       session: session,
       records: await _store.records(club.clubId, session.id),

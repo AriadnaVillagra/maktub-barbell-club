@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/sesion/live_broadcast.dart';
 import 'package:maktub_backend/features/sesion/record_view.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
 import 'package:maktub_core/maktub_core.dart';
@@ -14,6 +16,9 @@ import 'record_set_store.dart';
 /// Needs [Accion.registrar]. Writes that one set and nothing else, so repeating it changes nothing and two
 /// devices writing different sets do not touch each other (diseno, "Multi-dispositivo").
 ///
+/// A write that changes something takes the session's next change number and is published to the devices following
+/// the session. Repeating one leaves everything as it was: no new number, no event, no audit.
+///
 /// The position is 0-based and must exist in the plan's published version. The server takes the exercise, its name
 /// and the target from there, and resolves RM, work factor, fixed weight and bar itself on the session's date:
 /// - Without `kilosManual`, the kilos are computed; `kilos` is ignored. `ajuste` is the day's adjustment already
@@ -25,11 +30,12 @@ import 'record_set_store.dart';
 /// A coach writes for any present athlete, and an athlete present in the session for any present athlete
 /// (in a personal club, only for themselves). 400 if the body is malformed, 403 if the user cannot write for that
 /// athlete, 404 if the session is not in the club, 422 if the athlete is not present, the position is not in the
-/// plan or the plan has no published version. [store], [newId] and [now] are for tests.
+/// plan or the plan has no published version. [store], [broadcast], [newId] and [now] are for tests.
 Future<Response> recordSetEndpoint(
   RequestContext context,
   String sessionId, {
   RecordSetStore? store,
+  LiveBroadcast? broadcast,
   String Function()? newId,
   DateTime Function()? now,
 }) async {
@@ -37,6 +43,7 @@ Future<Response> recordSetEndpoint(
   final body = await leerCuerpoJson(context.request);
   final record = await RecordSet(
     store ?? MongoRecordSetStore(context.read<Db>()),
+    broadcast ?? context.read<LiveBroadcast>(),
     newId: newId,
     now: now,
   )(club, sessionId, body);
@@ -45,21 +52,19 @@ Future<Response> recordSetEndpoint(
 
 class RecordSet {
   RecordSet(
-    this._store, {
+    this._store,
+    this._broadcast, {
     String Function()? newId,
     DateTime Function()? now,
   }) : _newId = newId ?? (() => ObjectId().oid),
        _now = now ?? DateTime.now;
 
   final RecordSetStore _store;
+  final LiveBroadcast _broadcast;
   final String Function() _newId;
   final DateTime Function() _now;
 
-  Future<SetRecord> call(
-    ClubContext club,
-    String sessionId,
-    Json body,
-  ) async {
+  Future<SetRecord> call(ClubContext club, String sessionId, Json body) async {
     final input = _SetInput.fromBody(body);
     final session = await _store.session(club.clubId, sessionId);
     if (session == null) {
@@ -69,14 +74,18 @@ class RecordSet {
 
     final published = await _store.publishedPlan(club.clubId, session.planId);
     if (published == null) {
-      throw _unprocessable('El plan de la sesión no tiene una versión publicada.');
+      throw _unprocessable(
+        'El plan de la sesión no tiene una versión publicada.',
+      );
     }
     final prescription = _prescriptionAt(published, session, input);
     final target = prescription.sets[input.setIndex];
     final exercises = await _store.exercises(club.clubId);
     final exercise = exercises[prescription.exerciseId];
     if (exercise == null) {
-      throw _unprocessable('El ejercicio de esa serie no existe en el catálogo.');
+      throw _unprocessable(
+        'El ejercicio de esa serie no existe en el catálogo.',
+      );
     }
 
     final load = await _resolveLoad(
@@ -89,40 +98,66 @@ class RecordSet {
       exercises,
     );
     final now = _now();
-    return _store.upsert(
-      SetRecord(
-        id: _newId(),
-        clubId: club.clubId,
-        sessionId: session.id,
-        athleteId: input.athleteId,
-        exerciseId: exercise.id,
-        exerciseName: exercise.name,
-        blockIndex: input.blockIndex,
-        prescriptionIndex: input.prescriptionIndex,
-        setIndex: input.setIndex,
-        target: target,
-        done: input.done,
-        kg: load.kg,
-        reps: input.reps ?? target.reps,
-        seconds: input.seconds ?? target.seconds,
-        distanceM: input.distanceM ?? target.distanceM,
-        calories: input.calories ?? target.calories,
-        referenceId: load.reference?.id,
-        referenceValue: load.reference?.value,
-        workFactor: load.workFactor,
-        pctPlan: load.pcts?.pctPlan,
-        pctReal: load.pcts?.pctReal,
-        rpe: input.rpe,
-        manualKg: input.manualKg,
-        note: input.note,
-        writtenBy: club.userId,
-        auditoria: Auditoria.nueva(
-          club.userId,
-          ahora: now,
-        ).modificada(club.userId, ahora: now),
-      ),
-      keepNote: !input.writesNote,
+    SetRecord build({int? sequence}) => SetRecord(
+      id: _newId(),
+      clubId: club.clubId,
+      sessionId: session.id,
+      athleteId: input.athleteId,
+      exerciseId: exercise.id,
+      exerciseName: exercise.name,
+      blockIndex: input.blockIndex,
+      prescriptionIndex: input.prescriptionIndex,
+      setIndex: input.setIndex,
+      target: target,
+      done: input.done,
+      kg: load.kg,
+      reps: input.reps ?? target.reps,
+      seconds: input.seconds ?? target.seconds,
+      distanceM: input.distanceM ?? target.distanceM,
+      calories: input.calories ?? target.calories,
+      referenceId: load.reference?.id,
+      referenceValue: load.reference?.value,
+      workFactor: load.workFactor,
+      pctPlan: load.pcts?.pctPlan,
+      pctReal: load.pcts?.pctReal,
+      rpe: input.rpe,
+      manualKg: input.manualKg,
+      note: input.note,
+      writtenBy: club.userId,
+      auditoria: Auditoria.nueva(
+        club.userId,
+        ahora: now,
+      ).modificada(club.userId, ahora: now),
+      sequence: sequence,
     );
+
+    final keepNote = !input.writesNote;
+    return _broadcast.inOrder(session.id, () async {
+      final current = await _store.stored(build());
+      if (current != null &&
+          _sameContent(current, build(), keepNote: keepNote)) {
+        return current;
+      }
+      final stored = await _store.upsert(
+        build(sequence: await _store.nextSequence(club.clubId, session.id)),
+        keepNote: keepNote,
+      );
+      _broadcast.publish(SessionChange.ofRecord(stored.sequence!, stored));
+      return stored;
+    });
+  }
+
+  /// Whether both say the same about the set, whoever wrote them and whenever.
+  bool _sameContent(SetRecord a, SetRecord b, {required bool keepNote}) {
+    String content(SetRecord r) => jsonEncode(
+      r.toJson()
+        ..remove('id')
+        ..remove('auditoria')
+        ..remove('escritoPor')
+        ..remove('secuencia')
+        ..removeWhere((key, _) => keepNote && key == 'nota'),
+    );
+    return content(a) == content(b);
   }
 
   Future<void> _authorize(
@@ -233,12 +268,7 @@ class _Load {
     double factor,
   ) => pcts == null
       ? _Load(kg, null, null, null)
-      : _Load(
-          kg,
-          pcts,
-          reference,
-          factor == defaultWorkFactor ? null : factor,
-        );
+      : _Load(kg, pcts, reference, factor == defaultWorkFactor ? null : factor);
 
   final double? kg;
   final RecordPcts? pcts;

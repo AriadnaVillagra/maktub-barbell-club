@@ -27,7 +27,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 8 / 13 (E7.1 a E7.5, E7.7, E7.8 y E7.13 hechos; sigue E7.6) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 9 / 13 (E7.1 a E7.8 y E7.13 hechos; sigue E7.9) | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
@@ -60,7 +60,11 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **Pendiente:** `presentes` solo acumula, no hay forma de quitar a alguien. `AthleteDay` todavía no se escribe, y E7.13 deriva hecho o pendiente de las sesiones y sus series.
 - **Sin probar en real (E7.7):** la pantalla de sesión solo pasó tests, no se abrió en un navegador contra la API. `MongoProposedLoadsStore` no corrió contra MongoDB.
 - **Nombres de compañeros (sin decidir):** `GET /atletas` es solo para coach, así que un atleta sin ese rol ve "Yo" y "Atleta N". No afecta a Andi y Ari.
-- **Pings (E7.6 o E7.10):** E7.5 no configura `pingInterval`, y E7.1 midió con un eco cada 30 s. Hay que definirlos para detectar conexiones muertas y sostener una conexión sin tráfico.
+- **Pings (E7.6, hecho):** el servidor manda un ping cada 30 s, como midió E7.1. Falta comprobarlo en Cloud Run con una conexión sin tráfico.
+- **Canal en vivo (E7.6, para E7.10):** el contador va en la sesión. Cada mensaje es un `SessionChange` con el estado completo de un registro o de la sesión (nota y presentes). El cliente se conecta primero y después pide `GET .../cambios?desde=N`, y recuerda el número más alto visto: los números pueden saltear, así que un salto no indica pérdida. El dispositivo que escribe también recibe su propio cambio.
+- **Dos réplicas (E7.6):** repetir una escritura ya no toca nada, tampoco la auditoría. Las escrituras de una sesión se hacen en fila dentro del proceso, lo que solo vale con una instancia. Si algún día hay más, esa fila también hay que reemplazarla, no solo la difusión.
+- **Sin probar en real (E7.6):** los stores corrieron contra MongoDB y el WebSocket contra un servidor local en los tests, con el store falso. No se probó en Cloud Run ni con dos teléfonos; eso queda para E7.10.
+- **`diseno.md` (E7.6):** tampoco tiene `secuencia` en sesión y registro ni `secuenciaSesion` en sesión.
 
 ## Para E6 (decidido el 2026-11-08)
 

@@ -16,12 +16,16 @@ class LiveTicket {
     required this.sessionId,
     required this.userId,
     required this.expiresAt,
+    this.canSeeFactors = false,
   });
 
   final String clubId;
   final String sessionId;
   final String userId;
   final DateTime expiresAt;
+
+  /// Whether the changes sent over this connection include work factors.
+  final bool canSeeFactors;
 
   bool isExpiredAt(DateTime now) => !now.isBefore(expiresAt);
 }

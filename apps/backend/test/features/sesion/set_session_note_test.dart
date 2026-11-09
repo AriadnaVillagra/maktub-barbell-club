@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/sesion/live_broadcast.dart';
 import 'package:maktub_backend/features/sesion/set_session_note/set_session_note.dart';
 import 'package:maktub_backend/features/sesion/set_session_note/set_session_note_store.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
@@ -48,11 +49,17 @@ class _FakeStore implements SetSessionNoteStore {
   Future<String?> athleteIdOfUser(String clubId, String userId) async =>
       athletes['$clubId/$userId'];
 
+  int sequence = 0;
+
+  @override
+  Future<int> nextSequence(String clubId, String sessionId) async => ++sequence;
+
   @override
   Future<Session> setNote(
     String clubId,
     String sessionId,
     String? note, {
+    required int sequence,
     required String userId,
     required DateTime at,
   }) async {
@@ -60,6 +67,8 @@ class _FakeStore implements SetSessionNoteStore {
     return sessions['$clubId/$sessionId'] = Session.fromJson({
       ...old.toJson(),
       'nota': note,
+      'secuencia': sequence,
+      'secuenciaSesion': sequence,
     });
   }
 }
@@ -83,6 +92,7 @@ Future<Response> _put(
   Object? body, {
   ClubContext? club,
   String sessionId = 's1',
+  LiveBroadcast? broadcast,
 }) async {
   final context = _Context();
   when(() => context.request).thenReturn(
@@ -94,7 +104,12 @@ Future<Response> _put(
   );
   when(() => context.read<ClubContext>()).thenReturn(club ?? _coach());
   return manejarErrores()(
-    (c) => setSessionNoteEndpoint(c, sessionId, store: store),
+    (c) => setSessionNoteEndpoint(
+      c,
+      sessionId,
+      store: store,
+      broadcast: broadcast ?? MemoryLiveBroadcast(),
+    ),
   )(context);
 }
 
@@ -115,6 +130,33 @@ void main() {
     await _put(store, {'nota': ''});
 
     expect(store.sessions['club-a/s1']!.note, isNull);
+  });
+
+  test('a new note is published with its number', () async {
+    final store = _FakeStore()..seed('club-a');
+    final broadcast = MemoryLiveBroadcast();
+    final seen = <SessionChange>[];
+    broadcast.changesOf('club-a', 's1').listen(seen.add);
+
+    await _put(store, {'nota': 'Hola'}, broadcast: broadcast);
+    await pumpEventQueue();
+
+    expect(seen.single.sequence, 1);
+    expect(seen.single.session!.note, 'Hola');
+  });
+
+  test('the same note again is not a change', () async {
+    final store = _FakeStore()..seed('club-a', note: 'Hola');
+    final broadcast = MemoryLiveBroadcast();
+    final seen = <SessionChange>[];
+    broadcast.changesOf('club-a', 's1').listen(seen.add);
+
+    final response = await _put(store, {'nota': 'Hola'}, broadcast: broadcast);
+    await pumpEventQueue();
+
+    expect(response.statusCode, HttpStatus.ok);
+    expect(seen, isEmpty);
+    expect(store.sequence, 0);
   });
 
   test('a present athlete can write it', () async {
@@ -165,7 +207,12 @@ void main() {
   testClubIsolation(
     'PUT /clubes/{clubId}/sesiones/{sesionId}/nota',
     endpoint: (context) =>
-        setSessionNoteEndpoint(context, 's1', store: isolated),
+        setSessionNoteEndpoint(
+          context,
+          's1',
+          store: isolated,
+          broadcast: MemoryLiveBroadcast(),
+        ),
     path: '/clubes/{clubId}/sesiones/s1/nota',
     action: Accion.registrar,
     method: 'PUT',

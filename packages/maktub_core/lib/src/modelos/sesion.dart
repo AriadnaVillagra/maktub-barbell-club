@@ -56,6 +56,8 @@ class Session implements DelClub {
     required this.date,
     this.presentAthleteIds = const [],
     this.note,
+    this.sequence = 0,
+    this.lastSessionChange = 0,
     required this.auditoria,
   });
 
@@ -84,6 +86,12 @@ class Session implements DelClub {
 
   /// Free note about the whole session, shared by everyone in it.
   final String? note;
+
+  /// The number of the last change of this session. See [SessionChange].
+  final int sequence;
+
+  /// The number of the last change to the session itself (its note or who is present).
+  final int lastSessionChange;
   final Auditoria auditoria;
 
   factory Session.fromJson(Json j) => Session(
@@ -99,6 +107,8 @@ class Session implements DelClub {
       for (final a in (j['presentes'] as List? ?? const [])) '$a',
     ],
     note: textoOpcional(j['nota']),
+    sequence: enteroOpcional(j['secuencia']) ?? 0,
+    lastSessionChange: enteroOpcional(j['secuenciaSesion']) ?? 0,
     auditoria: _auditoria(j['auditoria']),
   );
 
@@ -113,6 +123,8 @@ class Session implements DelClub {
     'fecha': aIsoFecha(date),
     'presentes': presentAthleteIds,
     ...sinNulos({'nota': note}),
+    'secuencia': sequence,
+    'secuenciaSesion': lastSessionChange,
     'auditoria': auditoria.toJson(),
   };
 }
@@ -241,6 +253,7 @@ class SetRecord implements DelClub {
     this.rpe,
     this.manualKg = false,
     this.note,
+    this.sequence,
     required this.writtenBy,
     required this.auditoria,
   });
@@ -294,6 +307,9 @@ class SetRecord implements DelClub {
   /// Free note about the exercise. It lives on the exercise's first set (`setIndex` 0).
   final String? note;
 
+  /// The number of the session's change that last modified this record. Null if it came from outside the live flow.
+  final int? sequence;
+
   /// Id of the user who wrote it, which may be a coach writing for the athlete.
   final String writtenBy;
   final Auditoria auditoria;
@@ -325,6 +341,7 @@ class SetRecord implements DelClub {
     rpe: numOpcional(j['rpe']),
     manualKg: j['kilosManual'] == true,
     note: textoOpcional(j['nota']),
+    sequence: enteroOpcional(j['secuencia']),
     writtenBy: '${j['escritoPor']}',
     auditoria: _auditoria(j['auditoria']),
   );
@@ -355,9 +372,50 @@ class SetRecord implements DelClub {
       'rpe': rpe,
       'kilosManual': manualKg ? true : null,
       'nota': note,
+      'secuencia': sequence,
     }),
     'escritoPor': writtenBy,
     'auditoria': auditoria.toJson(),
+  };
+}
+
+/// One change of a session, numbered within it from 1. A record or a session carries its whole current state, so
+/// applying a change twice is harmless. The numbers can skip: a client only remembers the highest it has seen.
+class SessionChange {
+  const SessionChange.ofRecord(this.sequence, SetRecord this.record)
+    : session = null;
+  const SessionChange.ofSession(this.sequence, Session this.session)
+    : record = null;
+
+  final int sequence;
+  final SetRecord? record;
+  final Session? session;
+
+  String get clubId => record?.clubId ?? session!.clubId;
+  String get sessionId => record?.sessionId ?? session!.id;
+
+  factory SessionChange.fromJson(Json j) {
+    final sequence = enteroOpcional(j['secuencia'])!;
+    return j['tipo'] == 'sesion'
+        ? SessionChange.ofSession(
+            sequence,
+            Session.fromJson((j['sesion'] as Map).cast<String, dynamic>()),
+          )
+        : SessionChange.ofRecord(
+            sequence,
+            SetRecord.fromJson((j['registro'] as Map).cast<String, dynamic>()),
+          );
+  }
+
+  Json toJson() => {
+    'secuencia': sequence,
+    if (record != null) ...{
+      'tipo': 'registro',
+      'registro': record!.toJson(),
+    } else ...{
+      'tipo': 'sesion',
+      'sesion': session!.toJson(),
+    },
   };
 }
 
