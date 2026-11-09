@@ -20,6 +20,7 @@ class SignInPage extends ConsumerWidget {
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(Espacio.xl),
             child: SignInPanel(
+              logo: const ClubLogo(),
               title: 'Maktub Barbell Club',
               subtitle: 'Ingresá con la cuenta de Google que dio de alta tu coach.',
               busy: state.sending,

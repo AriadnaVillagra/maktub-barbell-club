@@ -7,6 +7,7 @@
 library;
 
 export 'src/componentes/campo_busqueda.dart';
+export 'src/componentes/club_logo.dart';
 export 'src/componentes/contador_cantidad.dart';
 export 'src/componentes/insignia.dart';
 export 'src/componentes/lista_de_problemas.dart';

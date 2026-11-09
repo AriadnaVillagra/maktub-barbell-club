@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../componentes/campo_busqueda.dart';
+import '../componentes/club_logo.dart';
 import '../componentes/contador_cantidad.dart';
 import '../componentes/insignia.dart';
 import '../componentes/lista_de_problemas.dart';
@@ -78,6 +79,7 @@ class Muestrario extends StatelessWidget {
             _Seccion('Texto', _Textos()),
             _Seccion('Números', _Numeros()),
             _Seccion('Controles', _Controles()),
+            _Seccion('Logo', Center(child: ClubLogo())),
             _Seccion('Ingreso', _Ingreso()),
             _Seccion('Insignias', _Insignias()),
             _Seccion('Píldoras', _Pildoras()),
@@ -282,6 +284,7 @@ class _Ingreso extends StatelessWidget {
         runSpacing: Espacio.xl,
         children: [
           SignInPanel(
+            logo: const ClubLogo(),
             title: 'Maktub Barbell Club',
             subtitle: 'Ingresá con tu cuenta de Google.',
             action: OutlinedButton(onPressed: () {}, child: const Text('Botón de Google')),

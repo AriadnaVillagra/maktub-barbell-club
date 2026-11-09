@@ -18,6 +18,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  # Only the reduced logo ships; maktub-barbell-club-logo.png is the 2000 px master.
+  assets:
+    - assets/logo-club.png
+
   # Fuentes empaquetadas (F17, DS7): la PWA tiene que funcionar sin señal, así que nunca se
   # descargan en runtime. Subconjunto latino, de Fontsource 5.3.0. Licencias OFL en assets/fuentes/.
   # Desde la app se nombran con prefijo de paquete: `Familias.texto` / `Familias.numeros`.
