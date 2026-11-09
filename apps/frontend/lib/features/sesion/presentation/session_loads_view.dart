@@ -4,10 +4,11 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show SectionTitle, asyncView, formatKg;
+    show asyncView, formatKg;
 import '../domain/athlete_adjustments.dart';
 import '../domain/session_repository.dart';
 import 'providers.dart';
+import 'session_block_card.dart';
 import 'session_page.dart';
 
 /// The open session: which present athlete is on screen, their day adjustment and the kilos of each set.
@@ -108,28 +109,30 @@ class _Blocks extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (var b = 0; b < day.blocks.length; b++) ...[
-          SectionTitle(day.blocks[b].name),
-          for (var p = 0; p < day.blocks[b].prescriptions.length; p++)
-            if (day.blocks[b].prescriptions[p].exerciseId
-                case final exerciseId?)
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+        for (var b = 0; b < day.blocks.length; b++)
+          SessionBlockCard(
+            key: Key('session-block-$b'),
+            block: day.blocks[b],
+            children: [
+              for (var p = 0; p < day.blocks[b].prescriptions.length; p++)
+                if (day.blocks[b].prescriptions[p].exerciseId
+                    case final exerciseId?) ...[
+                  if (p > 0) const Divider(),
                   Text(
                     names[exerciseId] ?? 'Ejercicio',
-                    style: context.textos.titleMedium,
+                    style: context.textos.titleSmall,
                   ),
-                  _AdjustmentRow(
-                    keyPrefix: 'session-adjust-ex-$b-$p',
-                    label: 'Ajuste del ejercicio',
-                    value: adjustments.effectiveFor(exerciseId),
-                    onStep: (delta) => notifier.stepExerciseAdjustment(
-                      athleteId,
-                      exerciseId,
-                      delta,
+                  if (blockTakesAdjustment(day.blocks[b]))
+                    _AdjustmentRow(
+                      keyPrefix: 'session-adjust-ex-$b-$p',
+                      label: 'Ajuste del ejercicio',
+                      value: adjustments.effectiveFor(exerciseId),
+                      onStep: (delta) => notifier.stepExerciseAdjustment(
+                        athleteId,
+                        exerciseId,
+                        delta,
+                      ),
                     ),
-                  ),
                   for (
                     var s = 0;
                     s < day.blocks[b].prescriptions[p].sets.length;
@@ -142,8 +145,8 @@ class _Blocks extends ConsumerWidget {
                       keyId: '$b-$p-$s',
                     ),
                 ],
-              ),
-        ],
+            ],
+          ),
       ],
     );
   }
@@ -167,7 +170,10 @@ class _SetRow extends StatelessWidget {
     final kg = proposed?.kg;
     final factor = proposed?.workFactor;
     final detail = [
-      if (target.maxReps) 'Máx.' else if (target.reps != null) '${target.reps} reps',
+      if (target.maxReps)
+        'Máx.'
+      else if (target.reps != null)
+        '${target.reps} reps',
       if (proposed?.appliedPct != null) '${formatKg(proposed!.appliedPct!)} %',
       if (factor != null) 'factor ${formatKg(factor)} %',
     ].join(' · ');

@@ -1,5 +1,12 @@
 import 'package:maktub_core/maktub_core.dart';
 
+/// The base categories of the blocks whose exercises can be adjusted one by one.
+const _adjustableCategoryIds = {'primario', 'secundario', 'accesorio'};
+
+/// Whether [block] offers a per-exercise adjustment: in a warm-up or a stretch it means nothing.
+bool blockTakesAdjustment(PlanBlock block) =>
+    _adjustableCategoryIds.contains(block.categoryId);
+
 /// One athlete's day adjustment in its two levels (session and per exercise). Immutable and independent of
 /// every other athlete's; it never touches a saved reference.
 class AthleteAdjustments {

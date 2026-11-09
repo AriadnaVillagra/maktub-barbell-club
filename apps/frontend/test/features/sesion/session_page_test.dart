@@ -196,11 +196,19 @@ final _plan = PublishedPlanView(
           blocks: [
             PlanBlock(
               name: 'Principal',
+              categoryId: 'primario',
               prescriptions: [
                 Prescription(
                   exerciseId: 'sq',
                   sets: [PlanSet(reps: 5, pct: 80), PlanSet(reps: 5, pct: 80)],
                 ),
+              ],
+            ),
+            PlanBlock(
+              name: 'Entrada en calor',
+              categoryId: 'calentamiento',
+              prescriptions: [
+                Prescription(exerciseId: 'sq', sets: [PlanSet(reps: 10)]),
               ],
             ),
           ],
@@ -485,6 +493,39 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_kg(tester, 'session-adjust-session-value'), '105 %');
+    });
+  });
+
+  group('the blocks', () {
+    testWidgets('each one is its own card, before and after opening', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      expect(find.byType(Card), findsNWidgets(2));
+
+      await _open(tester);
+
+      expect(find.byType(Card), findsNWidgets(2));
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('session-block-1')),
+          matching: find.byKey(const Key('session-kg-1-0-0')),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a warm-up has no per-exercise adjustment, a primary does', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      await _open(tester);
+
+      expect(
+        find.byKey(const Key('session-adjust-ex-0-0-plus')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('session-adjust-ex-1-0-plus')), findsNothing);
     });
   });
 

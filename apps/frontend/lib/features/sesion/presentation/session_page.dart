@@ -4,9 +4,10 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show SectionTitle, asyncView, showApiError;
+    show asyncView, showApiError;
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
 import 'providers.dart';
+import 'session_block_card.dart';
 import 'session_loads_view.dart';
 
 /// The day's session: opens on the day D13 gives, lets the user pick another one and the present athletes, and once
@@ -224,12 +225,12 @@ class _BlockPreview extends StatelessWidget {
   final Map<String, String> names;
 
   @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
+  Widget build(BuildContext context) => SessionBlockCard(
+    block: block,
     children: [
-      SectionTitle(block.name),
       for (final p in block.prescriptions)
         ListTile(
+          contentPadding: EdgeInsets.zero,
           title: Text(names[p.exerciseId] ?? 'Ejercicio'),
           subtitle: p.sets.isEmpty ? null : Text(setsSummary(p.sets)),
         ),

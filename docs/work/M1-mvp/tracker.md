@@ -27,7 +27,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 1 / 13 (E7.1 hecho: R1 se cumple; sigue E7.2) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 7 / 13 (E7.1 a E7.5, E7.7 y E7.13 hechos; E7.8 en curso; sigue E7.6) | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
@@ -49,6 +49,16 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **E5 (editor de plan):** la barra se indica por ejercicio, y la prescripción la puede pisar con una barra opcional (decidido el 2026-11-08). El control va en el editor (E5.7 o E5.8), y E4/E7 tienen que usar esa barra al calcular.
 - **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja. El temporizador base `Cronómetro` (for time sin tope, agregado el 2026-11-08) depende de esto: tiene que contar hacia arriba y dejar registrado el tiempo final del WoD.
 - **Datos en producción (2026-11-08):** ya están el grupo de Andi y Ari, el temporizador `Cronómetro` y los roles de E2.
+
+## Para E7 (salió de E7.3, 2026-11-08)
+
+- **Kilos propuestos (E7.7):** el servidor los entrega en un endpoint nuevo, por atleta y sesión. El atleta no recibe su factor, así que la app no los puede calcular sola.
+- **Nota (E7.8):** el issue pide guardar la nota con el registro y `SetRecord` no tiene ese campo.
+- **Republicar a mitad de sesión:** la sesión no guarda copia del plan y los registros se ubican por posición, así que pueden quedar apuntando a otro ejercicio. Decidido: no se cubre en M1, no republicar con una sesión a medias.
+- **Pendiente:** `presentes` solo acumula, no hay forma de quitar a alguien. `AthleteDay` todavía no se escribe, y E7.13 deriva hecho o pendiente de las sesiones y sus series.
+- **Sin probar en real (E7.7):** la pantalla de sesión solo pasó tests, no se abrió en un navegador contra la API. `MongoProposedLoadsStore` no corrió contra MongoDB.
+- **Nombres de compañeros (sin decidir):** `GET /atletas` es solo para coach, así que un atleta sin ese rol ve "Yo" y "Atleta N". No afecta a Andi y Ari.
+- **Pings (E7.6 o E7.10):** E7.5 no configura `pingInterval`, y E7.1 midió con un eco cada 30 s. Hay que definirlos para detectar conexiones muertas y sostener una conexión sin tráfico.
 
 ## Para E6 (decidido el 2026-11-08)
 
