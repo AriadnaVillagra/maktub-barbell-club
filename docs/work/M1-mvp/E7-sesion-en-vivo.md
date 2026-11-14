@@ -99,6 +99,7 @@ se da por supuesto.
 | E7.22 | [Modo guiado: elegir secuencial o circuito al entrenar](E7.22-modo-guiado-orden-en-vivo.md) | E7.20, E7.21 |
 | E7.23 | [Modo guiado: seguir desde lo pendiente o hacer todo de nuevo](E7.23-modo-guiado-seguir-o-empezar-de-cero.md) | E7.21 |
 | E7.24 | [Una sola pantalla para el calendario y la sesión del día](E7.24-unificar-calendario-y-sesion.md) | E7.13, E7.20 |
+| E7.25 | [Calendario como tablero, con vistas a elección](E7.25-calendario-tablero-con-vistas.md) | E7.24 |
 
 **En paralelo:**
 - E7.1 (verificación de R1) no depende de nada y va primero (M1 §6).
