@@ -17,5 +17,9 @@
     },
     "_testedRmDates": "Dates of RMs rows that are the February 2026 test (M1-D4): they get origin 'testeado', the rest 'importado'. The test was measured in February and loaded on 2026-03-01 (reference/DISENO.md, 'Los RMs se midieron una sola vez').",
     "testedRmDates": ["2026-03-01"]
+  },
+  "plans": {
+    "_pctCorrections": "M1-D4: October 2026 says 85 % where it should say 80 %. Every set of that plan at 'from' becomes 'to', and the ramp below it moves with it (the empty-bar set stays).",
+    "pctCorrections": [{"plan": "plan_oct2026", "from": 85, "to": 80}]
   }
 }

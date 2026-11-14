@@ -22,8 +22,13 @@ import 'package:maktub_backend/features/import/athletes/athlete_import_store.dar
 import 'package:maktub_backend/features/import/catalog/catalog_import.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_import_store.dart';
 import 'package:maktub_backend/features/import/import_run.dart';
+import 'package:maktub_backend/features/import/plans/plan_import.dart';
+import 'package:maktub_backend/features/import/plans/plan_import_store.dart';
 import 'package:maktub_backend/features/import/sheets.dart';
 import 'package:maktub_backend/features/kilajes/fijar_kilaje/fijar_kilaje_store.dart';
+import 'package:maktub_backend/features/plan/crear/crear_store.dart';
+import 'package:maktub_backend/features/plan/guardar/guardar_store.dart';
+import 'package:maktub_backend/features/plan/publicar/publicar_store.dart';
 import 'package:maktub_backend/features/referencias/registrar_rm/registrar_rm_store.dart';
 import 'package:maktub_backend/features/wods/crear/crear_store.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
@@ -45,6 +50,13 @@ List<ImportStep> _steps(Db db) {
       exercises: (run) async => (await catalog.plan(run)).exerciseIdFor,
       rmWrites: MongoRegisterRmStore(db),
       weightWrites: MongoSetFixedWeightStore(db),
+    ),
+    PlanImport(
+      catalog: catalog,
+      reads: MongoPlanImportStore(db),
+      creates: MongoCreatePlanStore(db),
+      saves: MongoSavePlanStore(db),
+      publishes: MongoPublishPlanStore(db),
     ),
   ];
 }
