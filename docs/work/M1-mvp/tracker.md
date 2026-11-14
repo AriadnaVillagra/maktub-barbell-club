@@ -27,8 +27,8 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 25 / 26 (E7.1 a E7.25 hechos; E7.26 en curso, salió de la prueba en local) | — |
-| E8 | [Migración](E8-migracion.md) | en curso | 2 / 6 (E8.1 y E8.2 hechos; E8.3 y E8.4 en curso) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 26 / 26 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
+| E8 | [Migración](E8-migracion.md) | en curso | 3 / 6 (E8.1 a E8.3 hechos; E8.4 en curso) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
@@ -97,7 +97,8 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **E7.14:** `GET .../asignaciones/{id}/kilos-propuestos?desde&hasta` (31 días como máximo, todos los días de la semana de cada fecha). El cálculo del día pasó a `maktub_core` (`set_load.dart`) y lo comparten los dos endpoints. No tiene parámetro `semana`: si alguien elige otra semana, esa semana no queda precargada.
 - **E7.15:** la copia local está en `shared_preferences` (`maktub.copy.*`). Se precargan hoy y los 7 días siguientes al iniciar sesión, y se borra lo que tiene más de 14 días. Un 4xx a propósito no usa la copia; sin conexión, un 5xx, un 408 y un 429 sí. Sin señal, el ajuste del día no se recalcula: solo sirven el 100 % o un ajuste ya visto.
 - **E7.16:** una sesión abierta sin señal tiene un id `local-…`. La apertura va en la cola adelante de todo, y cuando sale, la cola reemplaza el id por el del servidor en las series, los tiempos y el borrador. El backend no cambió. Si el servidor rechaza la apertura con un 4xx, se descartan también las marcas de esa sesión. Timeouts del cliente: 8 s en lecturas y al abrir, 30 s en escrituras.
-- **Sin probar en real:** todo E7.10 a E7.16 pasó solo con fakes (sin WebSocket real, sin modo avión, sin dos teléfonos). Va en la prueba después del merge (D3).
+- **E7.26 (hecho, salió de la prueba en local):** la sesión tiene `pasadaGuiada` (opcional; sin ella no hay pasada). Se escribe con `POST .../sesiones/{id}/pasada` con una acción (`comenzar`, `iniciar_bloque`, `saltar_bloque`, `terminar_bloque`, `pasar_series`, `dejar`, `terminar`, etc.). La regla `applyGuidedAction` está en `maktub_core`, y la usan el servidor y el teléfono. No se rechazan escrituras por versión: cada acción se aplica sobre el estado actual, y si ya no tiene sentido no cambia nada. Dos "Comenzar" a la vez quedan en una sola pasada. La pasada guarda también las series pasadas y los ejercicios dejados de cada bloque. El id de un tiempo de bloque es `{pasadaId}-{bloque}`. "Terminar el día" con un bloque en curso lo cierra como interrumpido. En la cola, la pasada va después de las series y antes de los tiempos. **`diseno.md`** no tiene `pasadaGuiada`: avisar a su sesión.
+- **Sin probar en real:** todo E7.10 a E7.16 y E7.26 pasó solo con fakes (sin WebSocket real, sin modo avión, sin dos teléfonos). Va en la prueba después del merge (D3).
 
 ## Para E6 (decidido el 2026-11-08)
 
