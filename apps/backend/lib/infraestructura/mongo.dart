@@ -57,6 +57,9 @@ abstract final class Colecciones {
 
   /// Per-set records (E7.3): one per (`clubId`, `sesionId`, `atletaId`, `bloque`, `prescripcion`, `serie`).
   static const registros = 'registros';
+
+  /// Block times (E7.19): one per client-generated id, read by session (`clubId`, `sesionId`).
+  static const tiemposBloque = 'tiempos_bloque';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -193,6 +196,9 @@ Future<void> asegurarIndices(Db db) async {
         name: 'club_sesion_atleta_posicion_unico',
         unique: true,
       );
+
+  // Reading the block times of a session (E7.19). The document id is the client's, so it is already unique.
+  await db.collection(Colecciones.tiemposBloque).createIndex(keys: {'clubId': 1, 'sesionId': 1}, name: 'club_sesion');
 }
 
 /// Atomically applies [update] to the document [filter] matches, inserting it if there is none, and returns the

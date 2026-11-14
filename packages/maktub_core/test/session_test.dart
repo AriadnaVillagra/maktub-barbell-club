@@ -8,6 +8,7 @@ final _audit = Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 8));
 Json _roundTrip(Json j) => jsonDecode(jsonEncode(j)) as Json;
 
 void main() {
+  blockTimeTests();
   group('Session', () {
     test('survives a JSON round trip with every field', () {
       final s = Session(
@@ -237,6 +238,41 @@ void main() {
     test('typed kilos without a usable RM give no percents', () {
       expect(RecordPcts.fromWeight(100, null), isNull);
       expect(RecordPcts.fromWeight(100, 0), isNull);
+    });
+  });
+}
+
+void blockTimeTests() {
+  group('BlockTime', () {
+    BlockTime build({AthleteMode? mode = AthleteMode.turns}) => BlockTime(
+      id: 't1',
+      clubId: 'c1',
+      sessionId: 's1',
+      blockIndex: 2,
+      blockName: 'Fuerza',
+      athleteMode: mode,
+      athleteIds: const ['a1', 'a2'],
+      start: DateTime.utc(2026, 11, 16, 18),
+      end: DateTime.utc(2026, 11, 16, 18, 12, 30),
+      interrupted: true,
+      auditoria: _audit,
+    );
+
+    test('survives a JSON round trip with every field', () {
+      final json = _roundTrip(build().toJson());
+      expect(BlockTime.fromJson(json).toJson(), json);
+      expect(json['modoAtletas'], 'por_turnos');
+      expect(json.containsKey('segundos'), isFalse);
+    });
+
+    test('has no athlete mode when the block has no sets', () {
+      final json = _roundTrip(build(mode: null).toJson());
+      expect(json.containsKey('modoAtletas'), isFalse);
+      expect(BlockTime.fromJson(json).athleteMode, isNull);
+    });
+
+    test('derives the seconds from start and end', () {
+      expect(build().seconds, 750);
     });
   });
 }

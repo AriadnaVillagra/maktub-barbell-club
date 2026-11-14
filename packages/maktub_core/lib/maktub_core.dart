@@ -7,6 +7,7 @@ library;
 
 export 'src/modelos/asignacion.dart';
 export 'src/modelos/base.dart';
+export 'src/modelos/block_time.dart';
 export 'src/modelos/cable.dart';
 export 'src/modelos/catalogo.dart';
 export 'src/modelos/clubes.dart';
