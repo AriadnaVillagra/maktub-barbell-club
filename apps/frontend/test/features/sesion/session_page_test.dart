@@ -1312,7 +1312,41 @@ void main() {
     });
 
     for (final size in [phone, wide]) {
-      for (final label in ['Compacta', 'Tarjetas']) {
+      testWidgets(
+        'in Tarjetas at ${size.width.toInt()} wide, tapping a card opens no panel: '
+        'the card gains its button, and a second tap unselects it',
+        (tester) async {
+          final sessions = _FakeSessions();
+          await _pump(tester, sessions, size: size);
+          await toCalendar(tester);
+          await choose(tester, 'Tarjetas');
+          expect(find.byKey(const Key('calendar-go-4-1')), findsNothing);
+
+          await tapKey(tester, 'calendar-day-4-1');
+
+          expect(find.byKey(const Key('calendar-detail')), findsNothing);
+          expect(find.byKey(const Key('calendar-detail-hint')), findsNothing);
+          expect(
+            tester.widget<DayCard>(find.byKey(const Key('calendar-day-4-1'))).selected,
+            isTrue,
+          );
+          expect(
+            inKey('calendar-day-4-1', find.byKey(const Key('calendar-go-4-1'))),
+            findsOneWidget,
+          );
+
+          await tapKey(tester, 'calendar-day-4-1');
+          expect(find.byKey(const Key('calendar-go-4-1')), findsNothing);
+
+          await tapKey(tester, 'calendar-day-2-1');
+          await tapKey(tester, 'calendar-go-2-1');
+          expect(find.byType(CardsBoard), findsNothing);
+          expect(find.text('Día 1 · Empuje A'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      for (final label in ['Compacta']) {
         testWidgets(
           'in $label at ${size.width.toInt()} wide, tapping a day opens its detail '
           'without leaving the calendar',

@@ -71,8 +71,12 @@ class _SessionCalendarViewState extends ConsumerState<SessionCalendarView> {
       (most, w) => w.days.length > most ? w.days.length : most,
     );
     final phone = context.tamanoPantalla == TamanoPantalla.compacto;
-    void select(CalendarDay day) =>
-        setState(() => _selected = (day.week, day.day));
+    // Tapping the selected day again unselects it.
+    void select(CalendarDay day) => setState(
+      () => _selected = _selected == (day.week, day.day)
+          ? null
+          : (day.week, day.day),
+    );
 
     final board = ListView(
       padding: const EdgeInsets.all(Espacio.l),
@@ -130,6 +134,7 @@ class _SessionCalendarViewState extends ConsumerState<SessionCalendarView> {
             names: names,
             selected: _selected,
             onSelect: select,
+            onGo: widget.onPick,
           ),
           CalendarLayout.detailed => DetailedBoard(
             weeks: weeks,
@@ -139,7 +144,8 @@ class _SessionCalendarViewState extends ConsumerState<SessionCalendarView> {
         },
       ],
     );
-    if (layout == CalendarLayout.detailed) return board;
+    // Only the compact grid needs the panel: a card or a detailed day already shows the whole day.
+    if (layout != CalendarLayout.compact) return board;
 
     final selected = [
       for (final w in weeks) ...w.days,

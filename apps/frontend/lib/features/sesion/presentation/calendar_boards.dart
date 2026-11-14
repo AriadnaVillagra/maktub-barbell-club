@@ -370,12 +370,16 @@ class CardsBoard extends StatelessWidget {
     required this.names,
     required this.selected,
     required this.onSelect,
+    required this.onGo,
   });
 
   final List<CalendarWeek> weeks;
   final Map<String, String> names;
   final (int, int)? selected;
   final void Function(CalendarDay day) onSelect;
+
+  /// The card already shows the day, so a tapped card opens no panel: it only gains "Ir a la sesión de este día".
+  final void Function(int week, int day) onGo;
 
   @override
   Widget build(BuildContext context) => Column(
@@ -406,6 +410,9 @@ class CardsBoard extends StatelessWidget {
                           highlighted: day.highlighted,
                           selected: selected == (day.week, day.day),
                           onTap: () => onSelect(day),
+                          action: selected == (day.week, day.day)
+                              ? GoToSessionButton(day: day, onGo: onGo)
+                              : null,
                           children: [
                             if (day.plan.blocks.isEmpty) const _EmptyDay(),
                             for (final block in day.plan.blocks) ...[
