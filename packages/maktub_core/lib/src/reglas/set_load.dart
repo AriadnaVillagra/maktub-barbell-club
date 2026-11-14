@@ -7,6 +7,7 @@ import '../modelos/plan.dart';
 import '../modelos/referencias.dart';
 import '../modelos/sesion.dart';
 import 'catalogo.dart';
+import 'daily_adjustment.dart';
 import 'equipo.dart';
 import 'load_source.dart';
 import 'porcentajes.dart';
@@ -129,6 +130,124 @@ ProposedSetLoad proposedSetLoad({
     appliedPct: applied,
     pcts: basis.byRm && kg != null
         ? RecordPcts.fromPlan(applied!, workFactor: basis.workFactor)
+        : null,
+  );
+}
+
+/// The blocks of the 1-based [day] of the 1-based [week] in [plan]; empty if that week has no model or that day.
+List<PlanBlock> dayBlocks(
+  PublishedPlan plan, {
+  required int week,
+  required int day,
+}) {
+  final days = plan.weekModelOf(week)?.days ?? const <PlanDay>[];
+  return day >= 1 && day <= days.length
+      ? days[day - 1].blocks
+      : const <PlanBlock>[];
+}
+
+/// The exercises that [blocks] prescribe and [exercises] knows, by id, each with the id of the exercise whose RM
+/// loads it ([rmExerciseIdFor]). Tells the caller which references, factors and fixed weights to read.
+Map<String, String?> rmExerciseIdsOf(
+  List<PlanBlock> blocks,
+  Map<String, Exercise> exercises,
+) => {
+  for (final block in blocks)
+    for (final p in block.prescriptions)
+      if (exercises[p.exerciseId] case final exercise?)
+        exercise.id: rmExerciseIdFor(exercise, exercises),
+};
+
+/// The proposed kilos of every set of [blocks] for [athleteId] on [on], in plan order: RM × work factor × % with
+/// the day's adjustment ([effectiveAdjustment] of [sessionAdjustment] and [exerciseAdjustments]), else the
+/// athlete's fixed kilos ([fixedKg], by exercise id) and then the plan's, rounded on the prescription's bar or
+/// else the exercise's. A set of an exercise [exercises] doesn't know carries no kilos. [workFactor] is set only
+/// when the weight came from the RM and the factor is not neutral; hiding it from the viewer is the caller's job.
+List<ProposedSet> proposedDaySets({
+  required List<PlanBlock> blocks,
+  required Map<String, Exercise> exercises,
+  required String athleteId,
+  required DateTime on,
+  required Iterable<Reference> references,
+  required Iterable<WorkFactor> factors,
+  required Map<String, double> fixedKg,
+  required Equipo equipo,
+  int? sessionAdjustment,
+  Map<String, int> exerciseAdjustments = const {},
+}) => [
+  for (var b = 0; b < blocks.length; b++)
+    for (var p = 0; p < blocks[b].prescriptions.length; p++)
+      if (blocks[b].prescriptions[p]
+          case Prescription(exerciseId: final exerciseId?) &&
+              final prescription)
+        for (var s = 0; s < prescription.sets.length; s++)
+          _proposedSet(
+            position: (block: b, prescription: p, set: s),
+            exerciseId: exerciseId,
+            exercise: exercises[exerciseId],
+            prescription: prescription,
+            exercises: exercises,
+            athleteId: athleteId,
+            on: on,
+            references: references,
+            factors: factors,
+            fixedKg: fixedKg[exerciseId],
+            equipo: equipo,
+            adjustment: effectiveAdjustment(
+              session: sessionAdjustment,
+              exercise: exerciseAdjustments[exerciseId],
+            ),
+          ),
+];
+
+ProposedSet _proposedSet({
+  required ({int block, int prescription, int set}) position,
+  required String exerciseId,
+  required Exercise? exercise,
+  required Prescription prescription,
+  required Map<String, Exercise> exercises,
+  required String athleteId,
+  required DateTime on,
+  required Iterable<Reference> references,
+  required Iterable<WorkFactor> factors,
+  required double? fixedKg,
+  required Equipo equipo,
+  required int adjustment,
+}) {
+  if (exercise == null) {
+    return ProposedSet(
+      blockIndex: position.block,
+      prescriptionIndex: position.prescription,
+      setIndex: position.set,
+      exerciseId: exerciseId,
+    );
+  }
+  final target = prescription.sets[position.set];
+  final basis = setLoadBasis(
+    rmExerciseId: rmExerciseIdFor(exercise, exercises),
+    pct: target.pct,
+    athleteId: athleteId,
+    on: on,
+    references: references,
+    factors: factors,
+  );
+  final load = proposedSetLoad(
+    basis: basis,
+    target: target,
+    adjustment: adjustment,
+    athleteFixedKg: fixedKg,
+    equipo: equipo,
+    barKg: prescription.barKg ?? exercise.barKg,
+  );
+  return ProposedSet(
+    blockIndex: position.block,
+    prescriptionIndex: position.prescription,
+    setIndex: position.set,
+    exerciseId: exerciseId,
+    kg: load.kg,
+    appliedPct: load.appliedPct,
+    workFactor: load.pcts != null && basis.workFactor != defaultWorkFactor
+        ? basis.workFactor
         : null,
   );
 }

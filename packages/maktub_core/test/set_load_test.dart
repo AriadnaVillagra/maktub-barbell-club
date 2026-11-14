@@ -110,4 +110,89 @@ void main() {
       expect(load.pcts, isNull);
     });
   });
+
+  group('proposedDaySets', () {
+    final squat = Exercise(
+      id: 'squat',
+      clubId: clubPlataforma,
+      name: 'squat',
+      categoryIds: const ['primario'],
+      metrics: const [Metric.loadPctRm],
+      loadReference: const LoadReference.own(),
+      auditoria: _audit,
+    );
+    const blocks = [
+      PlanBlock(
+        name: 'Principal',
+        prescriptions: [
+          Prescription(
+            exerciseId: 'squat',
+            sets: [PlanSet(reps: 5, pct: 80), PlanSet(reps: 3, pct: 90)],
+          ),
+          Prescription(exerciseId: 'unknown', sets: [PlanSet(reps: 5, kg: 20)]),
+          Prescription(sets: [PlanSet(reps: 5)]),
+        ],
+      ),
+    ];
+
+    List<ProposedSet> propose({
+      List<WorkFactor> factors = const [],
+      Map<String, int> adjustments = const {},
+    }) => proposedDaySets(
+      blocks: blocks,
+      exercises: {'squat': squat},
+      athleteId: 'ari',
+      on: DateTime.utc(2026, 11, 16),
+      references: [_rm(100)],
+      factors: factors,
+      fixedKg: const {},
+      equipo: Equipo.estandarDe('c1'),
+      exerciseAdjustments: adjustments,
+    );
+
+    test('one entry per set with an exercise, in plan order', () {
+      final sets = propose();
+
+      expect(
+        [for (final s in sets) (s.prescriptionIndex, s.setIndex, s.exerciseId)],
+        [(0, 0, 'squat'), (0, 1, 'squat'), (1, 0, 'unknown')],
+      );
+      expect(sets.first.kg, 80);
+      expect(sets.last.kg, isNull);
+    });
+
+    test('carries the factor only when it is not neutral', () {
+      expect(propose().first.workFactor, isNull);
+      expect(propose(factors: [_factor(90)]).first.workFactor, 90);
+    });
+
+    test('applies the exercise adjustment', () {
+      expect(propose(adjustments: {'squat': 110}).first.appliedPct, 88);
+    });
+  });
+
+  group('dayBlocks', () {
+    final plan = PublishedPlan(
+      weekModels: const [
+        WeekModel(
+          id: 'A',
+          name: 'A',
+          days: [
+            PlanDay(
+              blocks: [PlanBlock(name: 'x', prescriptions: [])],
+            ),
+          ],
+        ),
+      ],
+      weekAssignment: const ['A', 'A', 'A', 'A'],
+      publishedAt: DateTime.utc(2026, 11, 8),
+      publishedBy: 'coach',
+    );
+
+    test('is empty outside the week', () {
+      expect(dayBlocks(plan, week: 1, day: 1), hasLength(1));
+      expect(dayBlocks(plan, week: 1, day: 2), isEmpty);
+      expect(dayBlocks(plan, week: 1, day: 0), isEmpty);
+    });
+  });
 }
