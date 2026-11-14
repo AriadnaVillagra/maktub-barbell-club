@@ -9,6 +9,7 @@ import '../../plan/presentation/plan_labels.dart' show setsSummary;
 import 'providers.dart';
 import 'session_block_card.dart';
 import 'session_loads_view.dart';
+import 'session_timers.dart';
 
 /// The day's session: opens on the day D13 gives, lets the user pick another one and the present athletes, and once
 /// open shows each present athlete's kilos with their day adjustment. Marking sets is E7.8.
@@ -19,7 +20,10 @@ class SessionPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final data = ref.watch(sessionDayProvider);
     return Scaffold(
-      appBar: AppBar(title: const Text('Sesión')),
+      appBar: AppBar(
+        title: const Text('Sesión'),
+        actions: const [SessionTimerButton()],
+      ),
       body: asyncView(
         data,
         onRetry: () => ref.invalidate(sessionDayProvider),

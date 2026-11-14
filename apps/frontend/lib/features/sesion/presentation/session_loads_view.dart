@@ -12,6 +12,7 @@ import 'providers.dart';
 import 'session_block_card.dart';
 import 'session_page.dart';
 import 'session_set_dialogs.dart';
+import 'session_timers.dart';
 
 /// Runs a write and shows the backend's error if it refuses.
 Future<void> _guarded(
@@ -139,6 +140,7 @@ class _Blocks extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(sessionScreenProvider.notifier);
+    final timers = SessionTimers.watch(ref);
     SetWrite writeOf(int b, int p, int s, String exerciseId) => SetWrite.of(
       records[(b, p, s)],
       athleteId: athleteId,
@@ -186,10 +188,19 @@ class _Blocks extends ConsumerWidget {
                       proposed: sets[(b, p, s)],
                       record: records[(b, p, s)],
                       keyId: '$b-$p-$s',
-                      onToggle: () => notifier.writeSet(
-                        clubId,
-                        writeOf(b, p, s, exerciseId).toggled(),
-                      ),
+                      onToggle: () async {
+                        final start = records[(b, p, s)]?.done ?? false
+                            ? null
+                            : timers.starterFor(
+                                day.blocks[b],
+                                day.blocks[b].prescriptions[p],
+                              );
+                        await notifier.writeSet(
+                          clubId,
+                          writeOf(b, p, s, exerciseId).toggled(),
+                        );
+                        start?.call();
+                      },
                       onEdit: (kg, reps) => notifier.writeSet(
                         clubId,
                         writeOf(
