@@ -28,7 +28,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 25 / 26 (E7.1 a E7.25 hechos; E7.26 en curso, salió de la prueba en local) | — |
-| E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
+| E8 | [Migración](E8-migracion.md) | en curso | 2 / 6 (E8.1 y E8.2 hechos; E8.3 y E8.4 en curso) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
