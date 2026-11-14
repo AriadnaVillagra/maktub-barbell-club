@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
 import '../../../core/red/api_providers.dart';
+import '../../../core/red/cliente_api.dart' show ErrorDeApi;
 import '../../access/presentation/providers.dart';
 import '../../asignacion/domain/calendar_repository.dart';
 import '../../asignacion/presentation/calendar_providers.dart'
@@ -17,10 +18,13 @@ import '../../catalogo/presentation/providers.dart'
 import '../data/http_session_repository.dart';
 import '../data/shared_preferences_calendar_layout_store.dart';
 import '../data/shared_preferences_draft_store.dart';
+import '../data/web_socket_live_channel.dart';
 import '../domain/athlete_adjustments.dart';
 import '../domain/block_time_write.dart';
 import '../domain/calendar_layout.dart';
 import '../domain/guided_session.dart';
+import '../domain/live_channel.dart';
+import '../domain/live_session_sync.dart';
 import '../domain/session_draft_store.dart';
 import '../domain/session_repository.dart';
 import '../domain/set_sync_queue.dart';
@@ -30,11 +34,21 @@ final sessionRepositoryProvider = Provider<SessionRepository>(
   (ref) => HttpSessionRepository(ref.watch(clienteApiProvider)),
 );
 
+/// The live channel of the open session (E7.10). Tests replace it with a fake.
+final liveChannelProvider = Provider<LiveChannel>(
+  (ref) => WebSocketLiveChannel(ref.watch(clienteApiProvider)),
+);
+
+/// The waits between attempts to reopen the live channel. Tests shorten them.
+final liveReconnectBackoffProvider = Provider<List<Duration>>(
+  (ref) => LiveSessionSync.defaultBackoff,
+);
+
 final sessionDraftStoreProvider = Provider<SessionDraftStore>(
   (ref) => SharedPreferencesDraftStore(),
 );
 
-/// How often a queue with writes left tries again. E7.10 also flushes it when the live channel reconnects.
+/// How often a queue with writes left tries again. It is also flushed every time the live channel opens (E7.10).
 const queueRetryInterval = Duration(seconds: 15);
 
 /// The device's draft and queue of set writes and block times (E7.9, E7.21). It outlives the screen, so leaving it does not drop anything.
@@ -229,6 +243,7 @@ class SessionScreenState {
     this.athleteId,
     this.adjustments = const {},
     this.opening = false,
+    this.liveStatus = LiveStatus.connecting,
   });
 
   /// The chosen week and day; null keeps today's week and the D13 day.
@@ -248,21 +263,39 @@ class SessionScreenState {
   final Map<String, AthleteAdjustments> adjustments;
   final bool opening;
 
+  /// How the open session's live channel is doing. Only an indicator: marking a set never waits for it.
+  final LiveStatus liveStatus;
+
   AthleteAdjustments adjustmentsOf(String athleteId) =>
       adjustments[athleteId] ?? const AthleteAdjustments();
 }
 
 class SessionScreenController extends Notifier<SessionScreenState> {
+  LiveSessionSync? _sync;
+  StreamSubscription<LiveStatus>? _statusSubscription;
+  StreamSubscription<List<PendingWrite>>? _queueSubscription;
+
+  /// Changes from the channel for sets this device still has a write queued for. Showing them would undo on screen
+  /// what the user just marked; they apply once that write leaves the queue (its own change follows anyway).
+  final _heldBack = <SetKey, SessionChange>{};
+
   @override
-  SessionScreenState build() => const SessionScreenState();
+  SessionScreenState build() {
+    ref.onDispose(_stopFollowing);
+    return const SessionScreenState();
+  }
 
   /// Choosing another week goes to its first day, as the calendar does, and leaves the open session.
-  void selectWeek(int week) =>
-      state = SessionScreenState(week: week, day: 1, present: state.present);
+  void selectWeek(int week) {
+    _stopFollowing();
+    state = SessionScreenState(week: week, day: 1, present: state.present);
+  }
 
   /// Choosing another day leaves the open session.
-  void selectDay(int week, int day) =>
-      state = SessionScreenState(week: week, day: day, present: state.present);
+  void selectDay(int week, int day) {
+    _stopFollowing();
+    state = SessionScreenState(week: week, day: day, present: state.present);
+  }
 
   void setPresent(Set<String> present) => state = SessionScreenState(
     week: state.week,
@@ -271,7 +304,103 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     live: state.live,
     athleteId: state.athleteId,
     adjustments: state.adjustments,
+    liveStatus: state.liveStatus,
   );
+
+  /// Follows the live channel of [session] (E7.10) unless it already does. Every time the channel opens, the queue
+  /// goes out again; every change that arrives is applied to the screen.
+  void _follow(Session session) {
+    if (_sync?.sessionId == session.id) return;
+    _stopFollowing();
+    final queue = ref.read(setSyncQueueProvider);
+    final sync = _sync = LiveSessionSync(
+      channel: ref.read(liveChannelProvider),
+      clubId: session.clubId,
+      sessionId: session.id,
+      since: session.sequence,
+      onChanges: _receive,
+      onConnected: () => queue.flush().ignore(),
+      isFinal: (e) => e is ErrorDeApi && (e.estado == 403 || e.estado == 404),
+      backoff: ref.read(liveReconnectBackoffProvider),
+    );
+    _statusSubscription = sync.statusChanges.listen(
+      (s) => state = _with(liveStatus: s),
+    );
+    _queueSubscription = queue.changes.listen((_) => _releaseHeldBack());
+    sync.start();
+  }
+
+  void _stopFollowing() {
+    _statusSubscription?.cancel();
+    _queueSubscription?.cancel();
+    _statusSubscription = null;
+    _queueSubscription = null;
+    _heldBack.clear();
+    final sync = _sync;
+    _sync = null;
+    if (sync != null) unawaited(sync.stop());
+  }
+
+  static SetKey _keyOf(SetRecord r) => (
+    sessionId: r.sessionId,
+    athleteId: r.athleteId,
+    blockIndex: r.blockIndex,
+    prescriptionIndex: r.prescriptionIndex,
+    setIndex: r.setIndex,
+  );
+
+  Set<SetKey> get _queuedSets => {
+    for (final p in ref.read(setSyncQueueProvider).pending) p.key,
+  };
+
+  void _receive(List<SessionChange> changes) {
+    if (state.live == null) return;
+    final queued = _queuedSets;
+    final now = <SessionChange>[];
+    for (final c in changes) {
+      final record = c.record;
+      if (record != null && queued.contains(_keyOf(record))) {
+        final key = _keyOf(record);
+        final held = _heldBack[key];
+        if (held == null || held.sequence <= c.sequence) _heldBack[key] = c;
+      } else {
+        now.add(c);
+      }
+    }
+    _apply(now);
+  }
+
+  void _releaseHeldBack() {
+    if (_heldBack.isEmpty) return;
+    final queued = _queuedSets;
+    final ready = [
+      for (final e in _heldBack.entries)
+        if (!queued.contains(e.key)) e.value,
+    ]..sort((a, b) => a.sequence.compareTo(b.sequence));
+    _heldBack.removeWhere((k, _) => !queued.contains(k));
+    _apply(ready);
+  }
+
+  void _apply(List<SessionChange> changes) {
+    final live = state.live;
+    if (live == null || changes.isEmpty) return;
+    final next = applyChanges(live, changes);
+    // The day pills follow a set another device marks or unmarks.
+    if (!_sameDone(live.records, next.records)) {
+      ref.invalidate(cycleDayStatesProvider);
+    }
+    state = _with(live: next);
+  }
+
+  static bool _sameDone(List<SetRecord> a, List<SetRecord> b) {
+    Set<SetKey> done(List<SetRecord> rs) => {
+      for (final r in rs)
+        if (r.done) _keyOf(r),
+    };
+    final before = done(a);
+    final after = done(b);
+    return before.length == after.length && before.containsAll(after);
+  }
 
   /// Opens or resumes the session. Rethrows the backend's error so the screen can show it.
   Future<void> open(
@@ -295,10 +424,12 @@ class SessionScreenController extends Notifier<SessionScreenState> {
       final unsent = await ref
           .read(setSyncQueueProvider)
           .resume(live.session.id);
+      _follow(live.session);
       state = SessionScreenState(
         week: state.week,
         day: state.day,
         present: state.present,
+        liveStatus: _sync?.status ?? LiveStatus.connecting,
         live: unsent.fold<LiveSession>(
           live,
           (l, w) => _replacing(
@@ -328,6 +459,9 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     final live = state.live;
     ref.invalidate(cycleDayStatesProvider);
     if (live == null || live.session.id != sessionId) return;
+    final current = _recordOf(live, write);
+    // A newer change of this set may have arrived from another device meanwhile.
+    if (stored != null && current != null && !isNewer(stored, current)) return;
     state = _with(
       live: _replacing(
         live,
@@ -357,7 +491,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
         session: live.session,
         records: [
           for (final r in live.records)
-            if (!_sameSet(r, record)) r,
+            if (!sameSet(r, record)) r,
           record,
         ],
       );
@@ -372,15 +506,11 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     final live = state.live;
     if (live == null || live.session.id != sessionId) return;
     state = _with(
-      live: LiveSession(session: session, records: live.records),
+      live: applyChanges(live, [
+        SessionChange.ofSession(session.lastSessionChange, session),
+      ]),
     );
   }
-
-  static bool _sameSet(SetRecord a, SetRecord b) =>
-      a.athleteId == b.athleteId &&
-      a.blockIndex == b.blockIndex &&
-      a.prescriptionIndex == b.prescriptionIndex &&
-      a.setIndex == b.setIndex;
 
   void selectAthlete(String athleteId) => state = _with(athleteId: athleteId);
 
@@ -404,12 +534,14 @@ class SessionScreenController extends Notifier<SessionScreenState> {
       athleteId: update(state.adjustmentsOf(athleteId)),
     },
     opening: state.opening,
+    liveStatus: state.liveStatus,
   );
 
   SessionScreenState _with({
     bool? opening,
     String? athleteId,
     LiveSession? live,
+    LiveStatus? liveStatus,
   }) => SessionScreenState(
     week: state.week,
     day: state.day,
@@ -418,6 +550,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     athleteId: athleteId ?? state.athleteId,
     adjustments: state.adjustments,
     opening: opening ?? state.opening,
+    liveStatus: liveStatus ?? state.liveStatus,
   );
 }
 

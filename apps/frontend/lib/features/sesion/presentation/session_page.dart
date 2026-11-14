@@ -8,6 +8,7 @@ import '../../catalogo/presentation/catalog_admin_widgets.dart'
     show asyncView, showApiError;
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
 import '../../access/presentation/providers.dart' show canPlanProvider;
+import '../domain/live_session_sync.dart' show LiveStatus;
 import 'providers.dart';
 import 'session_block_card.dart';
 import 'session_calendar_view.dart';
@@ -233,6 +234,19 @@ class _SessionBody extends ConsumerWidget {
             for (final block in planDay.blocks)
               _BlockPreview(block: block, names: data.exerciseNames),
           ] else ...[
+            if (state.liveStatus
+                case LiveStatus.connecting || LiveStatus.reconnecting) ...[
+              const SizedBox(height: Espacio.s),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: InsigniaMaktub(
+                  'Conectando…',
+                  context.colores.insigniaBase,
+                  key: const Key('session-live-connecting'),
+                  icono: Icons.sync,
+                ),
+              ),
+            ],
             if (guidedPath case final path?) ...[
               const SizedBox(height: Espacio.m),
               FilledButton.icon(

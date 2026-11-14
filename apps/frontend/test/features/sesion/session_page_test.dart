@@ -29,6 +29,7 @@ import '../access/fakes.dart';
 import '../catalogo/catalog_admin_fakes.dart';
 import '../catalogo/catalog_fakes.dart';
 import 'draft_fakes.dart';
+import 'live_fakes.dart';
 
 final _today = DateTime.utc(2026, 11, 18);
 final _start = DateTime.utc(2026, 9, 1);
@@ -320,6 +321,7 @@ Future<void> _pump(
   _FakeAthletes? athletes,
   _FakeCalendar? calendar,
   MemoryDraftStore? draft,
+  FakeLiveServer? live,
   Widget home = const SessionPage(assignmentsPath: '/asig'),
   bool withRouter = false,
   Size size = const Size(900, 2400),
@@ -345,6 +347,9 @@ Future<void> _pump(
           athletes ?? _FakeAthletes(),
         ),
         sessionRepositoryProvider.overrideWithValue(sessions),
+        liveChannelProvider.overrideWithValue(
+          FakeLiveChannel(live ?? FakeLiveServer()),
+        ),
         sessionDraftStoreProvider.overrideWithValue(
           draft ?? MemoryDraftStore(),
         ),
@@ -840,6 +845,47 @@ void main() {
       expect((await draft.load()).queue, isEmpty);
       expect(marked('0-0-0'), findsOneWidget);
     });
+
+    testWidgets('a set marked on another phone shows at once', (tester) async {
+      final live = FakeLiveServer();
+      await _pump(tester, _FakeSessions(), live: live);
+      await _open(tester);
+      expect(find.byKey(const Key('session-live-connecting')), findsNothing);
+
+      live.write(
+        SetWrite.of(
+          null,
+          athleteId: 'ari',
+          blockIndex: 0,
+          prescriptionIndex: 0,
+          setIndex: 1,
+          adjustment: 0,
+        ).markedDone(),
+      );
+      await tester.pumpAndSettle();
+
+      expect(marked('0-0-1'), findsOneWidget);
+      expect(marked('0-0-0'), findsNothing);
+    });
+
+    testWidgets(
+      'while the live channel does not answer, it shows it is connecting and marking still works',
+      (tester) async {
+        final sessions = _FakeSessions();
+        await _pump(tester, sessions, live: FakeLiveServer()..hanging = true);
+        await _open(tester);
+
+        expect(
+          find.byKey(const Key('session-live-connecting')),
+          findsOneWidget,
+        );
+        await tester.tap(find.byKey(check('0-0-0')));
+        await tester.pumpAndSettle();
+
+        expect(sessions.writes.single.done, isTrue);
+        expect(marked('0-0-0'), findsOneWidget);
+      },
+    );
 
     testWidgets('reopening shows a mark that was still queued', (tester) async {
       final draft = MemoryDraftStore();

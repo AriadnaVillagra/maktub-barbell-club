@@ -26,6 +26,7 @@ import '../catalogo/catalog_admin_fakes.dart';
 import '../catalogo/catalog_fakes.dart';
 import '../temporizador/timer_fakes.dart';
 import 'draft_fakes.dart';
+import 'live_fakes.dart';
 
 final _today = DateTime.utc(2026, 11, 18);
 final _start = DateTime.utc(2026, 9, 1);
@@ -315,6 +316,9 @@ void main() {
             calendarRepositoryProvider.overrideWithValue(_Calendar()),
             athleteRepositoryProvider.overrideWithValue(_Athletes()),
             sessionRepositoryProvider.overrideWithValue(sessions),
+            liveChannelProvider.overrideWithValue(
+              FakeLiveChannel(FakeLiveServer()),
+            ),
             sessionDraftStoreProvider.overrideWithValue(MemoryDraftStore()),
             todayProvider.overrideWithValue(_today),
             timerPlatformProvider.overrideWithValue(platform),
