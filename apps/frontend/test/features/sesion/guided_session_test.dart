@@ -358,4 +358,97 @@ void main() {
       expect(g.runs[2].athleteMode, AthleteMode.simultaneous);
     });
   });
+
+  group('switching sequential or circuit (E7.22)', () {
+    const day = PlanDay(
+      blocks: [
+        // 0: sequential with two exercises.
+        PlanBlock(
+          name: 'Biserie',
+          categoryId: 'accesorio',
+          prescriptions: [
+            Prescription(exerciseId: 'a', sets: _two),
+            Prescription(exerciseId: 'b', sets: _two),
+          ],
+        ),
+        // 1: one prescription with sets, another without.
+        PlanBlock(
+          name: 'Una',
+          categoryId: 'primario',
+          prescriptions: [
+            Prescription(exerciseId: 'a', sets: _two),
+            Prescription(exerciseId: 'b'),
+          ],
+        ),
+        // 2: no sets.
+        PlanBlock(name: 'Nota', categoryId: 'estiramiento'),
+      ],
+    );
+
+    GuidedSession on(int block) {
+      var g = GuidedSession.choosing(day, const ['ari']).begin(now: _t0);
+      for (var b = 0; b < block; b++) {
+        g = g.skipBlock(now: _t0);
+      }
+      return g;
+    }
+
+    List<(int, int)> order(GuidedSession g, [Set<BlockSet> rec = _none]) => [
+      for (final s in g.pending(rec)) (s.prescription, s.set),
+    ];
+
+    test('a sequential block starts sequential and can be done as a circuit', () {
+      var g = on(0);
+      expect(g.runs[0].executionMode, ExecutionMode.sequential);
+      expect(g.offersExecutionMode, isTrue);
+      g = g.startBlock(_none, now: _t0);
+      expect(order(g), [(0, 0), (0, 1), (1, 0), (1, 1)]);
+      g = g.withExecutionMode(ExecutionMode.circuit);
+      expect(order(g), [(0, 0), (1, 0), (0, 1), (1, 1)]);
+    });
+
+    test('the mode chosen in the preview is the one the block starts with', () {
+      final g = on(
+        0,
+      ).withExecutionMode(ExecutionMode.circuit).startBlock(_none, now: _t0);
+      expect(order(g), [(0, 0), (1, 0), (0, 1), (1, 1)]);
+    });
+
+    test('mid-block: what was done stays and it goes on with B1', () {
+      var g = on(0).startBlock(_none, now: _t0);
+      final done = <BlockSet>{(0, const AthleteSet('ari', 0, 0))};
+      g = g.withExecutionMode(ExecutionMode.circuit);
+      expect(order(g, done), [(1, 0), (0, 1), (1, 1)]);
+      expect(g.currentStep(done), _step(1, 0, ['ari']));
+      // And back to sequential: A2 comes before B1 again.
+      g = g.withExecutionMode(ExecutionMode.sequential);
+      expect(order(g, done), [(0, 1), (1, 0), (1, 1)]);
+    });
+
+    test('a circuit block of the plan can be done sequentially', () {
+      final g = _onBlock(2).withExecutionMode(ExecutionMode.sequential);
+      expect(g.runs[2].executionMode, ExecutionMode.sequential);
+      expect(g.runs[2].athleteMode, AthleteMode.simultaneous);
+    });
+
+    test('one prescription with sets, or none, offers no choice', () {
+      expect(on(1).offersExecutionMode, isFalse);
+      expect(on(2).offersExecutionMode, isFalse);
+      final same = on(1);
+      expect(
+        same.withExecutionMode(ExecutionMode.circuit).runs[0].executionMode,
+        ExecutionMode.sequential,
+      );
+    });
+
+    test('the plan and a timed block stay as they are', () {
+      final g = _onBlock(3);
+      expect(g.offersExecutionMode, isFalse);
+      expect(
+        g.withExecutionMode(ExecutionMode.circuit).runs[3].executionMode,
+        ExecutionMode.timed,
+      );
+      expect(day.blocks[0].executionMode, ExecutionMode.sequential);
+    });
+  });
 }

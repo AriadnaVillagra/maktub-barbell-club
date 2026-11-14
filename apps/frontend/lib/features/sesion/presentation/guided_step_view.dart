@@ -78,6 +78,8 @@ class GuidedStepView extends ConsumerWidget {
           style: context.numeros.chico,
         ),
         if (guided.offersAthleteMode) GuidedModePicker(mode: run.athleteMode),
+        if (guided.offersExecutionMode)
+          GuidedOrderPicker(mode: run.executionMode),
         Text(
           exerciseNameOf(data, prescription),
           key: const Key('guided-exercise'),

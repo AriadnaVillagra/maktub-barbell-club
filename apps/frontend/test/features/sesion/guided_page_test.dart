@@ -95,6 +95,24 @@ final _plan = PublishedPlanView(
   ],
 );
 
+/// The plan the fake calendar serves; a test can swap it for another.
+PublishedPlanView _served = _plan;
+
+PublishedPlanView _planOf(List<PlanBlock> blocks) => PublishedPlanView(
+  id: 'p1',
+  name: 'Fuerza',
+  type: PlanType.regular,
+  publishedAt: DateTime.utc(2026, 11, 1),
+  weekAssignment: const ['A', 'A', 'A', 'A'],
+  weekModels: [
+    WeekModel(
+      id: 'A',
+      name: 'Carga',
+      days: [PlanDay(name: 'Piernas', blocks: blocks)],
+    ),
+  ],
+);
+
 class _Groups implements AssignmentRepository {
   @override
   Future<List<AthleteGroup>> groups(String clubId) async => [
@@ -131,7 +149,7 @@ class _Calendar implements CalendarRepository {
 
   @override
   Future<PublishedPlanView> publishedPlan(String clubId, String planId) async =>
-      _plan;
+      _served;
 
   @override
   Future<List<DayState>> dayStates(
@@ -423,6 +441,8 @@ bool _chosen(WidgetTester tester, String key) =>
     tester.widget<PildoraMaktub>(find.byKey(Key(key))).seleccionada;
 
 void main() {
+  setUp(() => _served = _plan);
+
   group('who trains', () {
     testWidgets('Entrenar starts with the athlete on screen chosen', (
       tester,
@@ -492,6 +512,132 @@ void main() {
 
       expect(_text(tester, 'guided-block-name'), 'Principal');
       expect(find.byKey(const Key('guided-mode-turns')), findsNothing);
+    });
+  });
+
+  group('sequential or circuit (E7.22)', () {
+    // A sequential block of two exercises with two sets each.
+    final biserie = _planOf(const [
+      PlanBlock(
+        name: 'Biserie',
+        categoryId: 'accesorio',
+        prescriptions: [
+          Prescription(exerciseId: 'curl', sets: [PlanSet(reps: 10), PlanSet(reps: 10)]),
+          Prescription(exerciseId: 'face', sets: [PlanSet(reps: 12), PlanSet(reps: 12)]),
+        ],
+      ),
+    ]);
+
+    /// "Curl 1" style label of the step on screen.
+    String where(WidgetTester tester) =>
+        '${_text(tester, 'guided-exercise')} ${_text(tester, 'guided-set').split(' ')[1]}';
+
+    Future<void> finish(WidgetTester tester) async {
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+    }
+
+    testWidgets('a sequential block shows the selector, starting sequential', (
+      tester,
+    ) async {
+      _served = biserie;
+      await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+
+      expect(find.text('Orden'), findsOneWidget);
+      expect(_chosen(tester, 'guided-order-sequential'), true);
+      expect(_chosen(tester, 'guided-order-circuit'), false);
+    });
+
+    testWidgets('chosen in the preview, the list alternates A1, B1, A2, B2', (
+      tester,
+    ) async {
+      _served = biserie;
+      final h = await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+      await _tap(tester, 'guided-order-circuit');
+      expect(_chosen(tester, 'guided-order-circuit'), true);
+      await _tap(tester, 'guided-start-block');
+
+      final seen = <String>[];
+      for (var i = 0; i < 4; i++) {
+        seen.add(where(tester));
+        await finish(tester);
+      }
+
+      expect(seen, ['Curl 1', 'Face pull 1', 'Curl 2', 'Face pull 2']);
+      expect(h.sessions.writes.map(_w), [
+        'ari 0-0-0 done',
+        'ari 0-1-0 done',
+        'ari 0-0-1 done',
+        'ari 0-1-1 done',
+      ]);
+    });
+
+    testWidgets('sequential goes through one exercise and then the other', (
+      tester,
+    ) async {
+      _served = biserie;
+      await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+      await _tap(tester, 'guided-start-block');
+
+      final seen = <String>[];
+      for (var i = 0; i < 4; i++) {
+        seen.add(where(tester));
+        await finish(tester);
+      }
+      expect(seen, ['Curl 1', 'Curl 2', 'Face pull 1', 'Face pull 2']);
+    });
+
+    testWidgets('switching to circuit mid-block keeps A1 done and goes on with B1', (
+      tester,
+    ) async {
+      _served = biserie;
+      final h = await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+      await _tap(tester, 'guided-start-block');
+      await finish(tester); // Curl 1
+      expect(where(tester), 'Curl 2');
+
+      await _tap(tester, 'guided-order-circuit');
+
+      expect(where(tester), 'Face pull 1');
+      expect(h.sessions.writes.map(_w), ['ari 0-0-0 done']);
+      await finish(tester);
+      expect(where(tester), 'Curl 2');
+    });
+
+    testWidgets('a circuit block of the plan can be done sequentially', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 2);
+      expect(_chosen(tester, 'guided-order-circuit'), true);
+
+      await _tap(tester, 'guided-order-sequential');
+      await _tap(tester, 'guided-start-block');
+
+      expect(where(tester), 'Curl 1');
+      await finish(tester);
+      expect(where(tester), 'Curl 2');
+    });
+
+    testWidgets('one prescription with sets, or none, shows no selector', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 0); // no sets
+      expect(find.byKey(const Key('guided-order-circuit')), findsNothing);
+      await _tap(tester, 'guided-skip-block');
+      expect(_text(tester, 'guided-block-name'), 'Principal'); // one prescription
+      expect(find.byKey(const Key('guided-order-circuit')), findsNothing);
+      await _tap(tester, 'guided-start-block');
+      expect(find.byKey(const Key('guided-order-circuit')), findsNothing);
     });
   });
 

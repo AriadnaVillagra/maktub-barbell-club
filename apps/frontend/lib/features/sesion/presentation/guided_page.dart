@@ -327,6 +327,36 @@ class GuidedModePicker extends ConsumerWidget {
   }
 }
 
+/// Sequential or circuit, starting on the block's default (E7.22).
+class GuidedOrderPicker extends ConsumerWidget {
+  const GuidedOrderPicker({super.key, required this.mode});
+
+  final ExecutionMode mode;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(guidedProvider.notifier);
+    return Row(
+      spacing: Espacio.s,
+      children: [
+        Text('Orden', style: context.textos.labelLarge),
+        PildoraMaktub(
+          key: const Key('guided-order-sequential'),
+          texto: 'Secuencial',
+          seleccionada: mode == ExecutionMode.sequential,
+          onTap: () => notifier.setExecutionMode(ExecutionMode.sequential),
+        ),
+        PildoraMaktub(
+          key: const Key('guided-order-circuit'),
+          texto: 'Circuito',
+          seleccionada: mode == ExecutionMode.circuit,
+          onTap: () => notifier.setExecutionMode(ExecutionMode.circuit),
+        ),
+      ],
+    );
+  }
+}
+
 class _Preview extends ConsumerWidget {
   const _Preview({
     required this.guided,
@@ -388,6 +418,8 @@ class _Preview extends ConsumerWidget {
             ),
           ),
         if (guided.offersAthleteMode) GuidedModePicker(mode: run.athleteMode),
+        if (guided.offersExecutionMode)
+          GuidedOrderPicker(mode: run.executionMode),
         const SizedBox(height: Espacio.s),
         Wrap(
           spacing: Espacio.s,

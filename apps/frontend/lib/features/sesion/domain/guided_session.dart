@@ -56,6 +56,7 @@ class GuidedBlockRun {
   const GuidedBlockRun({
     required this.blockIndex,
     required this.athleteMode,
+    required this.executionMode,
     this.status = GuidedBlockStatus.pending,
     this.start,
     this.end,
@@ -68,6 +69,9 @@ class GuidedBlockRun {
 
   /// The athlete mode in force; once closed, the one it ended with. Meaningless for a block without steps.
   final AthleteMode athleteMode;
+
+  /// Sequential or circuit in force (E7.22); starts as the plan's and does not change the plan.
+  final ExecutionMode executionMode;
   final GuidedBlockStatus status;
 
   /// When "Iniciar bloque" was tapped and when the block closed; null for a skipped block.
@@ -87,6 +91,7 @@ class GuidedBlockRun {
 
   GuidedBlockRun _copy({
     AthleteMode? athleteMode,
+    ExecutionMode? executionMode,
     GuidedBlockStatus? status,
     DateTime? start,
     DateTime? end,
@@ -95,6 +100,7 @@ class GuidedBlockRun {
   }) => GuidedBlockRun(
     blockIndex: blockIndex,
     athleteMode: athleteMode ?? this.athleteMode,
+    executionMode: executionMode ?? this.executionMode,
     status: status ?? this.status,
     start: start ?? this.start,
     end: end ?? this.end,
@@ -221,6 +227,12 @@ class GuidedSession {
   bool get offersAthleteMode =>
       athleteIds.length > 1 && (block != null && blockHasSteps(block!));
 
+  /// Whether the block on screen offers sequential or circuit: it has sets in more than one prescription.
+  bool get offersExecutionMode =>
+      block != null &&
+      blockHasSteps(block!) &&
+      block!.prescriptions.where((p) => p.sets.isNotEmpty).length > 1;
+
   /// From the first block's start to now, or to the end.
   Duration? elapsed(DateTime now) =>
       start == null ? null : (end ?? now).difference(start!);
@@ -232,7 +244,7 @@ class GuidedSession {
     if (run == null || block == null || !blockHasSteps(block)) return const [];
     return pendingSteps(
       guidedSteps(
-        executionMode: block.executionMode,
+        executionMode: run.executionMode,
         athleteMode: run.athleteMode,
         athleteIds: athleteIds,
         setCounts: setCountsOf(block, athleteIds),
@@ -277,7 +289,11 @@ class GuidedSession {
     if (phase != GuidedPhase.athletes || athleteIds.isEmpty) return this;
     final runs = [
       for (var b = 0; b < day.blocks.length; b++)
-        GuidedBlockRun(blockIndex: b, athleteMode: day.blocks[b].athleteMode),
+        GuidedBlockRun(
+          blockIndex: b,
+          athleteMode: day.blocks[b].athleteMode,
+          executionMode: day.blocks[b].executionMode,
+        ),
     ];
     if (runs.isEmpty) {
       return _copy(phase: GuidedPhase.finished, runs: runs, end: now);
@@ -292,6 +308,18 @@ class GuidedSession {
     final run = this.run;
     if (run == null || run.closed) return this;
     return _withRun(run._copy(athleteMode: mode));
+  }
+
+  /// Sequential or circuit, in the preview or in the middle of the block: only what is left is reordered (E7.22).
+  GuidedSession withExecutionMode(ExecutionMode mode) {
+    final run = this.run;
+    if (run == null ||
+        run.closed ||
+        !offersExecutionMode ||
+        (mode != ExecutionMode.sequential && mode != ExecutionMode.circuit)) {
+      return this;
+    }
+    return _withRun(run._copy(executionMode: mode));
   }
 
   /// "Iniciar bloque". A block whose sets are all recorded already closes as done.

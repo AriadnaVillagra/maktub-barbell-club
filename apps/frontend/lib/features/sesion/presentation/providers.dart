@@ -487,6 +487,9 @@ class GuidedController extends Notifier<GuidedSession?> {
   void setAthleteMode(AthleteMode mode) =>
       _update((s) => s.withAthleteMode(mode));
 
+  void setExecutionMode(ExecutionMode mode) =>
+      _update((s) => s.withExecutionMode(mode));
+
   void startBlock() => _update((s) => s.startBlock(recorded, now: _now));
 
   void skipBlock() => _update((s) => s.skipBlock(now: _now));
