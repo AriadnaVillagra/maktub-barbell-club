@@ -97,7 +97,7 @@ se da por supuesto.
 | E7.20 | [Modo guiado: atletas, bloques y pasos](E7.20-modo-guiado-bloques-y-pasos.md) | E7.17, E7.8, E7.9, E7.11, E7.12 |
 | E7.21 | [Modo guiado: tiempos de bloque y resumen del día](E7.21-modo-guiado-resumen-y-tiempos.md) | E7.20, E7.19 |
 | E7.22 | [Modo guiado: elegir secuencial o circuito al entrenar](E7.22-modo-guiado-orden-en-vivo.md) | E7.20, E7.21 |
-| E7.23 | [Modo guiado: seguir desde lo pendiente o empezar de cero](E7.23-modo-guiado-seguir-o-empezar-de-cero.md) | E7.21 |
+| E7.23 | [Modo guiado: seguir desde lo pendiente o hacer todo de nuevo](E7.23-modo-guiado-seguir-o-empezar-de-cero.md) | E7.21 |
 | E7.24 | [Una sola pantalla para el calendario y la sesión del día](E7.24-unificar-calendario-y-sesion.md) | E7.13, E7.20 |
 
 **En paralelo:**
