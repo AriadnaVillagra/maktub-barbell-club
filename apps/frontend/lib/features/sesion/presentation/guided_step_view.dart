@@ -104,6 +104,7 @@ class GuidedStepView extends ConsumerWidget {
             step: step,
             target: prescription.sets[step.set],
             draft: draft,
+            redo: guided.redo,
           ),
         Wrap(
           spacing: Espacio.s,
@@ -175,6 +176,7 @@ class _AthleteSetCard extends ConsumerWidget {
     required this.step,
     required this.target,
     required this.draft,
+    required this.redo,
   });
 
   final SessionDayData data;
@@ -184,6 +186,9 @@ class _AthleteSetCard extends ConsumerWidget {
   final GuidedStep step;
   final PlanSet target;
   final GuidedStepDraft draft;
+
+  /// The day is being redone: the card starts from the proposal and shows what was recorded before.
+  final bool redo;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -209,13 +214,14 @@ class _AthleteSetCard extends ConsumerWidget {
               x.setIndex == step.set,
         )
         .firstOrNull;
-    final record = recordOf(
+    final before = recordOf(
       live,
       athleteId,
       blockIndex,
       step.prescription,
       step.set,
     );
+    final record = redo ? null : before;
     final edit = draft.edits[athleteId];
     final kg = edit == null
         ? shownKg(record, proposed)
@@ -275,6 +281,15 @@ class _AthleteSetCard extends ConsumerWidget {
                     Text('${formatKg(pct)} %', style: context.numeros.chico),
                 ],
               ),
+              if (redo && before != null && before.done)
+                Text(
+                  [
+                    'antes: ${before.reps ?? target.reps ?? '—'}',
+                    if (before.kg != null) '× ${formatKg(before.kg!)} kg',
+                  ].join(' '),
+                  key: Key('guided-before-$athleteId'),
+                  style: context.textos.bodySmall,
+                ),
               if (notDone)
                 Text(
                   'No hace esta serie',

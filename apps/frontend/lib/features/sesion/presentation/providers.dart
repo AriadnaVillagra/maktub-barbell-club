@@ -463,9 +463,16 @@ class GuidedController extends Notifier<GuidedSession?> {
   void toggleAthlete(String athleteId) =>
       _update((s) => s.toggleAthlete(athleteId));
 
+  /// Whether any chosen athlete already has sets done on this day, which makes "Comenzar" ask (E7.23).
+  bool get chosenHaveRecords {
+    final s = state;
+    return s != null && recordedOfAthletes(recorded, s.athleteIds).isNotEmpty;
+  }
+
   /// "Comenzar". An athlete who is not present yet is added to the session first, since only present athletes record
-  /// sets. Rethrows the backend's error so the screen can show it.
-  Future<void> begin() async {
+  /// sets. With [redo] every set is walked again and finishing one overwrites its record (E7.23); nothing is
+  /// unmarked. Rethrows the backend's error so the screen can show it.
+  Future<void> begin({bool redo = false}) async {
     final s = state;
     final live = _live;
     final data = ref.read(sessionDayProvider).value;
@@ -481,7 +488,7 @@ class GuidedController extends Notifier<GuidedSession?> {
             present: {...present, ...s.athleteIds},
           );
     }
-    _update((s) => s.begin(now: _now));
+    _update((s) => s.begin(now: _now, redo: redo));
   }
 
   void setAthleteMode(AthleteMode mode) =>
@@ -546,7 +553,8 @@ class GuidedController extends Notifier<GuidedSession?> {
       for (final a in s.athleteIds)
         for (var p = 0; p < block.prescriptions.length; p++)
           for (var set = 0; set < block.prescriptions[p].sets.length; set++)
-            if (!done.contains((run.blockIndex, AthleteSet(a, p, set))))
+            if (s.redo ||
+                !done.contains((run.blockIndex, AthleteSet(a, p, set))))
               _markWrite(block, run.blockIndex, p, set, a, null),
     ];
     _set(s, s.finishBlock(now: _now));
@@ -562,7 +570,10 @@ class GuidedController extends Notifier<GuidedSession?> {
     SetEdit? edit,
   ) {
     final screen = ref.read(sessionScreenProvider);
-    final current = screen.live?.records
+    final redo = state?.redo ?? false;
+    final current = redo
+        ? null // a redone set starts from the proposal, not from what was recorded before
+        : screen.live?.records
         .where(
           (r) =>
               r.athleteId == athleteId &&

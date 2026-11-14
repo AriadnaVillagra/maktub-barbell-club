@@ -17,6 +17,15 @@ Set<BlockSet> recordedSets(Iterable<SetRecord> records) => {
       (r.blockIndex, AthleteSet(r.athleteId, r.prescriptionIndex, r.setIndex)),
 };
 
+/// The sets of [recorded] that belong to [athleteIds]: what makes "Comenzar" ask (E7.23).
+Set<BlockSet> recordedOfAthletes(
+  Set<BlockSet> recorded,
+  Iterable<String> athleteIds,
+) => {
+  for (final r in recorded)
+    if (athleteIds.contains(r.$2.athleteId)) r,
+};
+
 /// Whether [block] is done set by set. A timed block, or one without sets (a stretch, a WoD), is done as a whole.
 bool blockHasSteps(PlanBlock block) =>
     block.executionMode != ExecutionMode.timed &&
@@ -158,12 +167,13 @@ class GuidedStepDraft {
 /// The guided mode of one day. Immutable: every action returns the next state.
 ///
 /// What is done is never stored here: each call that needs it takes [recorded], the done sets of the session. So the
-/// steps are always what is left (D19), and the guided mode never unmarks anything.
+/// steps are always what is left (D19), unless the day is redone, and the guided mode never unmarks anything.
 class GuidedSession {
   const GuidedSession._({
     required this.day,
     required this.phase,
     required this.athleteIds,
+    this.redo = false,
     this.runs = const [],
     this.current = 0,
     this.start,
@@ -182,6 +192,10 @@ class GuidedSession {
   final PlanDay day;
   final GuidedPhase phase;
 
+  /// "Hacer todo de nuevo" (E7.23): every set of the chosen athletes is walked again, recorded or not; only what this
+  /// run passed counts as done, and finishing a set overwrites its record. Nothing is ever unmarked.
+  final bool redo;
+
   /// Who trains, in the order chosen: the order of the turns and of the cards.
   final List<String> athleteIds;
 
@@ -199,6 +213,7 @@ class GuidedSession {
   GuidedSession _copy({
     GuidedPhase? phase,
     List<String>? athleteIds,
+    bool? redo,
     List<GuidedBlockRun>? runs,
     int? current,
     DateTime? start,
@@ -209,6 +224,7 @@ class GuidedSession {
     day: day,
     phase: phase ?? this.phase,
     athleteIds: athleteIds ?? this.athleteIds,
+    redo: redo ?? this.redo,
     runs: runs ?? this.runs,
     current: current ?? this.current,
     start: start ?? this.start,
@@ -251,8 +267,9 @@ class GuidedSession {
       ),
       done: {
         ...run.passed,
-        for (final (b, s) in recorded)
-          if (b == run.blockIndex) s,
+        if (!redo)
+          for (final (b, s) in recorded)
+            if (b == run.blockIndex) s,
       },
       left: run.left,
     );
@@ -285,7 +302,9 @@ class GuidedSession {
   }
 
   /// "Comenzar": the first block's preview, or straight to the end on a day without blocks.
-  GuidedSession begin({required DateTime now}) {
+  ///
+  /// With [redo] the day is walked again from the start, whatever is recorded.
+  GuidedSession begin({required DateTime now, bool redo = false}) {
     if (phase != GuidedPhase.athletes || athleteIds.isEmpty) return this;
     final runs = [
       for (var b = 0; b < day.blocks.length; b++)
@@ -296,9 +315,19 @@ class GuidedSession {
         ),
     ];
     if (runs.isEmpty) {
-      return _copy(phase: GuidedPhase.finished, runs: runs, end: now);
+      return _copy(
+        phase: GuidedPhase.finished,
+        runs: runs,
+        end: now,
+        redo: redo,
+      );
     }
-    return _copy(phase: GuidedPhase.blocks, runs: runs, current: 0);
+    return _copy(
+      phase: GuidedPhase.blocks,
+      runs: runs,
+      current: 0,
+      redo: redo,
+    );
   }
 
   // ---------- blocks ----------

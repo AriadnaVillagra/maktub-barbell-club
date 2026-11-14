@@ -219,11 +219,51 @@ class _Message extends StatelessWidget {
   );
 }
 
+enum _BeginChoice { resume, redo }
+
 class _Athletes extends ConsumerWidget {
   const _Athletes({required this.guided, required this.data});
 
   final GuidedSession guided;
   final SessionDayData data;
+
+  /// "Comenzar". If a chosen athlete already has sets done today, asks whether to go on from what is left or to
+  /// start over (E7.23).
+  Future<void> _begin(BuildContext context, WidgetRef ref) async {
+    final notifier = ref.read(guidedProvider.notifier);
+    if (!notifier.chosenHaveRecords) return notifier.begin();
+    final choice = await showDialog<_BeginChoice>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('guided-resume-dialog'),
+        title: const Text('Ya hay series registradas'),
+        content: const Text(
+          'Alguno de los que entrenan ya tiene series hechas hoy. '
+          '¿Seguís desde lo pendiente o hacés todo de nuevo? Al rehacer, '
+          'cada serie que termines reemplaza la anterior.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('guided-resume-cancel'),
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar'),
+          ),
+          OutlinedButton(
+            key: const Key('guided-redo'),
+            onPressed: () => Navigator.pop(context, _BeginChoice.redo),
+            child: const Text('Hacer todo de nuevo'),
+          ),
+          FilledButton(
+            key: const Key('guided-resume'),
+            onPressed: () => Navigator.pop(context, _BeginChoice.resume),
+            child: const Text('Seguir desde lo pendiente'),
+          ),
+        ],
+      ),
+    );
+    if (choice == null) return;
+    await notifier.begin(redo: choice == _BeginChoice.redo);
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -251,7 +291,7 @@ class _Athletes extends ConsumerWidget {
           key: const Key('guided-begin'),
           onPressed: guided.athleteIds.isEmpty || opening
               ? null
-              : () => guardedGuided(context, notifier.begin),
+              : () => guardedGuided(context, () => _begin(context, ref)),
           child: const Text('Comenzar'),
         ),
       ],

@@ -451,4 +451,55 @@ void main() {
       expect(day.blocks[0].executionMode, ExecutionMode.sequential);
     });
   });
+
+  group('redoing the day (E7.23)', () {
+    final recorded = <BlockSet>{
+      for (final a in ['ari', 'andi'])
+        for (var s = 0; s < 2; s++) (1, AthleteSet(a, 0, s)),
+    };
+
+    GuidedSession redoOn(int block) {
+      var g = GuidedSession.choosing(
+        _day,
+        const ['ari', 'andi'],
+      ).begin(now: _t0, redo: true);
+      for (var b = 0; b < block; b++) {
+        g = g.skipBlock(now: _t0);
+      }
+      return g;
+    }
+
+    test('every set is offered even if recorded, and the block does not close', () {
+      final g = redoOn(1).startBlock(recorded, now: _t0);
+      expect(g.runs[1].status, GuidedBlockStatus.running);
+      expect(g.pending(recorded), hasLength(4));
+      expect(g.currentStep(recorded), _step(0, 0, ['ari']));
+    });
+
+    test('a simultaneous step has all the athletes', () {
+      final rec = <BlockSet>{(2, const AthleteSet('ari', 0, 0))};
+      final g = redoOn(2).startBlock(rec, now: _t0);
+      expect(g.currentStep(rec), _step(0, 0, ['ari', 'andi']));
+    });
+
+    test('only what this run passed counts as done', () {
+      var g = redoOn(1).startBlock(recorded, now: _t0);
+      g = g.finishStep(recorded, now: _t0).next;
+      expect(g.currentStep(recorded), _step(0, 0, ['andi']));
+      expect(g.settle(recorded, now: _t0).current, 1);
+    });
+
+    test('without redo, recorded sets are skipped as before', () {
+      final g = _onBlock(1).startBlock(recorded, now: _t0);
+      expect(g.runs[1].status, GuidedBlockStatus.done);
+    });
+
+    test('recordedOfAthletes keeps only the chosen athletes', () {
+      expect(recordedOfAthletes(recorded, ['ari']), {
+        (1, const AthleteSet('ari', 0, 0)),
+        (1, const AthleteSet('ari', 0, 1)),
+      });
+      expect(recordedOfAthletes(recorded, ['luz']), isEmpty);
+    });
+  });
 }

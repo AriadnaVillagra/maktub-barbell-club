@@ -188,6 +188,9 @@ class _Sessions implements SessionRepository {
   /// Without signal, block times are not taken.
   bool offline = false;
 
+  /// Without signal, sets are not taken either; they stay in the device's queue.
+  bool offlineSets = false;
+
   /// The reps the plan has for each prescription.
   static int _planReps(int block, int prescription) =>
       switch ((block, prescription)) {
@@ -261,6 +264,7 @@ class _Sessions implements SessionRepository {
     String sessionId,
     SetWrite write,
   ) async {
+    if (offlineSets) throw const ErrorDeApi('No se pudo conectar.');
     writes.add(write);
     return _record(
       write.athleteId,
@@ -421,6 +425,9 @@ Future<void> _toBlock(WidgetTester tester, int block) async {
   await _train(tester);
   await _tap(tester, 'guided-athlete-andi');
   await _tap(tester, 'guided-begin');
+  if (find.byKey(const Key('guided-resume')).evaluate().isNotEmpty) {
+    await _tap(tester, 'guided-resume');
+  }
   for (var b = 0; b < block; b++) {
     await _tap(tester, 'guided-skip-block');
   }
@@ -468,14 +475,202 @@ void main() {
       expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
     });
 
-    testWidgets('it unmarks nothing when it begins', (tester) async {
+    testWidgets('with sets already done it asks; "Seguir" writes nothing', (
+      tester,
+    ) async {
       final h = await _pump(
         tester,
         records: [_record('ari', 1, 0, 0, kg: 80)],
       );
-      await _toBlock(tester, 1);
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
 
+      expect(find.byKey(const Key('guided-resume-dialog')), findsOneWidget);
+      expect(find.text('Seguir desde lo pendiente'), findsOneWidget);
+      expect(find.text('Hacer todo de nuevo'), findsOneWidget);
+
+      await _tap(tester, 'guided-resume');
+
+      expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
       expect(h.sessions.writes, isEmpty);
+    });
+
+    testWidgets('with sets done only by an athlete who does not train, it does not ask', (
+      tester,
+    ) async {
+      await _pump(tester, records: [_record('andi', 1, 0, 0, kg: 64)]);
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+
+      expect(find.byKey(const Key('guided-resume-dialog')), findsNothing);
+      expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
+    });
+
+    testWidgets('with nothing recorded it does not ask', (tester) async {
+      await _pump(
+        tester,
+        records: [_record('ari', 1, 0, 0, done: false)],
+      );
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+
+      expect(find.byKey(const Key('guided-resume-dialog')), findsNothing);
+    });
+
+    testWidgets('cancelling the question stays on the athletes', (tester) async {
+      await _pump(tester, records: [_record('ari', 1, 0, 0, kg: 80)]);
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+      await _tap(tester, 'guided-resume-cancel');
+
+      expect(find.text('¿Quiénes entrenan?'), findsOneWidget);
+    });
+  });
+
+  group('redoing the day (E7.23)', () {
+    Future<void> redo(WidgetTester tester) async {
+      await _train(tester);
+      await _tap(tester, 'guided-athlete-andi');
+      await _tap(tester, 'guided-begin');
+      await _tap(tester, 'guided-redo');
+    }
+
+    testWidgets('starts at block 1, offers every set and shows what was recorded', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        records: [_record('ari', 1, 0, 0, kg: 70, reps: 3)],
+      );
+      await redo(tester);
+
+      expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
+      await _tap(tester, 'guided-skip-block');
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+
+      // Both athletes are in the step, though Ari's set was recorded.
+      expect(find.byKey(const Key('guided-card-ari')), findsOneWidget);
+      expect(find.byKey(const Key('guided-card-andi')), findsOneWidget);
+      expect(_text(tester, 'guided-before-ari'), 'antes: 3 × 70 kg');
+      expect(find.byKey(const Key('guided-before-andi')), findsNothing);
+      // The card starts from the proposal, not from the record.
+      expect(_text(tester, 'guided-values-ari'), '80 kg × 5 reps');
+      expect(h.sessions.writes, isEmpty);
+    });
+
+    testWidgets('finishing a recorded set overwrites it with the new values', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        records: [_record('ari', 1, 0, 0, kg: 70, reps: 3, manualKg: true)],
+      );
+      await redo(tester);
+      await _tap(tester, 'guided-skip-block');
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done', 'andi 1-0-0 done']);
+      final ari = h.sessions.writes.first;
+      expect(ari.manualKg, isNull); // the old typed kilos are not carried over
+      expect(ari.reps, isNull);
+      expect(_text(tester, 'guided-set'), 'Serie 2 de 2');
+    });
+
+    testWidgets('a set that is not redone keeps its record, nothing is unmarked', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        records: [_record('ari', 1, 0, 0, kg: 80)],
+      );
+      await redo(tester);
+      await _tap(tester, 'guided-skip-block');
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-not-done-ari');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+
+      // Only Andi's set was written: Ari's record is untouched and no write has done = false.
+      expect(h.sessions.writes.map(_w), ['andi 1-0-0 done']);
+      expect(h.sessions.writes.every((w) => w.done), isTrue);
+      final live = h.container.read(sessionScreenProvider).live!;
+      expect(recordOf(live, 'ari', 1, 0, 0)?.done, isTrue);
+    });
+
+    testWidgets('a day that is done can be entered again and redone, block included', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        records: [
+          for (final a in ['ari', 'andi'])
+            for (var s = 0; s < 2; s++) _record(a, 1, 0, s, kg: 80),
+        ],
+      );
+      await redo(tester);
+      await _tap(tester, 'guided-skip-block');
+      await _tap(tester, 'guided-start-block');
+
+      // The block is not closed for having everything recorded.
+      expect(_text(tester, 'guided-block-name'), 'Principal');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done']);
+    });
+
+    testWidgets('"Seguir" on a done day closes the block that has nothing left', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        records: [
+          for (final a in ['ari', 'andi'])
+            for (var s = 0; s < 2; s++) _record(a, 1, 0, s, kg: 80),
+        ],
+      );
+      await _train(tester);
+      await _tap(tester, 'guided-athlete-andi');
+      await _tap(tester, 'guided-begin');
+      await _tap(tester, 'guided-resume');
+      await _tap(tester, 'guided-skip-block');
+      await _tap(tester, 'guided-start-block');
+
+      expect(_text(tester, 'guided-block-name'), 'Accesorios');
+    });
+
+    testWidgets('without signal the redone sets stay queued and go out when it returns, the last one', (
+      tester,
+    ) async {
+      final h = await _pump(
+        tester,
+        records: [_record('ari', 1, 0, 0, kg: 80)],
+      );
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+      await _tap(tester, 'guided-redo');
+      await _tap(tester, 'guided-skip-block');
+      await _tap(tester, 'guided-start-block');
+      h.sessions.offlineSets = true;
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main'); // Ari's set, queued
+      await tester.pumpAndSettle();
+
+      final queue = h.container.read(setSyncQueueProvider);
+      expect(queue.pending.map((p) => _w(p.write)), ['ari 1-0-0 done']);
+      expect(h.sessions.writes, isEmpty);
+
+      h.sessions.offlineSets = false;
+      await queue.flush();
+      await tester.pumpAndSettle();
+
+      expect(queue.pending, isEmpty);
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done']);
     });
   });
 
