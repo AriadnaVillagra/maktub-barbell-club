@@ -6,8 +6,9 @@ bool setIsEdited(SetRecord record) =>
 
 /// The kilos a set shows: what was typed or marked stays, so moving the day adjustment never rewrites it. Anything
 /// else follows the server's proposal.
+/// A set marked without signal has no kilos from the server yet, so it shows the proposal until the write goes through.
 double? shownKg(SetRecord? record, ProposedSet? proposed) =>
-    record != null && (record.manualKg || record.done)
+    record != null && (record.manualKg || record.done) && record.kg != null
     ? record.kg
     : proposed?.kg;
 
@@ -42,6 +43,21 @@ class SetWrite {
     done: current?.done ?? false,
     manualKg: current != null && current.manualKg ? current.kg : null,
     reps: current?.reps,
+  );
+
+  /// Reads what [toJson] wrote, as the local queue keeps it.
+  factory SetWrite.fromJson(Json j) => SetWrite._(
+    athleteId: '${j['atletaId']}',
+    blockIndex: (j['bloque'] as num).toInt(),
+    prescriptionIndex: (j['prescripcion'] as num).toInt(),
+    setIndex: (j['serie'] as num).toInt(),
+    adjustment: (j['ajuste'] as num?)?.toInt() ?? 0,
+    done: j['hecha'] == true,
+    manualKg: j['kilosManual'] == true
+        ? (j['kilos'] as num?)?.toDouble()
+        : null,
+    reps: (j['reps'] as num?)?.toInt(),
+    note: j['nota'] is String ? j['nota'] as String : null, // empty clears it
   );
 
   final String athleteId;
@@ -101,4 +117,40 @@ class SetWrite {
     'reps': ?reps,
     'nota': ?note,
   };
+}
+
+/// What [write] leaves in a set while the server has not answered yet, built over [current] when there is one.
+/// Kilos the server would compute stay as they were (or null), and [shownKg] falls back to the proposal.
+SetRecord projectedRecord(
+  SetRecord? current,
+  SetWrite write, {
+  required String clubId,
+  required String sessionId,
+}) {
+  final note = write.note ?? current?.note;
+  return SetRecord(
+    id: current?.id ?? '',
+    clubId: clubId,
+    sessionId: sessionId,
+    athleteId: write.athleteId,
+    exerciseId: current?.exerciseId ?? '',
+    exerciseName: current?.exerciseName ?? '',
+    blockIndex: write.blockIndex,
+    prescriptionIndex: write.prescriptionIndex,
+    setIndex: write.setIndex,
+    target: current?.target ?? const PlanSet(),
+    done: write.done,
+    kg:
+        write.manualKg ??
+        (current != null && !current.manualKg ? current.kg : null),
+    reps: write.reps ?? current?.target.reps,
+    referenceId: current?.referenceId,
+    referenceValue: current?.referenceValue,
+    workFactor: current?.workFactor,
+    manualKg: write.manualKg != null,
+    note: note == null || note.isEmpty ? null : note,
+    sequence: current?.sequence,
+    writtenBy: current?.writtenBy ?? '',
+    auditoria: current?.auditoria ?? Auditoria.nueva(''),
+  );
 }

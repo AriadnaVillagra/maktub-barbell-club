@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
@@ -13,13 +15,49 @@ import '../../atletas/presentation/providers.dart'
 import '../../catalogo/presentation/providers.dart'
     show catalogRepositoryProvider;
 import '../data/http_session_repository.dart';
+import '../data/shared_preferences_draft_store.dart';
 import '../domain/athlete_adjustments.dart';
+import '../domain/session_draft_store.dart';
 import '../domain/session_repository.dart';
+import '../domain/set_sync_queue.dart';
 import '../domain/set_write.dart';
 
 final sessionRepositoryProvider = Provider<SessionRepository>(
   (ref) => HttpSessionRepository(ref.watch(clienteApiProvider)),
 );
+
+final sessionDraftStoreProvider = Provider<SessionDraftStore>(
+  (ref) => SharedPreferencesDraftStore(),
+);
+
+/// How often a queue with writes left tries again. E7.10 also flushes it when the live channel reconnects.
+const queueRetryInterval = Duration(seconds: 15);
+
+/// The device's draft and queue of set writes (E7.9). It outlives the screen, so leaving it does not drop anything.
+final setSyncQueueProvider = Provider<SetSyncQueue>((ref) {
+  final repository = ref.watch(sessionRepositoryProvider);
+  final queue = SetSyncQueue(
+    send: (p) => repository.recordSet(p.clubId, p.sessionId, p.write),
+    store: ref.watch(sessionDraftStoreProvider),
+    isRetryable: isTransientWriteError,
+  );
+  Timer? retry;
+  final subscription = queue.changes.listen((pending) {
+    if (pending.isEmpty) {
+      retry?.cancel();
+      retry = null;
+    } else {
+      retry ??= Timer.periodic(queueRetryInterval, (_) => queue.flush());
+    }
+  });
+  unawaited(queue.flush()); // what a previous run left queued
+  ref.onDispose(() {
+    retry?.cancel();
+    subscription.cancel();
+    queue.dispose();
+  });
+  return queue;
+});
 
 /// What the session screen needs for today: the group, where today falls in its assignment and the published plan.
 class SessionDayData {
@@ -169,37 +207,74 @@ class SessionScreenController extends Notifier<SessionScreenState> {
             day: day,
             presentAthleteIds: present,
           );
+      final unsent = await ref
+          .read(setSyncQueueProvider)
+          .resume(live.session.id);
       state = SessionScreenState(
         week: state.week,
         day: state.day,
         present: state.present,
-        live: live,
+        live: unsent.fold<LiveSession>(
+          live,
+          (l, w) => _replacing(
+            l,
+            projectedRecord(
+              _recordOf(l, w),
+              w,
+              clubId: data.clubId,
+              sessionId: l.session.id,
+            ),
+          ),
+        ),
       );
     } finally {
       state = _with(opening: false);
     }
   }
 
-  /// Writes one set and keeps what the server stored. Rethrows the backend's error so the screen can show it.
+  /// Writes one set through the draft and queue and keeps what the server stored, or what the write leaves while it
+  /// stays queued without signal. Rethrows the backend's refusal so the screen can show it.
   Future<void> writeSet(String clubId, SetWrite write) async {
     final sessionId = state.live?.session.id;
     if (sessionId == null) return;
     final stored = await ref
-        .read(sessionRepositoryProvider)
-        .recordSet(clubId, sessionId, write);
+        .read(setSyncQueueProvider)
+        .submit(clubId: clubId, sessionId: sessionId, write: write);
     final live = state.live;
     if (live == null || live.session.id != sessionId) return;
     state = _with(
-      live: LiveSession(
-        session: live.session,
-        records: [
-          for (final r in live.records)
-            if (!_sameSet(r, stored)) r,
-          stored,
-        ],
+      live: _replacing(
+        live,
+        stored ??
+            projectedRecord(
+              _recordOf(live, write),
+              write,
+              clubId: clubId,
+              sessionId: sessionId,
+            ),
       ),
     );
   }
+
+  static SetRecord? _recordOf(LiveSession live, SetWrite write) => live.records
+      .where(
+        (r) =>
+            r.athleteId == write.athleteId &&
+            r.blockIndex == write.blockIndex &&
+            r.prescriptionIndex == write.prescriptionIndex &&
+            r.setIndex == write.setIndex,
+      )
+      .firstOrNull;
+
+  static LiveSession _replacing(LiveSession live, SetRecord record) =>
+      LiveSession(
+        session: live.session,
+        records: [
+          for (final r in live.records)
+            if (!_sameSet(r, record)) r,
+          record,
+        ],
+      );
 
   /// Writes the session's note. Rethrows the backend's error so the screen can show it.
   Future<void> saveSessionNote(String clubId, String note) async {

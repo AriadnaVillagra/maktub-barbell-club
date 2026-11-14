@@ -21,6 +21,7 @@ import 'package:maktub_ui/maktub_ui.dart';
 import '../access/fakes.dart';
 import '../catalogo/catalog_admin_fakes.dart';
 import '../catalogo/catalog_fakes.dart';
+import 'draft_fakes.dart';
 
 final _today = DateTime.utc(2026, 11, 18);
 final _start = DateTime.utc(2026, 9, 1);
@@ -179,6 +180,9 @@ class _FakeSessions implements SessionRepository {
   String? refuseWith;
   String? savedSessionNote;
 
+  /// Without signal every write fails as the API client reports it.
+  bool offline = false;
+
   /// Stores like the server: one record per set, computed kilos unless typed, and a missing note keeps the old one.
   @override
   Future<SetRecord> recordSet(
@@ -187,6 +191,7 @@ class _FakeSessions implements SessionRepository {
     SetWrite write,
   ) async {
     if (refuseWith case final message?) throw ErrorDeApi(message, estado: 422);
+    if (offline) throw const ErrorDeApi('No se pudo conectar con el servidor.');
     writes.add(write);
     final key = (
       write.athleteId,
@@ -292,6 +297,7 @@ Future<void> _pump(
   String? ownAthlete = 'ari',
   _FakeAthletes? athletes,
   _FakeCalendar? calendar,
+  MemoryDraftStore? draft,
 }) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
@@ -314,6 +320,9 @@ Future<void> _pump(
           athletes ?? _FakeAthletes(),
         ),
         sessionRepositoryProvider.overrideWithValue(sessions),
+        sessionDraftStoreProvider.overrideWithValue(
+          draft ?? MemoryDraftStore(),
+        ),
         todayProvider.overrideWithValue(_today),
       ],
       child: MaterialApp(
@@ -762,6 +771,53 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Ese atleta no está.'), findsOneWidget);
+      expect(marked('0-0-0'), findsNothing);
+    });
+
+    testWidgets('without signal the mark shows, stays queued and goes later', (
+      tester,
+    ) async {
+      final sessions = _FakeSessions()..offline = true;
+      final draft = MemoryDraftStore();
+      await _pump(tester, sessions, draft: draft);
+      await _open(tester);
+
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SnackBar), findsNothing);
+      expect(marked('0-0-0'), findsOneWidget);
+      expect(_kg(tester, 'session-kg-0-0-0'), '80 kg');
+      expect(sessions.writes, isEmpty);
+      expect((await draft.load()).queue.single.write.done, isTrue);
+
+      sessions.offline = false;
+      await tester.pump(queueRetryInterval);
+      await tester.pumpAndSettle();
+
+      expect(sessions.writes.single.done, isTrue);
+      expect((await draft.load()).queue, isEmpty);
+      expect(marked('0-0-0'), findsOneWidget);
+    });
+
+    testWidgets('reopening shows a mark that was still queued', (tester) async {
+      final draft = MemoryDraftStore();
+      final offline = _FakeSessions()..offline = true;
+      await _pump(tester, offline, draft: draft);
+      await _open(tester);
+      await tester.tap(find.byKey(check('0-0-1')));
+      await tester.pumpAndSettle();
+
+      // A reload: a new app over the same storage, still without signal.
+      await tester.pumpWidget(const SizedBox());
+      await _pump(
+        tester,
+        _FakeSessions()..offline = true,
+        draft: MemoryDraftStore(draft.disk),
+      );
+      await _open(tester);
+
+      expect(marked('0-0-1'), findsOneWidget);
       expect(marked('0-0-0'), findsNothing);
     });
 

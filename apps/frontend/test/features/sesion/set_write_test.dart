@@ -115,5 +115,69 @@ void main() {
       expect(shownKg(_record(done: true, kg: 80), _proposed), 80);
       expect(shownKg(_record(manualKg: true, kg: 72), _proposed), 72);
     });
+
+    test(
+      'a set marked without signal shows the proposal until the server answers',
+      () {
+        final queued = projectedRecord(
+          null,
+          SetWrite.of(
+            null,
+            athleteId: 'ari',
+            blockIndex: 0,
+            prescriptionIndex: 1,
+            setIndex: 2,
+            adjustment: 0,
+          ).toggled(),
+          clubId: 'c',
+          sessionId: 's',
+        );
+        expect(queued.done, isTrue);
+        expect(shownKg(queued, _proposed), 90);
+      },
+    );
+  });
+
+  group('what a queued write leaves', () {
+    SetWrite writeOf(SetRecord r) => SetWrite.of(
+      r,
+      athleteId: 'ari',
+      blockIndex: 0,
+      prescriptionIndex: 1,
+      setIndex: 2,
+      adjustment: 5,
+    );
+
+    test('keeps what the record had and applies the write', () {
+      final r = projectedRecord(
+        _record(),
+        writeOf(_record()).edited(manualKg: 72.5, reps: 3).withNote('pesada'),
+        clubId: 'c',
+        sessionId: 's',
+      );
+      expect(
+        [r.exerciseId, r.kg, r.reps, r.manualKg, r.note],
+        ['sq', 72.5, 3, true, 'pesada'],
+      );
+    });
+
+    test('back to the plan takes the planned reps and drops typed kilos', () {
+      final typed = _record(manualKg: true, kg: 72, reps: 3);
+      final r = projectedRecord(
+        typed,
+        writeOf(typed).restored(),
+        clubId: 'c',
+        sessionId: 's',
+      );
+      expect([r.kg, r.reps, r.manualKg], [null, 5, false]);
+    });
+
+    test('a write reads back as it was sent', () {
+      final w = writeOf(_record())
+          .edited(manualKg: 72.5, reps: 3)
+          .withNote('')
+          .toggled();
+      expect(SetWrite.fromJson(w.toJson()).toJson(), w.toJson());
+    });
   });
 }
