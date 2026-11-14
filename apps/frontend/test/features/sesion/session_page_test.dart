@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
@@ -53,6 +54,10 @@ class _FakeCalendar implements CalendarRepository {
   /// The 1-based days of the week of the queried date with sets recorded.
   final Set<int> done;
 
+  /// Done days by (week, day) of the cycle of [_today], on top of [done] (those are in today's week).
+  final extraDone = <(int, int)>{};
+  int stateCalls = 0;
+
   @override
   Future<CalendarLocation?> locate(
     String clubId,
@@ -81,10 +86,13 @@ class _FakeCalendar implements CalendarRepository {
     DateTime from,
     DateTime to,
   ) async {
-    final where = UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: from);
+    stateCalls++;
+    final where = UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: _today);
     return [
       for (final d in done)
         DayState(cycle: where.ciclo, week: where.semana, day: d, done: true),
+      for (final (w, d) in extraDone)
+        DayState(cycle: where.ciclo, week: w, day: d, done: true),
     ];
   }
 }
@@ -307,6 +315,8 @@ Future<void> _pump(
   _FakeAthletes? athletes,
   _FakeCalendar? calendar,
   MemoryDraftStore? draft,
+  Widget home = const SessionPage(assignmentsPath: '/asig'),
+  bool withRouter = false,
 }) async {
   tester.view.physicalSize = const Size(900, 2400);
   tester.view.devicePixelRatio = 1;
@@ -334,10 +344,24 @@ Future<void> _pump(
         ),
         todayProvider.overrideWithValue(_today),
       ],
-      child: MaterialApp(
-        theme: TemaMaktub.para(Brightness.dark, Densidad.entrenamiento),
-        home: const SessionPage(),
-      ),
+      child: withRouter
+          ? MaterialApp.router(
+              theme: TemaMaktub.para(Brightness.dark, Densidad.entrenamiento),
+              routerConfig: GoRouter(
+                routes: [
+                  GoRoute(path: '/', builder: (_, _) => home),
+                  GoRoute(
+                    path: '/asig',
+                    builder: (_, _) =>
+                        const Scaffold(body: Text('PANTALLA ASIGNACIONES')),
+                  ),
+                ],
+              ),
+            )
+          : MaterialApp(
+              theme: TemaMaktub.para(Brightness.dark, Densidad.entrenamiento),
+              home: home,
+            ),
     ),
   );
   await tester.pumpAndSettle();
@@ -929,6 +953,144 @@ void main() {
     );
 
     expect(find.byKey(const Key('session-empty')), findsOneWidget);
+  });
+
+  group('no assignment', () {
+    testWidgets('a coach gets the button to assign and it navigates', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _FakeSessions(),
+        calendar: _FakeCalendar(hasAssignment: false),
+        withRouter: true,
+      );
+      await tester.tap(find.byKey(const Key('session-go-assignments')));
+      await tester.pumpAndSettle();
+      expect(find.text('PANTALLA ASIGNACIONES'), findsOneWidget);
+    });
+
+    testWidgets('an athlete sees only the message, in both views', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _FakeSessions(),
+        roles: {Rol.atleta},
+        calendar: _FakeCalendar(hasAssignment: false),
+      );
+      expect(find.byKey(const Key('session-empty')), findsOneWidget);
+      expect(find.byKey(const Key('session-go-assignments')), findsNothing);
+      await tester.tap(find.text('Calendario'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('session-empty')), findsOneWidget);
+    });
+  });
+
+  group('views and day states', () {
+    Finder detail(String key, String text) =>
+        find.descendant(of: find.byKey(Key(key)), matching: find.text(text));
+
+    testWidgets('opens on the session view; the selector switches views', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      expect(find.byKey(const Key('session-open')), findsOneWidget);
+      expect(find.byKey(const Key('calendar-plan')), findsNothing);
+
+      await tester.tap(find.text('Calendario'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('calendar-plan')), findsOneWidget);
+      expect(find.byKey(const Key('session-open')), findsNothing);
+
+      await tester.tap(find.text('Sesión del día'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('session-open')), findsOneWidget);
+    });
+
+    testWidgets('can open on the calendar view', (tester) async {
+      await _pump(
+        tester,
+        _FakeSessions(),
+        home: const SessionPage(initialView: SessionView.calendar),
+      );
+      expect(find.byKey(const Key('calendar-plan')), findsOneWidget);
+    });
+
+    testWidgets('day pills say done or pending', (tester) async {
+      await _pump(tester, _FakeSessions(), calendar: _FakeCalendar(done: {1}));
+      expect(detail('session-day-1', 'Hecho'), findsOneWidget);
+      expect(detail('session-day-2', 'Pendiente'), findsOneWidget);
+    });
+
+    testWidgets('the calendar shows every week with its days done or pending', (
+      tester,
+    ) async {
+      final calendar = _FakeCalendar(done: {1});
+      calendar.extraDone.add((1, 1));
+      await _pump(tester, _FakeSessions(), calendar: calendar);
+      await tester.tap(find.text('Calendario'));
+      await tester.pumpAndSettle();
+
+      final where = UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: _today);
+      expect(find.text('Fuerza'), findsOneWidget);
+      expect(
+        find.textContaining('Ciclo ${where.ciclo} · 4 semanas'),
+        findsOneWidget,
+      );
+      for (var w = 1; w <= 4; w++) {
+        expect(
+          find.byKey(Key('calendar-week-title-$w')),
+          findsOneWidget,
+        );
+      }
+      final current = tester.widget<Text>(
+        find.byKey(Key('calendar-week-title-${where.semana}')),
+      );
+      expect(current.data, endsWith('esta semana'));
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('calendar-week-title-1')))
+            .data,
+        isNot(contains('esta semana')),
+      );
+      expect(detail('calendar-day-${where.semana}-1', 'Hecho'), findsOneWidget);
+      expect(
+        detail('calendar-day-${where.semana}-2', 'Pendiente'),
+        findsOneWidget,
+      );
+      expect(detail('calendar-day-1-1', 'Hecho'), findsOneWidget);
+    });
+
+    testWidgets('tapping a day opens the session of that week and day', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      await tester.tap(find.text('Calendario'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('calendar-day-2-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-open')), findsOneWidget);
+      expect(find.text('Día 1 · Empuje A'), findsOneWidget);
+    });
+
+    testWidgets('recording a set turns the day pill to done', (tester) async {
+      final calendar = _FakeCalendar();
+      await _pump(tester, _FakeSessions(), calendar: calendar);
+      await _open(tester);
+      expect(detail('session-day-1', 'Pendiente'), findsOneWidget);
+
+      calendar.extraDone.add((UbicacionEnCiclo.desdeFechas(
+        inicio: _start,
+        fecha: _today,
+      ).semana, 1));
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+      await tester.pumpAndSettle();
+
+      expect(detail('session-day-1', 'Hecho'), findsOneWidget);
+    });
   });
 }
 

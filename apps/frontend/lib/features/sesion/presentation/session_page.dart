@@ -7,22 +7,47 @@ import 'package:maktub_ui/maktub_ui.dart';
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
     show asyncView, showApiError;
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
+import '../../access/presentation/providers.dart' show canPlanProvider;
 import 'providers.dart';
 import 'session_block_card.dart';
+import 'session_calendar_view.dart';
 import 'session_loads_view.dart';
 import 'session_timers.dart';
 
-/// The day's session: opens on the day D13 gives, lets the user pick another one and the present athletes, and once
-/// open shows each present athlete's kilos with their day adjustment. Marking sets is E7.8.
-class SessionPage extends ConsumerWidget {
-  const SessionPage({super.key, this.guidedPath});
+/// The two views of the screen.
+enum SessionView { day, calendar }
+
+/// The day's session and the plan's calendar on one screen (E7.24). A selector switches between the session of
+/// the day (opens on the day D13 gives, lets the user pick another one and the present athletes, and once open
+/// shows each present athlete's kilos with their day adjustment) and the calendar of the whole cycle.
+class SessionPage extends ConsumerStatefulWidget {
+  const SessionPage({
+    super.key,
+    this.guidedPath,
+    this.assignmentsPath,
+    this.initialView = SessionView.day,
+  });
 
   /// Where "Entrenar" goes, the guided mode (E7.20); without it there is no button.
   final String? guidedPath;
 
+  /// Where a coach goes to assign a plan when there is none; without it there is no button.
+  final String? assignmentsPath;
+
+  final SessionView initialView;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SessionPage> createState() => _SessionPageState();
+}
+
+class _SessionPageState extends ConsumerState<SessionPage> {
+  late SessionView _view = widget.initialView;
+
+  @override
+  Widget build(BuildContext context) {
     final data = ref.watch(sessionDayProvider);
+    // The calendar view picks a day for the session view, so the screen's state must outlive the session view.
+    ref.listen(sessionScreenProvider, (_, _) {});
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sesión'),
@@ -31,19 +56,86 @@ class SessionPage extends ConsumerWidget {
       body: asyncView(
         data,
         onRetry: () => ref.invalidate(sessionDayProvider),
-        builder: (data) => data == null
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(Espacio.l),
-                  child: Text(
-                    'Todavía no hay un plan asignado',
-                    key: const Key('session-empty'),
-                    style: context.textos.titleMedium,
-                    textAlign: TextAlign.center,
+        builder: (data) => Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Espacio.l,
+                Espacio.m,
+                Espacio.l,
+                0,
+              ),
+              child: SegmentedButton<SessionView>(
+                key: const Key('session-view'),
+                segments: const [
+                  ButtonSegment(
+                    value: SessionView.day,
+                    label: Text('Sesión del día'),
                   ),
-                ),
-              )
-            : _SessionBody(data: data, guidedPath: guidedPath),
+                  ButtonSegment(
+                    value: SessionView.calendar,
+                    label: Text('Calendario'),
+                  ),
+                ],
+                selected: {_view},
+                onSelectionChanged: (v) => setState(() => _view = v.first),
+              ),
+            ),
+            Expanded(
+              child: data == null
+                  ? _NoAssignment(assignmentsPath: widget.assignmentsPath)
+                  : switch (_view) {
+                      SessionView.day => _SessionBody(
+                        data: data,
+                        guidedPath: widget.guidedPath,
+                      ),
+                      SessionView.calendar => SessionCalendarView(
+                        data: data,
+                        onPick: (week, day) {
+                          ref
+                              .read(sessionScreenProvider.notifier)
+                              .selectDay(week, day);
+                          setState(() => _view = SessionView.day);
+                        },
+                      ),
+                    },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NoAssignment extends ConsumerWidget {
+  const _NoAssignment({this.assignmentsPath});
+
+  final String? assignmentsPath;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final path = assignmentsPath;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Espacio.l),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          spacing: Espacio.m,
+          children: [
+            Text(
+              'Todavía no hay un plan asignado',
+              key: const Key('session-empty'),
+              style: context.textos.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            if (path != null && (ref.watch(canPlanProvider) ?? false))
+              FilledButton(
+                key: const Key('session-go-assignments'),
+                onPressed: () => context.go(path),
+                child: const Text('Ir a Asignaciones'),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -72,6 +164,7 @@ class _SessionBody extends ConsumerWidget {
         ? model.days[day - 1]
         : null;
     final live = state.live;
+    final dayStates = watchDayStates(ref, data);
 
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
@@ -116,6 +209,9 @@ class _SessionBody extends ConsumerWidget {
                 PildoraMaktub(
                   key: Key('session-day-$d'),
                   texto: 'Día $d',
+                  detalle: isDayDone(dayStates, data, week, d)
+                      ? 'Hecho'
+                      : 'Pendiente',
                   seleccionada: d == day,
                   onTap: () => notifier.selectDay(week, d),
                 ),

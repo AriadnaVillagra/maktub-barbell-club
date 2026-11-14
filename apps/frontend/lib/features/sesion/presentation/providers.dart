@@ -110,6 +110,34 @@ class SessionDayData {
   final String? ownAthleteId;
 }
 
+/// Which cycle's day states to fetch: the cycle of an assignment started on [startDate].
+typedef CycleDaysQuery = (
+  String clubId,
+  String groupId,
+  DateTime startDate,
+  int cycle,
+);
+
+/// Done or pending state of the days of one cycle (E7.13, E7.24). Invalidated when sets are recorded, so the
+/// day pills follow.
+final cycleDayStatesProvider = FutureProvider.autoDispose
+    .family<List<DayState>, CycleDaysQuery>((ref, query) {
+      final (clubId, groupId, startDate, cycle) = query;
+      final cycleStart = DateTime.utc(
+        startDate.year,
+        startDate.month,
+        startDate.day,
+      ).add(Duration(days: (cycle - 1) * 28));
+      return ref
+          .watch(calendarRepositoryProvider)
+          .dayStates(
+            clubId,
+            groupId,
+            cycleStart,
+            cycleStart.add(const Duration(days: 27)),
+          );
+    });
+
 /// Null when the group has no active assignment.
 final sessionDayProvider = FutureProvider.autoDispose<SessionDayData?>((
   ref,
@@ -134,8 +162,11 @@ final sessionDayProvider = FutureProvider.autoDispose<SessionDayData?>((
   final athletes = access.can(Accion.verReportesDeTodos)
       ? await ref.watch(athleteRepositoryProvider).athletes(clubId)
       : const [];
-  final today = ref.watch(todayProvider);
-  final states = await calendar.dayStates(clubId, group.id, today, today);
+  final states = await ref.read(
+    cycleDayStatesProvider(
+      (clubId, group.id, location.startDate, location.cycle),
+    ).future,
+  );
   final dayCount = plan.weekModelOf(location.week)?.days.length ?? 0;
   return SessionDayData(
     clubId: clubId,
@@ -261,6 +292,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
         .read(setSyncQueueProvider)
         .submit(clubId: clubId, sessionId: sessionId, write: write);
     final live = state.live;
+    ref.invalidate(cycleDayStatesProvider);
     if (live == null || live.session.id != sessionId) return;
     state = _with(
       live: _replacing(

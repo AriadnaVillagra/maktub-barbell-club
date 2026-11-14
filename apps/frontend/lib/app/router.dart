@@ -6,7 +6,6 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../features/access/presentation/providers.dart';
 import '../features/asignacion/presentation/assignments_page.dart';
-import '../features/asignacion/presentation/calendar_page.dart';
 import '../features/atletas/presentation/athlete_sheet_page.dart';
 import '../features/atletas/presentation/athletes_page.dart';
 import '../features/atletas/presentation/profile_page.dart';
@@ -113,7 +112,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               routes: [
                 GoRoute(
                   path: 'sesion',
-                  builder: (_, _) => const SessionPage(guidedPath: Rutas.entrenar),
+                  builder: (_, _) => const SessionPage(
+                    guidedPath: Rutas.entrenar,
+                    assignmentsPath: Rutas.asignaciones,
+                  ),
                   routes: [
                     GoRoute(
                       path: 'entrenar',
@@ -123,7 +125,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ),
                 GoRoute(
                   path: 'calendario',
-                  builder: (_, _) => const CalendarPage(assignmentsPath: Rutas.asignaciones),
+                  builder: (_, _) => const SessionPage(
+                    guidedPath: Rutas.entrenar,
+                    assignmentsPath: Rutas.asignaciones,
+                    initialView: SessionView.calendar,
+                  ),
                 ),
               ],
             ),

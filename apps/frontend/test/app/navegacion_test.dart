@@ -11,6 +11,7 @@ import 'package:maktub_frontend/features/access/presentation/providers.dart';
 import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
 import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
+import 'package:maktub_frontend/features/sesion/presentation/session_page.dart';
 import 'package:maktub_frontend/features/temporizador/presentation/controllers/crono_controller.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
 
@@ -57,17 +58,32 @@ Future<void> _montar(
 }
 
 void main() {
+  testWidgets('the training landing no longer lists Calendario and /entrenamiento/calendario opens the calendar view', (
+    tester,
+  ) async {
+    await _montar(tester, const Size(400, 800));
+    expect(find.text('Calendario'), findsNothing);
+
+    GoRouter.of(tester.element(find.byType(Scaffold).first)).go(Rutas.calendario);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SessionPage>(find.byType(SessionPage)).initialView, SessionView.calendar);
+
+    GoRouter.of(tester.element(find.byType(Scaffold).first)).go(Rutas.sesion);
+    await tester.pumpAndSettle();
+    expect(tester.widget<SessionPage>(find.byType(SessionPage)).initialView, SessionView.day);
+  });
+
   testWidgets('arranca en Entrenamiento y navega a Planificación (celular)', (tester) async {
     await _montar(tester, const Size(400, 800));
 
     expect(find.byType(NavigationBar), findsOneWidget);
-    expect(find.text('Calendario'), findsOneWidget);
+    expect(find.text('Sesión del día'), findsOneWidget);
 
     await tester.tap(find.text('Planificación'));
     await tester.pumpAndSettle();
 
     expect(find.text('Atletas y referencias'), findsOneWidget);
-    expect(find.text('Calendario'), findsNothing);
+    expect(find.text('Sesión del día'), findsNothing);
   });
 
   testWidgets('entrenamiento abre en oscuro y planificación sigue al sistema (claro)', (tester) async {
@@ -144,7 +160,7 @@ void main() {
     testWidgets('an athlete does not see planning; the bar keeps only training and the timer', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta});
 
-      expect(find.text('Calendario'), findsOneWidget);
+      expect(find.text('Sesión del día'), findsOneWidget);
       expect(find.text('Planificación'), findsNothing);
       expect(find.byType(NavigationDestination), findsNWidgets(2));
       expect(find.byKey(const Key('shell-timer')), findsOneWidget);
@@ -153,7 +169,7 @@ void main() {
     testWidgets('an athlete is sent back to training when opening planning by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.planificacion);
 
-      expect(find.text('Calendario'), findsOneWidget);
+      expect(find.text('Sesión del día'), findsOneWidget);
       expect(find.text('Atletas y referencias'), findsNothing);
     });
 
@@ -187,14 +203,14 @@ void main() {
 
     testWidgets('an athlete is sent back to training when opening an athlete sheet by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: '${Rutas.atletas}/a1');
-      expect(find.text('Calendario'), findsOneWidget);
+      expect(find.text('Sesión del día'), findsOneWidget);
       expect(find.byKey(const Key('sheet-empty')), findsNothing);
     });
 
     testWidgets('a user without athlete id has no Perfil tab and is redirected from its route', (tester) async {
       await _montar(tester, const Size(400, 800), ruta: Rutas.perfil);
 
-      expect(find.text('Calendario'), findsOneWidget);
+      expect(find.text('Sesión del día'), findsOneWidget);
       expect(find.byKey(const Key('sheet-empty')), findsNothing);
       expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Perfil')), findsNothing);
     });
@@ -216,7 +232,7 @@ void main() {
 
     testWidgets('hiding Perfil does not shift the other tabs; an athlete-only user keeps Perfil', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, athleteIds: {'c1': 'a1'});
-      expect(find.text('Calendario'), findsOneWidget);
+      expect(find.text('Sesión del día'), findsOneWidget);
       expect(find.text('Planificación'), findsNothing);
       expect(find.text('Perfil'), findsOneWidget);
 
@@ -245,7 +261,7 @@ void main() {
 
     testWidgets('an athlete cannot open Preferences by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.preferencias);
-      expect(find.text('Calendario'), findsOneWidget);
+      expect(find.text('Sesión del día'), findsOneWidget);
     });
   });
 

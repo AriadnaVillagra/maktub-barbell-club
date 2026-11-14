@@ -830,7 +830,7 @@ void main() {
             .go(Rutas.planes);
         await tester.pumpAndSettle();
         expect(find.text('Fuerza'), findsNothing);
-        expect(find.text('Calendario'), findsOneWidget);
+        expect(find.text('Sesión del día'), findsOneWidget);
       },
     );
 
