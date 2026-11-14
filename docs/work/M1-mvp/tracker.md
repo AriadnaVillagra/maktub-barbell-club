@@ -27,7 +27,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 21 / 25 (E7.1 a E7.9, E7.11 a E7.13 y E7.17 a E7.25 hechos; del otro agente siguen E7.10 y E7.14 a E7.16) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 25 / 25 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
@@ -90,6 +90,14 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **Revisar el resto de la versión nueva de `reference/`:** tiene más que la versión con la que se planificó M1,
   como menú de entrada, resumen global del plan, editar el día en ejecución, días salteados, rampa
   configurable, medida del ejercicio y ejercicios inactivos. Falta ver si a M1 le falta algo de eso.
+
+## Cierre de E7: canal en vivo y sin señal (2026-11-14)
+
+- **E7.10:** la app pide el ticket, abre el WebSocket y resincroniza con `cambios?desde=N`. Ante un corte reconecta sola (esperas de 0,5 s a 30 s) y muestra "Conectando…". Deja de reintentar con 403/404. Al abrir el canal manda la cola. Un cambio de una serie que todavía está en la cola de este dispositivo se retiene hasta que la escritura sale. Gana el número más alto. El canal se corta al cambiar de día o salir de la pantalla. "Conectando…" no aparece en el modo guiado.
+- **E7.14:** `GET .../asignaciones/{id}/kilos-propuestos?desde&hasta` (31 días como máximo, todos los días de la semana de cada fecha). El cálculo del día pasó a `maktub_core` (`set_load.dart`) y lo comparten los dos endpoints. No tiene parámetro `semana`: si alguien elige otra semana, esa semana no queda precargada.
+- **E7.15:** la copia local está en `shared_preferences` (`maktub.copy.*`). Se precargan hoy y los 7 días siguientes al iniciar sesión, y se borra lo que tiene más de 14 días. Un 4xx a propósito no usa la copia; sin conexión, un 5xx, un 408 y un 429 sí. Sin señal, el ajuste del día no se recalcula: solo sirven el 100 % o un ajuste ya visto.
+- **E7.16:** una sesión abierta sin señal tiene un id `local-…`. La apertura va en la cola adelante de todo, y cuando sale, la cola reemplaza el id por el del servidor en las series, los tiempos y el borrador. El backend no cambió. Si el servidor rechaza la apertura con un 4xx, se descartan también las marcas de esa sesión. Timeouts del cliente: 8 s en lecturas y al abrir, 30 s en escrituras.
+- **Sin probar en real:** todo E7.10 a E7.16 pasó solo con fakes (sin WebSocket real, sin modo avión, sin dos teléfonos). Va en la prueba después del merge (D3).
 
 ## Para E6 (decidido el 2026-11-08)
 
