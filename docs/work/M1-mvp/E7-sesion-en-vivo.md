@@ -78,8 +78,12 @@ se da por supuesto.
 | E7.11 | [Temporizadores en la sesión](E7.11-temporizadores-en-sesion.md) | E7.8, E2.2 |
 | E7.12 | [WoD en la sesión: nota y temporizador](E7.12-wod-en-sesion.md) | E7.8, E7.11 |
 | E7.13 | [Calendario: días hechos y pendientes desde las sesiones](E7.13-calendario-hechos-y-pendientes.md) | E6.6, E7.3 |
+| E7.14 | [Backend: kilos propuestos por asignación y fecha, sin sesión abierta](E7.14-kilos-propuestos-sin-sesion.md) | E7.7 |
+| E7.15 | [App: datos del día sin señal (precarga y copia local)](E7.15-datos-del-dia-sin-senal.md) | E7.14, E7.9, E6.6 |
+| E7.16 | [App: abrir la sesión del día sin señal](E7.16-abrir-sesion-sin-senal.md) | E7.15, E7.10 |
 
 **En paralelo:**
 - E7.1 (verificación de R1) no depende de nada y va primero (M1 §6).
 - La cadena del canal (E7.5 → E7.6) avanza en paralelo con la de la pantalla (E7.7 → E7.8). E7.4 y E7.13 se pueden tomar apenas existe E7.3.
 - Después de E7.8 se pueden tomar a la vez E7.9 y E7.11. E7.10 une el canal con el borrador.
+- E7.14 a E7.16 (agregados el 2026-11-14) cubren D8 completo: abrir plan, calendario y sesión sin señal. E7.14 se puede tomar ya, en paralelo con E7.10 y E7.12. E7.15 sigue a E7.14, y E7.16 va al final porque une la copia local con la cola y el canal.

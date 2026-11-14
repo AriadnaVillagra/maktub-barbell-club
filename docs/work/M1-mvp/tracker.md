@@ -27,7 +27,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 11 / 13 (E7.1 a E7.9, E7.11 y E7.13 hechos; sigue E7.10, E7.12 en paralelo) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 11 / 16 (E7.1 a E7.9, E7.11 y E7.13 hechos; siguen E7.10, E7.12 y E7.14 en paralelo) | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
@@ -66,7 +66,7 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **Sin probar en real (E7.6):** los stores corrieron contra MongoDB y el WebSocket contra un servidor local en los tests, con el store falso. No se probó en Cloud Run ni con dos teléfonos; eso queda para E7.10.
 - **`diseno.md` (E7.6):** tampoco tiene `secuencia` en sesión y registro ni `secuenciaSesion` en sesión.
 - **Borrador y cola (E7.9, hecho):** el borrador va en `shared_preferences` (`localStorage` en la PWA). Con señal, la pantalla sigue esperando la respuesta del servidor; solo muestra la marca antes si la escritura queda en cola. La cola reintenta cada 15 s, y un 4xx la saca de la cola. Para E7.10: `SetSyncQueue.pending`, `changes` y `flush()` al reconectar. Una escritura que sale en segundo plano no trae los kilos calculados del servidor hasta reabrir la sesión, o hasta que llegue el cambio por el canal de E7.10.
-- **Hueco frente a D8 (sin decidir):** abrir el día sin nada de señal (plan, calendario, sesión) no está cubierto. `sessionDayProvider` y `open()` necesitan red. Solo está cubierto marcar con la sesión ya abierta. Puede ser un issue propio o una decisión.
+- **D8 completo (decidido el 2026-11-14):** abrir plan, calendario y sesión sin señal entra en M1. Se agregan E7.14 (kilos propuestos sin sesión, en el servidor), E7.15 (precarga de hoy y los próximos 7 días, más lo último visto) y E7.16 (la sesión se abre en el teléfono y la apertura va a la cola, adelante de las series).
 - **Temporizadores (E7.11, hecho):** `TimerPlatform` (sonido, vibración, pantalla encendida) traga los errores. `Crono` se extendió con fases abiertas: for time sin tope cuenta hacia arriba y Death By se puede terminar con "Terminar". El tiempo final queda en `cronoResultsProvider` y no se envía al backend; eso es de E7.12. Un for time con tope dentro de un `mix` no muestra "Terminar", porque `Fase` no sabe el tipo de bloque. El botón "Terminar" de `BarraCrono` no tiene test de widget.
 - **Sin probar en real (E7.9, E7.11):** sin red con la PWA instalada (modo avión), y sonido, vibración y pantalla encendida en el teléfono, quedan para después del merge de E7 (D3).
 
