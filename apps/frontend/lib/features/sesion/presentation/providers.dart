@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
+import '../../../core/offline/local_copy_providers.dart';
 import '../../../core/red/api_providers.dart';
 import '../../../core/red/cliente_api.dart' show ErrorDeApi;
 import '../../access/presentation/providers.dart';
@@ -14,7 +15,13 @@ import '../../asignacion/presentation/providers.dart'
 import '../../atletas/presentation/providers.dart'
     show athleteRepositoryProvider, todayProvider;
 import '../../catalogo/presentation/providers.dart'
-    show catalogRepositoryProvider;
+    show catalogAdminRepositoryProvider, catalogRepositoryProvider;
+import '../../session/domain/session_manager.dart' show SessionStatus;
+import '../../session/presentation/providers.dart'
+    show sessionControllerProvider;
+import '../data/cached_proposed_days_repository.dart';
+import '../data/cached_session_repository.dart';
+import '../data/http_proposed_days_repository.dart';
 import '../data/http_session_repository.dart';
 import '../data/shared_preferences_calendar_layout_store.dart';
 import '../data/shared_preferences_draft_store.dart';
@@ -25,14 +32,64 @@ import '../domain/calendar_layout.dart';
 import '../domain/guided_session.dart';
 import '../domain/live_channel.dart';
 import '../domain/live_session_sync.dart';
+import '../domain/preload_days.dart';
+import '../domain/proposed_days.dart';
 import '../domain/session_draft_store.dart';
 import '../domain/session_repository.dart';
 import '../domain/set_sync_queue.dart';
 import '../domain/set_write.dart';
 
-final sessionRepositoryProvider = Provider<SessionRepository>(
+/// The session straight from the server. Tests replace it to keep the device's copy in between.
+final remoteSessionRepositoryProvider = Provider<SessionRepository>(
   (ref) => HttpSessionRepository(ref.watch(clienteApiProvider)),
 );
+
+/// The proposed kilos by date straight from the server (E7.14). Tests replace it.
+final remoteProposedDaysRepositoryProvider = Provider<ProposedDaysRepository>(
+  (ref) => HttpProposedDaysRepository(ref.watch(clienteApiProvider)),
+);
+
+/// The proposed kilos by date, kept on the device for each date (E7.15).
+final proposedDaysRepositoryProvider = Provider<CachedProposedDaysRepository>(
+  (ref) => CachedProposedDaysRepository(
+    ref.watch(remoteProposedDaysRepositoryProvider),
+    ref.watch(localCopyReadsProvider),
+  ),
+);
+
+/// The session with the device's copy as fallback without signal (E7.15).
+final sessionRepositoryProvider = Provider<SessionRepository>(
+  (ref) => CachedSessionRepository(
+    ref.watch(remoteSessionRepositoryProvider),
+    ref.watch(localCopyReadsProvider),
+    ref.watch(proposedDaysRepositoryProvider),
+  ),
+);
+
+/// How long a saved copy is kept: older ones are dropped on every preload.
+const localCopyRetention = Duration(days: 14);
+
+/// Clock of the copy's pruning. Tests override it.
+final localCopyClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
+/// Preloads today and the next days on the device once the user is signed in (E7.15). The app keeps it listened
+/// to, so it runs on every start with a session; without signal it changes nothing.
+final preloadDaysProvider = FutureProvider<void>((ref) async {
+  if (ref.watch(sessionControllerProvider) != SessionStatus.signedIn) return;
+  final now = ref.read(localCopyClockProvider)();
+  await ref.read(localCopyStoreProvider).prune(now.subtract(localCopyRetention));
+  await PreloadDays(
+    me: ref.read(meRepositoryProvider),
+    assignments: ref.read(assignmentRepositoryProvider),
+    calendar: ref.read(calendarRepositoryProvider),
+    catalog: ref.read(catalogRepositoryProvider),
+    catalogAdmin: ref.read(catalogAdminRepositoryProvider),
+    athletes: ref.read(athleteRepositoryProvider),
+    proposedDays: ref.read(proposedDaysRepositoryProvider),
+  )(ref.read(todayProvider));
+});
 
 /// The live channel of the open session (E7.10). Tests replace it with a fake.
 final liveChannelProvider = Provider<LiveChannel>(
@@ -171,19 +228,10 @@ typedef CycleDaysQuery = (
 final cycleDayStatesProvider = FutureProvider.autoDispose
     .family<List<DayState>, CycleDaysQuery>((ref, query) {
       final (clubId, groupId, startDate, cycle) = query;
-      final cycleStart = DateTime.utc(
-        startDate.year,
-        startDate.month,
-        startDate.day,
-      ).add(Duration(days: (cycle - 1) * 28));
+      final (from, to) = cycleDates(startDate, cycle);
       return ref
           .watch(calendarRepositoryProvider)
-          .dayStates(
-            clubId,
-            groupId,
-            cycleStart,
-            cycleStart.add(const Duration(days: 27)),
-          );
+          .dayStates(clubId, groupId, from, to);
     });
 
 /// Null when the group has no active assignment.

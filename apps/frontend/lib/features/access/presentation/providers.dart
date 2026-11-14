@@ -1,15 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
+import '../../../core/offline/local_copy_providers.dart';
 import '../../../core/red/api_providers.dart';
 import '../../session/domain/session_manager.dart';
 import '../../session/presentation/providers.dart';
+import '../data/cached_me_repository.dart';
 import '../data/http_me_repository.dart';
 import '../domain/me.dart';
 import '../domain/me_repository.dart';
 
-final meRepositoryProvider = Provider<MeRepository>(
+/// `GET /me` straight from the server. Tests replace it to keep the device's copy in between.
+final remoteMeRepositoryProvider = Provider<MeRepository>(
   (ref) => HttpMeRepository(ref.watch(clienteApiProvider)),
+);
+
+/// `GET /me` with the device's copy as fallback without signal (E7.15).
+final meRepositoryProvider = Provider<MeRepository>(
+  (ref) => CachedMeRepository(
+    ref.watch(remoteMeRepositoryProvider),
+    ref.watch(localCopyReadsProvider),
+  ),
 );
 
 /// Who the signed-in user is. Null without a session; fetched again whenever the session changes.

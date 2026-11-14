@@ -18,6 +18,12 @@ class ClubAccess {
     roles: rolesDeCable(j['roles']),
     athleteId: j['atletaId'] as String?,
   );
+
+  Json toJson() => {
+    'club': club.toJson(),
+    'roles': [for (final r in roles) r.cable],
+    'atletaId': ?athleteId,
+  };
 }
 
 /// The answer of `GET /me`: who the user is and which clubs they can reach.
@@ -47,6 +53,14 @@ class Me {
     ],
     isPlatformAdmin: j['esAdminPlataforma'] == true,
   );
+
+  /// The same shape as `GET /me`, for the device's copy (E7.15).
+  Json toJson() => {
+    'usuario': user.toJson(),
+    'clubPersonal': ?personalClub?.toJson(),
+    'clubes': [for (final c in clubs) c.toJson()],
+    'esAdminPlataforma': isPlatformAdmin,
+  };
 
   /// The club the app works in. There is no selector yet (F1), so the criterion is: the first
   /// club the user joined on purpose (the API lists them by name), and the personal club when

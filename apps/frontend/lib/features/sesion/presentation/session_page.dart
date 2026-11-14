@@ -9,6 +9,7 @@ import '../../catalogo/presentation/catalog_admin_widgets.dart'
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
 import '../../access/presentation/providers.dart' show canPlanProvider;
 import '../domain/live_session_sync.dart' show LiveStatus;
+import '../../../core/offline/local_copy_providers.dart';
 import 'providers.dart';
 import 'session_block_card.dart';
 import 'session_calendar_view.dart';
@@ -59,6 +60,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         onRetry: () => ref.invalidate(sessionDayProvider),
         builder: (data) => Column(
           children: [
+            const LocalCopyNotice(),
             Padding(
               padding: const EdgeInsets.fromLTRB(
                 Espacio.l,
@@ -373,4 +375,36 @@ String athleteLabel(SessionDayData data, String id) {
   if (name != null) return name;
   if (id == data.ownAthleteId) return 'Yo';
   return 'Atleta ${data.group.memberIds.indexOf(id) + 1}';
+}
+
+/// "Sin señal": says the screen shows the data saved on the device, and from when (E7.15). Nothing while reads reach
+/// the server.
+class LocalCopyNotice extends ConsumerWidget {
+  const LocalCopyNotice({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final savedAt = ref.watch(localCopyNoticeProvider);
+    if (savedAt == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Espacio.l, Espacio.m, Espacio.l, 0),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: InsigniaMaktub(
+          savedDataLabel(savedAt),
+          context.colores.insigniaBase,
+          key: const Key('local-copy-notice'),
+          icono: Icons.cloud_off,
+        ),
+      ),
+    );
+  }
+}
+
+/// "Sin señal · datos guardados el 14/11 a las 09:30", in the device's time.
+String savedDataLabel(DateTime savedAt) {
+  final t = savedAt.toLocal();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return 'Sin señal · datos guardados el ${two(t.day)}/${two(t.month)} '
+      'a las ${two(t.hour)}:${two(t.minute)}';
 }

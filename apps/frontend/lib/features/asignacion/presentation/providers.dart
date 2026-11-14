@@ -1,13 +1,24 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
+import '../../../core/offline/local_copy_providers.dart';
 import '../../../core/red/api_providers.dart';
 import '../../access/presentation/providers.dart';
+import '../data/cached_assignment_repository.dart';
 import '../data/http_assignment_repository.dart';
 import '../domain/assignment_repository.dart';
 
-final assignmentRepositoryProvider = Provider<AssignmentRepository>(
+/// Groups and assignments straight from the server. Tests replace it to keep the device's copy in between.
+final remoteAssignmentRepositoryProvider = Provider<AssignmentRepository>(
   (ref) => HttpAssignmentRepository(ref.watch(clienteApiProvider)),
+);
+
+/// Groups with the device's copy as fallback without signal (E7.15); assignments always from the server.
+final assignmentRepositoryProvider = Provider<AssignmentRepository>(
+  (ref) => CachedAssignmentRepository(
+    ref.watch(remoteAssignmentRepositoryProvider),
+    ref.watch(localCopyReadsProvider),
+  ),
 );
 
 /// Today as a calendar date; tests override it.
