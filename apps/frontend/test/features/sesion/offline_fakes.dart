@@ -59,7 +59,10 @@ PublishedPlanView offlinePlan(String name) => PublishedPlanView(
     WeekModel(
       id: 'B',
       name: 'Descarga',
-      days: [PlanDay(name: 'Suave'), PlanDay(name: 'Movilidad')],
+      days: [
+        PlanDay(name: 'Suave'),
+        PlanDay(name: 'Movilidad'),
+      ],
     ),
   ],
 );
@@ -118,7 +121,10 @@ class OfflineCalendar implements CalendarRepository {
   ) async {
     signal.check();
     located.add(date);
-    final where = UbicacionEnCiclo.desdeFechas(inicio: offlineStart, fecha: date);
+    final where = UbicacionEnCiclo.desdeFechas(
+      inicio: offlineStart,
+      fecha: date,
+    );
     return CalendarLocation(
       assignmentId: 'a1',
       planId: 'p1',
@@ -142,7 +148,10 @@ class OfflineCalendar implements CalendarRepository {
     DateTime to,
   ) async {
     signal.check();
-    final where = UbicacionEnCiclo.desdeFechas(inicio: offlineStart, fecha: from);
+    final where = UbicacionEnCiclo.desdeFechas(
+      inicio: offlineStart,
+      fecha: from,
+    );
     return [DayState(cycle: where.ciclo, week: 2, day: 1, done: true)];
   }
 }
@@ -239,7 +248,10 @@ class OfflineProposedDays implements ProposedDaysRepository {
     return [
       for (var d = from; !d.isAfter(to); d = d.add(const Duration(days: 1)))
         () {
-          final where = UbicacionEnCiclo.desdeFechas(inicio: offlineStart, fecha: d);
+          final where = UbicacionEnCiclo.desdeFechas(
+            inicio: offlineStart,
+            fecha: d,
+          );
           return ProposedDate(
             date: d,
             cycle: where.ciclo,
@@ -264,6 +276,9 @@ class OfflineSessions implements SessionRepository {
   final Signal signal;
   final opened = <(DateTime, int, int)>[];
 
+  /// Every request taken, in order: `open <present>` and `set <session> <athlete> <set> <done>`.
+  final log = <String>[];
+
   @override
   Future<LiveSession> open(
     String clubId, {
@@ -275,7 +290,11 @@ class OfflineSessions implements SessionRepository {
   }) async {
     signal.check();
     opened.add((date, week, day));
-    final where = UbicacionEnCiclo.desdeFechas(inicio: offlineStart, fecha: date);
+    log.add('open ${(presentAthleteIds.toList()..sort()).join(',')}');
+    final where = UbicacionEnCiclo.desdeFechas(
+      inicio: offlineStart,
+      fecha: date,
+    );
     return LiveSession(
       session: Session(
         id: 's1',
@@ -322,6 +341,9 @@ class OfflineSessions implements SessionRepository {
     SetWrite write,
   ) async {
     signal.check();
+    log.add(
+      'set $sessionId ${write.athleteId} ${write.setIndex} ${write.done}',
+    );
     return SetRecord(
       id: 'r-${write.setIndex}',
       clubId: clubId,

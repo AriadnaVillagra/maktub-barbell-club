@@ -4,6 +4,7 @@ import 'package:maktub_core/maktub_core.dart';
 
 import 'block_time_write.dart';
 import 'session_draft_store.dart';
+import 'session_repository.dart';
 import 'set_write.dart';
 
 /// Sends one queued write to the server and returns what it stored.
@@ -11,6 +12,15 @@ typedef SendSetWrite = Future<SetRecord> Function(PendingSetWrite pending);
 
 /// Sends one queued block time to the server.
 typedef SendBlockTime = Future<void> Function(PendingBlockTime pending);
+
+/// Sends one queued opening to the server and returns the session it opened or resumed.
+typedef SendSessionOpen = Future<LiveSession> Function(
+  PendingSessionOpen pending,
+);
+
+/// A session opening that reached the server: [sessionId] is the id the device had for it, and [live] what the server
+/// answered, whose id the queued writes now carry.
+typedef SessionOpened = ({String sessionId, LiveSession live});
 
 /// Whether what the device has queued reached the server, for the guided mode's header.
 enum SaveState {
@@ -26,7 +36,14 @@ enum SaveState {
 
 /// What one pass over the queue did, by the local id of each write.
 class FlushOutcome {
-  const FlushOutcome({this.stored = const {}, this.rejected = const {}});
+  const FlushOutcome({
+    this.opened = const {},
+    this.stored = const {},
+    this.rejected = const {},
+  });
+
+  /// The sessions the server opened, by the id the device had for each.
+  final Map<String, LiveSession> opened;
 
   /// The writes the server took, with what it stored.
   final Map<String, SetRecord> stored;
@@ -41,10 +58,16 @@ class FlushOutcome {
 ///
 /// The block times of the guided mode (E7.21) wait here too, after the sets: each has its own id, kept across
 /// retries, and the server's write is an upsert by that id (E7.19), so a time never goes in twice.
+///
+/// The openings of sessions opened without signal (E7.16) go before everything else. The writes of such a session
+/// carry the device's id until its opening goes through; then the queue gives them the server's id, and they leave
+/// right after, in the same pass. Opening is idempotent on the server, so two devices that opened the same day
+/// without signal end up writing to the one session the server has.
 class SetSyncQueue {
   SetSyncQueue({
     required this.send,
     this.sendTime,
+    this.sendOpen,
     required this.store,
     required this.isRetryable,
     this.sendTimeout = const Duration(seconds: 10),
@@ -55,6 +78,9 @@ class SetSyncQueue {
 
   /// Without it, block times stay queued.
   final SendBlockTime? sendTime;
+
+  /// Without it, openings stay queued, and so does everything behind them.
+  final SendSessionOpen? sendOpen;
   final SessionDraftStore store;
 
   /// Whether a failed send can go again later (no signal, server down) instead of being refused for good.
@@ -65,7 +91,9 @@ class SetSyncQueue {
   final Duration sendTimeout;
 
   final _changes = StreamController<List<PendingWrite>>.broadcast();
+  final _opened = StreamController<SessionOpened>.broadcast();
   late final Future<void> _restored = _restore();
+  var _opens = <PendingSessionOpen>[];
   var _queue = <PendingSetWrite>[];
   var _times = <PendingBlockTime>[];
   var _flushing = 0;
@@ -73,6 +101,10 @@ class SetSyncQueue {
   final _draft = <SetKey, PendingSetWrite>{};
   Future<void> _tail = Future.value();
   var _counter = 0;
+
+  /// The server's id of each session this device opened without signal, by the device's id, for the writes that
+  /// were on their way while the opening went through.
+  final _renamed = <String, String>{};
 
   /// Completes once what the device had stored is loaded.
   Future<void> get ready => _restored;
@@ -83,11 +115,26 @@ class SetSyncQueue {
   /// The block times not yet taken by the server.
   List<PendingBlockTime> get pendingTimes => List.unmodifiable(_times);
 
-  /// Everything waiting for the server: the sets, then the block times.
-  List<PendingWrite> get unsent => [..._queue, ..._times];
+  /// The openings not yet taken by the server.
+  List<PendingSessionOpen> get pendingOpens => List.unmodifiable(_opens);
+
+  /// Everything waiting for the server: the openings, the sets, then the block times.
+  List<PendingWrite> get unsent => [..._opens, ..._queue, ..._times];
 
   /// Emits [unsent] every time it or [saveState] changes.
   Stream<List<PendingWrite>> get changes => _changes.stream;
+
+  /// Emits each opening once the server takes it, after the queued writes got the server's id.
+  Stream<SessionOpened> get opened => _opened.stream;
+
+  /// The id [sessionId] goes by now: the server's when it was the device's id of a session opened since.
+  String currentIdOf(String sessionId) => _renamed[sessionId] ?? sessionId;
+
+  /// The opening still queued for the same day as [open], if any.
+  Future<PendingSessionOpen?> openingLike(PendingSessionOpen open) async {
+    await _restored;
+    return _opens.where((o) => o.sameDay(open)).firstOrNull;
+  }
 
   SaveState get saveState => _flushing > 0
       ? SaveState.saving
@@ -124,7 +171,7 @@ class SetSyncQueue {
     final pending = PendingSetWrite(
       id: '${_now().microsecondsSinceEpoch}-${_counter++}',
       clubId: clubId,
-      sessionId: sessionId,
+      sessionId: currentIdOf(sessionId),
       write: write,
     );
     _queue = [..._queue, pending];
@@ -134,6 +181,23 @@ class SetSyncQueue {
     final outcome = await flush();
     if (outcome.rejected[pending.id] case final error?) throw error;
     return outcome.stored[pending.id];
+  }
+
+  /// Keeps the opening [open] on the device, ahead of every write, and sends the queue without waiting for it. An
+  /// opening already queued for the same day keeps its session id and adds the present athletes of [open]. Returns
+  /// the opening as queued.
+  Future<PendingSessionOpen> submitOpen(PendingSessionOpen open) async {
+    await _restored;
+    final same = _opens.where((o) => o.sameDay(open)).firstOrNull;
+    final queued = same?.adding(open.presentAthleteIds) ?? open;
+    _opens = [
+      for (final o in _opens) identical(o, same) ? queued : o,
+      if (same == null) queued,
+    ];
+    await _persist();
+    _emit();
+    flush().ignore();
+    return queued;
   }
 
   /// Keeps [write] on the device and sends the queue. The time goes out once however many passes it takes. Returns
@@ -147,7 +211,7 @@ class SetSyncQueue {
     final pending = PendingBlockTime(
       id: '${_now().microsecondsSinceEpoch}-${_counter++}',
       clubId: clubId,
-      sessionId: sessionId,
+      sessionId: currentIdOf(sessionId),
       write: write,
     );
     _times = [..._times, pending];
@@ -172,10 +236,47 @@ class SetSyncQueue {
 
   Future<FlushOutcome> _flush() async {
     await _restored;
+    final opened = <String, LiveSession>{};
     final stored = <String, SetRecord>{};
     final rejected = <String, Object>{};
     _stalled = false;
-    while (_queue.isNotEmpty) {
+    final sendOpen = this.sendOpen;
+    while (_opens.isNotEmpty) {
+      final head = _opens.first;
+      if (sendOpen == null) {
+        _stalled = true;
+        break;
+      }
+      LiveSession? live;
+      try {
+        live = await sendOpen(head).timeout(sendTimeout);
+      } on TimeoutException {
+        _stalled = true;
+        break;
+      } catch (e) {
+        if (isRetryable(e)) {
+          _stalled = true;
+          break;
+        }
+        rejected[head.id] = e;
+      }
+      _opens = [
+        for (final o in _opens)
+          if (!identical(o, head)) o,
+      ];
+      if (live == null) {
+        _dropLocal(head.sessionId);
+      } else {
+        _rename(head.sessionId, live.session.id);
+        opened[head.sessionId] = live;
+      }
+      await _persist();
+      _emit();
+      if (live != null && !_opened.isClosed) {
+        _opened.add((sessionId: head.sessionId, live: live));
+      }
+    }
+    while (!_stalled && _queue.isNotEmpty) {
       final head = _queue.first;
       try {
         stored[head.id] = await send(head).timeout(sendTimeout);
@@ -220,12 +321,48 @@ class SetSyncQueue {
       await _persist();
       _emit();
     }
-    return FlushOutcome(stored: stored, rejected: rejected);
+    return FlushOutcome(opened: opened, stored: stored, rejected: rejected);
+  }
+
+  /// Gives the writes of the session [from] the server's id [to].
+  void _rename(String from, String to) {
+    if (from == to) return;
+    _renamed[from] = to;
+    _queue = [
+      for (final p in _queue) p.sessionId == from ? p.inSession(to) : p,
+    ];
+    _times = [
+      for (final t in _times) t.sessionId == from ? t.inSession(to) : t,
+    ];
+    final moved = [
+      for (final p in _draft.values)
+        if (p.sessionId == from) p.inSession(to),
+    ];
+    _draft.removeWhere((k, _) => k.sessionId == from);
+    for (final p in moved) {
+      _draft[p.key] = p;
+    }
+  }
+
+  /// Forgets the writes of a session opened on the device whose opening the server refused: without the session they
+  /// would be refused too.
+  void _dropLocal(String sessionId) {
+    if (!isLocalSessionId(sessionId)) return;
+    _queue = [
+      for (final p in _queue)
+        if (p.sessionId != sessionId) p,
+    ];
+    _times = [
+      for (final t in _times)
+        if (t.sessionId != sessionId) t,
+    ];
+    _draft.removeWhere((k, _) => k.sessionId == sessionId);
   }
 
   Future<void> _restore() async {
     try {
       final snapshot = await store.load();
+      _opens = [...snapshot.opens];
       _queue = [...snapshot.queue];
       _times = [...snapshot.times];
       for (final p in snapshot.draft) {
@@ -242,6 +379,7 @@ class SetSyncQueue {
       await store.save(
         DraftSnapshot(
           draft: _draft.values.toList(),
+          opens: _opens,
           queue: _queue,
           times: _times,
         ),
@@ -255,5 +393,8 @@ class SetSyncQueue {
     if (!_changes.isClosed) _changes.add(unsent);
   }
 
-  void dispose() => _changes.close();
+  void dispose() {
+    _changes.close();
+    _opened.close();
+  }
 }

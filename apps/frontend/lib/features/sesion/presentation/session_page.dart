@@ -9,6 +9,7 @@ import '../../catalogo/presentation/catalog_admin_widgets.dart'
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
 import '../../access/presentation/providers.dart' show canPlanProvider;
 import '../domain/live_session_sync.dart' show LiveStatus;
+import '../domain/session_draft_store.dart' show isLocalSessionId;
 import '../../../core/offline/local_copy_providers.dart';
 import 'providers.dart';
 import 'session_block_card.dart';
@@ -236,7 +237,18 @@ class _SessionBody extends ConsumerWidget {
             for (final block in planDay.blocks)
               _BlockPreview(block: block, names: data.exerciseNames),
           ] else ...[
-            if (state.liveStatus
+            if (isLocalSessionId(live.session.id)) ...[
+              const SizedBox(height: Espacio.s),
+              Align(
+                alignment: AlignmentDirectional.centerStart,
+                child: InsigniaMaktub(
+                  'Abierta sin señal · se sube al volver la señal',
+                  context.colores.insigniaBase,
+                  key: const Key('session-opened-offline'),
+                  icono: Icons.cloud_off,
+                ),
+              ),
+            ] else if (state.liveStatus
                 case LiveStatus.connecting || LiveStatus.reconnecting) ...[
               const SizedBox(height: Espacio.s),
               Align(

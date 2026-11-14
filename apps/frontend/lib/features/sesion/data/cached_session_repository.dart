@@ -3,7 +3,9 @@ import 'package:maktub_core/maktub_core.dart';
 import '../../../core/offline/local_copy.dart';
 import '../domain/athlete_adjustments.dart';
 import '../domain/block_time_write.dart';
+import '../domain/live_session_sync.dart' as live_sync show applyChanges;
 import '../domain/live_session_sync.dart' show sameSet;
+import '../domain/session_draft_store.dart' show isLocalSessionId;
 import '../domain/session_repository.dart';
 import '../domain/set_write.dart';
 import 'cached_proposed_days_repository.dart';
@@ -12,12 +14,14 @@ import 'cached_proposed_days_repository.dart';
 /// with what this device writes, and its kilos, either those last seen or those the preload saved for its date.
 ///
 /// Without signal, opening a session this device already opened gives the saved one; a session never opened here
-/// still needs signal (E7.16 will queue the opening). Writes always go to the server (the queue retries them).
+/// throws [SessionNotOpenedHere], and the app opens it on the device and queues the opening (E7.16). Writes always
+/// go to the server (the queue retries them). What other devices mark arrives through the live channel and is
+/// applied here with [applyChanges].
 ///
 /// Day adjustment without signal: the server resolves the kilos with the athlete's factor, which the athlete never
 /// receives, so the app does not recompute them. Without signal only the adjustments already seen (the neutral one
 /// is always preloaded) show kilos; any other says so.
-class CachedSessionRepository implements SessionRepository {
+class CachedSessionRepository implements SessionRepository, SessionCopy {
   CachedSessionRepository(this._remote, this._reads, this._proposedDays);
 
   final SessionRepository _remote;
@@ -38,8 +42,10 @@ class CachedSessionRepository implements SessionRepository {
   static String _adjustmentKey(AthleteAdjustments a) {
     final exercises = a.exercises.entries.toList()
       ..sort((x, y) => x.key.compareTo(y.key));
-    return [a.session, for (final e in exercises) '${e.key}:${e.value}']
-        .join(',');
+    return [
+      a.session,
+      for (final e in exercises) '${e.key}:${e.value}',
+    ].join(',');
   }
 
   static bool _isNeutral(AthleteAdjustments a) =>
@@ -49,9 +55,6 @@ class CachedSessionRepository implements SessionRepository {
   static const offlineAdjustmentMessage =
       'Sin señal no se puede calcular el ajuste del día: los kilos con ajuste los calcula el servidor. '
       'Volvé a 100 % para ver los kilos guardados, o esperá a que vuelva la señal.';
-
-  static const _neverOpened =
-      'Sin señal: esta sesión no se abrió antes en este dispositivo. Se abre cuando vuelva la señal.';
 
   static const _noLoads =
       'Sin señal y sin kilos guardados para este día. Se cargan cuando vuelva la señal.';
@@ -65,26 +68,53 @@ class CachedSessionRepository implements SessionRepository {
     required int day,
     required Set<String> presentAthleteIds,
   }) async {
-    final live = await _reads.read(
-      _sessionKey(clubId, assignmentId, date, week, day),
-      () => _remote.open(
-        clubId,
-        assignmentId: assignmentId,
-        date: date,
-        week: week,
-        day: day,
-        presentAthleteIds: presentAthleteIds,
-      ),
-      encode: liveSessionToJson,
-      decode: (d) => liveSessionFromJson((d as Map).cast<String, dynamic>()),
-      missing: _neverOpened,
-    );
+    final live = await _reads
+        .read(
+          _sessionKey(clubId, assignmentId, date, week, day),
+          () => _remote.open(
+            clubId,
+            assignmentId: assignmentId,
+            date: date,
+            week: week,
+            day: day,
+            presentAthleteIds: presentAthleteIds,
+          ),
+          encode: liveSessionToJson,
+          decode: (d) =>
+              liveSessionFromJson((d as Map).cast<String, dynamic>()),
+        )
+        .catchError(
+          (Object _) => throw const SessionNotOpenedHere(),
+          test: (e) => e is NoLocalCopy,
+        );
     await _index(live.session);
     return live;
   }
 
-  /// Keeps [live] as the last state seen of its session, so it opens without signal. E7.16 hands the session it
-  /// opens on the device here.
+  @override
+  Future<LiveSession> openOnServer(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+    required Set<String> presentAthleteIds,
+  }) async {
+    final live = await _remote.open(
+      clubId,
+      assignmentId: assignmentId,
+      date: date,
+      week: week,
+      day: day,
+      presentAthleteIds: presentAthleteIds,
+    );
+    await remember(live);
+    return live;
+  }
+
+  /// Keeps [live] as the last state seen of its session, so it opens without signal. A session opened on the device
+  /// (E7.16) is kept here too, so it reopens offline and its kilos come from the preloaded ones.
+  @override
   Future<void> remember(LiveSession live) async {
     final s = live.session;
     await _reads.save(
@@ -94,6 +124,17 @@ class CachedSessionRepository implements SessionRepository {
     );
     await _index(s);
   }
+
+  @override
+  Future<void> applyChanges(
+    String clubId,
+    String sessionId,
+    List<SessionChange> changes,
+  ) => _update(
+    clubId,
+    sessionId,
+    (live) => live_sync.applyChanges(live, changes),
+  );
 
   Future<void> _index(Session s) => _reads.store.write(
     _indexKey(s.clubId, s.id),
@@ -131,6 +172,10 @@ class CachedSessionRepository implements SessionRepository {
       athleteId,
       _adjustmentKey(adjustments),
     ]);
+    // The server does not know a session opened on the device until its opening goes through (E7.16).
+    if (isLocalSessionId(sessionId)) {
+      return _savedLoads(key, clubId, sessionId, athleteId, adjustments);
+    }
     final List<ProposedSet> sets;
     try {
       sets = await _remote.proposedLoads(

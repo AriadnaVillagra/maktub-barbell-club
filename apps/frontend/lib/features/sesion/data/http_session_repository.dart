@@ -32,6 +32,8 @@ class HttpSessionRepository implements SessionRepository {
         'dia': day,
         'presentes': presentAthleteIds.toList(),
       },
+      // Opening is a read for the screen: without an answer soon it opens from the copy or on the device (E7.16).
+      timeout: _client.readTimeout,
     );
     return LiveSession(
       session: Session.fromJson((j['sesion'] as Map).cast<String, dynamic>()),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,42 +36,72 @@ abstract interface class AccessTokenSource {
 ///
 /// With an [auth] source, every request carries `Authorization: Bearer <accessToken>`, and a 401
 /// asks the source to renew and retries once. Any other status (a 403 included) is returned as is.
+///
+/// A request that gets no answer in time fails like one without connection (an [ErrorDeApi] without status), so a
+/// slow network falls back to the device's copy (E7.15) instead of hanging the screen. Reads wait [readTimeout];
+/// writes wait [writeTimeout], longer, because the queue of set writes has its own, shorter limit (E7.9) and other
+/// writes are typed by hand and better not given up early. Any call can pass its own.
 class ClienteApi {
-  ClienteApi({required this.base, http.Client? cliente, this.auth}) : _http = cliente ?? http.Client();
+  ClienteApi({
+    required this.base,
+    http.Client? cliente,
+    this.auth,
+    this.readTimeout = defaultReadTimeout,
+    this.writeTimeout = defaultWriteTimeout,
+  }) : _http = cliente ?? http.Client();
+
+  /// Covers a cold start of the service (1–2 s) with room to spare.
+  static const defaultReadTimeout = Duration(seconds: 8);
+  static const defaultWriteTimeout = Duration(seconds: 30);
 
   final Uri base;
   final AccessTokenSource? auth;
+  final Duration readTimeout;
+  final Duration writeTimeout;
   final http.Client _http;
 
-  Future<Map<String, dynamic>> get(String ruta, {Map<String, String>? headers}) =>
-      _enviar('GET', ruta, headers: headers);
+  Future<Map<String, dynamic>> get(String ruta, {Map<String, String>? headers, Duration? timeout}) =>
+      _enviar('GET', ruta, headers: headers, timeout: timeout ?? readTimeout);
 
   /// GET for endpoints whose body is a JSON array.
-  Future<List<dynamic>> getList(String ruta, {Map<String, String>? headers}) async =>
-      (await _enviarCrudo('GET', ruta, headers: headers) as List);
+  Future<List<dynamic>> getList(String ruta, {Map<String, String>? headers, Duration? timeout}) async =>
+      (await _enviarCrudo('GET', ruta, headers: headers, timeout: timeout ?? readTimeout) as List);
 
-  Future<Map<String, dynamic>> put(String ruta, Object cuerpo, {Map<String, String>? headers}) =>
-      _enviar('PUT', ruta, cuerpo: cuerpo, headers: headers);
+  Future<Map<String, dynamic>> put(String ruta, Object cuerpo, {Map<String, String>? headers, Duration? timeout}) =>
+      _enviar('PUT', ruta, cuerpo: cuerpo, headers: headers, timeout: timeout ?? writeTimeout);
 
-  Future<Map<String, dynamic>> patch(String ruta, Object cuerpo, {Map<String, String>? headers}) =>
-      _enviar('PATCH', ruta, cuerpo: cuerpo, headers: headers);
+  Future<Map<String, dynamic>> patch(String ruta, Object cuerpo, {Map<String, String>? headers, Duration? timeout}) =>
+      _enviar('PATCH', ruta, cuerpo: cuerpo, headers: headers, timeout: timeout ?? writeTimeout);
 
-  Future<Map<String, dynamic>> delete(String ruta, {Map<String, String>? headers}) =>
-      _enviar('DELETE', ruta, headers: headers);
+  Future<Map<String, dynamic>> delete(String ruta, {Map<String, String>? headers, Duration? timeout}) =>
+      _enviar('DELETE', ruta, headers: headers, timeout: timeout ?? writeTimeout);
 
-  Future<Map<String, dynamic>> post(String ruta, {Object? cuerpo, Map<String, String>? headers}) =>
-      _enviar('POST', ruta, cuerpo: cuerpo, headers: headers);
+  Future<Map<String, dynamic>> post(String ruta, {Object? cuerpo, Map<String, String>? headers, Duration? timeout}) =>
+      _enviar('POST', ruta, cuerpo: cuerpo, headers: headers, timeout: timeout ?? writeTimeout);
 
-  Future<Map<String, dynamic>> _enviar(String metodo, String ruta, {Object? cuerpo, Map<String, String>? headers}) async =>
-      (await _enviarCrudo(metodo, ruta, cuerpo: cuerpo, headers: headers) as Map).cast<String, dynamic>();
+  Future<Map<String, dynamic>> _enviar(
+    String metodo,
+    String ruta, {
+    Object? cuerpo,
+    Map<String, String>? headers,
+    required Duration timeout,
+  }) async =>
+      (await _enviarCrudo(metodo, ruta, cuerpo: cuerpo, headers: headers, timeout: timeout) as Map)
+          .cast<String, dynamic>();
 
-  Future<Object?> _enviarCrudo(String metodo, String ruta, {Object? cuerpo, Map<String, String>? headers}) async {
+  Future<Object?> _enviarCrudo(
+    String metodo,
+    String ruta, {
+    Object? cuerpo,
+    Map<String, String>? headers,
+    required Duration timeout,
+  }) async {
     final source = auth;
     final token = await source?.accessToken();
-    var respuesta = await _pedir(metodo, ruta, cuerpo, headers, token);
+    var respuesta = await _pedir(metodo, ruta, cuerpo, headers, token, timeout);
     if (respuesta.statusCode == 401 && source != null && token != null) {
       if (await source.renewAfterUnauthorized(token)) {
-        respuesta = await _pedir(metodo, ruta, cuerpo, headers, await source.accessToken());
+        respuesta = await _pedir(metodo, ruta, cuerpo, headers, await source.accessToken(), timeout);
       }
     }
     return _leer(respuesta);
@@ -82,6 +113,7 @@ class ClienteApi {
     Object? cuerpo,
     Map<String, String>? headers,
     String? token,
+    Duration timeout,
   ) async {
     final pedido = http.Request(metodo, base.resolve(ruta));
     if (token != null) pedido.headers['Authorization'] = 'Bearer $token';
@@ -91,7 +123,9 @@ class ClienteApi {
       pedido.body = jsonEncode(cuerpo);
     }
     try {
-      return await http.Response.fromStream(await _http.send(pedido));
+      return await _http.send(pedido).then(http.Response.fromStream).timeout(timeout);
+    } on TimeoutException {
+      throw const ErrorDeApi('El servidor no respondió a tiempo.');
     } on Exception catch (e) {
       throw ErrorDeApi('No se pudo conectar con el servidor ($e).');
     }

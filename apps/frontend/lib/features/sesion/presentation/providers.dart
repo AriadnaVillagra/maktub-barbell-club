@@ -32,6 +32,7 @@ import '../domain/calendar_layout.dart';
 import '../domain/guided_session.dart';
 import '../domain/live_channel.dart';
 import '../domain/live_session_sync.dart';
+import '../domain/open_day_session.dart';
 import '../domain/preload_days.dart';
 import '../domain/proposed_days.dart';
 import '../domain/session_draft_store.dart';
@@ -66,6 +67,12 @@ final sessionRepositoryProvider = Provider<SessionRepository>(
   ),
 );
 
+/// The device's copy of the sessions, when the repository keeps one (tests that replace it may not).
+final sessionCopyProvider = Provider<SessionCopy?>((ref) {
+  final repository = ref.watch(sessionRepositoryProvider);
+  return repository is SessionCopy ? repository as SessionCopy : null;
+});
+
 /// How long a saved copy is kept: older ones are dropped on every preload.
 const localCopyRetention = Duration(days: 14);
 
@@ -79,7 +86,9 @@ final localCopyClockProvider = Provider<DateTime Function()>(
 final preloadDaysProvider = FutureProvider<void>((ref) async {
   if (ref.watch(sessionControllerProvider) != SessionStatus.signedIn) return;
   final now = ref.read(localCopyClockProvider)();
-  await ref.read(localCopyStoreProvider).prune(now.subtract(localCopyRetention));
+  await ref
+      .read(localCopyStoreProvider)
+      .prune(now.subtract(localCopyRetention));
   await PreloadDays(
     me: ref.read(meRepositoryProvider),
     assignments: ref.read(assignmentRepositoryProvider),
@@ -111,10 +120,20 @@ const queueRetryInterval = Duration(seconds: 15);
 /// The device's draft and queue of set writes and block times (E7.9, E7.21). It outlives the screen, so leaving it does not drop anything.
 final setSyncQueueProvider = Provider<SetSyncQueue>((ref) {
   final repository = ref.watch(sessionRepositoryProvider);
+  final copy = ref.watch(sessionCopyProvider);
   final queue = SetSyncQueue(
     send: (p) => repository.recordSet(p.clubId, p.sessionId, p.write),
     sendTime: (t) =>
         repository.recordBlockTime(t.clubId, t.sessionId, t.id, t.write),
+    // Never through the copy: an opening answered from it would look taken while the server never saw it.
+    sendOpen: (o) => (copy?.openOnServer ?? repository.open)(
+      o.clubId,
+      assignmentId: o.assignmentId,
+      date: o.date,
+      week: o.week,
+      day: o.day,
+      presentAthleteIds: o.presentAthleteIds.toSet(),
+    ),
     store: ref.watch(sessionDraftStoreProvider),
     isRetryable: isTransientWriteError,
   );
@@ -163,6 +182,7 @@ class SessionDayData {
     required this.athleteNames,
     required this.openingDay,
     this.ownAthleteId,
+    this.userId = '',
   });
 
   final String clubId;
@@ -181,6 +201,9 @@ class SessionDayData {
 
   /// The user's athlete id, when they are one in this club.
   final String? ownAthleteId;
+
+  /// Who is using the app, for the audit of a session opened without signal.
+  final String userId;
 }
 
 final calendarLayoutStoreProvider = Provider<CalendarLayoutStore>(
@@ -238,7 +261,8 @@ final cycleDayStatesProvider = FutureProvider.autoDispose
 final sessionDayProvider = FutureProvider.autoDispose<SessionDayData?>((
   ref,
 ) async {
-  final access = (await ref.watch(meProvider.future))?.activeClub;
+  final me = await ref.watch(meProvider.future);
+  final access = me?.activeClub;
   if (access == null) return null;
   final clubId = access.club.id;
   final groups = await ref.watch(assignmentRepositoryProvider).groups(clubId);
@@ -259,9 +283,12 @@ final sessionDayProvider = FutureProvider.autoDispose<SessionDayData?>((
       ? await ref.watch(athleteRepositoryProvider).athletes(clubId)
       : const [];
   final states = await ref.read(
-    cycleDayStatesProvider(
-      (clubId, group.id, location.startDate, location.cycle),
-    ).future,
+    cycleDayStatesProvider((
+      clubId,
+      group.id,
+      location.startDate,
+      location.cycle,
+    )).future,
   );
   final dayCount = plan.weekModelOf(location.week)?.days.length ?? 0;
   return SessionDayData(
@@ -278,6 +305,7 @@ final sessionDayProvider = FutureProvider.autoDispose<SessionDayData?>((
       dayCount: dayCount,
     ),
     ownAthleteId: access.athleteId,
+    userId: me!.user.id,
   );
 });
 
@@ -322,6 +350,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
   LiveSessionSync? _sync;
   StreamSubscription<LiveStatus>? _statusSubscription;
   StreamSubscription<List<PendingWrite>>? _queueSubscription;
+  StreamSubscription<SessionOpened>? _openedSubscription;
 
   /// Changes from the channel for sets this device still has a write queued for. Showing them would undo on screen
   /// what the user just marked; they apply once that write leaves the queue (its own change follows anyway).
@@ -329,9 +358,56 @@ class SessionScreenController extends Notifier<SessionScreenState> {
 
   @override
   SessionScreenState build() {
-    ref.onDispose(_stopFollowing);
+    _openedSubscription = ref
+        .read(setSyncQueueProvider)
+        .opened
+        .listen((o) => unawaited(_onOpened(o)));
+    ref.onDispose(() {
+      _openedSubscription?.cancel();
+      _stopFollowing();
+    });
     return const SessionScreenState();
   }
+
+  /// The opening of the session on screen reached the server (E7.16): the screen moves to the server's session, with
+  /// what is still queued over it, and starts following its live channel.
+  Future<void> _onOpened(SessionOpened opened) async {
+    final shown = state.live?.session.id;
+    final server = opened.live.session;
+    if (shown != opened.sessionId && shown != server.id) return;
+    final unsent = await ref.read(setSyncQueueProvider).resume(server.id);
+    if (!ref.mounted) return;
+    final now = state.live?.session.id;
+    if (now != opened.sessionId && now != server.id) return;
+    // The server answered before the sets behind the opening went out: what the screen shows of them stays.
+    final shownRecords = state.live?.records ?? const <SetRecord>[];
+    final kept = [
+      for (final r in shownRecords)
+        if (!opened.live.records.any((o) => sameSet(o, r)))
+          SetRecord.fromJson({...r.toJson(), 'sesionId': server.id}),
+    ];
+    final live = _withUnsent(
+      LiveSession(session: server, records: [...opened.live.records, ...kept]),
+      unsent,
+    );
+    _follow(server);
+    ref.invalidate(cycleDayStatesProvider);
+    state = _with(live: live, liveStatus: _sync?.status);
+  }
+
+  static LiveSession _withUnsent(LiveSession live, List<SetWrite> unsent) =>
+      unsent.fold<LiveSession>(
+        live,
+        (l, w) => _replacing(
+          l,
+          projectedRecord(
+            _recordOf(l, w),
+            w,
+            clubId: l.session.clubId,
+            sessionId: l.session.id,
+          ),
+        ),
+      );
 
   /// Choosing another week goes to its first day, as the calendar does, and leaves the open session.
   void selectWeek(int week) {
@@ -357,9 +433,11 @@ class SessionScreenController extends Notifier<SessionScreenState> {
 
   /// Follows the live channel of [session] (E7.10) unless it already does. Every time the channel opens, the queue
   /// goes out again; every change that arrives is applied to the screen.
+  /// A session opened on the device has no channel yet: it follows once the server takes its opening.
   void _follow(Session session) {
     if (_sync?.sessionId == session.id) return;
     _stopFollowing();
+    if (isLocalSessionId(session.id)) return;
     final queue = ref.read(setSyncQueueProvider);
     final sync = _sync = LiveSessionSync(
       channel: ref.read(liveChannelProvider),
@@ -402,7 +480,14 @@ class SessionScreenController extends Notifier<SessionScreenState> {
   };
 
   void _receive(List<SessionChange> changes) {
-    if (state.live == null) return;
+    final live = state.live;
+    if (live == null) return;
+    // The copy takes every change at once: it is the server's state, and what is queued goes over it on reopening.
+    unawaited(
+      ref
+          .read(sessionCopyProvider)
+          ?.applyChanges(live.session.clubId, live.session.id, changes),
+    );
     final queued = _queuedSets;
     final now = <SessionChange>[];
     for (final c in changes) {
@@ -450,7 +535,8 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     return before.length == after.length && before.containsAll(after);
   }
 
-  /// Opens or resumes the session. Rethrows the backend's error so the screen can show it.
+  /// Opens or resumes the session, on the device when there is no signal (E7.16). Rethrows the backend's error so
+  /// the screen can show it.
   Future<void> open(
     SessionDayData data, {
     required int week,
@@ -459,37 +545,47 @@ class SessionScreenController extends Notifier<SessionScreenState> {
   }) async {
     state = _with(opening: true);
     try {
-      final live = await ref
-          .read(sessionRepositoryProvider)
-          .open(
-            data.clubId,
-            assignmentId: data.location.assignmentId,
-            date: ref.read(todayProvider),
-            week: week,
-            day: day,
-            presentAthleteIds: present,
+      final queue = ref.read(setSyncQueueProvider);
+      final opened =
+          await OpenDaySession(
+            sessions: ref.read(sessionRepositoryProvider),
+            queue: queue,
+            copy: ref.read(sessionCopyProvider),
+            userId: data.userId,
+          )(
+            DayToOpen(
+              clubId: data.clubId,
+              assignmentId: data.location.assignmentId,
+              planId: data.location.planId,
+              cycle: data.location.cycle,
+              date: ref.read(todayProvider),
+              week: week,
+              day: day,
+            ),
+            present,
           );
-      final unsent = await ref
-          .read(setSyncQueueProvider)
-          .resume(live.session.id);
+      // Its opening may have gone through while this was reading.
+      final id = queue.currentIdOf(opened.session.id);
+      final live = id == opened.session.id
+          ? opened
+          : await ref
+                .read(sessionRepositoryProvider)
+                .open(
+                  data.clubId,
+                  assignmentId: data.location.assignmentId,
+                  date: ref.read(todayProvider),
+                  week: week,
+                  day: day,
+                  presentAthleteIds: present,
+                );
+      final unsent = await queue.resume(live.session.id);
       _follow(live.session);
       state = SessionScreenState(
         week: state.week,
         day: state.day,
         present: state.present,
         liveStatus: _sync?.status ?? LiveStatus.connecting,
-        live: unsent.fold<LiveSession>(
-          live,
-          (l, w) => _replacing(
-            l,
-            projectedRecord(
-              _recordOf(l, w),
-              w,
-              clubId: data.clubId,
-              sessionId: l.session.id,
-            ),
-          ),
-        ),
+        live: _withUnsent(live, unsent),
       );
     } finally {
       state = _with(opening: false);
@@ -499,14 +595,23 @@ class SessionScreenController extends Notifier<SessionScreenState> {
   /// Writes one set through the draft and queue and keeps what the server stored, or what the write leaves while it
   /// stays queued without signal. Rethrows the backend's refusal so the screen can show it.
   Future<void> writeSet(String clubId, SetWrite write) async {
-    final sessionId = state.live?.session.id;
-    if (sessionId == null) return;
-    final stored = await ref
-        .read(setSyncQueueProvider)
-        .submit(clubId: clubId, sessionId: sessionId, write: write);
+    final shownId = state.live?.session.id;
+    if (shownId == null) return;
+    final queue = ref.read(setSyncQueueProvider);
+    final stored = await queue.submit(
+      clubId: clubId,
+      sessionId: shownId,
+      write: write,
+    );
     final live = state.live;
     ref.invalidate(cycleDayStatesProvider);
-    if (live == null || live.session.id != sessionId) return;
+    // A session opened on the device may have taken the server's id meanwhile.
+    final sessionId = live?.session.id;
+    if (live == null ||
+        sessionId == null ||
+        queue.currentIdOf(shownId) != queue.currentIdOf(sessionId)) {
+      return;
+    }
     final current = _recordOf(live, write);
     // A newer change of this set may have arrived from another device meanwhile.
     if (stored != null && current != null && !isNewer(stored, current)) return;
@@ -821,14 +926,14 @@ class GuidedController extends Notifier<GuidedSession?> {
     final current = redo
         ? null // a redone set starts from the proposal, not from what was recorded before
         : screen.live?.records
-        .where(
-          (r) =>
-              r.athleteId == athleteId &&
-              r.blockIndex == b &&
-              r.prescriptionIndex == p &&
-              r.setIndex == set,
-        )
-        .firstOrNull;
+              .where(
+                (r) =>
+                    r.athleteId == athleteId &&
+                    r.blockIndex == b &&
+                    r.prescriptionIndex == p &&
+                    r.setIndex == set,
+              )
+              .firstOrNull;
     final write = SetWrite.of(
       current,
       athleteId: athleteId,

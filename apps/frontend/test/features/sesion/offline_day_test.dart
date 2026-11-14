@@ -14,6 +14,7 @@ import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/data/cached_session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
+import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 import 'package:maktub_frontend/features/sesion/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/presentation/session_page.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
@@ -36,14 +37,23 @@ class _Server {
   final signal = Signal();
   late final me = OfflineMe(
     signal,
-    meWith([
-      (club('c1', 'Gimnasio', TipoClub.club), {Rol.coach, Rol.atleta}),
-    ], athleteIds: {'c1': 'ari'}),
+    meWith(
+      [
+        (club('c1', 'Gimnasio', TipoClub.club), {Rol.coach, Rol.atleta}),
+      ],
+      athleteIds: {'c1': 'ari'},
+    ),
   );
   late final calendar = OfflineCalendar(signal);
   late final sessions = OfflineSessions(signal);
   late final proposedDays = OfflineProposedDays(signal);
   final tokens = FakeTokenStore(issued(1));
+
+  /// Another phone's writes reach this one through this channel.
+  final live = FakeLiveServer();
+
+  /// The queue's storage, kept across reloads like the rest of the device's storage.
+  final draftDisk = DraftDisk();
   final auth = FakeAuthApi();
 
   List<Override> overrides(DateTime today, {LocalCopyStore? store}) => [
@@ -59,8 +69,8 @@ class _Server {
     remoteAthleteRepositoryProvider.overrideWithValue(OfflineAthletes(signal)),
     remoteSessionRepositoryProvider.overrideWithValue(sessions),
     remoteProposedDaysRepositoryProvider.overrideWithValue(proposedDays),
-    liveChannelProvider.overrideWithValue(FakeLiveChannel(FakeLiveServer())),
-    sessionDraftStoreProvider.overrideWithValue(MemoryDraftStore()),
+    liveChannelProvider.overrideWithValue(FakeLiveChannel(live)),
+    sessionDraftStoreProvider.overrideWithValue(MemoryDraftStore(draftDisk)),
     todayProvider.overrideWithValue(today),
     if (store != null) localCopyStoreProvider.overrideWithValue(store),
   ];
@@ -98,132 +108,157 @@ Future<void> _launch(
   await tester.pumpAndSettle();
 }
 
+bool _checked(WidgetTester tester, String id) =>
+    (tester.widget<IconButton>(find.byKey(Key('session-check-$id'))).icon
+            as Icon)
+        .icon ==
+    Icons.check_circle;
+
 String _kg(WidgetTester tester, String key) =>
     tester.widget<Text>(find.byKey(Key(key))).data!;
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('after a preload, without signal the calendar and the day of a preloaded date open', (
-    tester,
-  ) async {
-    final server = _Server();
-    await server.preload(_preloadDay);
-    expect(server.proposedDays.ranges, [
-      (_preloadDay, _preloadDay.add(const Duration(days: 7))),
-    ]);
+  testWidgets(
+    'after a preload, without signal the calendar and the day of a preloaded date open',
+    (tester) async {
+      final server = _Server();
+      await server.preload(_preloadDay);
+      expect(server.proposedDays.ranges, [
+        (_preloadDay, _preloadDay.add(const Duration(days: 7))),
+      ]);
 
-    server.signal.on = false;
-    await _launch(tester, server, _laterDay);
+      server.signal.on = false;
+      await _launch(tester, server, _laterDay);
 
-    expect(find.text('Fuerza · ciclo 4 · semana 1'), findsOneWidget);
-    expect(find.text('Día 1 · Piernas'), findsOneWidget);
-    expect(find.text('Sentadilla'), findsOneWidget);
-    expect(find.byKey(const Key('local-copy-notice')), findsOneWidget);
-    expect(find.textContaining('Sin señal · datos guardados el'), findsOneWidget);
+      expect(find.text('Fuerza · ciclo 4 · semana 1'), findsOneWidget);
+      expect(find.text('Día 1 · Piernas'), findsOneWidget);
+      expect(find.text('Sentadilla'), findsOneWidget);
+      expect(find.byKey(const Key('local-copy-notice')), findsOneWidget);
+      expect(
+        find.textContaining('Sin señal · datos guardados el'),
+        findsOneWidget,
+      );
 
-    await tester.tap(find.text('Calendario'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('calendar-summary')), findsOneWidget);
-    expect(find.byKey(const Key('calendar-day-2-1')), findsOneWidget);
-  });
+      await tester.tap(find.text('Calendario'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('calendar-summary')), findsOneWidget);
+      expect(find.byKey(const Key('calendar-day-2-1')), findsOneWidget);
+    },
+  );
 
-  testWidgets('without signal, the kilos the preload saved serve a session of that date', (
-    tester,
-  ) async {
-    final server = _Server();
-    await server.preload(_preloadDay);
-    server.signal.on = false;
-    final container = ProviderContainer(overrides: server.overrides(_laterDay));
-    addTearDown(container.dispose);
-    final repository =
-        container.read(sessionRepositoryProvider) as CachedSessionRepository;
-    // The session E7.16 will open on the device; here it is handed over as E7.16 will.
-    await repository.remember(
-      LiveSession(
-        session: Session(
-          id: 'local-1',
-          clubId: 'c1',
-          assignmentId: 'a1',
-          planId: 'p1',
-          cycle: 4,
-          week: 1,
-          day: 1,
-          date: _laterDay,
-          presentAthleteIds: const ['ari', 'andi'],
-          auditoria: audit(),
+  testWidgets(
+    'without signal, the kilos the preload saved serve a session of that date',
+    (tester) async {
+      final server = _Server();
+      await server.preload(_preloadDay);
+      server.signal.on = false;
+      final container = ProviderContainer(
+        overrides: server.overrides(_laterDay),
+      );
+      addTearDown(container.dispose);
+      final repository =
+          container.read(sessionRepositoryProvider) as CachedSessionRepository;
+      // A session opened on the device (E7.16), handed over as the app does.
+      await repository.remember(
+        LiveSession(
+          session: Session(
+            id: 'local-1',
+            clubId: 'c1',
+            assignmentId: 'a1',
+            planId: 'p1',
+            cycle: 4,
+            week: 1,
+            day: 1,
+            date: _laterDay,
+            presentAthleteIds: const ['ari', 'andi'],
+            auditoria: audit(),
+          ),
+          records: const [],
         ),
-        records: const [],
-      ),
-    );
+      );
 
-    final ari = await repository.proposedLoads(
-      'c1',
-      'local-1',
-      'ari',
-      const AthleteAdjustments(),
-    );
-    final andi = await repository.proposedLoads(
-      'c1',
-      'local-1',
-      'andi',
-      const AthleteAdjustments(),
-    );
-
-    expect(ari.map((s) => s.kg), [82.5, 82.5]);
-    expect(andi.map((s) => s.kg), [62.5, 62.5]);
-    expect(container.read(localCopyNoticeProvider), isNotNull);
-    await expectLater(
-      repository.proposedLoads(
+      final ari = await repository.proposedLoads(
         'c1',
         'local-1',
         'ari',
-        const AthleteAdjustments(session: 110),
-      ),
-      throwsA(
-        isA<NoLocalCopy>().having(
-          (e) => e.mensaje,
-          'mensaje',
-          CachedSessionRepository.offlineAdjustmentMessage,
+        const AthleteAdjustments(),
+      );
+      final andi = await repository.proposedLoads(
+        'c1',
+        'local-1',
+        'andi',
+        const AthleteAdjustments(),
+      );
+
+      expect(ari.map((s) => s.kg), [82.5, 82.5]);
+      // With signal too: the server does not know a session opened on the device until its opening goes through.
+      server.signal.on = true;
+      expect(
+        (await repository.proposedLoads(
+          'c1',
+          'local-1',
+          'ari',
+          const AthleteAdjustments(),
+        )).map((s) => s.kg),
+        [82.5, 82.5],
+      );
+      server.signal.on = false;
+      expect(andi.map((s) => s.kg), [62.5, 62.5]);
+      expect(container.read(localCopyNoticeProvider), isNotNull);
+      await expectLater(
+        repository.proposedLoads(
+          'c1',
+          'local-1',
+          'ari',
+          const AthleteAdjustments(session: 110),
         ),
-      ),
-    );
-  });
+        throwsA(
+          isA<NoLocalCopy>().having(
+            (e) => e.mensaje,
+            'mensaje',
+            CachedSessionRepository.offlineAdjustmentMessage,
+          ),
+        ),
+      );
+    },
+  );
 
-  testWidgets('a session opened with signal opens again without signal, with its kilos', (
-    tester,
-  ) async {
-    final server = _Server();
-    await _launch(tester, server, _laterDay);
-    await tester.tap(find.byKey(const Key('session-open')));
-    await tester.pumpAndSettle();
-    expect(_kg(tester, 'session-kg-0-0-0'), '90 kg');
-    expect(find.byKey(const Key('local-copy-notice')), findsNothing);
+  testWidgets(
+    'a session opened with signal opens again without signal, with its kilos',
+    (tester) async {
+      final server = _Server();
+      await _launch(tester, server, _laterDay);
+      await tester.tap(find.byKey(const Key('session-open')));
+      await tester.pumpAndSettle();
+      expect(_kg(tester, 'session-kg-0-0-0'), '90 kg');
+      expect(find.byKey(const Key('local-copy-notice')), findsNothing);
 
-    server.signal.on = false;
-    await _launch(tester, server, _laterDay);
-    await tester.tap(find.byKey(const Key('session-open')));
-    await tester.pumpAndSettle();
+      server.signal.on = false;
+      await _launch(tester, server, _laterDay);
+      await tester.tap(find.byKey(const Key('session-open')));
+      await tester.pumpAndSettle();
 
-    expect(_kg(tester, 'session-kg-0-0-0'), '90 kg');
-    expect(_kg(tester, 'session-kg-0-0-1'), '90 kg');
-    expect(find.byKey(const Key('local-copy-notice')), findsOneWidget);
+      expect(_kg(tester, 'session-kg-0-0-0'), '90 kg');
+      expect(_kg(tester, 'session-kg-0-0-1'), '90 kg');
+      expect(find.byKey(const Key('local-copy-notice')), findsOneWidget);
 
-    // The adjustment's kilos come from the server: without signal it says so instead of guessing.
-    await tester.tap(find.byKey(const Key('session-adjust-session-plus')));
-    await tester.pumpAndSettle();
-    expect(
-      find.text(CachedSessionRepository.offlineAdjustmentMessage),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const Key('session-adjust-session-reset')));
-    await tester.pumpAndSettle();
-    expect(_kg(tester, 'session-kg-0-0-0'), '90 kg');
-  });
+      // The adjustment's kilos come from the server: without signal it says so instead of guessing.
+      await tester.tap(find.byKey(const Key('session-adjust-session-plus')));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(CachedSessionRepository.offlineAdjustmentMessage),
+        findsOneWidget,
+      );
+      await tester.tap(find.byKey(const Key('session-adjust-session-reset')));
+      await tester.pumpAndSettle();
+      expect(_kg(tester, 'session-kg-0-0-0'), '90 kg');
+    },
+  );
 
-  testWidgets('without signal, opening a session never opened here says so', (
-    tester,
-  ) async {
+  testWidgets('without signal a session never opened here opens on the phone, keeps its marks on reload and '
+      'goes up when signal returns', (tester) async {
     final server = _Server();
     await server.preload(_preloadDay);
     server.signal.on = false;
@@ -232,11 +267,77 @@ void main() {
     await tester.tap(find.byKey(const Key('session-open')));
     await tester.pumpAndSettle();
 
-    expect(
-      find.textContaining('esta sesión no se abrió antes en este dispositivo'),
-      findsOneWidget,
+    expect(find.byKey(const Key('session-opened-offline')), findsOneWidget);
+    expect(find.byKey(const Key('session-live-connecting')), findsNothing);
+    expect(_kg(tester, 'session-kg-0-0-0'), '82.5 kg'); // the preloaded kilos
+    await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+    await tester.pumpAndSettle();
+    expect(_checked(tester, '0-0-0'), isTrue);
+
+    // Reload without signal: the session opened on the phone and its mark are still there.
+    await _launch(tester, server, _laterDay);
+    await tester.tap(find.byKey(const Key('session-open')));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('session-opened-offline')), findsOneWidget);
+    expect(_checked(tester, '0-0-0'), isTrue);
+    expect(_checked(tester, '0-0-1'), isFalse);
+    await tester.tap(find.byKey(const Key('session-check-0-0-1')));
+    await tester.pumpAndSettle();
+    expect(server.sessions.log, isEmpty);
+
+    // Signal returns: the opening goes first, then the sets with the server's id, and the screen moves to it.
+    server.signal.on = true;
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(SessionPage)),
     );
+    await tester.runAsync(() => container.read(setSyncQueueProvider).flush());
+    await tester.pumpAndSettle();
+
+    expect(server.sessions.log, [
+      'open ari',
+      'set s1 ari 0 true',
+      'set s1 ari 1 true',
+    ]);
+    expect(container.read(setSyncQueueProvider).unsent, isEmpty);
+    expect(container.read(sessionScreenProvider).live?.session.id, 's1');
+    expect(find.byKey(const Key('session-opened-offline')), findsNothing);
+    expect(_checked(tester, '0-0-0'), isTrue);
+    expect(_checked(tester, '0-0-1'), isTrue);
   });
+
+  testWidgets(
+    'what another phone marks arrives through the channel and is kept for opening without signal',
+    (tester) async {
+      final server = _Server();
+      await _launch(tester, server, _laterDay);
+      await tester.tap(find.byKey(const Key('session-open')));
+      await tester.pumpAndSettle();
+      expect(_checked(tester, '0-0-1'), isFalse);
+
+      server.live.write(
+        SetWrite.of(
+          null,
+          athleteId: 'ari',
+          blockIndex: 0,
+          prescriptionIndex: 0,
+          setIndex: 1,
+          adjustment: Ajuste.neutro,
+        ).toggled(),
+      );
+      await tester.pumpAndSettle();
+      expect(_checked(tester, '0-0-1'), isTrue);
+
+      server.signal.on = false;
+      server.live.down = true;
+      await _launch(tester, server, _laterDay);
+      await tester.tap(find.byKey(const Key('session-open')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('local-copy-notice')), findsOneWidget);
+      expect(_checked(tester, '0-0-1'), isTrue);
+      expect(_checked(tester, '0-0-0'), isFalse);
+    },
+  );
 
   testWidgets('a date neither preloaded nor seen shows a clear message', (
     tester,
@@ -284,6 +385,9 @@ void main() {
 
     server.signal.on = false;
     await _launch(tester, server, _laterDay, store: store);
-    expect(find.textContaining('Sin señal y sin datos guardados'), findsOneWidget);
+    expect(
+      find.textContaining('Sin señal y sin datos guardados'),
+      findsOneWidget,
+    );
   });
 }
