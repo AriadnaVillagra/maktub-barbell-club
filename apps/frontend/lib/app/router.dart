@@ -6,7 +6,6 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../features/access/presentation/providers.dart';
 import '../features/asignacion/presentation/assignments_page.dart';
-import '../features/asignacion/presentation/calendar_page.dart';
 import '../features/atletas/presentation/athlete_sheet_page.dart';
 import '../features/atletas/presentation/athletes_page.dart';
 import '../features/atletas/presentation/profile_page.dart';
@@ -19,6 +18,8 @@ import '../features/wods/presentation/wod_editor_page.dart';
 import '../features/wods/presentation/wods_page.dart';
 import '../features/plan/presentation/plans_page.dart';
 import '../features/members/presentation/members_page.dart';
+import '../features/sesion/presentation/guided_page.dart';
+import '../features/sesion/presentation/session_page.dart';
 import '../features/session/domain/session_manager.dart';
 import '../features/session/presentation/providers.dart';
 import '../features/session/presentation/sign_in_page.dart';
@@ -34,6 +35,12 @@ abstract final class Rutas {
 
   /// The plan's calendar for the group, read-only; both coach and athlete.
   static const calendario = '$entrenamiento/calendario';
+
+  /// The day's session.
+  static const sesion = '$entrenamiento/sesion';
+
+  /// The guided mode "Entrenar" over the open session.
+  static const entrenar = '$sesion/entrenar';
 
   /// The coach's athlete list; each athlete's sheet is `<atletas>/<athleteId>`.
   static const atletas = '$planificacion/atletas';
@@ -104,8 +111,25 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (_, _) => const PaginaEntrenamiento(),
               routes: [
                 GoRoute(
+                  path: 'sesion',
+                  builder: (_, _) => const SessionPage(
+                    guidedPath: Rutas.entrenar,
+                    assignmentsPath: Rutas.asignaciones,
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'entrenar',
+                      builder: (_, _) => const GuidedPage(sessionPath: Rutas.sesion),
+                    ),
+                  ],
+                ),
+                GoRoute(
                   path: 'calendario',
-                  builder: (_, _) => const CalendarPage(assignmentsPath: Rutas.asignaciones),
+                  builder: (_, _) => const SessionPage(
+                    guidedPath: Rutas.entrenar,
+                    assignmentsPath: Rutas.asignaciones,
+                    initialView: SessionView.calendar,
+                  ),
                 ),
               ],
             ),

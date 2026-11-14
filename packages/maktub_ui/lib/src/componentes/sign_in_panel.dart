@@ -12,6 +12,7 @@ import '../tokens/primitivos.dart';
 class SignInPanel extends StatelessWidget {
   const SignInPanel({
     super.key,
+    this.logo,
     required this.title,
     this.subtitle,
     required this.action,
@@ -27,6 +28,8 @@ class SignInPanel extends StatelessWidget {
 
   static const _maxWidth = 400.0;
 
+  /// Centered above the [title].
+  final Widget? logo;
   final String title;
   final String? subtitle;
   final Widget action;
@@ -37,6 +40,7 @@ class SignInPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final logo = this.logo;
     final subtitle = this.subtitle;
     final message = this.message;
     return ConstrainedBox(
@@ -45,6 +49,10 @@ class SignInPanel extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          if (logo != null) ...[
+            Center(child: logo),
+            const SizedBox(height: Espacio.xl),
+          ],
           Text(title, style: context.textos.displaySmall, textAlign: TextAlign.center),
           if (subtitle != null) ...[
             const SizedBox(height: Espacio.s),

@@ -23,6 +23,24 @@ void main() {
       expect(p.weightKg, 63);
     });
 
+    test('reference and % with RM: rounds on the bar it is given', () {
+      final twoBars = Equipo(
+        barras: const [ItemInventario(20), ItemInventario(15)],
+        discos: const [ItemInventario(1.25)],
+      );
+      LoadProposal propose({double? barKg}) => proposeLoad(
+        hasReference: true,
+        pct: 16,
+        rm: 100,
+        fixedKg: null,
+        equipo: twoBars,
+        barKg: barKg,
+      );
+
+      expect(propose().weightKg, 20);
+      expect(propose(barKg: 15).weightKg, 15);
+    });
+
     test('reference and % with RM: the work factor applies', () {
       final p = proposeLoad(
         hasReference: true,

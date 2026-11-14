@@ -17,7 +17,7 @@ class BarraCrono extends ConsumerWidget {
     final control = ref.read(cronoControllerProvider.notifier);
     final crono = vista.crono;
     final esquema = context.esquema;
-    final ultimos = vista.restantes <= 3 && !crono.enPausa;
+    final ultimos = !crono.abierta && vista.segundos <= 3 && !crono.enPausa;
     final (fondo, sobre) = ultimos
         ? (esquema.errorContainer, esquema.onErrorContainer)
         : crono.fase.esTrabajo && crono.porRondas
@@ -46,7 +46,7 @@ class BarraCrono extends ConsumerWidget {
                     ),
                     Text(
                       crono.porRondas
-                          ? '${crono.fase.etiqueta} · ronda ${crono.fase.ronda}/${crono.fase.rondas}'
+                          ? '${crono.fase.etiqueta} · ronda ${crono.fase.ronda}${crono.fase.rondas == 0 ? '' : '/${crono.fase.rondas}'}'
                           : crono.fase.etiqueta,
                       style: context.textos.bodySmall?.copyWith(color: sobre),
                     ),
@@ -54,11 +54,11 @@ class BarraCrono extends ConsumerWidget {
                 ),
               ),
               Text(
-                reloj(vista.restantes),
+                reloj(vista.segundos),
                 style: context.numeros.medio.copyWith(color: sobre),
               ),
               const SizedBox(width: Espacio.s),
-              if (!crono.porRondas) ...[
+              if (!crono.porRondas && !crono.abierta) ...[
                 IconButton(
                   tooltip: '−30 s',
                   onPressed: () => control.sumar(-30),
@@ -75,6 +75,19 @@ class BarraCrono extends ConsumerWidget {
                 onPressed: control.alternarPausa,
                 icon: Icon(crono.enPausa ? Icons.play_arrow : Icons.pause),
               ),
+              if (crono.sePuedeTerminar)
+                IconButton(
+                  key: const Key('crono-terminar'),
+                  tooltip: 'Terminar',
+                  onPressed: () {
+                    final resultado = control.terminar();
+                    if (resultado == null) return;
+                    ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+                      SnackBar(content: Text('${resultado.label} · ${reloj(resultado.seconds)}')),
+                    );
+                  },
+                  icon: const Icon(Icons.flag_outlined),
+                ),
               IconButton(
                 tooltip: 'Cerrar',
                 onPressed: control.detener,

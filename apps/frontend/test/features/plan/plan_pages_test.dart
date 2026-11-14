@@ -63,7 +63,7 @@ void main() {
       tester,
     ) async {
       final repo = FakePlanRepository();
-      tester.view.physicalSize = const Size(900, 1800);
+      tester.view.physicalSize = const Size(900, 3000);
       tester.view.devicePixelRatio = 1;
       addTearDown(tester.view.reset);
       final router = GoRouter(
@@ -259,7 +259,7 @@ void main() {
       'leaving with unsaved changes asks first; without changes it leaves',
       (tester) async {
         final repo = FakePlanRepository(plans: [reference()]);
-        tester.view.physicalSize = const Size(900, 1800);
+        tester.view.physicalSize = const Size(900, 3000);
         tester.view.devicePixelRatio = 1;
         addTearDown(tester.view.reset);
         final router = GoRouter(
@@ -431,7 +431,14 @@ void main() {
       expect(find.byTooltip('Subir bloque'), findsNothing);
       expect(find.byTooltip('Bajar bloque'), findsNothing);
 
-      await tester.tap(find.byKey(const Key('block-a-0-0')));
+      await tester.tap(
+        find
+            .descendant(
+              of: find.byKey(const Key('block-a-0-0')),
+              matching: find.byType(ListTile),
+            )
+            .first,
+      );
       await tester.pumpAndSettle();
       expect(
         tester
@@ -823,7 +830,7 @@ void main() {
             .go(Rutas.planes);
         await tester.pumpAndSettle();
         expect(find.text('Fuerza'), findsNothing);
-        expect(find.text('Calendario'), findsOneWidget);
+        expect(find.text('Sesión del día'), findsOneWidget);
       },
     );
 

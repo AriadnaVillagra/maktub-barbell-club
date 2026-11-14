@@ -4,6 +4,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../access/presentation/providers.dart';
+import '../../temporizador/presentation/controllers/crono_controller.dart';
 import '../domain/catalog_admin_repository.dart';
 import '../domain/catalog_filters.dart';
 import 'catalog_admin_providers.dart';
@@ -11,8 +12,9 @@ import 'catalog_admin_widgets.dart';
 import 'providers.dart';
 import 'timer_form.dart';
 
-/// Default and custom timers in a single filterable list. Tapping one edits it, for whoever can change
-/// it (platform admin for default ones, club admin for the club's).
+/// Default and custom timers in a single filterable list. Anyone can start an active one (it runs in the
+/// shell's timer bar); tapping one edits it, for whoever can change it (platform admin for default ones,
+/// club admin for the club's).
 class TimersPage extends ConsumerStatefulWidget {
   const TimersPage({super.key});
 
@@ -111,6 +113,13 @@ class _TimerTile extends ConsumerWidget {
         spacing: Espacio.s,
         children: [
           ScopeBadge(scopeOf(timer)),
+          if (!archived)
+            IconButton(
+              key: Key('timer-start-${timer.id}'),
+              tooltip: 'Iniciar',
+              icon: const Icon(Icons.play_arrow),
+              onPressed: () => ref.read(cronoControllerProvider.notifier).iniciar(timer),
+            ),
           if (canWrite)
             PopupMenuButton<_Action>(
               key: Key('timer-menu-${timer.id}'),

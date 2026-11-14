@@ -46,6 +46,7 @@ de la planilla está migrado y verificado (ver 7).
 | Registro desnormalizado con `rm × pct ≈ kg` | Igual, más objetivo, referencia por id, factor, quién escribió y posición en el plan | Diseño (3.6) |
 | RPE como nota de texto | La nota del plan sigue siendo texto libre | Sin cambio |
 | Temporizadores countdown / EMOM / tabata; vibración y pantalla encendida fallan dentro del iframe | Los mismos tres formatos en la PWA, con sonido, vibración y pantalla encendida | Corrección |
+| Modo guiado "Entrenar": bloque por bloque, un paso por tarjeta, simultáneo o por turnos, biseries alternadas, tiempos de bloque y resumen | Igual, con circuito por bloque, cambio de modo en vivo y tiempos en la base (agregado el 2026-11-14, design.md D19 y D20) | Se rescata |
 | WoD: descripción + temporizador | Bloque de categoría `wod` con nota y temporizador | Diseño, misma funcionalidad |
 | Plan de octubre con 85 % donde va 80 % | Corregido al migrar | Corrección (M1-D4) |
 
@@ -58,7 +59,7 @@ de la planilla está migrado y verificado (ver 7).
 | Referencias de cardio (marca, ritmo, FC) | F3 (resto) |
 | Atajos del editor (duplicar, generar rampa, copiar series) | F6 (resto) |
 | Estados recuperado y falta, y la decisión del coach; pausar asignaciones | F7 (resto) |
-| Motor de pasos, modo circuito, modo por turnos y cambio de modo en vivo | F10 |
+| De F10, reordenar pasos. El motor de pasos, circuito, turnos y cambio de modo en vivo entran (2026-11-14) | F10 (resto) |
 | AMRAP, for time, intervalos y resultados de bloques por tiempo | F11 |
 | RPE o RIR numérico por serie | F12 (resto) |
 | Reportes, gráficos y exportación a CSV | F13 |
@@ -142,6 +143,7 @@ termina con tests y `dart analyze` / `flutter analyze` limpios. Tamaño: **S** �
 | [ ] 7.3 | Backend: canal en vivo: ticket de un solo uso, WebSocket por sesión, número de secuencia, resincronización al reconectar, difusión en memoria detrás de una interfaz | 7.2 | L | Cortar la conexión y reconectar no pierde marcas |
 | [ ] 7.4 | App: pantalla de la sesión: día por fecha o elegido, presentes, cambio de atleta, kilos calculados, ajuste del día, marcar serie, editar kg y reps, nota y restaurar | 7.2, 4.1, 6.2 | L | Hace todo lo que hacía la pantalla de seguimiento |
 | [ ] 7.5 | App: borrador local, cola de reintentos y conexión al canal en vivo | 7.3, 7.4 | L | Con el modo avión se sigue marcando; al volver la señal se sincroniza |
+| [ ] 7.7 | Modo guiado "Entrenar": pasos (simultáneo, turnos, circuito, cambio de modo en vivo), tiempos de bloque y resumen (agregado el 2026-11-14) | 7.4, 7.5, 7.6 | L | Hace todo lo que hacía `reference/Guia.html` |
 | [ ] 7.6 | App: temporizadores en la sesión: el de la prescripción al marcar una serie, selector manual, sonido, vibración y pantalla encendida; WoD con su nota y su temporizador | 7.4 | M | Countdown, EMOM y tabata como en la referencia; nada falla si el dispositivo no lo permite |
 
 ### Etapa 8 — Migración (F14)
@@ -185,6 +187,7 @@ termina con tests y `dart analyze` / `flutter analyze` limpios. Tamaño: **S** �
 7. Con dos teléfonos en la misma sesión, una serie marcada en uno aparece en el otro al instante; cortar la conexión o recargar no pierde nada.
 8. Sin señal se puede seguir marcando, y al volver se sincroniza.
 9. Los temporizadores suenan, vibran y mantienen la pantalla encendida en la PWA instalada.
+9b. El modo guiado recorre el día paso a paso, como en la referencia, con los tiempos de bloque y el resumen (agregado el 2026-11-14).
 10. El historial migrado coincide con la planilla, con octubre corregido.
 11. Un ciclo completo de 4 semanas entrenado solo con la app.
 
