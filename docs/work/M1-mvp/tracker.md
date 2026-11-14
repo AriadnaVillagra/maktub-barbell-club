@@ -27,7 +27,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 11 / 16 (E7.1 a E7.9, E7.11 y E7.13 hechos; siguen E7.10, E7.12 y E7.14 en paralelo) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 11 / 21 (E7.1 a E7.9, E7.11 y E7.13 hechos; siguen E7.10, E7.12 y E7.14 en paralelo, y del modo guiado E7.17 a E7.19) | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
@@ -69,6 +69,17 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **D8 completo (decidido el 2026-11-14):** abrir plan, calendario y sesión sin señal entra en M1. Se agregan E7.14 (kilos propuestos sin sesión, en el servidor), E7.15 (precarga de hoy y los próximos 7 días, más lo último visto) y E7.16 (la sesión se abre en el teléfono y la apertura va a la cola, adelante de las series).
 - **Temporizadores (E7.11, hecho):** `TimerPlatform` (sonido, vibración, pantalla encendida) traga los errores. `Crono` se extendió con fases abiertas: for time sin tope cuenta hacia arriba y Death By se puede terminar con "Terminar". El tiempo final queda en `cronoResultsProvider` y no se envía al backend; eso es de E7.12. Un for time con tope dentro de un `mix` no muestra "Terminar", porque `Fase` no sabe el tipo de bloque. El botón "Terminar" de `BarraCrono` no tiene test de widget.
 - **Sin probar en real (E7.9, E7.11):** sin red con la PWA instalada (modo avión), y sonido, vibración y pantalla encendida en el teléfono, quedan para después del merge de E7 (D3).
+
+## Modo guiado sumado a E7 (2026-11-14)
+
+- `reference/` se actualizó a la versión viva (`9dc1691`), que tiene el modo guiado en `Guia.html` (design.md D18, D19).
+- Entran E7.17 a E7.21. Los tiempos de bloque se registran (D20, reemplaza D17).
+- **Para E8.4:** los accesorios con el mismo `grupo` en un día de la referencia son una biserie: se importan
+  como un bloque en circuito (E7.18).
+- **`diseno.md`:** no tiene `BlockTime` ni que el modo guiado y parte de F10 entran en M1. Se avisa a su sesión.
+- **Revisar el resto de la versión nueva de `reference/`:** tiene más que la versión con la que se planificó M1,
+  como menú de entrada, resumen global del plan, editar el día en ejecución, días salteados, rampa
+  configurable, medida del ejercicio y ejercicios inactivos. Falta ver si a M1 le falta algo de eso.
 
 ## Para E6 (decidido el 2026-11-08)
 
