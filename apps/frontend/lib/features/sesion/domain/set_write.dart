@@ -96,6 +96,10 @@ class SetWrite {
   SetWrite toggled() =>
       _copy(done: !done, manualKg: manualKg, reps: reps, note: note);
 
+  /// Marked as done whatever it was, as the guided mode finishes a set.
+  SetWrite markedDone() =>
+      _copy(done: true, manualKg: manualKg, reps: reps, note: note);
+
   SetWrite edited({required double? manualKg, required int? reps}) =>
       _copy(done: done, manualKg: manualKg, reps: reps, note: note);
 
