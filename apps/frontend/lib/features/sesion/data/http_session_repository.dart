@@ -103,4 +103,16 @@ class HttpSessionRepository implements SessionRepository {
       {'nota': note},
     ),
   );
+
+  @override
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  ) async => Session.fromJson(
+    await _client.post(
+      '${_sessions(clubId)}/${Uri.encodeComponent(sessionId)}/pasada',
+      cuerpo: action.toJson(),
+    ),
+  );
 }

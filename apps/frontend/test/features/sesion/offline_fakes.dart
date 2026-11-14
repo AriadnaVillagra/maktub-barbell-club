@@ -276,6 +276,10 @@ class OfflineSessions implements SessionRepository {
   final Signal signal;
   final opened = <(DateTime, int, int)>[];
 
+  /// The session's guided pass (E7.26) and its last change number.
+  GuidedPass? pass;
+  var sessionChanges = 0;
+
   /// Every request taken, in order: `open <present>` and `set <session> <athlete> <set> <done>`.
   final log = <String>[];
 
@@ -306,6 +310,8 @@ class OfflineSessions implements SessionRepository {
         day: day,
         date: date,
         presentAthleteIds: presentAthleteIds.toList(),
+        lastSessionChange: sessionChanges,
+        guidedPass: pass,
         auditoria: audit(),
       ),
       records: const [],
@@ -378,4 +384,31 @@ class OfflineSessions implements SessionRepository {
     String sessionId,
     String note,
   ) => throw UnimplementedError();
+
+  @override
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  ) async {
+    signal.check();
+    final next = applyGuidedAction(pass, action);
+    if (next != null && !identical(next, pass)) {
+      pass = next;
+      sessionChanges++;
+    }
+    return Session(
+      id: sessionId,
+      clubId: clubId,
+      assignmentId: 'a1',
+      planId: 'p1',
+      cycle: 4,
+      week: 1,
+      day: 1,
+      date: DateTime.utc(2026, 11, 24),
+      lastSessionChange: sessionChanges,
+      guidedPass: pass,
+      auditoria: audit(),
+    );
+  }
 }

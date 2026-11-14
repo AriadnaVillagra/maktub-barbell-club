@@ -109,6 +109,50 @@ class PendingBlockTime extends PendingWrite {
   );
 }
 
+/// One write of the guided pass (E7.26) for one session, kept on the device until the server takes it. The server
+/// applies it over the pass it has, so sending it again, or after another device's change, is harmless.
+class PendingGuidedWrite extends PendingWrite {
+  const PendingGuidedWrite({
+    required this.id,
+    required this.clubId,
+    required this.sessionId,
+    required this.action,
+  });
+
+  /// The server never sees the id.
+  @override
+  final String id;
+  @override
+  final String clubId;
+  @override
+  final String sessionId;
+  final GuidedPassAction action;
+
+  /// The same write for the session [sessionId], once the server gave the session opened on the device its id.
+  PendingGuidedWrite inSession(String sessionId) => PendingGuidedWrite(
+    id: id,
+    clubId: clubId,
+    sessionId: sessionId,
+    action: action,
+  );
+
+  Json toJson() => {
+    'id': id,
+    'clubId': clubId,
+    'sesionId': sessionId,
+    'accion': action.toJson(),
+  };
+
+  factory PendingGuidedWrite.fromJson(Json j) => PendingGuidedWrite(
+    id: '${j['id']}',
+    clubId: '${j['clubId']}',
+    sessionId: '${j['sesionId']}',
+    action: GuidedPassAction.fromJson(
+      (j['accion'] as Map).cast<String, dynamic>(),
+    ),
+  );
+}
+
 /// The ids the device gives the sessions it opens without signal (E7.16) start with this. The server never sees
 /// them: the queue swaps them for the server's id as soon as the opening goes through.
 const localSessionPrefix = 'local-';
@@ -200,24 +244,27 @@ typedef SetKey = ({
 });
 
 /// What the device keeps: the draft (the last local write of each set), the openings of sessions not yet sent, the
-/// queue of set writes not yet sent, in order, and the block times not yet sent.
+/// queue of set writes not yet sent, in order, the writes of the guided pass and the block times not yet sent.
 class DraftSnapshot {
   const DraftSnapshot({
     this.draft = const [],
     this.opens = const [],
     this.queue = const [],
+    this.guided = const [],
     this.times = const [],
   });
 
   final List<PendingSetWrite> draft;
   final List<PendingSessionOpen> opens;
   final List<PendingSetWrite> queue;
+  final List<PendingGuidedWrite> guided;
   final List<PendingBlockTime> times;
 
   Json toJson() => {
     'borrador': [for (final w in draft) w.toJson()],
     'aperturas': [for (final o in opens) o.toJson()],
     'cola': [for (final w in queue) w.toJson()],
+    'pasada': [for (final g in guided) g.toJson()],
     'tiempos': [for (final t in times) t.toJson()],
   };
 
@@ -233,6 +280,10 @@ class DraftSnapshot {
     queue: [
       for (final w in (j['cola'] as List? ?? const []))
         PendingSetWrite.fromJson((w as Map).cast<String, dynamic>()),
+    ],
+    guided: [
+      for (final g in (j['pasada'] as List? ?? const []))
+        PendingGuidedWrite.fromJson((g as Map).cast<String, dynamic>()),
     ],
     times: [
       for (final t in (j['tiempos'] as List? ?? const []))

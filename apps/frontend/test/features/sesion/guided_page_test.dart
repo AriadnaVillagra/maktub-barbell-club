@@ -192,6 +192,13 @@ class _Sessions implements SessionRepository {
   /// Without signal, sets are not taken either; they stay in the device's queue.
   bool offlineSets = false;
 
+  /// The session's guided pass (E7.26), as the server keeps it, and its last change number.
+  GuidedPass? pass;
+  var sessionChanges = 0;
+
+  /// The present athletes of the last opening.
+  var present = <String>[];
+
   /// The reps the plan has for each prescription.
   static int _planReps(int block, int prescription) =>
       switch ((block, prescription)) {
@@ -212,21 +219,41 @@ class _Sessions implements SessionRepository {
     required Set<String> presentAthleteIds,
   }) async {
     opened.add(presentAthleteIds);
-    return LiveSession(
-      session: Session(
-        id: 's1',
-        clubId: clubId,
-        assignmentId: assignmentId,
-        planId: 'p1',
-        cycle: 3,
-        week: week,
-        day: day,
-        date: date,
-        presentAthleteIds: presentAthleteIds.toList(),
-        auditoria: audit(),
-      ),
-      records: records,
-    );
+    present = presentAthleteIds.toList();
+    _week = week;
+    return LiveSession(session: _session(), records: records);
+  }
+
+  var _week = 1;
+
+  Session _session() => Session(
+    id: 's1',
+    clubId: 'c1',
+    assignmentId: 'a1',
+    planId: 'p1',
+    cycle: 3,
+    week: _week,
+    day: 1,
+    date: _today,
+    presentAthleteIds: present,
+    lastSessionChange: sessionChanges,
+    guidedPass: pass,
+    auditoria: audit(),
+  );
+
+  @override
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  ) async {
+    if (offline) throw const ErrorDeApi('No se pudo conectar.');
+    final next = applyGuidedAction(pass, action);
+    if (next != null && !identical(next, pass)) {
+      pass = next;
+      sessionChanges++;
+    }
+    return _session();
   }
 
   @override
@@ -329,8 +356,9 @@ class _Harness {
 Future<_Harness> _pump(
   WidgetTester tester, {
   List<SetRecord> records = const [],
+  GuidedPass? pass,
 }) async {
-  final h = _Harness(_Sessions(records: records));
+  final h = _Harness(_Sessions(records: records)..pass = pass);
   tester.view.physicalSize = const Size(900, 3000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -1295,18 +1323,142 @@ void main() {
       expect(find.byKey(const Key('session-train')), findsOneWidget);
     });
 
-    testWidgets('entering again starts over: the position is not kept', (
+    testWidgets('entering again resumes the pass where it is, without asking', (
       tester,
     ) async {
-      await _pump(tester);
-      await _toBlock(tester, 2);
+      final h = await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-exit');
       await tester.tap(find.text('Salir'));
       await tester.pumpAndSettle();
 
+      expect(
+        h.sessions.pass!.finished,
+        false,
+        reason: 'leaving does not finish it for the others',
+      );
+      await _tap(tester, 'session-train');
+
+      expect(find.text('¿Quiénes entrenan?'), findsNothing);
+      expect(find.byKey(const Key('guided-resume-dialog')), findsNothing);
+      expect(_text(tester, 'guided-block-name'), 'Principal');
+      expect(_text(tester, 'guided-set'), 'Serie 2 de 2');
+    });
+
+    testWidgets('a finished pass is not resumed: it chooses who trains again', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 4);
+      expect(find.text('Día terminado'), findsOneWidget);
+      await _tap(tester, 'guided-save');
+
       await _tap(tester, 'session-train');
 
       expect(find.text('¿Quiénes entrenan?'), findsOneWidget);
+    });
+  });
+
+  group('the shared pass (E7.26)', () {
+    /// The pass another device left on block 1 ("Principal", by turns), started at 10:00, with Ari's first set
+    /// recorded.
+    GuidedPass running() => [
+      GuidedPassAction.begin(
+        passId: 'other',
+        version: 0,
+        at: DateTime.utc(2026, 11, 18, 9, 55),
+        athleteIds: const ['ari', 'andi'],
+        blocks: [
+          for (final b in _plan.weekModels.first.days.first.blocks)
+            GuidedBlockStart(
+              athleteMode: b.athleteMode,
+              executionMode: b.executionMode,
+            ),
+        ],
+      ),
+      GuidedPassAction.onBlock(
+        GuidedActionKind.skipBlock,
+        passId: 'other',
+        version: 1,
+        at: DateTime.utc(2026, 11, 18, 9, 56),
+        block: 0,
+      ),
+      GuidedPassAction.onBlock(
+        GuidedActionKind.startBlock,
+        passId: 'other',
+        version: 2,
+        at: DateTime.utc(2026, 11, 18, 10),
+        block: 1,
+      ),
+    ].fold<GuidedPass?>(null, applyGuidedAction)!;
+
+    testWidgets(
+      'entering with a pass going on resumes it without asking, on its block, step and clocks',
+      (tester) async {
+        final h = await _pump(
+          tester,
+          records: [_record('ari', 1, 0, 0, kg: 80)],
+          pass: running(),
+        );
+        h.now = DateTime.utc(2026, 11, 18, 10, 2, 5);
+        await _train(tester);
+
+        expect(find.text('¿Quiénes entrenan?'), findsNothing);
+        expect(find.byKey(const Key('guided-resume-dialog')), findsNothing);
+        expect(_text(tester, 'guided-block-count'), 'Bloque 2 de 4');
+        expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+        expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 02:05');
+        expect(_text(tester, 'guided-total-clock'), '02:05');
+      },
+    );
+
+    testWidgets(
+      '"Terminar el día" closes the pass for everyone and shows the summary',
+      (tester) async {
+        final h = await _pump(tester, pass: running());
+        await _train(tester);
+
+        await _tap(tester, 'guided-pass-menu');
+        await _tap(tester, 'guided-finish-day');
+        expect(find.text('¿Terminar el día?'), findsOneWidget);
+        await tester.tap(find.text('Terminar'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Día terminado'), findsOneWidget);
+        expect(h.sessions.pass!.finished, true);
+        expect(
+          h.sessions.pass!.blocks[1].status,
+          GuidedBlockStatus.interrupted,
+        );
+        expect(h.sessions.times.single.$1, 'other-1');
+      },
+    );
+
+    testWidgets('a new pass can be started over the one going on, or left', (
+      tester,
+    ) async {
+      final h = await _pump(tester, pass: running());
+      await _train(tester);
+
+      await _tap(tester, 'guided-pass-menu');
+      await _tap(tester, 'guided-start-over');
+      expect(find.text('¿Quiénes entrenan?'), findsOneWidget);
+      expect(_chosen(tester, 'guided-athlete-andi'), true);
+      await _tap(tester, 'guided-back-to-pass');
+      expect(_text(tester, 'guided-block-name'), 'Principal');
+      expect(h.sessions.pass!.id, 'other');
+
+      await _tap(tester, 'guided-pass-menu');
+      await _tap(tester, 'guided-start-over');
+      await _tap(tester, 'guided-begin');
+
+      expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
+      expect(h.sessions.pass!.id, isNot('other'));
+      expect(h.sessions.pass!.blocks[1].status, GuidedBlockStatus.pending);
     });
   });
 }

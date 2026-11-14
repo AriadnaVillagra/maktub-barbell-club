@@ -225,6 +225,71 @@ void main() {
     },
   );
 
+  test('the copy keeps the guided pass, written here or arriving over the channel, and opens with it without signal', () async {
+    final server = _Server();
+    final container = ProviderContainer(overrides: server.overrides(_laterDay));
+    addTearDown(container.dispose);
+    final repository =
+        container.read(sessionRepositoryProvider) as CachedSessionRepository;
+    Future<LiveSession> open() => repository.open(
+      'c1',
+      assignmentId: 'a1',
+      date: _laterDay,
+      week: 1,
+      day: 1,
+      presentAthleteIds: const {'ari'},
+    );
+    final opened = await open();
+
+    await repository.writeGuidedPass(
+      'c1',
+      opened.session.id,
+      GuidedPassAction.begin(
+        passId: 'p1',
+        version: 0,
+        at: DateTime.utc(2026, 11, 24, 10),
+        athleteIds: const ['ari'],
+        blocks: const [
+          GuidedBlockStart(
+            athleteMode: AthleteMode.simultaneous,
+            executionMode: ExecutionMode.sequential,
+          ),
+        ],
+      ),
+    );
+    server.signal.on = false;
+    expect((await open()).session.guidedPass?.id, 'p1');
+
+    // Another phone started the block: the change arrives over the channel.
+    final started = applyGuidedAction(
+      server.sessions.pass,
+      GuidedPassAction.onBlock(
+        GuidedActionKind.startBlock,
+        passId: 'p1',
+        version: 1,
+        at: DateTime.utc(2026, 11, 24, 10, 1),
+        block: 0,
+      ),
+    )!;
+    await repository.applyChanges('c1', opened.session.id, [
+      SessionChange.ofSession(
+        9,
+        Session.fromJson({
+          ...opened.session.toJson(),
+          'secuencia': 9,
+          'secuenciaSesion': 9,
+          'pasadaGuiada': started.toJson(),
+        }),
+      ),
+    ]);
+
+    final again = await open();
+    expect(
+      again.session.guidedPass!.blocks.single.status,
+      GuidedBlockStatus.running,
+    );
+  });
+
   testWidgets(
     'a session opened with signal opens again without signal, with its kilos',
     (tester) async {

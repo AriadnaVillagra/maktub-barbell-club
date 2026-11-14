@@ -245,6 +245,13 @@ class _FakeSessions implements SessionRepository {
   }
 
   @override
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  ) => throw UnimplementedError();
+
+  @override
   Future<Session> saveSessionNote(
     String clubId,
     String sessionId,

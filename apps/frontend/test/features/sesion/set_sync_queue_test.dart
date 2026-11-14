@@ -6,6 +6,7 @@ import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/sesion/data/shared_preferences_draft_store.dart';
 import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_draft_store.dart';
+import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_sync_queue.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -359,6 +360,188 @@ void main() {
       expect(server.timeRequests, 1);
       expect(queue.unsent, isEmpty);
     });
+  });
+
+  group('guided pass writes (E7.26)', () {
+    BlockTimeWrite time(int block) => BlockTimeWrite(
+      blockIndex: block,
+      blockName: 'Bloque',
+      athleteIds: const ['ari'],
+      start: DateTime.utc(2026, 11, 18, 10),
+      end: DateTime.utc(2026, 11, 18, 10, 5),
+    );
+
+    GuidedPassAction begin() => GuidedPassAction.begin(
+      passId: 'p1',
+      version: 0,
+      at: DateTime.utc(2026, 11, 18, 10),
+      athleteIds: const ['ari'],
+      blocks: const [
+        GuidedBlockStart(
+          athleteMode: AthleteMode.simultaneous,
+          executionMode: ExecutionMode.sequential,
+        ),
+      ],
+    );
+
+    Session sessionWith(GuidedPass? pass) => Session(
+      id: 's1',
+      clubId: 'c1',
+      assignmentId: 'a1',
+      planId: 'p1',
+      cycle: 1,
+      week: 1,
+      day: 1,
+      date: DateTime.utc(2026, 11, 18),
+      guidedPass: pass,
+      auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026, 11, 18)),
+    );
+
+    test('they go behind the sets, keep across a reload, and hand over the session before leaving', () async {
+      final server = _FakeServer()..offline = true;
+      final disk = DraftDisk();
+      final order = <String>[];
+      final seenWhileQueued = <int>[];
+      late SetSyncQueue queue;
+      SetSyncQueue make() => SetSyncQueue(
+        send: (p) async {
+          final r = await server.send(p);
+          order.add('set');
+          return r;
+        },
+        sendTime: (t) async {
+          await server.sendTime(t);
+          order.add('time ${t.id}');
+        },
+        sendGuided: (g) async {
+          if (server.offline) throw const ErrorDeApi('No se pudo conectar.');
+          order.add('pass ${g.action.kind.cable}');
+          return sessionWith(applyGuidedAction(null, g.action));
+        },
+        store: MemoryDraftStore(disk),
+        isRetryable: isTransientWriteError,
+      );
+      queue = make();
+      await queue.submitGuided(clubId: 'c1', sessionId: 's1', action: begin());
+      await queue.submitBlockTime(
+        clubId: 'c1',
+        sessionId: 's1',
+        id: 'p1-0',
+        write: time(0),
+      );
+      await _submit(queue, _mark('ari', 0));
+      expect(queue.unsent.map((w) => w.runtimeType), [
+        PendingSetWrite,
+        PendingGuidedWrite,
+        PendingBlockTime,
+      ]);
+
+      final reloaded = make();
+      await reloaded.ready;
+      expect(reloaded.pendingGuided.single.action.passId, 'p1');
+      reloaded.guidedStored.listen(
+        (_) => seenWhileQueued.add(reloaded.pendingGuided.length),
+      );
+      server.offline = false;
+      await reloaded.flush();
+
+      expect(order, ['set', 'pass comenzar', 'time p1-0']);
+      expect(seenWhileQueued, [1], reason: 'the session arrives first');
+      expect(reloaded.unsent, isEmpty);
+    });
+
+    test('on a session opened without signal they go with the server\'s id once it opens', () async {
+      var online = false;
+      final sessions = <String>[];
+      final queue = SetSyncQueue(
+        send: (_) => throw UnimplementedError(),
+        sendGuided: (g) async {
+          sessions.add(g.sessionId);
+          return sessionWith(applyGuidedAction(null, g.action));
+        },
+        sendOpen: (o) async {
+          if (!online) throw const ErrorDeApi('No se pudo conectar.');
+          return LiveSession(session: sessionWith(null), records: const []);
+        },
+        store: MemoryDraftStore(),
+        isRetryable: isTransientWriteError,
+      );
+      await queue.submitOpen(
+        PendingSessionOpen(
+          clubId: 'c1',
+          sessionId: 'local-1',
+          assignmentId: 'a1',
+          date: DateTime.utc(2026, 11, 18),
+          week: 1,
+          day: 1,
+          presentAthleteIds: const ['ari'],
+        ),
+      );
+      await queue.submitGuided(
+        clubId: 'c1',
+        sessionId: 'local-1',
+        action: begin(),
+      );
+      await queue.flush();
+      expect(sessions, isEmpty, reason: 'behind the opening');
+
+      online = true;
+      await queue.flush();
+
+      expect(sessions, ['s1']);
+      expect(queue.unsent, isEmpty);
+    });
+
+    test('a time queued again under the same id replaces the first', () async {
+      final server = _FakeServer()..offline = true;
+      final queue = _queue(server, MemoryDraftStore());
+      for (final b in [0, 0]) {
+        await queue.submitBlockTime(
+          clubId: 'c1',
+          sessionId: 's1',
+          id: 'p1-$b',
+          write: time(b),
+        );
+      }
+      expect(queue.pendingTimes, hasLength(1));
+    });
+
+    test(
+      'a refused write leaves the queue, and the next ones still go',
+      () async {
+        final sent = <String>[];
+        final queue = SetSyncQueue(
+          send: (_) => throw UnimplementedError(),
+          sendGuided: (g) async {
+            if (g.action.kind == GuidedActionKind.begin) {
+              throw const ErrorDeApi('Prohibido', estado: 403);
+            }
+            sent.add(g.action.kind.cable);
+            return sessionWith(null);
+          },
+          store: MemoryDraftStore(),
+          isRetryable: isTransientWriteError,
+        );
+        await queue.submitGuided(
+          clubId: 'c1',
+          sessionId: 's1',
+          action: begin(),
+        );
+        await queue.submitGuided(
+          clubId: 'c1',
+          sessionId: 's1',
+          action: GuidedPassAction.finish(
+            passId: 'p1',
+            version: 1,
+            at: DateTime.utc(2026, 11, 18, 11),
+          ),
+        );
+        await queue.flush();
+
+        expect(sent, ['terminar']);
+        expect(queue.pendingGuided, isEmpty);
+      },
+    );
   });
 
   group('SharedPreferencesDraftStore', () {

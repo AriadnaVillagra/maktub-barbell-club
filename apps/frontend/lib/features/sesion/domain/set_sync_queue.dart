@@ -13,6 +13,9 @@ typedef SendSetWrite = Future<SetRecord> Function(PendingSetWrite pending);
 /// Sends one queued block time to the server.
 typedef SendBlockTime = Future<void> Function(PendingBlockTime pending);
 
+/// Sends one queued write of the guided pass to the server and returns the session as the server left it.
+typedef SendGuidedWrite = Future<Session> Function(PendingGuidedWrite pending);
+
 /// Sends one queued opening to the server and returns the session it opened or resumed.
 typedef SendSessionOpen = Future<LiveSession> Function(
   PendingSessionOpen pending,
@@ -56,6 +59,9 @@ class FlushOutcome {
 /// server, in order. Without signal it stays queued until [flush] runs again. The server's write is an idempotent
 /// upsert per set (E7.3), so resending something it already took changes nothing.
 ///
+/// The writes of the guided pass (E7.26) wait here behind the sets, and then the block times. The server applies each
+/// pass write over the pass it has, so resending one is harmless.
+///
 /// The block times of the guided mode (E7.21) wait here too, after the sets: each has its own id, kept across
 /// retries, and the server's write is an upsert by that id (E7.19), so a time never goes in twice.
 ///
@@ -67,6 +73,7 @@ class SetSyncQueue {
   SetSyncQueue({
     required this.send,
     this.sendTime,
+    this.sendGuided,
     this.sendOpen,
     required this.store,
     required this.isRetryable,
@@ -78,6 +85,9 @@ class SetSyncQueue {
 
   /// Without it, block times stay queued.
   final SendBlockTime? sendTime;
+
+  /// Without it, the writes of the guided pass stay queued, and so do the block times behind them.
+  final SendGuidedWrite? sendGuided;
 
   /// Without it, openings stay queued, and so does everything behind them.
   final SendSessionOpen? sendOpen;
@@ -92,10 +102,14 @@ class SetSyncQueue {
 
   final _changes = StreamController<List<PendingWrite>>.broadcast();
   final _opened = StreamController<SessionOpened>.broadcast();
+  // Synchronous, so the screen takes the session the server answered before the write leaves [pendingGuided] and the
+  // pass on screen never steps back in between.
+  final _guidedStored = StreamController<Session>.broadcast(sync: true);
   late final Future<void> _restored = _restore();
   var _opens = <PendingSessionOpen>[];
   var _queue = <PendingSetWrite>[];
   var _times = <PendingBlockTime>[];
+  var _guided = <PendingGuidedWrite>[];
   var _flushing = 0;
   var _stalled = false;
   final _draft = <SetKey, PendingSetWrite>{};
@@ -115,17 +129,29 @@ class SetSyncQueue {
   /// The block times not yet taken by the server.
   List<PendingBlockTime> get pendingTimes => List.unmodifiable(_times);
 
+  /// The writes of the guided pass not yet taken by the server, in order.
+  List<PendingGuidedWrite> get pendingGuided => List.unmodifiable(_guided);
+
   /// The openings not yet taken by the server.
   List<PendingSessionOpen> get pendingOpens => List.unmodifiable(_opens);
 
-  /// Everything waiting for the server: the openings, the sets, then the block times.
-  List<PendingWrite> get unsent => [..._opens, ..._queue, ..._times];
+  /// Everything waiting for the server: the openings, the sets, the writes of the guided pass, then the block times.
+  List<PendingWrite> get unsent => [
+    ..._opens,
+    ..._queue,
+    ..._guided,
+    ..._times,
+  ];
 
   /// Emits [unsent] every time it or [saveState] changes.
   Stream<List<PendingWrite>> get changes => _changes.stream;
 
   /// Emits each opening once the server takes it, after the queued writes got the server's id.
   Stream<SessionOpened> get opened => _opened.stream;
+
+  /// Emits, synchronously, the session the server answered to each write of the guided pass, before the write leaves
+  /// the queue.
+  Stream<Session> get guidedStored => _guidedStored.stream;
 
   /// The id [sessionId] goes by now: the server's when it was the device's id of a session opened since.
   String currentIdOf(String sessionId) => _renamed[sessionId] ?? sessionId;
@@ -200,25 +226,52 @@ class SetSyncQueue {
     return queued;
   }
 
-  /// Keeps [write] on the device and sends the queue. The time goes out once however many passes it takes. Returns
-  /// the id the time was given.
+  /// Keeps [write] on the device and sends the queue. The time goes out once however many passes it takes. [id] is
+  /// the time's id on the server, taken from the guided pass (E7.26) so every device gives a block the same one; a time
+  /// already queued with it is replaced. Returns the id the time was given.
   Future<String> submitBlockTime({
     required String clubId,
     required String sessionId,
     required BlockTimeWrite write,
+    String? id,
   }) async {
     await _restored;
     final pending = PendingBlockTime(
-      id: '${_now().microsecondsSinceEpoch}-${_counter++}',
+      id: id ?? '${_now().microsecondsSinceEpoch}-${_counter++}',
       clubId: clubId,
       sessionId: currentIdOf(sessionId),
       write: write,
     );
-    _times = [..._times, pending];
+    _times = [
+      for (final t in _times)
+        if (t.id != pending.id) t,
+      pending,
+    ];
     await _persist();
     _emit();
     await flush();
     return pending.id;
+  }
+
+  /// Keeps [action] on the device, behind the sets, and sends the queue without waiting for it: the guided mode moves
+  /// on at once (E7.26). Returns the write as queued.
+  Future<PendingGuidedWrite> submitGuided({
+    required String clubId,
+    required String sessionId,
+    required GuidedPassAction action,
+  }) async {
+    await _restored;
+    final pending = PendingGuidedWrite(
+      id: '${_now().microsecondsSinceEpoch}-${_counter++}',
+      clubId: clubId,
+      sessionId: currentIdOf(sessionId),
+      action: action,
+    );
+    _guided = [..._guided, pending];
+    await _persist();
+    _emit();
+    flush().ignore();
+    return pending;
   }
 
   /// Sends what is queued, in order, and stops at the first write that cannot go now (no signal, server down).
@@ -298,6 +351,34 @@ class SetSyncQueue {
       await _persist();
       _emit();
     }
+    final sendGuided = this.sendGuided;
+    // Behind the sets, like the block times: a pass that closes a block arrives after the block's sets.
+    while (!_stalled && _guided.isNotEmpty) {
+      final head = _guided.first;
+      if (sendGuided == null) {
+        _stalled = true;
+        break;
+      }
+      try {
+        final session = await sendGuided(head).timeout(sendTimeout);
+        if (!_guidedStored.isClosed) _guidedStored.add(session);
+      } on TimeoutException {
+        _stalled = true;
+        break;
+      } catch (e) {
+        if (isRetryable(e)) {
+          _stalled = true;
+          break;
+        }
+        rejected[head.id] = e;
+      }
+      _guided = [
+        for (final g in _guided)
+          if (g.id != head.id) g,
+      ];
+      await _persist();
+      _emit();
+    }
     final sendTime = this.sendTime;
     // Behind the sets, so a session opened without signal has them first; and not at all while they are stuck.
     while (!_stalled && sendTime != null && _times.isNotEmpty) {
@@ -334,6 +415,9 @@ class SetSyncQueue {
     _times = [
       for (final t in _times) t.sessionId == from ? t.inSession(to) : t,
     ];
+    _guided = [
+      for (final g in _guided) g.sessionId == from ? g.inSession(to) : g,
+    ];
     final moved = [
       for (final p in _draft.values)
         if (p.sessionId == from) p.inSession(to),
@@ -356,6 +440,10 @@ class SetSyncQueue {
       for (final t in _times)
         if (t.sessionId != sessionId) t,
     ];
+    _guided = [
+      for (final g in _guided)
+        if (g.sessionId != sessionId) g,
+    ];
     _draft.removeWhere((k, _) => k.sessionId == sessionId);
   }
 
@@ -365,6 +453,7 @@ class SetSyncQueue {
       _opens = [...snapshot.opens];
       _queue = [...snapshot.queue];
       _times = [...snapshot.times];
+      _guided = [...snapshot.guided];
       for (final p in snapshot.draft) {
         _draft[p.key] = p;
       }
@@ -381,6 +470,7 @@ class SetSyncQueue {
           draft: _draft.values.toList(),
           opens: _opens,
           queue: _queue,
+          guided: _guided,
           times: _times,
         ),
       );
@@ -396,5 +486,6 @@ class SetSyncQueue {
   void dispose() {
     _changes.close();
     _opened.close();
+    _guidedStored.close();
   }
 }

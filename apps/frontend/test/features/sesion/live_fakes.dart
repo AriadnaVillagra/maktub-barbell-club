@@ -38,6 +38,17 @@ class FakeLiveServer {
   int connects = 0;
   final resyncsFrom = <int>[];
 
+  /// The session's guided pass (E7.26) and the number of the last change of the session itself.
+  GuidedPass? guidedPass;
+  var lastSessionChange = 0;
+
+  /// Writes of the pass the server took that changed it.
+  var passChanges = 0;
+
+  /// The block times taken, by id, and how many writes reached them.
+  final times = <String, BlockTimeWrite>{};
+  var timeWrites = 0;
+
   int get openConnections => _connections.length;
 
   Session get session => Session(
@@ -51,8 +62,39 @@ class FakeLiveServer {
     date: DateTime.utc(2026, 11, 18),
     presentAthleteIds: const ['ari', 'andi'],
     sequence: sequence,
+    lastSessionChange: lastSessionChange,
+    guidedPass: guidedPass,
     auditoria: _audit(),
   );
+
+  void _publish(SessionChange change) {
+    for (final c in _connections) {
+      c.add(change);
+    }
+  }
+
+  /// Applies [action] over the pass as it is, like the backend, and publishes the session if it changed.
+  Session writeGuided(GuidedPassAction action) {
+    if (down || writesDown) {
+      throw const ErrorDeApi('No se pudo conectar con el servidor.');
+    }
+    final next = applyGuidedAction(guidedPass, action);
+    if (next == null || identical(next, guidedPass)) return session;
+    guidedPass = next;
+    passChanges++;
+    lastSessionChange = ++sequence;
+    _publish(SessionChange.ofSession(sequence, session));
+    return session;
+  }
+
+  /// An upsert by the time's id, like E7.19.
+  void recordTime(String id, BlockTimeWrite write) {
+    if (down || writesDown) {
+      throw const ErrorDeApi('No se pudo conectar con el servidor.');
+    }
+    timeWrites++;
+    times[id] = write;
+  }
 
   /// Stores what [write] leaves, as E7.3 does (computed kilos are 100 unless typed), and publishes it.
   SetRecord write(SetWrite write) {
@@ -117,6 +159,8 @@ class FakeLiveServer {
     final changed = [
       for (final r in records.values)
         if (r.sequence! > since) SessionChange.ofRecord(r.sequence!, r),
+      if (lastSessionChange > since)
+        SessionChange.ofSession(lastSessionChange, session),
     ]..sort((a, b) => a.sequence.compareTo(b.sequence));
     return ChangesSince(last: sequence, changes: changed);
   }
@@ -199,7 +243,7 @@ class FakeLiveSessions implements SessionRepository {
     String sessionId,
     String timeId,
     BlockTimeWrite write,
-  ) async {}
+  ) async => server.recordTime(timeId, write);
 
   @override
   Future<Session> saveSessionNote(
@@ -207,4 +251,11 @@ class FakeLiveSessions implements SessionRepository {
     String sessionId,
     String note,
   ) async => server.session;
+
+  @override
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  ) async => server.writeGuided(action);
 }

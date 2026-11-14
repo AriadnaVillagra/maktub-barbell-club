@@ -269,6 +269,23 @@ class CachedSessionRepository implements SessionRepository, SessionCopy {
     return session;
   }
 
+  @override
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  ) async {
+    final session = await _remote.writeGuidedPass(clubId, sessionId, action);
+    await _update(
+      clubId,
+      sessionId,
+      (live) => live_sync.applyChanges(live, [
+        SessionChange.ofSession(session.lastSessionChange, session),
+      ]),
+    );
+    return session;
+  }
+
   Future<void> _update(
     String clubId,
     String sessionId,

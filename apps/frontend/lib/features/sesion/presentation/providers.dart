@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
@@ -117,7 +118,7 @@ final sessionDraftStoreProvider = Provider<SessionDraftStore>(
 /// How often a queue with writes left tries again. It is also flushed every time the live channel opens (E7.10).
 const queueRetryInterval = Duration(seconds: 15);
 
-/// The device's draft and queue of set writes and block times (E7.9, E7.21). It outlives the screen, so leaving it does not drop anything.
+/// The device's draft and queue of set writes, guided pass writes and block times (E7.9, E7.21, E7.26). It outlives the screen, so leaving it does not drop anything.
 final setSyncQueueProvider = Provider<SetSyncQueue>((ref) {
   final repository = ref.watch(sessionRepositoryProvider);
   final copy = ref.watch(sessionCopyProvider);
@@ -125,6 +126,8 @@ final setSyncQueueProvider = Provider<SetSyncQueue>((ref) {
     send: (p) => repository.recordSet(p.clubId, p.sessionId, p.write),
     sendTime: (t) =>
         repository.recordBlockTime(t.clubId, t.sessionId, t.id, t.write),
+    sendGuided: (g) =>
+        repository.writeGuidedPass(g.clubId, g.sessionId, g.action),
     // Never through the copy: an opening answered from it would look taken while the server never saw it.
     sendOpen: (o) => (copy?.openOnServer ?? repository.open)(
       o.clubId,
@@ -351,6 +354,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
   StreamSubscription<LiveStatus>? _statusSubscription;
   StreamSubscription<List<PendingWrite>>? _queueSubscription;
   StreamSubscription<SessionOpened>? _openedSubscription;
+  StreamSubscription<Session>? _guidedSubscription;
 
   /// Changes from the channel for sets this device still has a write queued for. Showing them would undo on screen
   /// what the user just marked; they apply once that write leaves the queue (its own change follows anyway).
@@ -362,8 +366,13 @@ class SessionScreenController extends Notifier<SessionScreenState> {
         .read(setSyncQueueProvider)
         .opened
         .listen((o) => unawaited(_onOpened(o)));
+    _guidedSubscription = ref
+        .read(setSyncQueueProvider)
+        .guidedStored
+        .listen(_onGuidedStored);
     ref.onDispose(() {
       _openedSubscription?.cancel();
+      _guidedSubscription?.cancel();
       _stopFollowing();
     });
     return const SessionScreenState();
@@ -393,6 +402,20 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     _follow(server);
     ref.invalidate(cycleDayStatesProvider);
     state = _with(live: live, liveStatus: _sync?.status);
+  }
+
+  /// The server took a write of the guided pass (E7.26): the screen takes the session it answered before the write
+  /// leaves the queue, so the pass on screen never steps back.
+  void _onGuidedStored(Session session) {
+    final live = state.live;
+    if (live == null) return;
+    final queue = ref.read(setSyncQueueProvider);
+    if (queue.currentIdOf(live.session.id) != session.id) return;
+    state = _with(
+      live: applyChanges(live, [
+        SessionChange.ofSession(session.lastSessionChange, session),
+      ]),
+    );
   }
 
   static LiveSession _withUnsent(LiveSession live, List<SetWrite> unsent) =>
@@ -737,17 +760,42 @@ final guidedClockProvider = Provider<DateTime Function()>(
   (ref) => DateTime.now,
 );
 
-/// The guided mode over the open session (E7.20): the pure [GuidedSession], fed with the session's records, and the
-/// set writes it leads to, through the same draft and queue as the session's list (E7.8, E7.9). Null without an open
-/// session. Its position is local and is dropped when the guided screen closes.
+/// Ids of new guided passes (E7.26): unique enough for the passes of one session, and valid as part of a block time's
+/// id. Tests override it.
+final guidedPassIdProvider = Provider<String Function()>((ref) {
+  final random = Random();
+  return () =>
+      '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}'
+      '${random.nextInt(0x7fffffff).toRadixString(36)}';
+});
+
+/// The guided mode over the open session (E7.20): the pure [GuidedSession], fed with the session's records and its
+/// guided pass, and the writes it leads to. Null without an open session.
+///
+/// Since E7.26 the pass is the session's, the same on every device: each action is applied on screen at once and goes
+/// to the queue (E7.9) behind the sets; what other devices do arrives with the session over the live channel. What is
+/// shown is the server's pass with this device's unsent actions applied over it, so nothing steps back while they
+/// travel. Leaving the screen keeps the pass for everyone; only the athletes being chosen and the step's draft are
+/// dropped.
 class GuidedController extends Notifier<GuidedSession?> {
+  /// Actions applied on screen that have not reached the queue yet.
+  final _unqueued = <GuidedPassAction>[];
+  Future<void> _submitting = Future.value();
+
   @override
   GuidedSession? build() {
+    ref.listen(
+      sessionScreenProvider.select((s) => s.live?.session),
+      (_, _) => _refresh(),
+    );
     // A set another device marks, or one this device wrote, may close the block.
     ref.listen(
       sessionScreenProvider.select((s) => s.live?.records),
-      (_, _) => _update((s) => s.settle(recorded, now: _now)),
+      (_, _) => _settle(),
     );
+    final queue = ref.read(setSyncQueueProvider);
+    final subscription = queue.changes.listen((_) => _refresh());
+    ref.onDispose(subscription.cancel);
     final data = ref.read(sessionDayProvider).value;
     final screen = ref.read(sessionScreenProvider);
     final live = screen.live;
@@ -755,7 +803,7 @@ class GuidedController extends Notifier<GuidedSession?> {
     final day = liveDayOf(data, live);
     if (day == null) return null;
     final athlete = athleteOnScreen(data, screen, live) ?? data.ownAthleteId;
-    return GuidedSession.choosing(day, [?athlete]);
+    return GuidedSession.entering(day, _shownPass(live), [?athlete]);
   }
 
   LiveSession? get _live => ref.read(sessionScreenProvider).live;
@@ -765,24 +813,73 @@ class GuidedController extends Notifier<GuidedSession?> {
 
   DateTime get _now => ref.read(guidedClockProvider)();
 
-  void _update(GuidedSession Function(GuidedSession) change) {
-    final s = state;
-    if (s != null) _set(s, change(s));
+  /// The server's pass of [live] with what this device has not sent yet applied over it.
+  GuidedPass? _shownPass([LiveSession? live]) {
+    live ??= _live;
+    if (live == null) return null;
+    final queue = ref.read(setSyncQueueProvider);
+    final id = queue.currentIdOf(live.session.id);
+    final unsent = [
+      for (final p in queue.pendingGuided)
+        if (queue.currentIdOf(p.sessionId) == id) p.action,
+      ..._unqueued,
+    ];
+    return unsent.fold(live.session.guidedPass, applyGuidedAction);
   }
 
-  /// Moves to [next] and, for each block it closed as done or interrupted (a skipped one leaves no time), queues the
-  /// block's time (E7.21). Every change of state goes through here, so a block closed by any path leaves its time.
-  void _set(GuidedSession previous, GuidedSession next) {
-    state = next;
+  void _refresh() {
+    final s = state;
+    if (s != null) state = s.withPass(_shownPass());
+  }
+
+  void _settle() {
+    final s = state;
+    if (s != null) _dispatch(s.settleActions(recorded, now: _now));
+  }
+
+  /// Applies [actions] on screen at once and queues them, in order, for the server. For each block they close as done
+  /// or interrupted on this device (a skipped one leaves no time), queues the block's time (E7.21) under the pass's id
+  /// for it, so a block that two devices close at once still has one time.
+  void _dispatch(List<GuidedPassAction> actions, {bool clearDraft = false}) {
+    final s = state;
+    final live = _live;
+    if (s == null || live == null) return;
+    if (actions.isEmpty) {
+      if (clearDraft) state = s.clearingDraft();
+      return;
+    }
+    final next = s.applying(actions);
+    state = clearDraft ? next.clearingDraft() : next;
+    _queueTimes(s, next);
+    _unqueued.addAll(actions);
+    final queue = ref.read(setSyncQueueProvider);
+    final clubId = live.session.clubId;
+    final sessionId = live.session.id;
+    _submitting = _submitting.then((_) async {
+      for (final a in actions) {
+        try {
+          await queue.submitGuided(
+            clubId: clubId,
+            sessionId: sessionId,
+            action: a,
+          );
+        } catch (_) {
+          // Without local storage the write still goes out from memory.
+        }
+        _unqueued.remove(a);
+      }
+    });
+  }
+
+  void _queueTimes(GuidedSession previous, GuidedSession next) {
+    final pass = next.pass;
+    if (pass == null || previous.pass?.id != pass.id) return;
+    bool timed(GuidedBlockRun r) =>
+        r.status == GuidedBlockStatus.done ||
+        r.status == GuidedBlockStatus.interrupted;
     for (var i = 0; i < next.runs.length && i < previous.runs.length; i++) {
       final run = next.runs[i];
-      final timed =
-          run.status == GuidedBlockStatus.done ||
-          run.status == GuidedBlockStatus.interrupted;
-      final wasTimed =
-          previous.runs[i].status == GuidedBlockStatus.done ||
-          previous.runs[i].status == GuidedBlockStatus.interrupted;
-      if (timed && !wasTimed) _queueTime(next, run);
+      if (timed(run) && !timed(previous.runs[i])) _queueTime(next, run);
     }
   }
 
@@ -791,6 +888,7 @@ class GuidedController extends Notifier<GuidedSession?> {
     final start = run.start;
     final end = run.end;
     if (live == null || start == null || end == null) return;
+    if (run.blockIndex >= guided.day.blocks.length) return;
     final block = guided.day.blocks[run.blockIndex];
     unawaited(
       ref
@@ -798,6 +896,7 @@ class GuidedController extends Notifier<GuidedSession?> {
           .submitBlockTime(
             clubId: live.session.clubId,
             sessionId: live.session.id,
+            id: blockTimeIdOf(guided.pass!.id, run.blockIndex),
             write: BlockTimeWrite(
               blockIndex: run.blockIndex,
               blockName: block.name,
@@ -812,6 +911,11 @@ class GuidedController extends Notifier<GuidedSession?> {
     );
   }
 
+  void _update(GuidedSession Function(GuidedSession) change) {
+    final s = state;
+    if (s != null) state = change(s);
+  }
+
   void toggleAthlete(String athleteId) =>
       _update((s) => s.toggleAthlete(athleteId));
 
@@ -823,7 +927,8 @@ class GuidedController extends Notifier<GuidedSession?> {
 
   /// "Comenzar". An athlete who is not present yet is added to the session first, since only present athletes record
   /// sets. With [redo] every set is walked again and finishing one overwrites its record (E7.23); nothing is
-  /// unmarked. Rethrows the backend's error so the screen can show it.
+  /// unmarked. A pass another device began meanwhile is joined instead. Rethrows the backend's error so the screen can
+  /// show it.
   Future<void> begin({bool redo = false}) async {
     final s = state;
     final live = _live;
@@ -840,20 +945,40 @@ class GuidedController extends Notifier<GuidedSession?> {
             present: {...present, ...s.athleteIds},
           );
     }
-    _update((s) => s.begin(now: _now, redo: redo));
+    final now = state;
+    if (now == null) return;
+    _dispatch(
+      now.beginActions(
+        passId: ref.read(guidedPassIdProvider)(),
+        now: _now,
+        redo: redo,
+      ),
+    );
   }
 
+  /// "Empezar de nuevo": back to choosing who trains, for a pass that replaces this one. The pass goes on for everyone
+  /// until "Comenzar".
+  void startOver() => _update((s) => s.startingOver());
+
+  /// Leaves "Empezar de nuevo" without writing anything: back to the pass going on.
+  void resume() => _update((s) => s.resuming());
+
+  /// "Terminar el día": the pass closes for every device, which all go to the summary.
+  void finishDay() => _dispatch(state?.finishDayActions(now: _now) ?? const []);
+
   void setAthleteMode(AthleteMode mode) =>
-      _update((s) => s.withAthleteMode(mode));
+      _dispatch(state?.athleteModeActions(mode, now: _now) ?? const []);
 
   void setExecutionMode(ExecutionMode mode) =>
-      _update((s) => s.withExecutionMode(mode));
+      _dispatch(state?.executionModeActions(mode, now: _now) ?? const []);
 
-  void startBlock() => _update((s) => s.startBlock(recorded, now: _now));
+  void startBlock() =>
+      _dispatch(state?.startBlockActions(recorded, now: _now) ?? const []);
 
-  void skipBlock() => _update((s) => s.skipBlock(now: _now));
+  void skipBlock() => _dispatch(state?.skipBlockActions(now: _now) ?? const []);
 
-  void interruptBlock() => _update((s) => s.interruptBlock(now: _now));
+  void interruptBlock() =>
+      _dispatch(state?.interruptBlockActions(now: _now) ?? const []);
 
   void startStep() => _update((s) => s.startStep(recorded));
 
@@ -863,13 +988,17 @@ class GuidedController extends Notifier<GuidedSession?> {
   void edit(String athleteId, SetEdit edit) =>
       _update((s) => s.edit(athleteId, edit, recorded));
 
-  void leaveExercise(String athleteId) =>
-      _update((s) => s.leaveExercise(athleteId, recorded, now: _now));
+  void leaveExercise(String athleteId) => _dispatch(
+    state?.leaveExerciseActions(athleteId, recorded, now: _now) ?? const [],
+  );
 
-  void skipExercise() => _update((s) => s.skipExercise(recorded, now: _now));
+  void skipExercise() => _dispatch(
+    state?.skipExerciseActions(recorded, now: _now) ?? const [],
+    clearDraft: true,
+  );
 
-  /// "Terminar serie": moves on at once and writes each athlete's set with what their card shows. Rethrows the
-  /// backend's refusal so the screen can show it.
+  /// "Terminar serie": moves on at once and writes each athlete's set with what their card shows. The sets go to the
+  /// queue ahead of the pass. Rethrows the backend's refusal so the screen can show it.
   Future<void> finishStep() async {
     final s = state;
     final done = recorded;
@@ -877,7 +1006,7 @@ class GuidedController extends Notifier<GuidedSession?> {
     final step = s?.currentStep(done);
     if (s == null || run == null || step == null) return;
     final draft = s.draftFor(step);
-    final result = s.finishStep(done, now: _now);
+    final result = s.finishStepActions(done, now: _now);
     final writes = [
       for (final a in result.record)
         _markWrite(
@@ -889,8 +1018,9 @@ class GuidedController extends Notifier<GuidedSession?> {
           draft.edits[a],
         ),
     ];
-    _set(s, result.next);
-    await _send(writes);
+    final sending = _send(writes);
+    _dispatch(result.actions, clearDraft: true);
+    await sending;
   }
 
   /// "Terminar bloque" of a block without steps. A timed block's sets that nobody recorded yet are recorded as the
@@ -909,8 +1039,9 @@ class GuidedController extends Notifier<GuidedSession?> {
                 !done.contains((run.blockIndex, AthleteSet(a, p, set))))
               _markWrite(block, run.blockIndex, p, set, a, null),
     ];
-    _set(s, s.finishBlock(now: _now));
-    await _send(writes);
+    final sending = _send(writes);
+    _dispatch(s.finishBlockActions(now: _now));
+    await sending;
   }
 
   SetWrite _markWrite(

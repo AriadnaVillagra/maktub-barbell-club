@@ -47,6 +47,14 @@ abstract interface class SessionRepository {
 
   /// Writes the note of the whole session, or clears it when [note] is empty.
   Future<Session> saveSessionNote(String clubId, String sessionId, String note);
+
+  /// Writes [action] on the session's guided pass (E7.26) and returns the session with the pass as the server left
+  /// it. Repeating it changes nothing.
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  );
 }
 
 /// Opening without signal a session this device never opened: there is nothing saved to resume, so the app opens it
