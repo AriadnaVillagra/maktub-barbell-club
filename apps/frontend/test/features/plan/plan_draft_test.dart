@@ -326,4 +326,32 @@ void main() {
       expect(blockOf(next).note, 'nota');
     });
   });
+
+  test(
+    'the modes of a block survive an edit, toPlan and a JSON round trip',
+    () {
+      var d = empty().addModel('A');
+      final m = d.weekModels[0].id;
+      d = d.addBlock(
+        m,
+        0,
+        const PlanBlock(name: 'Accesorios', categoryId: 'x'),
+      );
+      d = d.updateBlock(
+        m,
+        0,
+        0,
+        (b) => PlanBlock(
+          name: b.name,
+          categoryId: b.categoryId,
+          executionMode: ExecutionMode.circuit,
+          athleteMode: AthleteMode.turns,
+        ),
+      );
+      final back = Plan.fromJson(d.toPlan().toJson());
+      final block = back.weekModels[0].days[0].blocks[0];
+      expect(block.executionMode, ExecutionMode.circuit);
+      expect(block.athleteMode, AthleteMode.turns);
+    },
+  );
 }

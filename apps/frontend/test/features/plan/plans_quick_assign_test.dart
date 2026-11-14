@@ -64,7 +64,7 @@ void main() {
   );
 
   Future<void> open(WidgetTester tester, _FakeAssignments assignments) async {
-    tester.view.physicalSize = const Size(900, 1800);
+    tester.view.physicalSize = const Size(900, 3000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
     await tester.pumpWidget(
