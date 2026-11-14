@@ -97,11 +97,13 @@ se da por supuesto.
 | E7.20 | [Modo guiado: atletas, bloques y pasos](E7.20-modo-guiado-bloques-y-pasos.md) | E7.17, E7.8, E7.9, E7.11, E7.12 |
 | E7.21 | [Modo guiado: tiempos de bloque y resumen del día](E7.21-modo-guiado-resumen-y-tiempos.md) | E7.20, E7.19 |
 | E7.22 | [Modo guiado: elegir secuencial o circuito al entrenar](E7.22-modo-guiado-orden-en-vivo.md) | E7.20, E7.21 |
+| E7.23 | [Modo guiado: seguir desde lo pendiente o empezar de cero](E7.23-modo-guiado-seguir-o-empezar-de-cero.md) | E7.21 |
+| E7.24 | [Una sola pantalla para el calendario y la sesión del día](E7.24-unificar-calendario-y-sesion.md) | E7.13, E7.20 |
 
 **En paralelo:**
 - E7.1 (verificación de R1) no depende de nada y va primero (M1 §6).
 - La cadena del canal (E7.5 → E7.6) avanza en paralelo con la de la pantalla (E7.7 → E7.8). E7.4 y E7.13 se pueden tomar apenas existe E7.3.
 - Después de E7.8 se pueden tomar a la vez E7.9 y E7.11. E7.10 une el canal con el borrador.
 - Modo guiado (agregado el 2026-11-14): E7.17, E7.18 y E7.19 no dependen entre sí y se pueden tomar ya.
-  E7.20 espera a E7.12 por el bloque de WoD, después E7.21 y E7.22 (salió de la prueba en local).
+  E7.20 espera a E7.12 por el bloque de WoD, después E7.21. E7.22, E7.23 y E7.24 salieron de la prueba en local: E7.22 y E7.23 van juntos (mismos archivos) y E7.24 en paralelo.
 - E7.14 a E7.16 (agregados el 2026-11-14) cubren D8 completo: abrir plan, calendario y sesión sin señal. E7.14 se puede tomar ya, en paralelo con E7.10 y E7.12. E7.15 sigue a E7.14, y E7.16 va al final porque une la copia local con la cola y el canal.

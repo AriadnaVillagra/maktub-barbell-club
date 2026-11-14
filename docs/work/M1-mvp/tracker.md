@@ -27,7 +27,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 16 / 22 (E7.1 a E7.9, E7.11 a E7.13 y E7.17 a E7.20 hechos; E7.21 en curso, después E7.22; del otro agente siguen E7.10 y E7.14 a E7.16) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 17 / 24 (E7.1 a E7.9, E7.11 a E7.13 y E7.17 a E7.21 hechos; E7.22 a E7.24 en curso; del otro agente siguen E7.10 y E7.14 a E7.16) | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
@@ -77,6 +77,8 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - **Para E8.4:** los accesorios con el mismo `grupo` en un día de la referencia son una biserie: se importan
   como un bloque en circuito (E7.18).
 - **Temporizadores siempre disponibles (2026-11-14, pedido por Ari):** como el ⏱ de cada cabecera de la referencia. Cada temporizador activo de la sección Temporizadores tiene un botón para iniciarlo. El shell suma "Temporizador" como último ítem de la barra y del riel, que abre el selector sin navegar. Con una sola sección, la barra queda con Entrenamiento y Temporizador.
+- **E7.21 (hecho):** los tiempos de bloque van por la cola de E7.9, con su id creado una vez, y salen después de las series. Están indexados por `sessionId`, así que E7.16 solo tiene que reemplazar ese id en las series y tiempos de la cola. Los kg del resumen usan `formatKg` ("77.5", no "77,5"). Un tiempo rechazado con 4xx sale de la cola sin avisar.
+- **Prueba en local de Ari (2026-11-14):** pidió elegir secuencial o circuito al entrenar (E7.22), preguntar al empezar si seguir o empezar de cero (E7.23; la rampa de la sentadilla ya estaba marcada desde la lista) y unificar calendario y sesión (E7.24). **Para E7.15 y E7.16:** después de E7.24 el calendario es la pantalla de la sesión.
 - **E7.20 (hecho), decisiones para revisar con Ari:** (1) elegir en el modo guiado a un atleta que no está presente reabre la sesión sumándolo a presentes, porque el backend solo acepta series de presentes; (2) "Terminar bloque" en un bloque por tiempo con series (WoD o EMOM con ejercicios) registra como hechas, con los valores del plan, las series que faltaban, para que el día cuente como hecho; (3) los kg y reps editados quedan en el teléfono hasta "Terminar serie"; (4) el modo guiado avanza sin esperar la escritura, y si una falla muestra el error y el paso queda pasado; (5) un bloque con todas sus series ya registradas se cierra como hecho al tocar "Iniciar bloque". Se entra desde la sesión con "Entrenar" (`/entrenamiento/sesion/entrenar`); la posición se pierde al salir.
 - **E7.19 (hecho):** `PUT .../sesiones/{id}/tiempos/{tiempoId}` exige que los atletas estén presentes en la sesión (422 si no). Un id de cliente repetido en otro club da 500 por clave duplicada; se aceptó porque los ids son UUID. Para E8.5: la hoja Tiempos trae nombres de atletas, no ids.
 - **`diseno.md`:** no tiene `BlockTime` ni que el modo guiado y parte de F10 entran en M1. Se avisa a su sesión.
