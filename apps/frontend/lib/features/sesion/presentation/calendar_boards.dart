@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
@@ -196,13 +198,58 @@ class _DayRow extends StatelessWidget {
   final List<Widget> children;
 
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-    scrollDirection: Axis.horizontal,
+  Widget build(BuildContext context) => _SidewaysScroll(
     child: IntrinsicHeight(
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         spacing: Espacio.s,
         children: children,
+      ),
+    ),
+  );
+}
+
+/// Sideways scrolling with its bar always visible, so a row wider than the screen (a week of 7 days on a phone)
+/// shows that there is more to the right.
+class _SidewaysScroll extends StatefulWidget {
+  const _SidewaysScroll({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_SidewaysScroll> createState() => _SidewaysScrollState();
+}
+
+class _SidewaysScrollState extends State<_SidewaysScroll> {
+  final _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => ScrollConfiguration(
+    // In the browser a mouse or trackpad drags the row too, not only a finger; Flutter web leaves the mouse out.
+    behavior: ScrollConfiguration.of(context).copyWith(
+      dragDevices: {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.invertedStylus,
+      },
+    ),
+    child: Scrollbar(
+      controller: _controller,
+      thumbVisibility: true,
+      child: SingleChildScrollView(
+        controller: _controller,
+        scrollDirection: Axis.horizontal,
+        // Room under the row for the bar, so it does not cover the cards.
+        padding: const EdgeInsets.only(bottom: Espacio.m),
+        child: widget.child,
       ),
     ),
   );
@@ -244,8 +291,7 @@ class CompactBoard extends StatelessWidget {
           ),
       ],
     );
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    return _SidewaysScroll(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         spacing: labelsAbove ? Espacio.l : Espacio.s,

@@ -1,3 +1,5 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -1249,6 +1251,45 @@ void main() {
         expect(inKey('calendar-day-4-1', find.text(text)), findsOneWidget);
       }
     });
+
+    for (final label in ['Compacta', 'Tarjetas']) {
+      testWidgets('$label on a phone: a mouse drags the row sideways and its bar shows', (
+        tester,
+      ) async {
+        await _pump(tester, _FakeSessions(), size: const Size(400, 800));
+        await toCalendar(tester);
+        await choose(tester, label);
+
+        final third = find.byKey(const Key('calendar-day-4-3'));
+        await tester.scrollUntilVisible(
+          find.byKey(const Key('calendar-week-4')),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        // The third day starts off screen to the right.
+        expect(tester.getRect(third).right, greaterThan(400));
+        expect(
+          find.ancestor(of: third, matching: find.byType(Scrollbar)),
+          findsOneWidget,
+        );
+
+        final first = find.byKey(const Key('calendar-day-4-1'));
+        final before = tester.getRect(first).left;
+        final drag = await tester.startGesture(
+          tester.getCenter(first),
+          kind: PointerDeviceKind.mouse,
+        );
+        for (var i = 0; i < 10; i++) {
+          await drag.moveBy(const Offset(-30, 0));
+          await tester.pump();
+        }
+        await drag.up();
+        await tester.pumpAndSettle();
+        expect(tester.getRect(first).left, lessThan(before - 100));
+        expect(tester.takeException(), isNull);
+      });
+    }
 
     testWidgets('Detallada shows every day in full with its button', (
       tester,
