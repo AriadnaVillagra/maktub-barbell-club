@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/sesion/data/shared_preferences_draft_store.dart';
+import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_draft_store.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_sync_queue.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
@@ -20,6 +21,16 @@ class _FakeServer {
   /// The server stores the write but the answer never arrives.
   bool loseAnswers = false;
   String? refuseWith;
+
+  /// Block times by id: the server's write is an upsert by the client's id (E7.19).
+  final times = <String, BlockTimeWrite>{};
+  var timeRequests = 0;
+
+  Future<void> sendTime(PendingBlockTime t) async {
+    if (offline) throw const ErrorDeApi('No se pudo conectar.');
+    timeRequests++;
+    times[t.id] = t.write;
+  }
 
   Future<SetRecord> send(PendingSetWrite p) async {
     if (offline) throw const ErrorDeApi('No se pudo conectar.');
@@ -65,6 +76,7 @@ SetSyncQueue _queue(
   Duration sendTimeout = const Duration(seconds: 10),
 }) => SetSyncQueue(
   send: server.send,
+  sendTime: server.sendTime,
   store: store,
   isRetryable: isTransientWriteError,
   sendTimeout: sendTimeout,
@@ -248,6 +260,106 @@ void main() {
       expect((await store.load()).draft, isEmpty);
     },
   );
+
+  group('block times', () {
+    BlockTimeWrite time(int block, {bool interrupted = false}) =>
+        BlockTimeWrite(
+          blockIndex: block,
+          blockName: 'Principal',
+          athleteMode: AthleteMode.turns,
+          athleteIds: const ['ari'],
+          start: DateTime.utc(2026, 11, 18, 10),
+          end: DateTime.utc(2026, 11, 18, 10, 5),
+          interrupted: interrupted,
+        );
+
+    test('without signal the time stays queued and goes out once when it comes back', () async {
+      final server = _FakeServer()..offline = true;
+      final queue = _queue(server, MemoryDraftStore());
+
+      final id = await queue.submitBlockTime(
+        clubId: 'c1',
+        sessionId: 's1',
+        write: time(1, interrupted: true),
+      );
+      expect(queue.pendingTimes.single.id, id);
+      expect(queue.saveState, SaveState.unsaved);
+
+      server.offline = false;
+      await queue.flush();
+      await queue.flush();
+
+      expect(queue.pendingTimes, isEmpty);
+      expect(queue.saveState, SaveState.saved);
+      expect(server.timeRequests, 1);
+      expect(server.times.keys, [id]);
+      expect(server.times[id]!.interrupted, isTrue);
+    });
+
+    test('a retry after a lost answer reuses the id, so the server keeps one', () async {
+      final server = _FakeServer();
+      var lost = true;
+      final queue = SetSyncQueue(
+        send: server.send,
+        sendTime: (t) async {
+          await server.sendTime(t);
+          if (lost) throw const ErrorDeApi('No se pudo conectar.');
+        },
+        store: MemoryDraftStore(),
+        isRetryable: isTransientWriteError,
+      );
+
+      final id = await queue.submitBlockTime(
+        clubId: 'c1',
+        sessionId: 's1',
+        write: time(1),
+      );
+      expect(queue.pendingTimes.single.id, id);
+      lost = false;
+      await queue.flush();
+
+      expect(server.timeRequests, 2);
+      expect(server.times.keys, [id]);
+      expect(queue.pendingTimes, isEmpty);
+    });
+
+    test('a reload keeps the queued time with its id', () async {
+      final server = _FakeServer()..offline = true;
+      final disk = DraftDisk();
+      final id = await _queue(server, MemoryDraftStore(disk)).submitBlockTime(
+        clubId: 'c1',
+        sessionId: 's1',
+        write: time(2),
+      );
+
+      final reloaded = _queue(server, MemoryDraftStore(disk));
+      await reloaded.ready;
+
+      expect(reloaded.pendingTimes.single.id, id);
+      expect(reloaded.pendingTimes.single.write.blockIndex, 2);
+      server.offline = false;
+      await reloaded.flush();
+      expect(server.times.keys, [id]);
+    });
+
+    test('times go after the sets, and wait while the sets are stuck', () async {
+      final server = _FakeServer()..offline = true;
+      final queue = _queue(server, MemoryDraftStore());
+      await queue.submitBlockTime(
+        clubId: 'c1',
+        sessionId: 's1',
+        write: time(1),
+      );
+      await _submit(queue, _mark('ari', 0));
+      server.offline = false;
+
+      await queue.flush();
+
+      expect(server.received, hasLength(1));
+      expect(server.timeRequests, 1);
+      expect(queue.unsent, isEmpty);
+    });
+  });
 
   group('SharedPreferencesDraftStore', () {
     test('keeps the draft and the queue', () async {

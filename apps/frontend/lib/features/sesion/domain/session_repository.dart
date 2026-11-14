@@ -1,6 +1,7 @@
 import 'package:maktub_core/maktub_core.dart';
 
 import 'athlete_adjustments.dart';
+import 'block_time_write.dart';
 import 'set_write.dart';
 
 /// The session of a day as the backend opens it, with what was recorded so far.
@@ -34,6 +35,14 @@ abstract interface class SessionRepository {
 
   /// Writes that one set and returns what is stored. Repeating it changes nothing.
   Future<SetRecord> recordSet(String clubId, String sessionId, SetWrite write);
+
+  /// Writes the time of one block under [timeId], chosen by the client. Repeating it changes nothing.
+  Future<void> recordBlockTime(
+    String clubId,
+    String sessionId,
+    String timeId,
+    BlockTimeWrite write,
+  );
 
   /// Writes the note of the whole session, or clears it when [note] is empty.
   Future<Session> saveSessionNote(String clubId, String sessionId, String note);

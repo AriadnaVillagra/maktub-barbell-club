@@ -17,6 +17,7 @@ import '../../catalogo/presentation/providers.dart'
 import '../data/http_session_repository.dart';
 import '../data/shared_preferences_draft_store.dart';
 import '../domain/athlete_adjustments.dart';
+import '../domain/block_time_write.dart';
 import '../domain/guided_session.dart';
 import '../domain/session_draft_store.dart';
 import '../domain/session_repository.dart';
@@ -34,11 +35,13 @@ final sessionDraftStoreProvider = Provider<SessionDraftStore>(
 /// How often a queue with writes left tries again. E7.10 also flushes it when the live channel reconnects.
 const queueRetryInterval = Duration(seconds: 15);
 
-/// The device's draft and queue of set writes (E7.9). It outlives the screen, so leaving it does not drop anything.
+/// The device's draft and queue of set writes and block times (E7.9, E7.21). It outlives the screen, so leaving it does not drop anything.
 final setSyncQueueProvider = Provider<SetSyncQueue>((ref) {
   final repository = ref.watch(sessionRepositoryProvider);
   final queue = SetSyncQueue(
     send: (p) => repository.recordSet(p.clubId, p.sessionId, p.write),
+    sendTime: (t) =>
+        repository.recordBlockTime(t.clubId, t.sessionId, t.id, t.write),
     store: ref.watch(sessionDraftStoreProvider),
     isRetryable: isTransientWriteError,
   );
@@ -59,6 +62,22 @@ final setSyncQueueProvider = Provider<SetSyncQueue>((ref) {
   });
   return queue;
 });
+
+/// Whether what the device queued reached the server, kept current as the queue changes.
+class SaveStateController extends Notifier<SaveState> {
+  @override
+  SaveState build() {
+    final queue = ref.watch(setSyncQueueProvider);
+    final subscription = queue.changes.listen((_) => state = queue.saveState);
+    ref.onDispose(subscription.cancel);
+    return queue.saveState;
+  }
+}
+
+final saveStateProvider =
+    NotifierProvider.autoDispose<SaveStateController, SaveState>(
+      SaveStateController.new,
+    );
 
 /// What the session screen needs for today: the group, where today falls in its assignment and the published plan.
 class SessionDayData {
@@ -396,7 +415,49 @@ class GuidedController extends Notifier<GuidedSession?> {
 
   void _update(GuidedSession Function(GuidedSession) change) {
     final s = state;
-    if (s != null) state = change(s);
+    if (s != null) _set(s, change(s));
+  }
+
+  /// Moves to [next] and, for each block it closed as done or interrupted (a skipped one leaves no time), queues the
+  /// block's time (E7.21). Every change of state goes through here, so a block closed by any path leaves its time.
+  void _set(GuidedSession previous, GuidedSession next) {
+    state = next;
+    for (var i = 0; i < next.runs.length && i < previous.runs.length; i++) {
+      final run = next.runs[i];
+      final timed =
+          run.status == GuidedBlockStatus.done ||
+          run.status == GuidedBlockStatus.interrupted;
+      final wasTimed =
+          previous.runs[i].status == GuidedBlockStatus.done ||
+          previous.runs[i].status == GuidedBlockStatus.interrupted;
+      if (timed && !wasTimed) _queueTime(next, run);
+    }
+  }
+
+  void _queueTime(GuidedSession guided, GuidedBlockRun run) {
+    final live = _live;
+    final start = run.start;
+    final end = run.end;
+    if (live == null || start == null || end == null) return;
+    final block = guided.day.blocks[run.blockIndex];
+    unawaited(
+      ref
+          .read(setSyncQueueProvider)
+          .submitBlockTime(
+            clubId: live.session.clubId,
+            sessionId: live.session.id,
+            write: BlockTimeWrite(
+              blockIndex: run.blockIndex,
+              blockName: block.name,
+              athleteMode: blockHasSteps(block) ? run.athleteMode : null,
+              athleteIds: guided.athleteIds,
+              start: start,
+              end: end,
+              interrupted: run.status == GuidedBlockStatus.interrupted,
+            ),
+          )
+          .then((_) {}, onError: (_) {}),
+    );
   }
 
   void toggleAthlete(String athleteId) =>
@@ -466,7 +527,7 @@ class GuidedController extends Notifier<GuidedSession?> {
           draft.edits[a],
         ),
     ];
-    state = result.next;
+    _set(s, result.next);
     await _send(writes);
   }
 
@@ -485,7 +546,7 @@ class GuidedController extends Notifier<GuidedSession?> {
             if (!done.contains((run.blockIndex, AthleteSet(a, p, set))))
               _markWrite(block, run.blockIndex, p, set, a, null),
     ];
-    state = s.finishBlock(now: _now);
+    _set(s, s.finishBlock(now: _now));
     await _send(writes);
   }
 

@@ -11,8 +11,10 @@ import '../../catalogo/presentation/catalog_admin_widgets.dart'
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
 import '../domain/guided_session.dart';
 import '../domain/session_repository.dart';
+import '../domain/set_sync_queue.dart' show SaveState;
 import '../domain/set_write.dart';
 import 'guided_step_view.dart';
+import 'guided_summary.dart';
 import 'providers.dart';
 import 'session_page.dart';
 import 'session_timers.dart';
@@ -94,7 +96,10 @@ class GuidedPage extends ConsumerWidget {
                     data: data,
                     live: live,
                   ),
-                  GuidedPhase.finished => _Finished(
+                  GuidedPhase.finished => GuidedSummary(
+                    guided: guided,
+                    data: data,
+                    live: live,
                     onBack: () => _leave(context),
                   ),
                 },
@@ -116,6 +121,7 @@ class _Title extends StatelessWidget {
     mainAxisSize: MainAxisSize.min,
     children: [
       Text('Entrenando · Día $day'),
+      if (guided.phase != GuidedPhase.athletes) const _SaveStatus(),
       if (guided.start != null)
         GuidedClock(
           key: const Key('guided-total-clock'),
@@ -124,6 +130,27 @@ class _Title extends StatelessWidget {
         ),
     ],
   );
+}
+
+/// "guardando…", "✓ guardado" or "⚠ sin guardar", from the queue of what the device has to send.
+class _SaveStatus extends ConsumerWidget {
+  const _SaveStatus();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(saveStateProvider);
+    return Text(
+      switch (state) {
+        SaveState.saving => 'guardando…',
+        SaveState.saved => '✓ guardado',
+        SaveState.unsaved => '⚠ sin guardar',
+      },
+      key: const Key('guided-save-state'),
+      style: context.textos.labelSmall?.copyWith(
+        color: state == SaveState.unsaved ? context.esquema.error : null,
+      ),
+    );
+  }
 }
 
 /// A time measured against the clock, refreshed every second while it is on screen.
@@ -507,31 +534,6 @@ class _WholeBlock extends ConsumerWidget {
       ],
     );
   }
-}
-
-/// Where E7.21 puts the day's summary.
-class _Finished extends StatelessWidget {
-  const _Finished({required this.onBack});
-
-  final VoidCallback onBack;
-
-  @override
-  Widget build(BuildContext context) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    spacing: Espacio.m,
-    children: [
-      Text(
-        'Día terminado',
-        key: const Key('guided-finished'),
-        style: context.textos.headlineSmall,
-      ),
-      FilledButton(
-        key: const Key('guided-back'),
-        onPressed: onBack,
-        child: const Text('Volver a la sesión'),
-      ),
-    ],
-  );
 }
 
 /// The exercise's name, or a neutral label.

@@ -12,6 +12,7 @@ import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart'
 import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
+import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 import 'package:maktub_frontend/features/sesion/presentation/providers.dart';
@@ -151,6 +152,14 @@ class _FakeSessions implements SessionRepository {
       records: const [],
     );
   }
+
+  @override
+  Future<void> recordBlockTime(
+    String clubId,
+    String sessionId,
+    String timeId,
+    BlockTimeWrite write,
+  ) async {}
 
   @override
   Future<List<ProposedSet>> proposedLoads(

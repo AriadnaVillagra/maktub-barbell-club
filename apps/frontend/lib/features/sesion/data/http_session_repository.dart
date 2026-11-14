@@ -2,6 +2,7 @@ import 'package:maktub_core/maktub_core.dart';
 
 import '../../../core/red/cliente_api.dart';
 import '../domain/athlete_adjustments.dart';
+import '../domain/block_time_write.dart';
 import '../domain/session_repository.dart';
 import '../domain/set_write.dart';
 
@@ -74,6 +75,20 @@ class HttpSessionRepository implements SessionRepository {
       write.toJson(),
     ),
   );
+
+  @override
+  Future<void> recordBlockTime(
+    String clubId,
+    String sessionId,
+    String timeId,
+    BlockTimeWrite write,
+  ) async {
+    await _client.put(
+      '${_sessions(clubId)}/${Uri.encodeComponent(sessionId)}'
+      '/tiempos/${Uri.encodeComponent(timeId)}',
+      write.toJson(),
+    );
+  }
 
   @override
   Future<Session> saveSessionNote(

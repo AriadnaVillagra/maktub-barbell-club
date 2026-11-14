@@ -12,7 +12,9 @@ import 'package:maktub_frontend/features/asignacion/presentation/providers.dart'
 import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
 import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
+import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
+import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 import 'package:maktub_frontend/features/sesion/presentation/guided_page.dart';
@@ -162,6 +164,20 @@ class _Sessions implements SessionRepository {
   final opened = <Set<String>>[];
   final writes = <SetWrite>[];
 
+  /// The block times the server took, in order, with their ids.
+  final times = <(String, BlockTimeWrite)>[];
+
+  /// Without signal, block times are not taken.
+  bool offline = false;
+
+  /// The reps the plan has for each prescription.
+  static int _planReps(int block, int prescription) =>
+      switch ((block, prescription)) {
+        (2, 0) => 10,
+        (2, 1) => 12,
+        _ => 5,
+      };
+
   static double _kg(String athlete) => athlete == 'ari' ? 80 : 64;
 
   @override
@@ -210,6 +226,18 @@ class _Sessions implements SessionRepository {
   ];
 
   @override
+  Future<void> recordBlockTime(
+    String clubId,
+    String sessionId,
+    String timeId,
+    BlockTimeWrite write,
+  ) async {
+    if (offline) throw const ErrorDeApi('No se pudo conectar.');
+    times.removeWhere((t) => t.$1 == timeId);
+    times.add((timeId, write));
+  }
+
+  @override
   Future<SetRecord> recordSet(
     String clubId,
     String sessionId,
@@ -223,7 +251,7 @@ class _Sessions implements SessionRepository {
       write.setIndex,
       done: write.done,
       kg: write.manualKg ?? _kg(write.athleteId),
-      reps: write.reps,
+      reps: write.reps ?? _planReps(write.blockIndex, write.prescriptionIndex),
       manualKg: write.manualKg != null,
     );
   }
@@ -736,6 +764,160 @@ void main() {
     });
   });
 
+  group('summary', () {
+    /// Starts the block on screen and does every step it offers, as the plan has them.
+    Future<void> doBlockAsPlanned(WidgetTester tester) async {
+      await _tap(tester, 'guided-start-block');
+      if (find.byKey(const Key('guided-finish-block')).evaluate().isNotEmpty) {
+        await _tap(tester, 'guided-finish-block');
+        return;
+      }
+      while (find.byKey(const Key('guided-step-main')).evaluate().isNotEmpty) {
+        await _tap(tester, 'guided-step-main');
+        await _tap(tester, 'guided-step-main');
+      }
+    }
+
+    Finder inside(String key, String text) => find.descendant(
+      of: find.byKey(Key(key)),
+      matching: find.text(text),
+    );
+
+    testWidgets('an interrupted block is shown as such, with its time and the differences', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      await _toBlock(tester, 0);
+      await _tap(tester, 'guided-skip-block'); // Movilidad
+      await _tap(tester, 'guided-start-block'); // Principal, by turns
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main'); // Ari's first set
+      h.now = h.now.add(const Duration(seconds: 60));
+      await _tap(tester, 'guided-interrupt');
+      await tester.tap(find.text('Interrumpir'));
+      await tester.pumpAndSettle();
+      await _tap(tester, 'guided-skip-block'); // Accesorios
+      h.now = h.now.add(const Duration(seconds: 15));
+      await _tap(tester, 'guided-start-block'); // Cindy
+      h.now = h.now.add(const Duration(seconds: 30));
+      await _tap(tester, 'guided-finish-block');
+
+      expect(find.text('Día terminado'), findsOneWidget);
+      expect(inside('guided-time-0', 'Movilidad · salteado'), findsOneWidget);
+      expect(inside('guided-time-0', '—'), findsOneWidget);
+      expect(inside('guided-time-1', 'Principal · interrumpido'), findsOneWidget);
+      expect(inside('guided-time-1', '01:00'), findsOneWidget);
+      expect(inside('guided-time-2', 'Accesorios · salteado'), findsOneWidget);
+      expect(inside('guided-time-3', '00:30'), findsOneWidget);
+      expect(inside('guided-time-blocks', '01:30'), findsOneWidget);
+      expect(inside('guided-time-total', '01:45'), findsOneWidget);
+
+      expect(find.text('Movilidad: no se hizo'), findsOneWidget);
+      expect(find.text('Ari · Sentadilla: 1 de 2 series'), findsOneWidget);
+      expect(find.text('Andi · Sentadilla: no lo hizo'), findsOneWidget);
+      expect(find.text('Ari · Curl: no lo hizo'), findsOneWidget);
+      expect(find.text('Andi · Face pull: no lo hizo'), findsOneWidget);
+      expect(find.byKey(const Key('guided-no-differences')), findsNothing);
+
+      // The skipped blocks left no time; the interrupted one says so.
+      expect(h.sessions.times.map((t) => t.$2.blockIndex), [1, 3]);
+      final interrupted = h.sessions.times.first.$2;
+      expect(interrupted.interrupted, isTrue);
+      expect(interrupted.blockName, 'Principal');
+      expect(interrupted.athleteMode, AthleteMode.turns);
+      expect(interrupted.athleteIds, ['ari', 'andi']);
+      expect(interrupted.end.difference(interrupted.start).inSeconds, 60);
+      final whole = h.sessions.times.last.$2;
+      expect(whole.interrupted, isFalse);
+      expect(whole.athleteMode, isNull);
+    });
+
+    testWidgets('a set done with other kilos or reps is compared with the proposal', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-edit-ari');
+      await tester.enterText(find.byKey(const Key('session-set-kg')), '77.5');
+      await tester.enterText(find.byKey(const Key('session-set-reps')), '4');
+      await _tap(tester, 'session-set-save');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main'); // the second set, as proposed
+      await _tap(tester, 'guided-skip-block');
+      await _tap(tester, 'guided-skip-block');
+
+      expect(
+        find.text('Ari · Sentadilla, serie 1: 4 × 77.5 kg (plan 5 × 80 kg)'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('Andi · Sentadilla'), findsNothing);
+    });
+
+    testWidgets('a day done as planned has no differences', (tester) async {
+      final h = await _pump(tester);
+      await _toBlock(tester, 0);
+      for (var b = 0; b < 4; b++) {
+        await doBlockAsPlanned(tester);
+      }
+
+      expect(find.text('Día terminado'), findsOneWidget);
+      expect(find.text('Se hizo todo según el plan.'), findsOneWidget);
+      expect(find.text('Diferencias con el plan'), findsOneWidget);
+      expect(h.sessions.times, hasLength(4));
+      expect(h.sessions.times.every((t) => !t.$2.interrupted), isTrue);
+    });
+
+    testWidgets('Guardar waits for the queue; without signal it offers to retry', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      h.sessions.offline = true;
+      await _toBlock(tester, 0);
+      await _tap(tester, 'guided-skip-block');
+      await _tap(tester, 'guided-skip-block');
+      await _tap(tester, 'guided-skip-block');
+      await doBlockAsPlanned(tester);
+      expect(find.text('Día terminado'), findsOneWidget);
+
+      await _tap(tester, 'guided-save');
+
+      expect(find.text('Reintentar guardado'), findsOneWidget);
+      expect(find.byType(GuidedPage), findsOneWidget);
+      expect(h.sessions.times, isEmpty);
+      expect(
+        h.container.read(setSyncQueueProvider).pendingTimes,
+        hasLength(1),
+      );
+      expect(
+        tester.widget<Text>(find.byKey(const Key('guided-save-state'))).data,
+        '⚠ sin guardar',
+      );
+
+      h.sessions.offline = false;
+      await _tap(tester, 'guided-save');
+
+      expect(h.sessions.times, hasLength(1));
+      expect(find.byType(GuidedPage), findsNothing);
+      expect(find.byKey(const Key('session-train')), findsOneWidget);
+    });
+
+    testWidgets('the header says it is saved once the queue is empty', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 1);
+
+      expect(
+        tester.widget<Text>(find.byKey(const Key('guided-save-state'))).data,
+        '✓ guardado',
+      );
+    });
+  });
+
   group('leaving', () {
     testWidgets('the last block leads to the end, and back to the session', (
       tester,
@@ -744,7 +926,7 @@ void main() {
       await _toBlock(tester, 4);
 
       expect(find.text('Día terminado'), findsOneWidget);
-      await _tap(tester, 'guided-back');
+      await _tap(tester, 'guided-save');
 
       expect(find.byType(GuidedPage), findsNothing);
       expect(find.byKey(const Key('session-train')), findsOneWidget);
