@@ -27,7 +27,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 20 / 25 (E7.1 a E7.9, E7.11 a E7.13 y E7.17 a E7.24 hechos; E7.25 en curso; del otro agente siguen E7.10 y E7.14 a E7.16) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 21 / 25 (E7.1 a E7.9, E7.11 a E7.13 y E7.17 a E7.25 hechos; del otro agente siguen E7.10 y E7.14 a E7.16) | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
@@ -83,6 +83,7 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
   - E7.22: cada pasada de bloque guarda su propio orden, sin cambiar el plan.
   - E7.23: "Hacer todo de nuevo" nunca desmarca. Una serie rehecha se escribe con lo propuesto y pisa la anterior. "Terminar bloque" de un bloque sin pasos reescribe sus series con el plan.
   - E7.24: `CalendarPage` se borró. La sesión tiene el selector "Sesión del día / Calendario", y `/entrenamiento/calendario` abre la vista Calendario. El estado de los días es de todo el ciclo (`cycleDayStatesProvider`) y se refresca al escribir una serie.
+- **E7.25 (hecho):** el calendario tiene tres vistas (Compacta, Tarjetas y Detallada), y la elegida se guarda en el dispositivo (`maktub.calendarLayout`). Los ejercicios "principales" son los de bloques de categoría `primario`; si no hay, los del primer bloque con ejercicios. El día de D13 dice "Toca hoy". En el celular, el detalle es un panel abajo y no un modal. Componente nuevo `DayCard` en `maktub_ui`; los goldens del muestrario se regeneraron por la sección nueva de la galería.
 - **E7.20 (hecho), decisiones para revisar con Ari:** (1) elegir en el modo guiado a un atleta que no está presente reabre la sesión sumándolo a presentes, porque el backend solo acepta series de presentes; (2) "Terminar bloque" en un bloque por tiempo con series (WoD o EMOM con ejercicios) registra como hechas, con los valores del plan, las series que faltaban, para que el día cuente como hecho; (3) los kg y reps editados quedan en el teléfono hasta "Terminar serie"; (4) el modo guiado avanza sin esperar la escritura, y si una falla muestra el error y el paso queda pasado; (5) un bloque con todas sus series ya registradas se cierra como hecho al tocar "Iniciar bloque". Se entra desde la sesión con "Entrenar" (`/entrenamiento/sesion/entrenar`); la posición se pierde al salir.
 - **E7.19 (hecho):** `PUT .../sesiones/{id}/tiempos/{tiempoId}` exige que los atletas estén presentes en la sesión (422 si no). Un id de cliente repetido en otro club da 500 por clave duplicada; se aceptó porque los ids son UUID. Para E8.5: la hoja Tiempos trae nombres de atletas, no ids.
 - **`diseno.md`:** no tiene `BlockTime` ni que el modo guiado y parte de F10 entran en M1. Se avisa a su sesión.
