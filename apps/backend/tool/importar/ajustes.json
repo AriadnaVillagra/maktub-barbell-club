@@ -1,0 +1,12 @@
+{
+  "_legend": "Decisions about the spreadsheet data that the importer rules cannot take on their own (tool/importar.dart). Catalog ids only: never personal data. Each step reads its own section; E8.3 to E8.5 add theirs.",
+  "exercises": {
+    "_notBase": "Sheet ids that a default exercise also uses for a different exercise: the sheet renamed the row. They become club exercises. cal_sq is 'Sit ups' in the sheet and 'Movilidad de cadera y tobillo' in the base list.",
+    "notBase": ["cal_sq"],
+    "_sameAs": "Sheet id -> visible exercise that is the same one under another name. The row adds its category to it instead of creating a duplicate.",
+    "sameAs": {
+      "skull_crushers": "skull",
+      "caminata_de_granjero": "farmer_walk"
+    }
+  }
+}

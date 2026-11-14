@@ -1,0 +1,112 @@
+// Importer of the old spreadsheet (E8, design.md 3.5): `cd apps/backend && dart run tool/importar.dart`.
+//
+// Reads the CSVs exported in E8.1 and loads them into a club, step by step. Without `--aplicar` it is a
+// dry run: it reads MONGO_URL and reports what it would do, writing nothing. Every step is idempotent.
+//
+//   --carpeta <dir>   folder with the CSVs (default ../../docs/planillas/csv/apps-script, never in git)
+//   --club <id>       club to import into (default: the club named "Maktub")
+//   --solo <a,b>      only these steps (default: all, in order)
+//   --ajustes <file>  decisions about the data (default tool/importar/ajustes.json)
+//   --aplicar         write; without it nothing is written
+//   --detalle         also list what is already there
+//
+// Exit code 1 when a step reports rows it could not import.
+import 'dart:io';
+
+import 'package:maktub_backend/features/acceso/club_context/club_context_store.dart';
+import 'package:maktub_backend/features/catalogo/create_timer/create_timer_store.dart';
+import 'package:maktub_backend/features/catalogo/write_exercise/write_exercise_store.dart';
+import 'package:maktub_backend/features/import/adjustments.dart';
+import 'package:maktub_backend/features/import/catalog/catalog_import.dart';
+import 'package:maktub_backend/features/import/catalog/catalog_import_store.dart';
+import 'package:maktub_backend/features/import/import_run.dart';
+import 'package:maktub_backend/features/import/sheets.dart';
+import 'package:maktub_backend/features/wods/crear/crear_store.dart';
+import 'package:maktub_backend/infraestructura/mongo.dart';
+import 'package:maktub_core/maktub_core.dart';
+import 'package:mongo_dart/mongo_dart.dart';
+
+/// The steps in the order they run. E8.3, E8.4 and E8.5 add theirs here.
+List<ImportStep> _steps(Db db) => [
+  CatalogImport(
+    reads: MongoCatalogImportStore(db),
+    exerciseWrites: MongoWriteExerciseStore(db),
+    timerWrites: MongoCreateTimerStore(db),
+    wodWrites: MongoCreateWodStore(db),
+  ),
+];
+
+Future<void> main(List<String> args) async {
+  final options = _Options.parse(args);
+  final db = await abrirMongo();
+  var failed = false;
+  try {
+    final clubId = options.club ?? await _maktubClubId(db);
+    final type = await MongoClubContextStore(db).clubType(clubId);
+    if (type == null) throw StateError('No existe el club $clubId.');
+    stdout.writeln(
+      'Base: ${db.databaseName} · club: $clubId · ${options.apply ? 'APLICANDO' : 'simulación (sin --aplicar)'}',
+    );
+    final run = ImportRun(
+      club: importClubContext(clubId, type),
+      sheets: SheetDirectory(options.folder),
+      adjustments: ImportAdjustments.fromFile(options.adjustments),
+      dryRun: !options.apply,
+    );
+    final steps = _steps(db).where((s) => options.only.isEmpty || options.only.contains(s.name)).toList();
+    final unknown = options.only.difference({for (final s in _steps(db)) s.name});
+    if (unknown.isNotEmpty) throw ArgumentError('Pasos desconocidos: ${unknown.join(', ')}.');
+    for (final step in steps) {
+      final report = await step.run(run);
+      report.writeTo(stdout, dryRun: run.dryRun, verbose: options.verbose);
+      failed = failed || report.problems.isNotEmpty;
+    }
+  } finally {
+    await db.close();
+  }
+  if (failed) exitCode = 1;
+}
+
+Future<String> _maktubClubId(Db db) async {
+  final club = await db
+      .collection(Colecciones.clubes)
+      .findOne(where.eq('tipo', TipoClub.club.cable).eq('nombre', 'Maktub'));
+  if (club == null) throw StateError('No hay club "Maktub": pasá --club <id> o corré antes tool/alta.dart.');
+  return '${club['_id']}';
+}
+
+class _Options {
+  _Options({
+    required this.folder,
+    required this.club,
+    required this.only,
+    required this.adjustments,
+    required this.apply,
+    required this.verbose,
+  });
+
+  factory _Options.parse(List<String> args) {
+    String? value(String name) {
+      final i = args.indexOf(name);
+      if (i < 0) return null;
+      if (i + 1 >= args.length) throw ArgumentError('Falta el valor de $name.');
+      return args[i + 1];
+    }
+
+    return _Options(
+      folder: value('--carpeta') ?? '../../docs/planillas/csv/apps-script',
+      club: value('--club'),
+      only: {...?value('--solo')?.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty)},
+      adjustments: value('--ajustes') ?? 'tool/importar/ajustes.json',
+      apply: args.contains('--aplicar'),
+      verbose: args.contains('--detalle'),
+    );
+  }
+
+  final String folder;
+  final String? club;
+  final Set<String> only;
+  final String adjustments;
+  final bool apply;
+  final bool verbose;
+}
