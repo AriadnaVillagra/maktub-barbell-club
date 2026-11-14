@@ -8,5 +8,14 @@
       "skull_crushers": "skull",
       "caminata_de_granjero": "farmer_walk"
     }
+  },
+  "athletes": {
+    "_sameAs": "Sheet athlete id (Atletas.id) -> display name of the club athlete created by tool/alta.dart, when the sheet's name is not that one. Display names only, never emails.",
+    "sameAs": {
+      "a1": "Ari",
+      "a2": "Andi"
+    },
+    "_testedRmDates": "Dates of RMs rows that are the February 2026 test (M1-D4): they get origin 'testeado', the rest 'importado'. The test was measured in February and loaded on 2026-03-01 (reference/DISENO.md, 'Los RMs se midieron una sola vez').",
+    "testedRmDates": ["2026-03-01"]
   }
 }

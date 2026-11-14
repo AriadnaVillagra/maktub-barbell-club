@@ -119,6 +119,20 @@ void main() {
     },
   );
 
+  test(
+    'the importer records the origin it passes, never one from the body',
+    () async {
+      final store = seeded();
+      await RegisterRm(
+        store,
+        newId: () => 'imp',
+        now: () => now,
+        origin: ReferenceOrigin.importado,
+      )(coach, 'ath-1', {...body, 'origen': 'testeado'});
+      expect(store.references.single.origin, ReferenceOrigin.importado);
+    },
+  );
+
   test('a new RM never modifies an earlier one', () async {
     final store = seeded();
     final earlier = Reference(

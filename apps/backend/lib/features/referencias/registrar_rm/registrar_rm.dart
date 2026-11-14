@@ -33,13 +33,21 @@ Future<Response> registerRmEndpoint(
 }
 
 class RegisterRm {
-  RegisterRm(this._store, {String Function()? newId, DateTime Function()? now})
-    : _newId = newId ?? (() => ObjectId().oid),
-      _now = now ?? DateTime.now;
+  /// [origin] never comes from the body. The endpoint records `testeado`:
+  /// the docs do not say which origin a hand-loaded RM has, and `testeado` is
+  /// the one they mention with it. The importer (E8.3) passes `importado`.
+  RegisterRm(
+    this._store, {
+    String Function()? newId,
+    DateTime Function()? now,
+    this.origin = ReferenceOrigin.testeado,
+  }) : _newId = newId ?? (() => ObjectId().oid),
+       _now = now ?? DateTime.now;
 
   final RegisterRmStore _store;
   final String Function() _newId;
   final DateTime Function() _now;
+  final ReferenceOrigin origin;
 
   Future<Reference> call(ClubContext club, String athleteId, Json body) async {
     // Only `rm` is accepted in M1; the other types have no screen yet.
@@ -88,8 +96,7 @@ class RegisterRm {
       type: ReferenceType.rm,
       value: value.toDouble(),
       date: date,
-      // The docs do not say which origin a hand-loaded RM has; `testeado` is the one they mention with it.
-      origin: ReferenceOrigin.testeado,
+      origin: origin,
       auditoria: Auditoria.nueva(club.userId, ahora: _now()),
     );
     await _store.insert(reference);

@@ -17,24 +17,37 @@ import 'package:maktub_backend/features/acceso/club_context/club_context_store.d
 import 'package:maktub_backend/features/catalogo/create_timer/create_timer_store.dart';
 import 'package:maktub_backend/features/catalogo/write_exercise/write_exercise_store.dart';
 import 'package:maktub_backend/features/import/adjustments.dart';
+import 'package:maktub_backend/features/import/athletes/athlete_import.dart';
+import 'package:maktub_backend/features/import/athletes/athlete_import_store.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_import.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_import_store.dart';
 import 'package:maktub_backend/features/import/import_run.dart';
 import 'package:maktub_backend/features/import/sheets.dart';
+import 'package:maktub_backend/features/kilajes/fijar_kilaje/fijar_kilaje_store.dart';
+import 'package:maktub_backend/features/referencias/registrar_rm/registrar_rm_store.dart';
 import 'package:maktub_backend/features/wods/crear/crear_store.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 
 /// The steps in the order they run. E8.3, E8.4 and E8.5 add theirs here.
-List<ImportStep> _steps(Db db) => [
-  CatalogImport(
+List<ImportStep> _steps(Db db) {
+  final catalog = CatalogImport(
     reads: MongoCatalogImportStore(db),
     exerciseWrites: MongoWriteExerciseStore(db),
     timerWrites: MongoCreateTimerStore(db),
     wodWrites: MongoCreateWodStore(db),
-  ),
-];
+  );
+  return [
+    catalog,
+    AthleteImport(
+      reads: MongoAthleteImportStore(db),
+      exercises: (run) async => (await catalog.plan(run)).exerciseIdFor,
+      rmWrites: MongoRegisterRmStore(db),
+      weightWrites: MongoSetFixedWeightStore(db),
+    ),
+  ];
+}
 
 Future<void> main(List<String> args) async {
   final options = _Options.parse(args);
