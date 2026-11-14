@@ -76,6 +76,7 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - Entran E7.17 a E7.21. Los tiempos de bloque se registran (D20, reemplaza D17).
 - **Para E8.4:** los accesorios con el mismo `grupo` en un día de la referencia son una biserie: se importan
   como un bloque en circuito (E7.18).
+- **Temporizadores siempre disponibles (2026-11-14, pedido por Ari):** como el ⏱ de cada cabecera de la referencia. Cada temporizador activo de la sección Temporizadores tiene un botón para iniciarlo. El shell suma "Temporizador" como último ítem de la barra y del riel, que abre el selector sin navegar. Con una sola sección, la barra queda con Entrenamiento y Temporizador.
 - **E7.19 (hecho):** `PUT .../sesiones/{id}/tiempos/{tiempoId}` exige que los atletas estén presentes en la sesión (422 si no). Un id de cliente repetido en otro club da 500 por clave duplicada; se aceptó porque los ids son UUID. Para E8.5: la hoja Tiempos trae nombres de atletas, no ids.
 - **`diseno.md`:** no tiene `BlockTime` ni que el modo guiado y parte de F10 entran en M1. Se avisa a su sesión.
 - **Revisar el resto de la versión nueva de `reference/`:** tiene más que la versión con la que se planificó M1,
