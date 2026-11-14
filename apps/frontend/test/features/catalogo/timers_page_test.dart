@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/timers_page.dart';
+import 'package:maktub_frontend/features/temporizador/presentation/controllers/crono_controller.dart';
 
 import 'catalog_admin_fakes.dart';
 
@@ -175,5 +177,16 @@ void main() {
     expect(find.text('Mi EMOM'), findsOneWidget);
     expect(find.byKey(const Key('timer-add')), findsNothing);
     expect(find.byKey(const Key('timer-menu-mine')), findsNothing);
+  });
+
+  testWidgets('anyone starts an active timer from the list; an archived one has no start button', (tester) async {
+    await pumpAdminPage(tester, const TimersPage(), repo());
+    expect(find.byKey(const Key('timer-start-old')), findsNothing);
+    await tester.tap(find.byKey(const Key('timer-start-rest')));
+    await tester.pump();
+    final container = ProviderScope.containerOf(tester.element(find.byType(TimersPage)));
+    expect(container.read(cronoControllerProvider), isNotNull);
+    container.read(cronoControllerProvider.notifier).detener();
+    await tester.pump();
   });
 }

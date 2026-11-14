@@ -7,10 +7,12 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../features/access/presentation/providers.dart';
 import '../features/temporizador/presentation/widgets/barra_crono.dart';
+import '../features/temporizador/presentation/widgets/iniciar_temporizador.dart';
 import 'preferencias.dart';
 
 /// Marco común: navegación entre modos (barra inferior en celular, riel lateral desde tablet),
-/// el tema de cada modo (entrenamiento oscuro y grande) y el temporizador en marcha.
+/// el tema de cada modo (entrenamiento oscuro y grande), el temporizador en marcha y el acceso a los
+/// temporizadores desde cualquier pantalla (el último ítem de la barra o del riel).
 class ShellPrincipal extends ConsumerWidget {
   const ShellPrincipal({super.key, required this.navegacion});
 
@@ -25,6 +27,8 @@ class ShellPrincipal extends ConsumerWidget {
     (icono: Icons.tune_outlined, seleccionado: Icons.tune, etiqueta: 'Preferencias'),
     (icono: Icons.person_outline, seleccionado: Icons.person, etiqueta: 'Perfil'),
   ];
+
+  static const _temporizador = 'Temporizador';
 
   /// Logical pixels per second that tell a swipe from a slow drag.
   static const _swipeMinVelocity = 300.0;
@@ -44,6 +48,7 @@ class ShellPrincipal extends ConsumerWidget {
         child: Builder(
           builder: (context) => _construir(
             context,
+            ref,
             _visibles(
               ref.watch(canPlanProvider) ?? false,
               ref.watch(canConfigureProvider) ?? false,
@@ -63,7 +68,7 @@ class ShellPrincipal extends ConsumerWidget {
     if (next >= 0 && next < visibles.length) _ir(visibles[next]);
   }
 
-  Widget _construir(BuildContext context, List<int> visibles) {
+  Widget _construir(BuildContext context, WidgetRef ref, List<int> visibles) {
     final contenido = Column(
       children: [
         Expanded(
@@ -78,16 +83,14 @@ class ShellPrincipal extends ConsumerWidget {
       ],
     );
 
-    // A single destination has nowhere to navigate to, so there is no bar.
-    if (visibles.length < 2) return Scaffold(body: contenido);
-
     if (context.tamanoPantalla != TamanoPantalla.compacto) {
       return Scaffold(
         body: Row(
           children: [
             NavigationRail(
               selectedIndex: visibles.indexOf(navegacion.currentIndex).clamp(0, visibles.length - 1),
-              onDestinationSelected: (i) => _ir(visibles[i]),
+              onDestinationSelected: (i) =>
+                  i == visibles.length ? pickAndStartTimer(context, ref) : _ir(visibles[i]),
               labelType: NavigationRailLabelType.all,
               destinations: [
                 for (final d in [for (final i in visibles) _destinos[i]])
@@ -96,6 +99,10 @@ class ShellPrincipal extends ConsumerWidget {
                     selectedIcon: Icon(d.seleccionado),
                     label: Text(d.etiqueta),
                   ),
+                const NavigationRailDestination(
+                  icon: Icon(Icons.timer_outlined, key: Key('shell-timer')),
+                  label: Text(_temporizador),
+                ),
               ],
             ),
             const VerticalDivider(width: Borde.fino),
@@ -105,14 +112,21 @@ class ShellPrincipal extends ConsumerWidget {
       );
     }
 
+    // The last item is not a destination: it opens the timer picker and the selection stays put.
     return Scaffold(
       body: contenido,
       bottomNavigationBar: NavigationBar(
         selectedIndex: visibles.indexOf(navegacion.currentIndex).clamp(0, visibles.length - 1),
-        onDestinationSelected: (i) => _ir(visibles[i]),
+        onDestinationSelected: (i) =>
+            i == visibles.length ? pickAndStartTimer(context, ref) : _ir(visibles[i]),
         destinations: [
           for (final d in [for (final i in visibles) _destinos[i]])
             NavigationDestination(icon: Icon(d.icono), selectedIcon: Icon(d.seleccionado), label: d.etiqueta),
+          const NavigationDestination(
+            key: Key('shell-timer'),
+            icon: Icon(Icons.timer_outlined),
+            label: _temporizador,
+          ),
         ],
       ),
     );

@@ -11,10 +11,12 @@ import 'package:maktub_frontend/features/access/presentation/providers.dart';
 import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
 import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
+import 'package:maktub_frontend/features/temporizador/presentation/controllers/crono_controller.dart';
 import 'package:maktub_frontend/features/session/presentation/providers.dart';
 
 import '../features/access/fakes.dart';
 import '../features/atletas/fakes.dart';
+import '../features/catalogo/catalog_admin_fakes.dart';
 import '../features/catalogo/catalog_fakes.dart';
 import '../features/session/fakes.dart';
 
@@ -37,6 +39,9 @@ Future<void> _montar(
       authApiProvider.overrideWithValue(FakeAuthApi()),
       meRepositoryProvider.overrideWithValue(FakeMeRepository(meWith([(_gym, roles)], athleteIds: athleteIds))),
       catalogRepositoryProvider.overrideWithValue(FakeCatalog([])),
+      catalogAdminRepositoryProvider.overrideWithValue(
+        FakeCatalogAdminRepository(timersList: [timer('rest', 'Descanso 90', clubId: clubPlataforma)]),
+      ),
       athleteRepositoryProvider.overrideWithValue(FakeAthleteRepository(
         athletesList: const [AthleteSummary(id: 'a1', userId: 'u2', name: 'Andi')],
         sheets: {'a1': const AthleteSheet(athleteId: 'a1')},
@@ -136,12 +141,13 @@ void main() {
   });
 
   group('planning according to the role', () {
-    testWidgets('an athlete does not see planning and has no bar with one destination', (tester) async {
+    testWidgets('an athlete does not see planning; the bar keeps only training and the timer', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta});
 
       expect(find.text('Calendario'), findsOneWidget);
       expect(find.text('Planificación'), findsNothing);
-      expect(find.byType(NavigationBar), findsNothing);
+      expect(find.byType(NavigationDestination), findsNWidgets(2));
+      expect(find.byKey(const Key('shell-timer')), findsOneWidget);
     });
 
     testWidgets('an athlete is sent back to training when opening planning by URL', (tester) async {
@@ -151,11 +157,12 @@ void main() {
       expect(find.text('Atletas y referencias'), findsNothing);
     });
 
-    testWidgets('an athlete on a wide screen has no rail either', (tester) async {
+    testWidgets('an athlete on a wide screen gets a rail with training and the timer', (tester) async {
       await _montar(tester, const Size(1200, 800), roles: {Rol.atleta});
 
-      expect(find.byType(NavigationRail), findsNothing);
+      expect(find.byType(NavigationRail), findsOneWidget);
       expect(find.text('Planificación'), findsNothing);
+      expect(find.text('Temporizador'), findsOneWidget);
     });
 
     testWidgets('a coach sees planning and can open it by URL', (tester) async {
@@ -239,6 +246,37 @@ void main() {
     testWidgets('an athlete cannot open Preferences by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: Rutas.preferencias);
       expect(find.text('Calendario'), findsOneWidget);
+    });
+  });
+
+  group('timers from any screen', () {
+    Future<void> startFromShell(WidgetTester tester) async {
+      await tester.tap(find.text('Temporizador'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Descanso 90'));
+      await tester.pump();
+      final container = ProviderScope.containerOf(tester.element(find.byType(MaktubApp)));
+      expect(container.read(cronoControllerProvider), isNotNull);
+      container.read(cronoControllerProvider.notifier).detener();
+      await tester.pump();
+    }
+
+    testWidgets('the last item of the bar opens the picker and starts the timer without navigating', (tester) async {
+      await _montar(tester, const Size(400, 800), ruta: Rutas.planificacion);
+      final before = tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex;
+
+      await startFromShell(tester);
+
+      expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, before);
+      expect(GoRouter.of(tester.element(find.byType(NavigationBar))).state.uri.path, Rutas.planificacion);
+    });
+
+    testWidgets('the rail has the same item on wide screens', (tester) async {
+      await _montar(tester, const Size(1200, 800));
+
+      await startFromShell(tester);
+
+      expect(tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex, 0);
     });
   });
 }
