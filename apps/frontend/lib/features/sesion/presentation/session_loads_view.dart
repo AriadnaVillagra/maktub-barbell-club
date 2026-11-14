@@ -157,6 +157,9 @@ class _Blocks extends ConsumerWidget {
           SessionBlockCard(
             key: Key('session-block-$b'),
             block: day.blocks[b],
+            action: day.blocks[b].categoryId == wodCategoryId
+                ? SessionWodTimerButton(block: day.blocks[b])
+                : null,
             children: [
               for (var p = 0; p < day.blocks[b].prescriptions.length; p++)
                 if (day.blocks[b].prescriptions[p].exerciseId

@@ -101,6 +101,16 @@ final _plan = PublishedPlanView(
               categoryId: 'final',
               prescriptions: [_prescription(timerId: 'old')],
             ),
+            // 5: a WoD block in sequential mode: its timer is its own, and it has a note.
+            PlanBlock(
+              name: 'Cindy',
+              categoryId: 'wod',
+              timerId: 'amrap',
+              note: '20 min AMRAP',
+              prescriptions: [_prescription()],
+            ),
+            // 6: a WoD block with a note, no timer and no exercises.
+            PlanBlock(name: 'Fran', categoryId: 'wod', note: '21-15-9'),
           ],
         ),
       ],
@@ -254,6 +264,15 @@ void main() {
       expect(timerForSet(block[2], block[2].prescriptions[0], _timers), isNull);
     });
 
+    test('a wod block\'s timer is not a rest, even if it is not timed', () {
+      expect(timerForSet(block[5], block[5].prescriptions[0], _timers), isNull);
+    });
+
+    test('a wod block\'s set still starts the prescription\'s own timer', () {
+      final own = _prescription(timerId: 'rest90');
+      expect(timerForSet(block[5], own, _timers)?.id, 'rest90');
+    });
+
     test('no timer, or one that is not in the catalog, starts nothing', () {
       expect(timerForSet(block[3], block[3].prescriptions[0], _timers), isNull);
       expect(
@@ -386,6 +405,48 @@ void main() {
       expect(running(c), isNull);
       await mark(tester, '2-0-0');
       expect(running(c), isNull);
+    });
+
+    scenario('the WoD button starts the block timer', (tester, c) async {
+      final button = find.descendant(
+        of: find.byKey(const Key('session-block-5')),
+        matching: find.byKey(const Key('session-wod-timer')),
+      );
+      await tester.ensureVisible(button);
+      expect(
+        find.descendant(of: button, matching: find.text('⏱ AMRAP 12')),
+        findsOneWidget,
+      );
+      await tester.tap(button);
+      await tester.pump();
+      await tester.pump();
+
+      expect(running(c), 'amrap');
+    });
+
+    scenario('marking a set of a WoD block starts no timer', (tester, c) async {
+      await mark(tester, '5-0-0');
+      expect(running(c), isNull);
+    });
+
+    scenario('a WoD without timer or exercises shows its note, no button', (
+      tester,
+      c,
+    ) async {
+      final card = find.byKey(const Key('session-block-6'));
+      await tester.ensureVisible(card);
+      expect(
+        find.descendant(of: card, matching: find.text('21-15-9')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: card,
+          matching: find.byKey(const Key('session-wod-timer')),
+        ),
+        findsNothing,
+      );
+      expect(find.byKey(const Key('session-wod-timer')), findsNWidgets(2));
     });
 
     scenario('unmarking a set does not start the timer again', (

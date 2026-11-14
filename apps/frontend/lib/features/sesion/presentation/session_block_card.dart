@@ -8,10 +8,14 @@ class SessionBlockCard extends StatelessWidget {
     super.key,
     required this.block,
     required this.children,
+    this.action,
   });
 
   final PlanBlock block;
   final List<Widget> children;
+
+  /// Goes under the note, for what the block itself does, such as starting its timer.
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -25,6 +29,10 @@ class SessionBlockCard extends StatelessWidget {
             Text(block.name, style: context.textos.titleMedium),
             if (block.note case final note? when note.isNotEmpty)
               Text(note, style: context.textos.bodySmall),
+            if (action case final action?) ...[
+              const SizedBox(height: Espacio.s),
+              action,
+            ],
             const SizedBox(height: Espacio.s),
             ...children,
           ],

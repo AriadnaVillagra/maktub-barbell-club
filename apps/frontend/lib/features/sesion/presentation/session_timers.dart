@@ -8,7 +8,7 @@ import '../../temporizador/presentation/controllers/crono_controller.dart';
 import '../../temporizador/presentation/widgets/selector_temporizador.dart';
 
 /// The timer a set starts when it is marked: the prescription's own, or else the block's default rest timer. A timed
-/// block's timer is the block's own (the WoD), not a rest, so it is not started by marking a set.
+/// block's timer, and a `wod` block's, is the block's own (the WoD), not a rest, so marking a set does not start it.
 Temporizador? timerForSet(
   PlanBlock block,
   Prescription prescription,
@@ -16,7 +16,10 @@ Temporizador? timerForSet(
 ) {
   final id =
       prescription.timerId ??
-      (block.executionMode == ExecutionMode.timed ? null : block.timerId);
+      (block.executionMode == ExecutionMode.timed ||
+              block.categoryId == wodCategoryId
+          ? null
+          : block.timerId);
   if (id == null) return null;
   for (final t in timers) {
     if (t.id == id) return t;
@@ -67,5 +70,31 @@ class SessionTimerButton extends ConsumerWidget {
         if (chosen != null) crono.iniciar(chosen);
       },
     );
+  }
+}
+
+/// The button of a `wod` block that starts the block's own timer. Nothing if the block has no timer, or the club's
+/// timers do not have it.
+class SessionWodTimerButton extends ConsumerWidget {
+  const SessionWodTimerButton({super.key, required this.block});
+
+  final PlanBlock block;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final id = block.timerId;
+    if (id == null) return const SizedBox.shrink();
+    final timers = ref.watch(clubTimersProvider).value ?? const [];
+    for (final t in timers) {
+      if (t.id == id) {
+        return OutlinedButton(
+          key: const Key('session-wod-timer'),
+          onPressed: () =>
+              ref.read(cronoControllerProvider.notifier).iniciar(t),
+          child: Text('⏱ ${t.nombre}'),
+        );
+      }
+    }
+    return const SizedBox.shrink();
   }
 }
