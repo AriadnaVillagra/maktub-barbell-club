@@ -45,11 +45,7 @@ class SessionLoadsView extends ConsumerWidget {
     final notifier = ref.read(sessionScreenProvider.notifier);
     final present = live.session.presentAthleteIds;
     if (present.isEmpty) return const SizedBox.shrink();
-    final athleteId =
-        state.athleteId ??
-        (present.contains(data.ownAthleteId)
-            ? data.ownAthleteId!
-            : present.first);
+    final athleteId = athleteOnScreen(data, state, live)!;
     final adjustments = state.adjustmentsOf(athleteId);
     final loads = ref.watch(
       proposedLoadsProvider((

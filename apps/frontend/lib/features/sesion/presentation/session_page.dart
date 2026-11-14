@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
@@ -14,7 +15,10 @@ import 'session_timers.dart';
 /// The day's session: opens on the day D13 gives, lets the user pick another one and the present athletes, and once
 /// open shows each present athlete's kilos with their day adjustment. Marking sets is E7.8.
 class SessionPage extends ConsumerWidget {
-  const SessionPage({super.key});
+  const SessionPage({super.key, this.guidedPath});
+
+  /// Where "Entrenar" goes, the guided mode (E7.20); without it there is no button.
+  final String? guidedPath;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,16 +43,17 @@ class SessionPage extends ConsumerWidget {
                   ),
                 ),
               )
-            : _SessionBody(data: data),
+            : _SessionBody(data: data, guidedPath: guidedPath),
       ),
     );
   }
 }
 
 class _SessionBody extends ConsumerWidget {
-  const _SessionBody({required this.data});
+  const _SessionBody({required this.data, this.guidedPath});
 
   final SessionDayData data;
+  final String? guidedPath;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -131,8 +136,18 @@ class _SessionBody extends ConsumerWidget {
             _OpenButton(data: data, week: week, day: day),
             for (final block in planDay.blocks)
               _BlockPreview(block: block, names: data.exerciseNames),
-          ] else
+          ] else ...[
+            if (guidedPath case final path?) ...[
+              const SizedBox(height: Espacio.m),
+              FilledButton.icon(
+                key: const Key('session-train'),
+                onPressed: () => context.push(path),
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('Entrenar'),
+              ),
+            ],
             SessionLoadsView(data: data, live: live, day: planDay),
+          ],
         ],
       ],
     );

@@ -17,6 +17,7 @@ import '../../catalogo/presentation/providers.dart'
 import '../data/http_session_repository.dart';
 import '../data/shared_preferences_draft_store.dart';
 import '../domain/athlete_adjustments.dart';
+import '../domain/guided_session.dart';
 import '../domain/session_draft_store.dart';
 import '../domain/session_repository.dart';
 import '../domain/set_sync_queue.dart';
@@ -338,6 +339,209 @@ class SessionScreenController extends Notifier<SessionScreenState> {
 final sessionScreenProvider =
     NotifierProvider.autoDispose<SessionScreenController, SessionScreenState>(
       SessionScreenController.new,
+    );
+
+/// The present athlete on screen: the chosen one, else the user if present, else the first present.
+String? athleteOnScreen(
+  SessionDayData data,
+  SessionScreenState state,
+  LiveSession live,
+) {
+  final present = live.session.presentAthleteIds;
+  return state.athleteId ??
+      (present.contains(data.ownAthleteId)
+          ? data.ownAthleteId
+          : present.firstOrNull);
+}
+
+/// The plan's day of the open session; null if the plan no longer has it.
+PlanDay? liveDayOf(SessionDayData data, LiveSession live) {
+  final days = data.plan.weekModelOf(live.session.week)?.days ?? const [];
+  final day = live.session.day;
+  return day >= 1 && day <= days.length ? days[day - 1] : null;
+}
+
+/// The guided mode's clock. Tests override it.
+final guidedClockProvider = Provider<DateTime Function()>(
+  (ref) => DateTime.now,
+);
+
+/// The guided mode over the open session (E7.20): the pure [GuidedSession], fed with the session's records, and the
+/// set writes it leads to, through the same draft and queue as the session's list (E7.8, E7.9). Null without an open
+/// session. Its position is local and is dropped when the guided screen closes.
+class GuidedController extends Notifier<GuidedSession?> {
+  @override
+  GuidedSession? build() {
+    // A set another device marks, or one this device wrote, may close the block.
+    ref.listen(
+      sessionScreenProvider.select((s) => s.live?.records),
+      (_, _) => _update((s) => s.settle(recorded, now: _now)),
+    );
+    final data = ref.read(sessionDayProvider).value;
+    final screen = ref.read(sessionScreenProvider);
+    final live = screen.live;
+    if (data == null || live == null) return null;
+    final day = liveDayOf(data, live);
+    if (day == null) return null;
+    final athlete = athleteOnScreen(data, screen, live) ?? data.ownAthleteId;
+    return GuidedSession.choosing(day, [?athlete]);
+  }
+
+  LiveSession? get _live => ref.read(sessionScreenProvider).live;
+
+  /// The done sets of the session, wherever they were marked.
+  Set<BlockSet> get recorded => recordedSets(_live?.records ?? const []);
+
+  DateTime get _now => ref.read(guidedClockProvider)();
+
+  void _update(GuidedSession Function(GuidedSession) change) {
+    final s = state;
+    if (s != null) state = change(s);
+  }
+
+  void toggleAthlete(String athleteId) =>
+      _update((s) => s.toggleAthlete(athleteId));
+
+  /// "Comenzar". An athlete who is not present yet is added to the session first, since only present athletes record
+  /// sets. Rethrows the backend's error so the screen can show it.
+  Future<void> begin() async {
+    final s = state;
+    final live = _live;
+    final data = ref.read(sessionDayProvider).value;
+    if (s == null || live == null || data == null) return;
+    final present = live.session.presentAthleteIds;
+    if (!s.athleteIds.every(present.contains)) {
+      await ref
+          .read(sessionScreenProvider.notifier)
+          .open(
+            data,
+            week: live.session.week,
+            day: live.session.day,
+            present: {...present, ...s.athleteIds},
+          );
+    }
+    _update((s) => s.begin(now: _now));
+  }
+
+  void setAthleteMode(AthleteMode mode) =>
+      _update((s) => s.withAthleteMode(mode));
+
+  void startBlock() => _update((s) => s.startBlock(recorded, now: _now));
+
+  void skipBlock() => _update((s) => s.skipBlock(now: _now));
+
+  void interruptBlock() => _update((s) => s.interruptBlock(now: _now));
+
+  void startStep() => _update((s) => s.startStep(recorded));
+
+  void toggleNotDone(String athleteId) =>
+      _update((s) => s.toggleNotDone(athleteId, recorded));
+
+  void edit(String athleteId, SetEdit edit) =>
+      _update((s) => s.edit(athleteId, edit, recorded));
+
+  void leaveExercise(String athleteId) =>
+      _update((s) => s.leaveExercise(athleteId, recorded, now: _now));
+
+  void skipExercise() => _update((s) => s.skipExercise(recorded, now: _now));
+
+  /// "Terminar serie": moves on at once and writes each athlete's set with what their card shows. Rethrows the
+  /// backend's refusal so the screen can show it.
+  Future<void> finishStep() async {
+    final s = state;
+    final done = recorded;
+    final run = s?.run;
+    final step = s?.currentStep(done);
+    if (s == null || run == null || step == null) return;
+    final draft = s.draftFor(step);
+    final result = s.finishStep(done, now: _now);
+    final writes = [
+      for (final a in result.record)
+        _markWrite(
+          s.day.blocks[run.blockIndex],
+          run.blockIndex,
+          step.prescription,
+          step.set,
+          a,
+          draft.edits[a],
+        ),
+    ];
+    state = result.next;
+    await _send(writes);
+  }
+
+  /// "Terminar bloque" of a block without steps. A timed block's sets that nobody recorded yet are recorded as the
+  /// plan has them, for every athlete training.
+  Future<void> finishBlock() async {
+    final s = state;
+    final run = s?.run;
+    final block = s?.block;
+    if (s == null || run == null || block == null) return;
+    final done = recorded;
+    final writes = [
+      for (final a in s.athleteIds)
+        for (var p = 0; p < block.prescriptions.length; p++)
+          for (var set = 0; set < block.prescriptions[p].sets.length; set++)
+            if (!done.contains((run.blockIndex, AthleteSet(a, p, set))))
+              _markWrite(block, run.blockIndex, p, set, a, null),
+    ];
+    state = s.finishBlock(now: _now);
+    await _send(writes);
+  }
+
+  SetWrite _markWrite(
+    PlanBlock block,
+    int b,
+    int p,
+    int set,
+    String athleteId,
+    SetEdit? edit,
+  ) {
+    final screen = ref.read(sessionScreenProvider);
+    final current = screen.live?.records
+        .where(
+          (r) =>
+              r.athleteId == athleteId &&
+              r.blockIndex == b &&
+              r.prescriptionIndex == p &&
+              r.setIndex == set,
+        )
+        .firstOrNull;
+    final write = SetWrite.of(
+      current,
+      athleteId: athleteId,
+      blockIndex: b,
+      prescriptionIndex: p,
+      setIndex: set,
+      adjustment: screen
+          .adjustmentsOf(athleteId)
+          .effectiveFor(block.prescriptions[p].exerciseId ?? ''),
+    ).markedDone();
+    return edit == null
+        ? write
+        : write.edited(manualKg: edit.manualKg, reps: edit.reps);
+  }
+
+  /// Sends every write even if the server refuses one, and then rethrows the first refusal.
+  Future<void> _send(List<SetWrite> writes) async {
+    final clubId = _live?.session.clubId;
+    if (clubId == null) return;
+    final screen = ref.read(sessionScreenProvider.notifier);
+    Object? refused;
+    for (final w in writes) {
+      try {
+        await screen.writeSet(clubId, w);
+      } catch (e) {
+        refused ??= e;
+      }
+    }
+    if (refused != null) throw refused;
+  }
+}
+
+final guidedProvider =
+    NotifierProvider.autoDispose<GuidedController, GuidedSession?>(
+      GuidedController.new,
     );
 
 /// The proposed kilos of one athlete in one session.
