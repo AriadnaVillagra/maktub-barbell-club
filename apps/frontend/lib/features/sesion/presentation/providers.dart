@@ -15,9 +15,11 @@ import '../../atletas/presentation/providers.dart'
 import '../../catalogo/presentation/providers.dart'
     show catalogRepositoryProvider;
 import '../data/http_session_repository.dart';
+import '../data/shared_preferences_calendar_layout_store.dart';
 import '../data/shared_preferences_draft_store.dart';
 import '../domain/athlete_adjustments.dart';
 import '../domain/block_time_write.dart';
+import '../domain/calendar_layout.dart';
 import '../domain/guided_session.dart';
 import '../domain/session_draft_store.dart';
 import '../domain/session_repository.dart';
@@ -109,6 +111,38 @@ class SessionDayData {
   /// The user's athlete id, when they are one in this club.
   final String? ownAthleteId;
 }
+
+final calendarLayoutStoreProvider = Provider<CalendarLayoutStore>(
+  (ref) => SharedPreferencesCalendarLayoutStore(),
+);
+
+/// The calendar layout the user chose (E7.25), remembered on the device. Starts compact until the saved one loads;
+/// a choice made before that wins.
+class CalendarLayoutController extends Notifier<CalendarLayout> {
+  var _chosen = false;
+
+  @override
+  CalendarLayout build() {
+    unawaited(_restore());
+    return CalendarLayout.compact;
+  }
+
+  Future<void> _restore() async {
+    final saved = await ref.read(calendarLayoutStoreProvider).load();
+    if (saved != null && !_chosen && ref.mounted) state = saved;
+  }
+
+  void choose(CalendarLayout layout) {
+    _chosen = true;
+    state = layout;
+    unawaited(ref.read(calendarLayoutStoreProvider).save(layout));
+  }
+}
+
+final calendarLayoutProvider =
+    NotifierProvider<CalendarLayoutController, CalendarLayout>(
+      CalendarLayoutController.new,
+    );
 
 /// Which cycle's day states to fetch: the cycle of an assignment started on [startDate].
 typedef CycleDaysQuery = (

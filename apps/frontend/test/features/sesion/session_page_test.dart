@@ -12,13 +12,16 @@ import 'package:maktub_frontend/features/asignacion/presentation/providers.dart'
 import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
 import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
+import 'package:maktub_frontend/features/sesion/data/shared_preferences_calendar_layout_store.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
 import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
+import 'package:maktub_frontend/features/sesion/presentation/calendar_boards.dart';
 import 'package:maktub_frontend/features/sesion/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/presentation/session_page.dart';
 import 'package:maktub_ui/maktub_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../access/fakes.dart';
 import '../catalogo/catalog_admin_fakes.dart';
@@ -317,8 +320,9 @@ Future<void> _pump(
   MemoryDraftStore? draft,
   Widget home = const SessionPage(assignmentsPath: '/asig'),
   bool withRouter = false,
+  Size size = const Size(900, 2400),
 }) async {
-  tester.view.physicalSize = const Size(900, 2400);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   final me = meWith([
@@ -376,6 +380,8 @@ String _kg(WidgetTester tester, String key) =>
     tester.widget<Text>(find.byKey(Key(key))).data!;
 
 void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
   group('the day it opens on (D13)', () {
     testWidgets('shows the cycle and week of the date', (tester) async {
       await _pump(tester, _FakeSessions());
@@ -1039,41 +1045,24 @@ void main() {
         findsOneWidget,
       );
       for (var w = 1; w <= 4; w++) {
-        expect(
-          find.byKey(Key('calendar-week-title-$w')),
-          findsOneWidget,
-        );
+        expect(find.byKey(Key('calendar-week-$w')), findsOneWidget);
       }
-      final current = tester.widget<Text>(
-        find.byKey(Key('calendar-week-title-${where.semana}')),
-      );
-      expect(current.data, endsWith('esta semana'));
+      expect(detail('calendar-week-1', 'Carga'), findsOneWidget);
       expect(
-        tester
-            .widget<Text>(find.byKey(const Key('calendar-week-title-1')))
-            .data,
-        isNot(contains('esta semana')),
+        detail('calendar-week-${where.semana}', 'Descarga'),
+        findsOneWidget,
       );
+      expect(
+        detail('calendar-week-${where.semana}', 'Esta semana'),
+        findsOneWidget,
+      );
+      expect(find.text('Esta semana'), findsOneWidget);
       expect(detail('calendar-day-${where.semana}-1', 'Hecho'), findsOneWidget);
       expect(
         detail('calendar-day-${where.semana}-2', 'Pendiente'),
         findsOneWidget,
       );
       expect(detail('calendar-day-1-1', 'Hecho'), findsOneWidget);
-    });
-
-    testWidgets('tapping a day opens the session of that week and day', (
-      tester,
-    ) async {
-      await _pump(tester, _FakeSessions());
-      await tester.tap(find.text('Calendario'));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('calendar-day-2-1')));
-      await tester.pumpAndSettle();
-
-      expect(find.byKey(const Key('session-open')), findsOneWidget);
-      expect(find.text('Día 1 · Empuje A'), findsOneWidget);
     });
 
     testWidgets('recording a set turns the day pill to done', (tester) async {
@@ -1090,6 +1079,318 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(detail('session-day-1', 'Hecho'), findsOneWidget);
+    });
+  });
+
+  group('calendar board (E7.25)', () {
+    const phone = Size(400, 800);
+    const wide = Size(1200, 800);
+
+    Finder inKey(String key, Finder matching) =>
+        find.descendant(of: find.byKey(Key(key)), matching: matching);
+
+    Future<void> toCalendar(WidgetTester tester) async {
+      await tester.tap(find.text('Calendario'));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> choose(WidgetTester tester, String layout) async {
+      await tester.tap(inKey('calendar-layout', find.text(layout)));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> tapKey(WidgetTester tester, String key) async {
+      await tester.ensureVisible(find.byKey(Key(key)));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(Key(key)));
+      await tester.pumpAndSettle();
+    }
+
+    const layouts = {
+      'Compacta': CompactBoard,
+      'Tarjetas': CardsBoard,
+      'Detallada': DetailedBoard,
+    };
+
+    testWidgets('the selector switches between the three layouts', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      await toCalendar(tester);
+      expect(find.byType(CompactBoard), findsOneWidget);
+
+      for (final MapEntry(key: label, value: type) in layouts.entries) {
+        await choose(tester, label);
+        for (final other in layouts.values) {
+          expect(
+            find.byType(other),
+            other == type ? findsOneWidget : findsNothing,
+          );
+        }
+      }
+    });
+
+    testWidgets('the chosen layout is there when the screen opens again', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      await toCalendar(tester);
+      await choose(tester, 'Detallada');
+      expect(
+        (await SharedPreferences.getInstance()).getString(
+          SharedPreferencesCalendarLayoutStore.key,
+        ),
+        'detailed',
+      );
+
+      await tester.pumpWidget(const SizedBox());
+      await _pump(
+        tester,
+        _FakeSessions(),
+        home: const SessionPage(initialView: SessionView.calendar),
+      );
+      expect(find.byType(DetailedBoard), findsOneWidget);
+    });
+
+    testWidgets('a layout saved on the device is the one it opens with', (
+      tester,
+    ) async {
+      SharedPreferences.setMockInitialValues({
+        SharedPreferencesCalendarLayoutStore.key: 'cards',
+      });
+      await _pump(
+        tester,
+        _FakeSessions(),
+        home: const SessionPage(initialView: SessionView.calendar),
+      );
+      expect(find.byType(CardsBoard), findsOneWidget);
+    });
+
+    for (final label in ['Compacta', 'Tarjetas', 'Detallada']) {
+      testWidgets(
+        '$label shows each day done or pending and marks the D13 day',
+        (tester) async {
+          final calendar = _FakeCalendar(done: {1});
+          calendar.extraDone.add((1, 1));
+          await _pump(tester, _FakeSessions(), calendar: calendar);
+          await toCalendar(tester);
+          await choose(tester, label);
+
+          // Today is week 4; day 1 is done, so D13 opens day 2.
+          expect(inKey('calendar-day-4-1', find.text('Hecho')), findsOneWidget);
+          expect(
+            inKey('calendar-day-4-2', find.text('Pendiente')),
+            findsOneWidget,
+          );
+          expect(
+            inKey('calendar-day-4-3', find.text('Pendiente')),
+            findsOneWidget,
+          );
+          expect(inKey('calendar-day-1-1', find.text('Hecho')), findsOneWidget);
+          expect(
+            inKey('calendar-day-2-1', find.text('Pendiente')),
+            findsOneWidget,
+          );
+          expect(
+            inKey('calendar-day-4-1', find.byIcon(Icons.check_circle)),
+            findsOneWidget,
+          );
+          expect(
+            inKey('calendar-day-4-2', find.text('Toca hoy')),
+            findsOneWidget,
+          );
+          expect(find.text('Toca hoy'), findsOneWidget);
+          expect(
+            tester
+                .widget<DayCard>(find.byKey(const Key('calendar-day-4-2')))
+                .highlighted,
+            isTrue,
+          );
+          expect(
+            inKey('calendar-week-4', find.text('Esta semana')),
+            findsOneWidget,
+          );
+          expect(find.text('Esta semana'), findsOneWidget);
+        },
+      );
+    }
+
+    testWidgets('Compacta shows the main exercises with their sets', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      await toCalendar(tester);
+
+      expect(
+        inKey('calendar-day-4-1', find.text('Sentadilla')),
+        findsOneWidget,
+      );
+      expect(
+        inKey('calendar-day-4-1', find.text('2x5 al 80 %')),
+        findsOneWidget,
+      );
+      // The warm-up is not a main exercise.
+      expect(inKey('calendar-day-4-1', find.text('1x10')), findsNothing);
+    });
+
+    testWidgets('Tarjetas shows every block with its exercises', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      await toCalendar(tester);
+      await choose(tester, 'Tarjetas');
+
+      for (final text in [
+        'Principal',
+        'Entrada en calor',
+        '2x5 al 80 %',
+        '1x10',
+      ]) {
+        expect(inKey('calendar-day-4-1', find.text(text)), findsOneWidget);
+      }
+    });
+
+    testWidgets('Detallada shows every day in full with its button', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      await toCalendar(tester);
+      await choose(tester, 'Detallada');
+
+      for (final text in [
+        'Principal',
+        'Entrada en calor',
+        '2x5 al 80 %',
+        '1x10',
+      ]) {
+        expect(inKey('calendar-day-4-1', find.text(text)), findsOneWidget);
+      }
+      for (final (w, d) in [(1, 1), (4, 1), (4, 2), (4, 3)]) {
+        expect(find.byKey(Key('calendar-go-$w-$d')), findsOneWidget);
+      }
+    });
+
+    for (final size in [phone, wide]) {
+      for (final label in ['Compacta', 'Tarjetas']) {
+        testWidgets(
+          'in $label at ${size.width.toInt()} wide, tapping a day opens its detail '
+          'without leaving the calendar',
+          (tester) async {
+            await _pump(tester, _FakeSessions(), size: size);
+            await toCalendar(tester);
+            await choose(tester, label);
+            expect(find.byKey(const Key('calendar-detail')), findsNothing);
+
+            await tapKey(tester, 'calendar-day-4-1');
+
+            expect(find.byType(layouts[label]!), findsOneWidget);
+            expect(find.byKey(const Key('session-open')), findsNothing);
+            expect(
+              tester
+                  .widget<Text>(find.byKey(const Key('calendar-detail-title')))
+                  .data,
+              'Semana 4 · Día 1 · Piernas',
+            );
+            expect(
+              inKey('calendar-detail', find.text('Entrada en calor')),
+              findsOneWidget,
+            );
+            expect(
+              tester
+                  .widget<DayCard>(
+                    find.byKey(const Key('calendar-day-4-1')),
+                  )
+                  .selected,
+              isTrue,
+            );
+            final detail = tester.getRect(
+              find.byKey(const Key('calendar-detail')),
+            );
+            if (size == phone) {
+              // At the bottom, full width.
+              expect(detail.bottom, size.height);
+              expect(detail.width, size.width);
+            } else {
+              // At the side.
+              expect(detail.right, size.width);
+              expect(detail.width, DayCard.detailWidth);
+            }
+
+            await tapKey(tester, 'calendar-day-2-1');
+            expect(
+              tester
+                  .widget<Text>(find.byKey(const Key('calendar-detail-title')))
+                  .data,
+              'Semana 2 · Día 1 · Empuje A',
+            );
+            expect(tester.takeException(), isNull);
+          },
+        );
+      }
+
+      testWidgets(
+        'at ${size.width.toInt()} wide, "Ir a la sesión de este día" opens that '
+        'week and day',
+        (tester) async {
+          final sessions = _FakeSessions();
+          await _pump(tester, sessions, size: size);
+          await toCalendar(tester);
+          await tapKey(tester, 'calendar-day-2-1');
+          await tapKey(tester, 'calendar-go-2-1');
+
+          expect(find.byType(CompactBoard), findsNothing);
+          expect(find.text('Día 1 · Empuje A'), findsOneWidget);
+          await tester.ensureVisible(find.byKey(const Key('session-open')));
+          await tester.tap(find.byKey(const Key('session-open')));
+          await tester.pumpAndSettle();
+          expect((sessions.openedWeek, sessions.openedDay), (2, 1));
+          expect(tester.takeException(), isNull);
+        },
+      );
+
+      testWidgets(
+        'at ${size.width.toInt()} wide, every layout fits without overflow',
+        (tester) async {
+          await _pump(tester, _FakeSessions(), size: size);
+          await toCalendar(tester);
+          for (final label in layouts.keys) {
+            await choose(tester, label);
+            expect(tester.takeException(), isNull, reason: label);
+          }
+          await choose(tester, 'Compacta');
+          await tapKey(tester, 'calendar-day-4-3');
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
+
+    testWidgets('in Detallada, the button opens that week and day', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions());
+      await toCalendar(tester);
+      await choose(tester, 'Detallada');
+      await tapKey(tester, 'calendar-go-4-3');
+
+      expect(find.text('Día 3 · Tirón'), findsOneWidget);
+      expect(find.byKey(const Key('session-open')), findsOneWidget);
+    });
+
+    testWidgets('on a phone the detail closes', (tester) async {
+      await _pump(tester, _FakeSessions(), size: phone);
+      await toCalendar(tester);
+      await tapKey(tester, 'calendar-day-4-1');
+      await tester.tap(find.byKey(const Key('calendar-detail-close')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('calendar-detail')), findsNothing);
+    });
+
+    testWidgets('on a wide screen, the side panel asks to tap a day', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions(), size: wide);
+      await toCalendar(tester);
+      expect(find.byKey(const Key('calendar-detail-hint')), findsOneWidget);
     });
   });
 }
