@@ -27,7 +27,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 11 / 21 (E7.1 a E7.9, E7.11 y E7.13 hechos; siguen E7.10, E7.12 y E7.14 en paralelo, y del modo guiado E7.17 y E7.18 hechos, E7.19 en curso) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 11 / 21 (E7.1 a E7.9, E7.11 y E7.13 hechos; siguen E7.10, E7.12 y E7.14 en paralelo, y del modo guiado E7.17 a E7.19 hechos; E7.20 espera a E7.12) | — |
 | E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
@@ -76,6 +76,7 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 - Entran E7.17 a E7.21. Los tiempos de bloque se registran (D20, reemplaza D17).
 - **Para E8.4:** los accesorios con el mismo `grupo` en un día de la referencia son una biserie: se importan
   como un bloque en circuito (E7.18).
+- **E7.19 (hecho):** `PUT .../sesiones/{id}/tiempos/{tiempoId}` exige que los atletas estén presentes en la sesión (422 si no). Un id de cliente repetido en otro club da 500 por clave duplicada; se aceptó porque los ids son UUID. Para E8.5: la hoja Tiempos trae nombres de atletas, no ids.
 - **`diseno.md`:** no tiene `BlockTime` ni que el modo guiado y parte de F10 entran en M1. Se avisa a su sesión.
 - **Revisar el resto de la versión nueva de `reference/`:** tiene más que la versión con la que se planificó M1,
   como menú de entrada, resumen global del plan, editar el día en ejecución, días salteados, rampa
