@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../componentes/campo_busqueda.dart';
 import '../componentes/club_logo.dart';
 import '../componentes/contador_cantidad.dart';
+import '../componentes/day_card.dart';
 import '../componentes/insignia.dart';
 import '../componentes/lista_de_problemas.dart';
 import '../componentes/pildora.dart';
@@ -83,6 +84,7 @@ class Muestrario extends StatelessWidget {
             _Seccion('Ingreso', _Ingreso()),
             _Seccion('Insignias', _Insignias()),
             _Seccion('Píldoras', _Pildoras()),
+            _Seccion('Tarjetas de día', _TarjetasDeDia()),
             _Seccion('Búsqueda y cantidad', _BusquedaYCantidad()),
             _Seccion('Lista de problemas', _ListaDeProblemas()),
           ],
@@ -334,6 +336,7 @@ class _Insignias extends StatelessWidget {
         children: [
           InsigniaMaktub('Default', context.colores.insigniaBase),
           InsigniaMaktub('Custom', context.colores.insigniaPropio),
+          InsigniaMaktub('Hecho', context.colores.exitoContenedor, icono: Icons.check_circle),
         ],
       );
 }
@@ -351,6 +354,49 @@ class _Pildoras extends StatelessWidget {
           PildoraMaktub(texto: 'Día 1', seleccionada: false, onTap: () {}),
         ],
       );
+}
+
+class _TarjetasDeDia extends StatelessWidget {
+  const _TarjetasDeDia();
+
+  @override
+  Widget build(BuildContext context) {
+    Widget linea(String ejercicio, String series) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(ejercicio, style: context.textos.bodyMedium),
+            Text(series, style: context.textos.bodySmall!.copyWith(color: context.esquema.onSurfaceVariant)),
+          ],
+        );
+    return Wrap(
+      spacing: Espacio.s,
+      runSpacing: Espacio.s,
+      children: [
+        SizedBox(
+          width: 200,
+          child: DayCard(title: 'Día 1', subtitle: 'Piernas', done: true, onTap: () {}, children: [
+            linea('Sentadilla', '3x3 al 80 %'),
+          ]),
+        ),
+        SizedBox(
+          width: 200,
+          child: DayCard(title: 'Día 2', subtitle: 'Empuje', done: false, highlighted: true, onTap: () {}, children: [
+            linea('Press banca', '5x5 al 75 %'),
+          ]),
+        ),
+        SizedBox(
+          width: 200,
+          child: DayCard(
+            title: 'Día 3',
+            done: false,
+            selected: true,
+            onTap: () {},
+            action: FilledButton(onPressed: () {}, child: const Text('Abrir')),
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _ListaDeProblemas extends StatelessWidget {
