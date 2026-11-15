@@ -28,7 +28,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 26 / 26 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
-| E8 | [Migración](E8-migracion.md) | en curso | 4 / 6 (E8.1 a E8.4 hechos; E8.5 en curso) | — |
+| E8 | [Migración](E8-migracion.md) | en curso | 5 / 6 (E8.1 a E8.5 hechos; falta E8.6. Fuera de E8.5 quedan los 37 % de `plans.pctFills`, que completa Ari, y Levantamiento sin asignar) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
@@ -105,6 +105,33 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 Guardar deja un borrador, y publicar (E5.14) exige el plan completo. **E6.3 solo asigna un plan publicado.**
 Editar un plan asignado no afecta a los atletas hasta volver a publicar: **E6 y E7 leen siempre la versión
 publicada**, nunca el borrador.
+
+## E8.5: decisiones (2026-11-15, aprobadas por Ari)
+
+- Las filas "historico" de Registro (3976) entran en un plan "Histórico" por mes que arma y publica el importador.
+- Octubre y Levantamiento: Ari completa los % que faltan y después se publican. No se inventan valores.
+- El importador crea las asignaciones ya terminadas (respeta D14): Octubre para "Andi y Ari", Levantamiento solo para Ari.
+- Aprobadas las decisiones de la primera parte (`6282bfb`):
+  - `OpenSession` con `history: true` acepta asignaciones terminadas o pausadas.
+  - Las series históricas quedan como kilos escritos a mano, y la hora de la planilla se toma como Europe/Berlin.
+  - Una fila sin reps queda con las reps del plan, y se avisa.
+  - "Bloque accesorios" va al primer bloque de accesorios; "Bloque principal" y "Bloque secundario" van al Secundario.
+  - La nota del ejercicio va en la primera serie.
+- Segunda parte (`9017aa1`):
+  - El paso `asignaciones` crea asignaciones terminadas desde `plans.assignments`.
+  - `plans.pctFills` tiene en `ajustes.json` las 37 series sin % (26 de Octubre y 11 de Levantamiento), con `pct: null`; Ari los completa.
+  - El importador vuelve a guardar y publica sus propios borradores cuando quedan completos.
+- Los planes "Histórico" no traen %. Se publican con un modo historial que acepta series sin %, solo desde el importador.
+- Tercera parte (`f0fb3f8`): 14 planes "Histórico 2025-05" a "Histórico 2026-10", publicados en modo historial, con asignaciones terminadas para "Andi y Ari". Corrida local: 155 sesiones y 3974 series (2 filas repetidas en Registro); una segunda corrida no cambia nada. Para revisar:
+  - Cada mes queda en el ciclo 1, aunque la planilla diga ciclo 2 a 4.
+  - En marzo 2026, las semanas 3 y 4 repiten la 2.
+  - Se pierden 23 notas de prescripción en atletas que no hicieron la serie 1.
+- **Abril a julio 2026 (pedido por Ari):**
+  - En Registro no hay series de esos meses, pero se entrenó con la planificación de abril, repetida.
+  - Se importa el plan de abril desde la grilla `ABR_2026` de la planilla de planificación. Se le cargan series de abril a julio con los kilos que propone la app (RM × %), marcadas como estimadas, y Ari corrige lo que haga falta.
+  - La grilla de abril no tiene kilos, pero sí los %. Los kilos salen de las RMs ya importadas (E8.3) con las reglas de E4: factor de trabajo y peso cargable más cercano.
+  - Es un cambio aparte de E8.5, todavía sin issue. Falta decidir cómo se marca una serie estimada en el modelo de E7.
+- **Asignaciones por atleta en E6 (pedido por Ari):** Levantamiento es solo de Ari, y E6 solo asigna a grupos. Es un cambio aparte de E8.5 (modelo, backend y app), todavía sin issue. Hasta que exista, Levantamiento queda sin asignar y sus filas no se cargan.
 
 ## Para E8.2 (decidido el 2026-11-08)
 
