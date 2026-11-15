@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
@@ -6,6 +8,8 @@ import '../../../core/red/cliente_api.dart';
 import '../../access/presentation/providers.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
 import '../data/http_plan_repository.dart';
+import '../data/shared_preferences_models_view_store.dart';
+import '../domain/models_view.dart';
 import '../domain/plan_draft.dart';
 import '../domain/plan_repository.dart';
 import 'plan_problem_messages.dart';
@@ -65,6 +69,37 @@ Future<Plan?> copyPlanAsNew(WidgetRef ref, Plan source, String name) async {
   ref.invalidate(plansProvider);
   return saved;
 }
+
+final modelsViewStoreProvider = Provider<ModelsViewStore>(
+  (ref) => SharedPreferencesModelsViewStore(),
+);
+
+/// How the editor shows the week models, remembered on the device. Starts detailed until the saved one
+/// loads; a choice made before that wins.
+class ModelsViewController extends Notifier<ModelsView> {
+  var _chosen = false;
+
+  @override
+  ModelsView build() {
+    unawaited(_restore());
+    return ModelsView.detailed;
+  }
+
+  Future<void> _restore() async {
+    final saved = await ref.read(modelsViewStoreProvider).load();
+    if (saved != null && !_chosen && ref.mounted) state = saved;
+  }
+
+  void choose(ModelsView view) {
+    _chosen = true;
+    state = view;
+    unawaited(ref.read(modelsViewStoreProvider).save(view));
+  }
+}
+
+final modelsViewProvider = NotifierProvider<ModelsViewController, ModelsView>(
+  ModelsViewController.new,
+);
 
 /// What the editor scrolls to after it is built: the key name (`model-<id>`, `day-<model>-<i>`,
 /// `block-<model>-<day>-<i>`, `prescription-<model>-<day>-<block>-<i>`) of the last thing added. The widget

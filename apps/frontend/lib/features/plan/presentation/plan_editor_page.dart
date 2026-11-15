@@ -9,6 +9,7 @@ import '../../catalogo/presentation/catalog_admin_widgets.dart'
 import '../../catalogo/presentation/exercise_picker.dart';
 import '../../catalogo/presentation/catalog_admin_providers.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
+import '../domain/models_view.dart';
 import '../domain/plan_draft.dart';
 import '../domain/prescription_defaults.dart';
 import 'block_dialog.dart';
@@ -138,6 +139,8 @@ class _Editor extends ConsumerWidget {
     final editor = ref.read(planEditorProvider(planId).notifier);
     final save = ref.watch(planSaveProvider(planId));
     final publish = ref.watch(planPublishProvider(planId));
+    final modelsView = ref.watch(modelsViewProvider);
+    final phone = MediaQuery.sizeOf(context).width < 600;
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
@@ -187,7 +190,38 @@ class _Editor extends ConsumerWidget {
           const SizedBox(height: Espacio.l),
         ],
         const SizedBox(height: Espacio.xl),
-        Text('Modelos de semana', style: context.textos.titleMedium),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Modelos de semana',
+                style: context.textos.titleMedium,
+              ),
+            ),
+            // Like a folder's views (Ari): every day in full, or one row per day with its blocks as tags.
+            SegmentedButton<ModelsView>(
+              key: const Key('models-view'),
+              showSelectedIcon: false,
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              // On a phone the labels only fit without icons, like the calendar views.
+              segments: [
+                ButtonSegment(
+                  value: ModelsView.detailed,
+                  icon: phone ? null : const Icon(Icons.view_agenda_outlined),
+                  label: const Text('Detallada'),
+                ),
+                ButtonSegment(
+                  value: ModelsView.compact,
+                  icon: phone ? null : const Icon(Icons.view_headline),
+                  label: const Text('Compacta'),
+                ),
+              ],
+              selected: {modelsView},
+              onSelectionChanged: (v) =>
+                  ref.read(modelsViewProvider.notifier).choose(v.first),
+            ),
+          ],
+        ),
         const SizedBox(height: Espacio.s),
         if (draft.weekModels.isEmpty)
           const Padding(
@@ -205,6 +239,7 @@ class _Editor extends ConsumerWidget {
               model: model,
               draft: draft,
               editor: editor,
+              compact: modelsView == ModelsView.compact,
             ),
           ),
         const SizedBox(height: Espacio.s),
@@ -429,11 +464,15 @@ class _ModelCard extends StatelessWidget {
     required this.model,
     required this.draft,
     required this.editor,
+    this.compact = false,
   });
 
   final WeekModel model;
   final PlanDraft draft;
   final PlanEditor editor;
+
+  /// The compact view: each day is a row with its blocks as tags until it is opened.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -501,6 +540,7 @@ class _ModelCard extends StatelessWidget {
                   day: model.days[i],
                   draft: draft,
                   editor: editor,
+                  compact: compact,
                 ),
               ),
             ],
@@ -512,7 +552,7 @@ class _ModelCard extends StatelessWidget {
 }
 
 /// One day of a week model with its blocks (add, edit, remove).
-class _DayTile extends ConsumerWidget {
+class _DayTile extends ConsumerStatefulWidget {
   const _DayTile({
     super.key,
     required this.modelId,
@@ -520,6 +560,7 @@ class _DayTile extends ConsumerWidget {
     required this.day,
     required this.draft,
     required this.editor,
+    this.compact = false,
   });
 
   final String modelId;
@@ -528,8 +569,26 @@ class _DayTile extends ConsumerWidget {
   final PlanDraft draft;
   final PlanEditor editor;
 
+  /// Shows the day as one row with a tag per block; tapping it opens the day in full.
+  final bool compact;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DayTile> createState() => _DayTileState();
+}
+
+class _DayTileState extends ConsumerState<_DayTile> {
+  // An empty day (a new one) starts open in the compact view, ready to add blocks.
+  late bool _open = widget.day.blocks.isEmpty;
+
+  String get modelId => widget.modelId;
+  int get index => widget.index;
+  PlanDay get day => widget.day;
+  PlanDraft get draft => widget.draft;
+  PlanEditor get editor => widget.editor;
+
+  @override
+  Widget build(BuildContext context) {
+    final collapsed = widget.compact && !_open;
     final categories = ref.watch(catalogCategoriesProvider).value ?? const [];
     final timers = ref.watch(clubTimersProvider).value ?? const [];
     String? categoryName(String? id) {
@@ -550,9 +609,34 @@ class _DayTile extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ListTile(
+          key: Key('day-header-$modelId-$index'),
           contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.today_outlined),
+          leading: widget.compact
+              ? Icon(_open ? Icons.expand_less : Icons.expand_more)
+              : const Icon(Icons.today_outlined),
           title: Text(day.name ?? 'Día ${index + 1}'),
+          onTap: widget.compact ? () => setState(() => _open = !_open) : null,
+          subtitle: collapsed
+              ? Padding(
+                  padding: const EdgeInsets.only(top: Espacio.xs),
+                  child: day.blocks.isEmpty
+                      ? const Text('Sin bloques')
+                      : Wrap(
+                          key: Key('day-tags-$modelId-$index'),
+                          spacing: Espacio.xs,
+                          runSpacing: Espacio.xs,
+                          children: [
+                            for (final b in day.blocks)
+                              InsigniaMaktub(
+                                b.prescriptions.isEmpty
+                                    ? b.name
+                                    : '${b.name} · ${b.prescriptions.length}',
+                                context.colores.insigniaBase,
+                              ),
+                          ],
+                        ),
+                )
+              : null,
           trailing: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -600,66 +684,67 @@ class _DayTile extends ConsumerWidget {
             ],
           ),
         ),
-        Padding(
-          padding: const EdgeInsets.only(left: Espacio.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Blocks are reordered by dragging their handle (no arrows, decided after the E5 test).
-              ReorderableListView(
-                key: Key('blocks-$modelId-$index'),
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                buildDefaultDragHandles: false,
-                onReorderItem: (from, to) =>
-                    editor.moveBlock(modelId, index, from, to),
-                children: [
-                  for (final (b, block) in day.blocks.indexed)
-                    Column(
-                      key: ValueKey('block-item-$modelId-$index-$b'),
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (b > 0) const Divider(),
-                        RevealOnAdd(
-                          target: 'block-$modelId-$index-$b',
-                          child: _BlockTile(
-                            key: Key('block-$modelId-$index-$b'),
-                            keyPrefix: '$modelId-$index',
-                            index: b,
-                            block: block,
-                            categoryName: categoryName(block.categoryId),
-                            timerName: timerName(block.timerId),
-                            editor: editor,
-                            modelId: modelId,
-                            day: index,
+        if (!collapsed)
+          Padding(
+            padding: const EdgeInsets.only(left: Espacio.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Blocks are reordered by dragging their handle (no arrows, decided after the E5 test).
+                ReorderableListView(
+                  key: Key('blocks-$modelId-$index'),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  onReorderItem: (from, to) =>
+                      editor.moveBlock(modelId, index, from, to),
+                  children: [
+                    for (final (b, block) in day.blocks.indexed)
+                      Column(
+                        key: ValueKey('block-item-$modelId-$index-$b'),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (b > 0) const Divider(),
+                          RevealOnAdd(
+                            target: 'block-$modelId-$index-$b',
+                            child: _BlockTile(
+                              key: Key('block-$modelId-$index-$b'),
+                              keyPrefix: '$modelId-$index',
+                              index: b,
+                              block: block,
+                              categoryName: categoryName(block.categoryId),
+                              timerName: timerName(block.timerId),
+                              editor: editor,
+                              modelId: modelId,
+                              day: index,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                ],
-              ),
-              TextButton.icon(
-                key: Key('block-add-$modelId-$index'),
-                icon: const Icon(Icons.add),
-                label: const Text('Agregar bloque'),
-                onPressed: () async {
-                  final fields = await askBlock(context);
-                  if (fields == null) return;
-                  editor.addBlock(
-                    modelId,
-                    index,
-                    PlanBlock(
-                      name: fields.name,
-                      categoryId: fields.categoryId,
-                      timerId: fields.timerId,
-                      note: fields.note,
-                    ),
-                  );
-                },
-              ),
-            ],
+                        ],
+                      ),
+                  ],
+                ),
+                TextButton.icon(
+                  key: Key('block-add-$modelId-$index'),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agregar bloque'),
+                  onPressed: () async {
+                    final fields = await askBlock(context);
+                    if (fields == null) return;
+                    editor.addBlock(
+                      modelId,
+                      index,
+                      PlanBlock(
+                        name: fields.name,
+                        categoryId: fields.categoryId,
+                        timerId: fields.timerId,
+                        note: fields.note,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
-        ),
       ],
     );
   }
