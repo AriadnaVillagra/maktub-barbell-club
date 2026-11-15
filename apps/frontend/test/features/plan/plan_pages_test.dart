@@ -34,13 +34,7 @@ void main() {
       );
       await pumpPlanPage(tester, const PlansPage(basePath: '/x'), repo);
       expect(find.text('Fuerza'), findsOneWidget);
-      for (final tag in [
-        'Borrador',
-        'Regular',
-        '2 modelos',
-        'RM',
-        '0 modelos',
-      ]) {
+      for (final tag in ['Regular', '2 modelos', 'RM', '0 modelos']) {
         expect(find.text(tag), findsOneWidget);
       }
       expect(find.text('Borrador'), findsNWidgets(2));
@@ -323,7 +317,15 @@ void main() {
       expect(find.byKey(const Key('model-b')), findsOneWidget);
       // Fully assigned: the details start closed, with a summary.
       expect(find.byKey(const Key('assign-0')), findsNothing);
-      for (final tag in ['Regular', 'Activo', 'S1 A', 'S2 B', 'S3 B', 'S4 A']) {
+      for (final tag in [
+        'Borrador',
+        'Regular',
+        'Activo',
+        'S1 A',
+        'S2 B',
+        'S3 B',
+        'S4 A',
+      ]) {
         expect(
           find.descendant(
             of: find.byKey(const Key('plan-details-summary')),
