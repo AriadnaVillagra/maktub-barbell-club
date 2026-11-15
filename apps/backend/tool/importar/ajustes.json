@@ -66,5 +66,32 @@
       {"plan": "plan_oct2026", "group": "Andi y Ari", "from": "2026-10-01", "to": "2026-11-05"},
       {"plan": "plan_mw4vrh30", "athlete": "Ari", "from": "2026-11-06", "to": "2026-11-07"}
     ]
+  },
+  "planningGrid": {
+    "_legend": "E8.7: April to July 2026 are not in Registro, but the April planning grid was repeated those four months. The importer builds a history plan from the grid and loads its sessions with the kilos the app proposes, marked as estimated. Week s, day d of each month is its day 7*(s-1)+d.",
+    "sheet": "ABR_2026",
+    "plan": {"id": "planificacion-abr-2026", "name": "Abril 2026"},
+    "group": "Andi y Ari",
+    "months": ["2026-04", "2026-05", "2026-06", "2026-07"],
+    "_absent": "Who missed a day. The grid says 'SEMANA 2 (andi no hizo este dia)' on day 3: taken as April only, since it is April's sheet.",
+    "absent": [{"month": "2026-04", "week": 2, "day": 3, "athlete": "Andi"}],
+    "_exerciseNames": "Grid name (lowercase, no accents) -> sheet exercise id (resolved through the catalog step) or app exercise id, for the names that are not an Ejercicios or catalog name. From reference/importar.py ALIAS, plus bird-dogs, espinales con disco and levantada turca (Turkish get-up).",
+    "exerciseNames": {
+      "back squat": "sq_espalda",
+      "front squat": "sq_frontal",
+      "peso muerto": "dl_convencional",
+      "deadlift": "dl_convencional",
+      "bench press": "bp_plano",
+      "bench": "bp_plano",
+      "rumanos": "dl_rumano",
+      "biceps con barra": "curl_barra",
+      "biceps martillo": "curl_martillo",
+      "skullcrashers": "skull_crushers",
+      "push press mancuerna": "push_press",
+      "press arnold": "arnold_press",
+      "bird-dogs": "pajaros",
+      "espinales con disco": "espinales",
+      "levantada turca": "tgu"
+    }
   }
 }

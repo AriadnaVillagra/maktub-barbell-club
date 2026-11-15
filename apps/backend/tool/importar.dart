@@ -4,6 +4,7 @@
 // dry run: it reads MONGO_URL and reports what it would do, writing nothing. Every step is idempotent.
 //
 //   --carpeta <dir>   folder with the CSVs (default ../../docs/planillas/csv/apps-script, never in git)
+//   --planificacion <dir>  folder with the planning grids (default ../../docs/planillas/csv/planificacion)
 //   --club <id>       club to import into (default: the club named "Maktub")
 //   --solo <a,b>      only these steps (default: all, in order)
 //   --ajustes <file>  decisions about the data (default tool/importar/ajustes.json)
@@ -24,6 +25,8 @@ import 'package:maktub_backend/features/import/athletes/athlete_import.dart';
 import 'package:maktub_backend/features/import/athletes/athlete_import_store.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_import.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_import_store.dart';
+import 'package:maktub_backend/features/import/grid/grid_import.dart';
+import 'package:maktub_backend/features/import/grid/grid_import_store.dart';
 import 'package:maktub_backend/features/import/history/history_import.dart';
 import 'package:maktub_backend/features/import/history/history_import_store.dart';
 import 'package:maktub_backend/features/import/history/history_plan.dart';
@@ -44,8 +47,8 @@ import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 
-/// The steps in the order they run.
-List<ImportStep> _steps(Db db) {
+/// The steps in the order they run. [planningFolder] holds the planning grids (E8.7).
+List<ImportStep> _steps(Db db, {String planningFolder = '../../docs/planillas/csv/planificacion'}) {
   final catalog = CatalogImport(
     reads: MongoCatalogImportStore(db),
     exerciseWrites: MongoWriteExerciseStore(db),
@@ -104,6 +107,24 @@ List<ImportStep> _steps(Db db) {
       setWrites: MongoRecordSetStore(db),
       timeWrites: MongoRecordBlockTimeStore(db),
     ),
+    GridImport(
+      sources: (run) async {
+        final catalogPlan = await catalog.plan(run);
+        return GridSources(
+          exerciseIdFor: catalogPlan.exerciseIdFor,
+          sheetNames: GridImport.sheetNames(run),
+          pending: [if (!catalogPlan.isEmpty) catalog.name],
+        );
+      },
+      gridCsv: (sheet) => File('$planningFolder${Platform.pathSeparator}$sheet.csv').readAsStringSync(),
+      reads: MongoGridImportStore(db),
+      planCreates: MongoCreatePlanStore(db),
+      planSaves: MongoSavePlanStore(db),
+      planPublishes: MongoPublishPlanStore(db),
+      assignmentWrites: MongoCreateAssignmentStore(db),
+      sessionWrites: MongoOpenSessionStore(db),
+      setWrites: MongoRecordSetStore(db),
+    ),
   ];
 }
 
@@ -124,7 +145,7 @@ Future<void> main(List<String> args) async {
       adjustments: ImportAdjustments.fromFile(options.adjustments),
       dryRun: !options.apply,
     );
-    final steps = _steps(db).where((s) => options.only.isEmpty || options.only.contains(s.name)).toList();
+    final steps = _steps(db, planningFolder: options.planning).where((s) => options.only.isEmpty || options.only.contains(s.name)).toList();
     final unknown = options.only.difference({for (final s in _steps(db)) s.name});
     if (unknown.isNotEmpty) throw ArgumentError('Pasos desconocidos: ${unknown.join(', ')}.');
     for (final step in steps) {
@@ -149,6 +170,7 @@ Future<String> _maktubClubId(Db db) async {
 class _Options {
   _Options({
     required this.folder,
+    required this.planning,
     required this.club,
     required this.only,
     required this.adjustments,
@@ -166,6 +188,7 @@ class _Options {
 
     return _Options(
       folder: value('--carpeta') ?? '../../docs/planillas/csv/apps-script',
+      planning: value('--planificacion') ?? '../../docs/planillas/csv/planificacion',
       club: value('--club'),
       only: {...?value('--solo')?.split(',').map((s) => s.trim()).where((s) => s.isNotEmpty)},
       adjustments: value('--ajustes') ?? 'tool/importar/ajustes.json',
@@ -175,6 +198,7 @@ class _Options {
   }
 
   final String folder;
+  final String planning;
   final String? club;
   final Set<String> only;
   final String adjustments;
