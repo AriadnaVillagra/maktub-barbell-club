@@ -528,7 +528,7 @@ PlannedSession _resolveSession(
   ];
   if (covering.isEmpty) {
     throw _Skip(
-      'el plan "${plan.name}" no tiene una asignación que cubra la fecha (asignarlo es de E6, a mano; '
+      'el plan "${plan.name}" no tiene una asignación que cubra la fecha (plans.assignments en ajustes.json; '
       'puede estar terminada)',
     );
   }

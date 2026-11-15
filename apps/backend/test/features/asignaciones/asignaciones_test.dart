@@ -266,6 +266,38 @@ void main() {
       },
     );
 
+    test('history: created already ended, next to the active one', () async {
+      final s = store();
+      await create(_coachA, s, body());
+      final club = ClubContext(
+        clubId: 'club-a',
+        userId: 'importer',
+        roles: const {Rol.coach},
+        clubType: TipoClub.club,
+      );
+      final ended = await CreateAssignment(s, newId: () => 'old', history: true)(club, {
+        ...body(start: '2026-10-01'),
+        'fechaFin': '2026-11-05',
+      });
+
+      expect(ended.status, AssignmentStatus.ended);
+      expect(ended.endDate, DateTime.utc(2026, 11, 5));
+      expect(s.all, hasLength(2));
+      await expectLater(
+        CreateAssignment(s, history: true)(club, {...body(start: '2026-10-01'), 'fechaFin': '2026-09-30'}),
+        throwsA(isA<ErrorDeSolicitud>()),
+      );
+    });
+
+    test('the endpoint ignores fechaFin: always active', () async {
+      final s = store();
+      final r = await create(_coachA, s, {...body(), 'fechaFin': '2026-12-01'});
+
+      expect(r.statusCode, HttpStatus.created);
+      expect(s.all.single.status, AssignmentStatus.active);
+      expect(s.all.single.endDate, isNull);
+    });
+
     test('another group can have its own active assignment', () async {
       final s = store();
       await create(_coachA, s, body());

@@ -363,3 +363,97 @@ int applyPctCorrections(SheetPlan plan, List<PctCorrection> corrections) {
   }
   return changed;
 }
+
+/// A percentage the sheet leaves empty, supplied outside it (`plans.pctFills` in the adjustments): it names one
+/// row of PlanEjercicios by its columns. [pct] null means "not supplied yet": the row stays empty.
+class PctFill {
+  const PctFill({
+    required this.planId,
+    required this.variant,
+    required this.day,
+    required this.block,
+    this.group = '',
+    this.order = 0,
+    required this.exercise,
+    required this.set,
+    this.pct,
+  });
+
+  factory PctFill.fromJson(Map<String, dynamic> j) => PctFill(
+    planId: '${j['plan']}',
+    variant: '${j['variante']}'.toLowerCase(),
+    day: (j['dia'] as num).toInt(),
+    block: '${j['bloque']}'.toLowerCase(),
+    group: '${j['grupo'] ?? ''}',
+    order: (j['orden'] as num?)?.toInt() ?? 0,
+    exercise: '${j['ejercicio']}',
+    set: (j['serie'] as num).toInt(),
+    pct: (j['pct'] as num?)?.toDouble(),
+  );
+
+  final String planId;
+  final String variant;
+  final int day;
+  final String block;
+  final String group;
+  final int order;
+  final String exercise;
+  final int set;
+  final double? pct;
+
+  bool matches(SheetSetRow r) =>
+      r.variant == variant &&
+      r.day == day &&
+      r.block == block &&
+      r.group == group &&
+      r.order == order &&
+      r.exercise == exercise &&
+      r.set == set;
+
+  Map<String, Object?> toJson() => {
+    'plan': planId,
+    'variante': variant,
+    'dia': day,
+    'bloque': block,
+    if (group.isNotEmpty) 'grupo': group,
+    if (order != 0) 'orden': order,
+    'ejercicio': exercise,
+    'serie': set,
+    'pct': pct,
+  };
+}
+
+/// What applying the fills of one plan did.
+class PctFillResult {
+  int filled = 0;
+
+  /// Fills still without a value.
+  int pending = 0;
+
+  /// Fills that name no row, or a row that already has a percentage: never applied.
+  final problems = <String>[];
+}
+
+/// Applies the [fills] of [plan] to its rows with no percentage, after the corrections (a fill is the final value).
+PctFillResult applyPctFills(SheetPlan plan, List<PctFill> fills) {
+  final out = PctFillResult();
+  for (final f in fills.where((f) => f.planId == plan.id)) {
+    final where =
+        'plans.pctFills: ${f.variant}, día ${f.day}, ${f.block}, "${f.exercise}"'
+        '${f.group.isEmpty ? '' : ', grupo ${f.group}'}${f.order == 0 ? '' : ', orden ${f.order}'}, serie ${f.set}';
+    final i = plan.rows.indexWhere(f.matches);
+    if (i < 0) {
+      out.problems.add('$where: no hay una fila así en PlanEjercicios; no se aplica.');
+    } else if (plan.rows[i].pct != null) {
+      out.problems.add('$where: la planilla ya tiene ${plan.rows[i].pct} %; no se pisa.');
+    } else if (f.pct == null) {
+      out.pending++;
+    } else if (!(f.pct! > 0)) {
+      out.problems.add('$where: el % tiene que ser mayor que 0.');
+    } else {
+      plan.rows[i] = plan.rows[i].withPct(f.pct);
+      out.filled++;
+    }
+  }
+  return out;
+}

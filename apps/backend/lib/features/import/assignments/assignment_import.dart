@@ -1,0 +1,194 @@
+import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
+import 'package:maktub_backend/features/asignaciones/crear/crear.dart';
+import 'package:maktub_backend/features/asignaciones/crear/crear_store.dart';
+import 'package:maktub_backend/features/import/assignments/assignment_import_store.dart';
+import 'package:maktub_backend/features/import/import_report.dart';
+import 'package:maktub_backend/features/import/import_run.dart';
+import 'package:maktub_backend/infraestructura/http.dart';
+import 'package:maktub_core/maktub_core.dart';
+
+/// One entry of `plans.assignments` in the adjustments: who did a sheet plan, and when. The sheet has no
+/// assignments (Planes only says `activo` and `inicio`), so Ari decides them.
+class AssignmentEntry {
+  const AssignmentEntry({required this.plan, this.group, this.athlete, required this.from, required this.to});
+
+  factory AssignmentEntry.fromJson(Map<String, dynamic> j) => AssignmentEntry(
+    plan: '${j['plan']}',
+    group: j['group'] as String?,
+    athlete: j['athlete'] as String?,
+    from: desdeIsoFecha('${j['from']}'),
+    to: desdeIsoFecha('${j['to']}'),
+  );
+
+  /// Sheet plan id.
+  final String plan;
+
+  /// Name of the club group that did it.
+  final String? group;
+
+  /// Display name of the one athlete that did it, for a plan of one person.
+  final String? athlete;
+  final DateTime from;
+  final DateTime to;
+
+  String get label => 'asignación de $plan (${aIsoFecha(from)} a ${aIsoFecha(to)})';
+}
+
+/// The `plans.assignments` section of `tool/importar/ajustes.json`.
+List<AssignmentEntry> assignmentAdjustments(Map<String, dynamic> raw) => [
+  for (final e in ((raw['plans'] as Map?)?['assignments'] as List? ?? const []))
+    AssignmentEntry.fromJson((e as Map).cast<String, dynamic>()),
+];
+
+/// An assignment to create, with the body of E6's create use case.
+class PlannedAssignment {
+  const PlannedAssignment({required this.id, required this.body, required this.label});
+
+  final String id;
+  final Json body;
+  final String label;
+}
+
+/// What the assignments import has to do.
+class AssignmentPlan {
+  AssignmentPlan._() : report = ImportReport('Asignaciones');
+
+  final ImportReport report;
+  final toCreate = <PlannedAssignment>[];
+
+  bool get isEmpty => toCreate.isEmpty;
+}
+
+/// What the club has today, the input of [planAssignmentImport].
+class AssignmentState {
+  const AssignmentState({
+    this.groups = const [],
+    this.plans = const {},
+    this.publishedPlans = const {},
+    this.assignments = const {},
+  });
+
+  final List<AthleteGroup> groups;
+  final Set<String> plans;
+  final Set<String> publishedPlans;
+
+  /// The assignments the entries would create, by id, if they already exist.
+  final Map<String, Assignment> assignments;
+}
+
+/// The stable id of the assignment of [entry]: [importedId] of the sheet plan and the start date.
+String assignmentImportId(String clubId, AssignmentEntry entry) =>
+    importedId(clubId, 'asignacion-${entry.plan}-${aIsoFecha(entry.from)}');
+
+/// Decides, entry by entry (pure, no I/O). Each entry becomes an **ended** assignment of the plan imported in E8.4
+/// (`from` to `to`), so D14 (one active assignment per group) is never touched. Rules:
+/// - The group is found by name in the club. An entry for one athlete instead of a group is reported: E6 only
+///   assigns plans to groups.
+/// - The plan must be imported and published (E6 assigns only published plans); a draft is reported.
+/// - An assignment that already exists with that id is left alone: unchanged if it says the same, else differing.
+AssignmentPlan planAssignmentImport(List<AssignmentEntry> entries, AssignmentState state, {required String clubId}) {
+  final out = AssignmentPlan._();
+  final report = out.report;
+  for (final e in entries) {
+    if (e.group == null) {
+      report.problems.add(
+        '${e.label}: es de ${e.athlete == null ? 'nadie' : 'un solo atleta (${e.athlete})'} y E6 solo asigna planes '
+        'a grupos; queda sin asignar y sus filas del historial no se cargan.',
+      );
+      continue;
+    }
+    final groups = state.groups.where((g) => g.name.trim().toLowerCase() == e.group!.trim().toLowerCase()).toList();
+    if (groups.length != 1) {
+      report.problems.add(
+        '${e.label}: ${groups.isEmpty ? 'no hay un grupo "${e.group}"' : 'hay ${groups.length} grupos "${e.group}"'} '
+        'en el club.',
+      );
+      continue;
+    }
+    if (e.to.isBefore(e.from)) {
+      report.problems.add('${e.label}: termina antes de empezar.');
+      continue;
+    }
+    final planId = importedId(clubId, e.plan);
+    if (!state.plans.contains(planId)) {
+      report.problems.add('${e.label}: el plan no está importado (paso planes).');
+      continue;
+    }
+    if (!state.publishedPlans.contains(planId)) {
+      report.problems.add(
+        '${e.label}: el plan está en borrador y E6 solo asigna planes publicados; se asigna cuando se publique '
+        '(plans.pctFills).',
+      );
+      continue;
+    }
+    final group = groups.single;
+    final id = assignmentImportId(clubId, e);
+    final label = '${e.label}, grupo "${group.name}"';
+    final stored = state.assignments[id];
+    if (stored == null) {
+      out.toCreate.add(
+        PlannedAssignment(
+          id: id,
+          label: label,
+          body: {'planId': planId, 'grupoId': group.id, 'fechaInicio': aIsoFecha(e.from), 'fechaFin': aIsoFecha(e.to)},
+        ),
+      );
+      report.created.add('$label: terminada.');
+    } else if (stored.planId == planId &&
+        stored.groupId == group.id &&
+        stored.startDate == e.from &&
+        stored.endDate == e.to &&
+        stored.status == AssignmentStatus.ended) {
+      report.unchanged.add(label);
+    } else {
+      report.differing.add('$label: ya existe y no coincide con ajustes.json.');
+    }
+  }
+  return out;
+}
+
+/// E8.5: the assignments of the imported plans, which the sheet does not have (`plans.assignments` in the
+/// adjustments). Writes only through E6's [CreateAssignment], in history mode (created already ended).
+class AssignmentImport implements ImportStep {
+  AssignmentImport({required this._reads, required this._writes, DateTime Function()? now})
+    : _now = now ?? DateTime.now;
+
+  final AssignmentImportStore _reads;
+  final CreateAssignmentStore _writes;
+  final DateTime Function() _now;
+
+  @override
+  String get name => 'asignaciones';
+
+  /// Reads the adjustments and the club and decides what to do, without writing.
+  Future<AssignmentPlan> plan(ImportRun run) async {
+    final clubId = run.club.clubId;
+    final entries = assignmentAdjustments(run.adjustments.raw);
+    final planIds = {for (final e in entries) importedId(clubId, e.plan)};
+    final state = AssignmentState(
+      groups: await _reads.groups(clubId),
+      plans: await _reads.planIds(clubId, planIds),
+      publishedPlans: await _reads.publishedPlanIds(clubId, planIds),
+      assignments: await _reads.assignments(clubId, {for (final e in entries) assignmentImportId(clubId, e)}),
+    );
+    return planAssignmentImport(entries, state, clubId: clubId);
+  }
+
+  @override
+  Future<ImportReport> run(ImportRun run) async {
+    final plan = await this.plan(run);
+    if (!run.dryRun) await apply(run.club, plan);
+    return plan.report;
+  }
+
+  Future<void> apply(ClubContext club, AssignmentPlan plan) async {
+    for (final a in plan.toCreate) {
+      try {
+        await CreateAssignment(_writes, newId: () => a.id, now: _now, history: true)(club, a.body);
+      } on ErrorDeSolicitud catch (e) {
+        plan.report.created.remove('${a.label}: terminada.');
+        plan.report.problems.add('${a.label}: no se pudo escribir (${e.estado}): ${e.mensaje}');
+      }
+    }
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "_legend": "Decisions about the spreadsheet data that the importer rules cannot take on their own (tool/importar.dart). Catalog ids only: never personal data. Each step reads its own section; E8.3 to E8.5 add theirs.",
+  "_legend": "Decisions about the spreadsheet data that the importer rules cannot take on their own (tool/importar.dart). Catalog ids and display names only: never personal data such as emails. Each step reads its own section; E8.3 to E8.5 add theirs.",
   "exercises": {
     "_notBase": "Sheet ids that a default exercise also uses for a different exercise: the sheet renamed the row. They become club exercises. cal_sq is 'Sit ups' in the sheet and 'Movilidad de cadera y tobillo' in the base list.",
     "notBase": ["cal_sq"],
@@ -20,6 +20,51 @@
   },
   "plans": {
     "_pctCorrections": "M1-D4: October 2026 says 85 % where it should say 80 %. Every set of that plan at 'from' becomes 'to', and the ramp below it moves with it (the empty-bar set stays).",
-    "pctCorrections": [{"plan": "plan_oct2026", "from": 85, "to": 80}]
+    "pctCorrections": [{"plan": "plan_oct2026", "from": 85, "to": 80}],
+    "_pctFills": "Percentages the sheet leaves empty in sets of exercises measured by % of RM: without them a plan stays a draft and cannot be assigned or loaded. One entry per PlanEjercicios row; pct null is still to be supplied by Ari (never invented). Applied after pctCorrections.",
+    "pctFills": [
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 3, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 1, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 2, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 3, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 4, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 5, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 1, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 2, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 3, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 4, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 5, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 6, "pct": null}
+    ],
+    "_assignments": "Who did each sheet plan and when: the sheet has no assignments. Each entry becomes an ended assignment (from-to), so D14 is untouched. 'group' is a club group name; an entry with 'athlete' instead is reported, because E6 only assigns plans to groups.",
+    "assignments": [
+      {"plan": "plan_oct2026", "group": "Andi y Ari", "from": "2026-10-01", "to": "2026-11-05"},
+      {"plan": "plan_mw4vrh30", "athlete": "Ari", "from": "2026-11-06", "to": "2026-11-07"}
+    ]
   }
 }

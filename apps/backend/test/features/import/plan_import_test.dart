@@ -268,10 +268,10 @@ void main() {
     publishes: _PlanWrites(db),
     now: () => now,
   );
-  ImportRun run({bool dryRun = false}) => ImportRun(
+  ImportRun run({bool dryRun = false, ImportAdjustments? adjustments}) => ImportRun(
     club: importClubContext(_club, TipoClub.club),
     sheets: SheetDirectory(dir.path),
-    adjustments: _adjustments,
+    adjustments: adjustments ?? _adjustments,
     dryRun: dryRun,
   );
   Future<void> importCatalog() => catalog().run(run());
@@ -381,6 +381,75 @@ void main() {
     final third = await importer().run(run());
     expect(third.differing.single, contains('plan_nuevo'));
     expect(db.plans[edited.id]!.weekModels, hasLength(1));
+  });
+
+  ImportAdjustments withFills(List<Map<String, Object?>> fills) => ImportAdjustments.fromJson({
+    'plans': {...(_adjustments.raw['plans'] as Map), 'pctFills': fills},
+  });
+  const hipFill = {'plan': 'plan_viejo', 'variante': 'carga', 'dia': 1, 'bloque': 'principal', 'orden': 2};
+
+  test('the sets missing a % are listed; a pctFills value later completes and publishes the draft', () async {
+    await importCatalog();
+    final first = await importer().run(run());
+    final listed = (await importer().plan(run())).missingPct['plan_viejo']!;
+    expect([for (final r in listed) (r.variant, r.exercise, r.set)], [('carga', 'hip_thrust', 1)]);
+    expect(
+      first.notes,
+      contains(allOf(contains('faltan 1 %'), contains('"hip_thrust", serie 1'), contains('semanas 2, 3'))),
+    );
+    expect(plan('plan_viejo').published, isNull);
+
+    final adjustments = withFills([
+      {...hipFill, 'ejercicio': 'hip_thrust', 'serie': 1, 'pct': 70},
+    ]);
+    final second = await importer().run(run(adjustments: adjustments));
+    expect(second.updated.single, allOf(contains('plan_viejo'), contains('se publica')));
+    final hip = plan('plan_viejo').published!.weekModels[1].days.single.blocks[3].prescriptions.single;
+    expect(hip.sets.single.pct, 70);
+    final third = await importer().run(run(adjustments: adjustments));
+    expect(third.unchanged, hasLength(2), reason: 'published now: a re-run changes nothing');
+  });
+
+  test('a fill with no value keeps the draft; a fill on a row with a % or on no row is reported', () async {
+    await importCatalog();
+    final report = await importer().run(
+      run(
+        adjustments: withFills([
+          {...hipFill, 'ejercicio': 'hip_thrust', 'serie': 1, 'pct': null},
+          {
+            'plan': 'plan_viejo',
+            'variante': 'carga',
+            'dia': 1,
+            'bloque': 'principal',
+            'orden': 1,
+            'ejercicio': 'sq_espalda',
+            'serie': 1,
+            'pct': 30,
+          },
+          {...hipFill, 'ejercicio': 'hip_thrust', 'serie': 9, 'pct': 70},
+        ]),
+      ),
+    );
+    expect(plan('plan_viejo').published, isNull);
+    expect(report.notes, contains(contains('1 siguen sin valor')));
+    expect(report.problems, contains(allOf(contains('"sq_espalda"'), contains('ya tiene'))));
+    expect(report.problems, contains(allOf(contains('serie 9'), contains('no hay una fila'))));
+  });
+
+  test('a draft edited in the app is never overwritten by a fill', () async {
+    await importCatalog();
+    await importer().run(run());
+    final p = plan('plan_viejo');
+    db.plans[p.id] = _with(p, auditoria: p.auditoria.modificada('coach-1', ahora: now));
+    final report = await importer().run(
+      run(
+        adjustments: withFills([
+          {...hipFill, 'ejercicio': 'hip_thrust', 'serie': 1, 'pct': 70},
+        ]),
+      ),
+    );
+    expect(report.differing.single, contains('plan_viejo'));
+    expect(plan('plan_viejo').published, isNull);
   });
 
   test('a plan saved but not published (a cut run) is published by the next run', () async {

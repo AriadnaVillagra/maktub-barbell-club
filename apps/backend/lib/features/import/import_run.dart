@@ -59,7 +59,10 @@ String importedId(String clubId, String sheetId) => '$clubId-$sheetId';
 /// the same id on every run, so a re-run overwrites instead of duplicating; it also fits the ids the app's
 /// clients generate (block times accept at most 64 letters, digits, `-` and `_`).
 String stableImportId(String clubId, String kind, List<Object> parts) {
-  final bytes = sha1.convert(utf8.encode(['maktub-import', clubId, kind, ...parts].join('\u0000'))).bytes.sublist(0, 16);
+  final bytes = sha1
+      .convert(utf8.encode(['maktub-import', clubId, kind, ...parts].join('\u0000')))
+      .bytes
+      .sublist(0, 16);
   bytes[6] = (bytes[6] & 0x0f) | 0x50;
   bytes[8] = (bytes[8] & 0x3f) | 0x80;
   final hex = [for (final b in bytes) b.toRadixString(16).padLeft(2, '0')].join();

@@ -16,7 +16,10 @@ import 'dart:io';
 import 'package:maktub_backend/features/acceso/club_context/club_context_store.dart';
 import 'package:maktub_backend/features/catalogo/create_timer/create_timer_store.dart';
 import 'package:maktub_backend/features/catalogo/write_exercise/write_exercise_store.dart';
+import 'package:maktub_backend/features/asignaciones/crear/crear_store.dart';
 import 'package:maktub_backend/features/import/adjustments.dart';
+import 'package:maktub_backend/features/import/assignments/assignment_import.dart';
+import 'package:maktub_backend/features/import/assignments/assignment_import_store.dart';
 import 'package:maktub_backend/features/import/athletes/athlete_import.dart';
 import 'package:maktub_backend/features/import/athletes/athlete_import_store.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_import.dart';
@@ -62,15 +65,21 @@ List<ImportStep> _steps(Db db) {
     saves: MongoSavePlanStore(db),
     publishes: MongoPublishPlanStore(db),
   );
+  final assignments = AssignmentImport(
+    reads: MongoAssignmentImportStore(db),
+    writes: MongoCreateAssignmentStore(db),
+  );
   return [
     catalog,
     athletes,
     plans,
+    assignments,
     HistoryImport(
       sources: (run) async {
         final catalogPlan = await catalog.plan(run);
         final athletePlan = await athletes.plan(run);
         final planPlan = await plans.plan(run);
+        final assignmentPlan = await assignments.plan(run);
         return HistorySources(
           exerciseIdFor: catalogPlan.exerciseIdFor,
           athleteIdFor: athletePlan.athleteIdFor,
@@ -80,6 +89,7 @@ List<ImportStep> _steps(Db db) {
             if (!catalogPlan.isEmpty) catalog.name,
             if (athletePlan.rmsToCreate.isNotEmpty || athletePlan.fixedWeightsToCreate.isNotEmpty) athletes.name,
             if (!planPlan.isEmpty || planPlan.catalogPending) plans.name,
+            if (!assignmentPlan.isEmpty) assignments.name,
           ],
         );
       },

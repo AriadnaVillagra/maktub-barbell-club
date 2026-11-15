@@ -73,6 +73,7 @@ class PlanImport implements ImportStep {
       existing: existing,
       now: _now(),
       corrections: planAdjustments(run.adjustments.raw),
+      fills: planPctFills(run.adjustments.raw),
     );
     if (!catalogPlan.isEmpty) {
       plan.catalogPending = true;
@@ -107,6 +108,14 @@ class PlanImport implements ImportStep {
         plan.report.problems.add('plan ${p.sheetId}: no se pudo escribir (${e.estado}): ${e.mensaje} ${e.extra}');
       }
     }
+    for (final p in plan.toUpdate) {
+      try {
+        await SavePlan(_saves, now: _now)(club, p.plan.id, p.plan.toJson());
+        if (p.publishable) await PublishPlan(_publishes, now: _now)(club, p.plan.id);
+      } on ErrorDeSolicitud catch (e) {
+        plan.report.problems.add('plan ${p.sheetId}: no se pudo guardar (${e.estado}): ${e.mensaje} ${e.extra}');
+      }
+    }
     for (final id in plan.toPublish) {
       try {
         await PublishPlan(_publishes, now: _now)(club, id);
@@ -121,4 +130,11 @@ class PlanImport implements ImportStep {
 List<PctCorrection> planAdjustments(Map<String, dynamic> raw) => [
   for (final c in ((raw['plans'] as Map?)?['pctCorrections'] as List? ?? const []))
     PctCorrection.fromJson((c as Map).cast<String, dynamic>()),
+];
+
+/// `{"plans": {"pctFills": [{"plan", "variante", "dia", "bloque", "grupo"?, "orden"?, "ejercicio", "serie", "pct"}]}}`:
+/// the percentages the sheet leaves empty, one per PlanEjercicios row. `pct` null is a value still to supply.
+List<PctFill> planPctFills(Map<String, dynamic> raw) => [
+  for (final f in ((raw['plans'] as Map?)?['pctFills'] as List? ?? const []))
+    PctFill.fromJson((f as Map).cast<String, dynamic>()),
 ];

@@ -93,15 +93,23 @@ class PlanImportPlan {
   /// New plans: created, saved and, when [ImportedPlan.publishable], published.
   final toCreate = <ImportedPlan>[];
 
+  /// Drafts the importer itself saved, never published nor edited in the app, that the sheet and adjustments now
+  /// describe differently (a `plans.pctFills` value supplied later): saved again and published if complete.
+  final toUpdate = <ImportedPlan>[];
+
   /// Plans already saved exactly like the sheet but never published (a run cut between saving and
   /// publishing): published now.
   final toPublish = <String>[];
   final _exact = <String, PlanLocation>{};
   final _byExercise = <String, PlanLocation>{};
   final _planIds = <String, String>{};
+
+  /// Sheet plan id → the PlanEjercicios rows of exercises measured by % of RM that have no %: what keeps the
+  /// plan a draft until `plans.pctFills` supplies them.
+  final missingPct = <String, List<SheetSetRow>>{};
   final _dayIndexes = <String, int>{};
 
-  bool get isEmpty => toCreate.isEmpty && toPublish.isEmpty;
+  bool get isEmpty => toCreate.isEmpty && toUpdate.isEmpty && toPublish.isEmpty;
 
   /// The catalog step has work left: its exercises are not there yet, so nothing may be written.
   bool catalogPending = false;
@@ -153,7 +161,8 @@ String _groupKey(String block, String group) => block == SheetBlocks.accessories
 ///      biserie, E7.18).
 /// - **Sets.** One per row, ordered by `serie`: `reps` (seconds for an exercise measured only in time) and
 ///   `pct`. `rpe` goes to the prescription note, `temporizador` to its timer. No sheet carries a bar.
-/// - **Existing plans** are never overwritten: equal is "sin cambios", anything else "difiere".
+/// - **Existing plans** are never overwritten: equal is "sin cambios", anything else "difiere". The one exception
+///   is a draft only the importer ever saved (see [PlanImportPlan.toUpdate]).
 PlanImportPlan planPlanImport(
   PlanSheets sheets,
   PlanCatalog catalog, {
@@ -161,6 +170,7 @@ PlanImportPlan planPlanImport(
   required Map<String, Plan> existing,
   required DateTime now,
   List<PctCorrection> corrections = const [],
+  List<PctFill> fills = const [],
 }) {
   final out = PlanImportPlan._();
   final report = out.report;
@@ -173,6 +183,14 @@ PlanImportPlan planPlanImport(
       report.notes.add(
         'plan "${sheetPlan.name}" (${sheetPlan.id}): corrección ${_fmt(c.from)} % → ${_fmt(c.to)} % (M1-D4), '
         '$changed series cambiadas (las de trabajo y su rampa).',
+      );
+    }
+    final filled = applyPctFills(sheetPlan, fills);
+    report.problems.addAll([for (final p in filled.problems) 'plan "${sheetPlan.name}" (${sheetPlan.id}): $p']);
+    if (filled.filled > 0 || filled.pending > 0) {
+      report.notes.add(
+        'plan "${sheetPlan.name}" (${sheetPlan.id}): plans.pctFills completa ${filled.filled} %'
+        '${filled.pending > 0 ? '; ${filled.pending} siguen sin valor' : ''}.',
       );
     }
     out._planIds[sheetPlan.id] = importedId(clubId, sheetPlan.id);
@@ -189,6 +207,22 @@ PlanImportPlan planPlanImport(
       'asignarlo a un grupo y su fecha de inicio es de E6 (a mano).',
     );
 
+    final missing = out.missingPct[sheetPlan.id] ?? const [];
+    if (missing.isNotEmpty) {
+      String weeks(String variant) {
+        final n = [
+          for (var w = 0; w < plan.weekAssignment.length; w++)
+            if (plan.weekAssignment[w] == variant) w + 1,
+        ];
+        return n.isEmpty ? 'ninguna semana' : 'semana${n.length > 1 ? 's' : ''} ${n.join(', ')}';
+      }
+
+      report.notes.add(
+        '$label: faltan ${missing.length} % de ejercicios medidos por % de RM; se completan en plans.pctFills: '
+        '${[for (final r in missing) '${r.variant} (${weeks(r.variant)}), día ${r.day}, ${r.block}, "${r.exercise}", '
+              'serie ${r.set} (reps ${r.reps ?? '-'}${r.rpe == null ? '' : ', rpe ${r.rpe}'})'].join('; ')}.',
+      );
+    }
     final problems = validatePlan(plan, exerciseById: (id) => catalog.exercises[id]);
     final imported = ImportedPlan(sheetId: sheetPlan.id, plan: plan, problems: problems);
     if (problems.isNotEmpty) {
@@ -202,6 +236,12 @@ PlanImportPlan planPlanImport(
     if (stored == null) {
       out.toCreate.add(imported);
       report.created.add('$label: ${_summary(plan)}; ${problems.isEmpty ? 'se publica' : 'queda en borrador'}.');
+    } else if (_content(stored) != _content(plan) && _ownDraft(stored)) {
+      out.toUpdate.add(imported);
+      report.updated.add(
+        '$label: borrador del importador que la planilla y los ajustes ahora completan de otra forma '
+        '(${_whatDiffers(stored, plan)}); se guarda de nuevo y ${problems.isEmpty ? 'se publica' : 'sigue en borrador'}.',
+      );
     } else if (_content(stored) != _content(plan)) {
       report.differing.add('$label: ya existe y no coincide con la planilla (${_whatDiffers(stored, plan)}).');
     } else if (stored.published == null && problems.isEmpty) {
@@ -213,6 +253,12 @@ PlanImportPlan planPlanImport(
   }
   return out;
 }
+
+/// Saved only by the importer and never published: nobody touched it in the app, so it may be saved again.
+bool _ownDraft(Plan p) =>
+    p.published == null &&
+    p.auditoria.creadoPor == importAuthor &&
+    (p.auditoria.modificadoPor == null || p.auditoria.modificadoPor == importAuthor);
 
 String _content(Plan p) => jsonEncode([
   p.name.trim(),
@@ -563,6 +609,9 @@ class _PlanBuilder {
   Prescription _prescription(_Item item) {
     final exerciseId = catalog.exerciseIdFor(item.exercise)!;
     final metrics = catalog.exercises[exerciseId]?.metrics ?? const [];
+    if (metrics.contains(Metric.loadPctRm)) {
+      out.missingPct.putIfAbsent(sheet.id, () => []).addAll(item.rows.where((r) => r.pct == null));
+    }
     final inSeconds = metrics.contains(Metric.time) && !metrics.contains(Metric.reps);
     final rpes = {
       for (final r in item.rows)

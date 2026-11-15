@@ -41,6 +41,7 @@ class CreateAssignment {
     this._store, {
     String Function()? newId,
     DateTime Function()? now,
+    this._history = false,
   }) : _newId = newId ?? (() => ObjectId().oid),
        _now = now ?? DateTime.now;
 
@@ -48,10 +49,23 @@ class CreateAssignment {
   final String Function() _newId;
   final DateTime Function() _now;
 
+  /// Loading history (the E8 importer): the body also takes `fechaFin` (not before `fechaInicio`) and the
+  /// assignment is created already ended. An ended assignment never counts for D14, so the group may have an
+  /// active one. The endpoint never sets it.
+  final bool _history;
+
   Future<Assignment> call(ClubContext club, Json body) async {
     final planId = _requiredId(body['planId'], 'planId');
     final groupId = _requiredId(body['grupoId'], 'grupoId');
     final startDate = fechaDeSolicitud(body['fechaInicio'], 'fechaInicio');
+    final endDate = _history && body['fechaFin'] != null
+        ? fechaDeSolicitud(body['fechaFin'], 'fechaFin')
+        : null;
+    if (endDate != null && endDate.isBefore(startDate)) {
+      throw const ErrorDeSolicitud(
+        '"fechaFin" no puede ser anterior a la fecha de inicio.',
+      );
+    }
 
     final published = await _store.planIsPublished(club.clubId, planId);
     if (published == null) {
@@ -73,6 +87,10 @@ class CreateAssignment {
       planId: planId,
       groupId: groupId,
       startDate: startDate,
+      status: endDate == null
+          ? AssignmentStatus.active
+          : AssignmentStatus.ended,
+      endDate: endDate,
       auditoria: Auditoria.nueva(club.userId, ahora: _now()),
     );
     if (!await _store.insert(assignment)) {
