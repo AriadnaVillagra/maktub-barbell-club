@@ -71,6 +71,33 @@ void main() {
     expect(d.weekModels[0].days, hasLength(6));
   });
 
+  test('duplicateDay inserts a copy after the day, up to 7 days', () {
+    final base = PlanDraft.from(
+      samplePlan(
+        models: [model('x', 'A', 3)],
+        assignment: ['x', 'x', 'x', 'x'],
+      ),
+    ).addBlock('x', 0, const PlanBlock(name: 'Principal', categoryId: 'c'));
+    final d = base.duplicateDay('x', 0);
+    final days = d.weekModels[0].days;
+    expect([for (final day in days) day.name], [
+      'Dx1',
+      'Dx1 (copia)',
+      'Dx2',
+      'Dx3',
+    ]);
+    expect(days[1].blocks.map((b) => b.name), ['Principal']);
+    expect(d.isDirty, isTrue);
+
+    expect(identical(base.duplicateDay('x', 3), base), isTrue);
+    expect(identical(base.duplicateDay('nope', 0), base), isTrue);
+    var full = base;
+    while (full.canAddDay('x')) {
+      full = full.addDay('x');
+    }
+    expect(identical(full.duplicateDay('x', 0), full), isTrue);
+  });
+
   test('moveDay reorders and ignores invalid moves', () {
     final base = PlanDraft.from(
       samplePlan(

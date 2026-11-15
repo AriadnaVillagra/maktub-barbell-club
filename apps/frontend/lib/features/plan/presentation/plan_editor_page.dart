@@ -427,13 +427,26 @@ class _DayTile extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
           leading: const Icon(Icons.today_outlined),
           title: Text(day.name ?? 'Día ${index + 1}'),
-          trailing: IconButton(
-            key: Key('day-remove-$modelId-$index'),
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Quitar día',
-            onPressed: draft.canRemoveDay(modelId)
-                ? () => editor.removeDay(modelId, index)
-                : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              IconButton(
+                key: Key('day-copy-$modelId-$index'),
+                icon: const Icon(Icons.copy_outlined),
+                tooltip: 'Duplicar día',
+                onPressed: draft.canAddDay(modelId)
+                    ? () => editor.duplicateDay(modelId, index)
+                    : null,
+              ),
+              IconButton(
+                key: Key('day-remove-$modelId-$index'),
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Quitar día',
+                onPressed: draft.canRemoveDay(modelId)
+                    ? () => editor.removeDay(modelId, index)
+                    : null,
+              ),
+            ],
           ),
         ),
         Padding(
@@ -441,20 +454,36 @@ class _DayTile extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final (b, block) in day.blocks.indexed) ...[
-                if (b > 0) const Divider(),
-                _BlockTile(
-                  key: Key('block-$modelId-$index-$b'),
-                  keyPrefix: '$modelId-$index',
-                  index: b,
-                  block: block,
-                  categoryName: categoryName(block.categoryId),
-                  timerName: timerName(block.timerId),
-                  editor: editor,
-                  modelId: modelId,
-                  day: index,
-                ),
-              ],
+              // Blocks are reordered by dragging their handle (no arrows, decided after the E5 test).
+              ReorderableListView(
+                key: Key('blocks-$modelId-$index'),
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                buildDefaultDragHandles: false,
+                onReorderItem: (from, to) =>
+                    editor.moveBlock(modelId, index, from, to),
+                children: [
+                  for (final (b, block) in day.blocks.indexed)
+                    Column(
+                      key: ValueKey('block-item-$modelId-$index-$b'),
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if (b > 0) const Divider(),
+                        _BlockTile(
+                          key: Key('block-$modelId-$index-$b'),
+                          keyPrefix: '$modelId-$index',
+                          index: b,
+                          block: block,
+                          categoryName: categoryName(block.categoryId),
+                          timerName: timerName(block.timerId),
+                          editor: editor,
+                          modelId: modelId,
+                          day: index,
+                        ),
+                      ],
+                    ),
+                ],
+              ),
               TextButton.icon(
                 key: Key('block-add-$modelId-$index'),
                 icon: const Icon(Icons.add),
@@ -598,6 +627,14 @@ class _BlockTile extends ConsumerWidget {
     ].join(' · ');
     final tile = ListTile(
       contentPadding: EdgeInsets.zero,
+      leading: ReorderableDragStartListener(
+        key: Key('block-drag-$keyPrefix-$index'),
+        index: index,
+        child: const Tooltip(
+          message: 'Mover bloque',
+          child: Icon(Icons.drag_handle),
+        ),
+      ),
       title: Text(block.name),
       subtitle: block.note == null
           ? Text(details)

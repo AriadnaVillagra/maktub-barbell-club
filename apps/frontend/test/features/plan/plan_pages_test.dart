@@ -422,6 +422,40 @@ void main() {
       expect(find.text('Archivado'), findsNothing);
     });
 
+    testWidgets('a day is duplicated with its blocks right after it', (
+      tester,
+    ) async {
+      await open(tester);
+      await addBlock(tester, 'Uno', 'Calentamiento');
+      await tester.tap(find.byKey(const Key('day-copy-a-0')));
+      await tester.pump();
+      expect(find.text('Uno'), findsNWidgets(2));
+      expect(find.byKey(const Key('block-a-1-0')), findsOneWidget);
+    });
+
+    testWidgets('a block is dragged by its handle to go before another', (
+      tester,
+    ) async {
+      await open(tester);
+      await addBlock(tester, 'Uno', 'Calentamiento');
+      await addBlock(tester, 'Dos', 'Principal');
+      double topOf(String name) => tester.getTopLeft(find.text(name)).dy;
+      expect(topOf('Uno'), lessThan(topOf('Dos')));
+
+      final handle = find.byKey(const Key('block-drag-a-0-1'));
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      await tester.pump();
+      final distance = topOf('Dos') - topOf('Uno') + 40;
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(Offset(0, -distance / 10));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(topOf('Dos'), lessThan(topOf('Uno')));
+    });
+
     testWidgets('a block can be edited and removed, and has no move arrows', (
       tester,
     ) async {
