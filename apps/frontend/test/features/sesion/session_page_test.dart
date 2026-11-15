@@ -749,6 +749,46 @@ void main() {
       expect(find.byKey(const Key('session-estimated-0-0-0')), findsNothing);
     });
 
+    testWidgets('an estimated set without kilos shows a dash and takes typed kilos, which end the estimate (E8.7)', (
+      tester,
+    ) async {
+      final sessions = _FakeNoLoads()
+        ..openedRecords = [
+          SetRecord(
+            id: 'r-est',
+            clubId: 'c1',
+            sessionId: 's1',
+            athleteId: 'ari',
+            exerciseId: 'sq',
+            exerciseName: 'Sentadilla',
+            blockIndex: 0,
+            prescriptionIndex: 0,
+            setIndex: 0,
+            target: const PlanSet(reps: 5),
+            reps: 5,
+            estimated: true,
+            writtenBy: 'sistema:importador',
+            auditoria: audit(),
+          ),
+        ];
+      await _pump(tester, sessions);
+      await _open(tester);
+
+      expect(find.byKey(const Key('session-estimated-0-0-0')), findsOneWidget);
+      expect(marked('0-0-0'), findsOneWidget);
+      expect(_kg(tester, 'session-kg-0-0-0'), '—');
+
+      await typeSet(tester, '0-0-0', kg: '42,5');
+
+      final write = sessions.writes.single;
+      expect(write.toJson()['kilosManual'], isTrue);
+      expect(write.manualKg, 42.5);
+      expect(write.done, isTrue);
+      expect(write.toJson().containsKey('estimada'), isFalse);
+      expect(_kg(tester, 'session-kg-0-0-0'), '42.5 kg');
+      expect(find.byKey(const Key('session-estimated-0-0-0')), findsNothing);
+    });
+
     testWidgets('marking the same set twice at once leaves one marked record', (
       tester,
     ) async {

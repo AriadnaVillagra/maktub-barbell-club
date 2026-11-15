@@ -270,7 +270,8 @@ String gridAssignmentId(String clubId, GridAdjustments adj) =>
 /// - **Sets.** Every set of the day for each present athlete, marked done and **estimated**, with the kilos the app
 ///   proposes on that date (E4: RM × work factor × %, else the athlete's fixed weight, else the grid's kilos, rounded
 ///   to a loadable weight; [proposedDaySets]). A set of an exercise measured by load that gets no kilos (no RM, no %,
-///   no fixed weight) is reported and not loaded. A set already recorded and no longer estimated (corrected in the
+///   no fixed weight) is loaded done with its reps and **no kilos**, still estimated, for Ari to type them in the app;
+///   the report lists them. Kilos are never invented (no ramp, no top weight). A set already recorded and no longer estimated (corrected in the
 ///   app) is never written again.
 GridImportPlan planGridImport(
   PlanningGrid grid,
@@ -412,7 +413,14 @@ GridImportPlan planGridImport(
   for (final w in state.fixedWeights) {
     fixedByAthlete.putIfAbsent(w.athleteId, () => {})[w.exerciseId] = w.kg;
   }
-  final skipped = <String, (int, Set<String>)>{};
+  // How the loaded sets got their kilos, by exercise (and the grid's load note): for the report.
+  final withoutKg = <String, (int, Set<String>)>{};
+  final withFixedKg = <String, (int, Set<String>)>{};
+  void count(Map<String, (int, Set<String>)> into, String key, String athlete) {
+    final (n, who) = into[key] ?? (0, <String>{});
+    into[key] = (n + 1, who..add(athlete));
+  }
+
   final otherCycle = <String>[];
   var kept = 0;
   for (var m = 0; m < adj.months.length; m++) {
@@ -461,14 +469,16 @@ GridImportPlan planGridImport(
             final prescription = blocks[p.blockIndex].prescriptions[p.prescriptionIndex];
             final target = prescription.sets[p.setIndex];
             if (exercise == null) continue;
-            if (exercise.metrics.any((m) => m.isLoad) && p.kg == null) {
-              final why = target.pct != null
-                  ? 'sin RM vigente de ${exercises[rmExerciseIdFor(exercise, exercises)]?.name ?? 'su ejercicio de referencia'}'
-                  : 'sin % ni kilos en la grilla y sin kilaje fijo del atleta';
-              final key = '${exercise.name}${prescription.note == null ? '' : ' ("${prescription.note}")'}: $why';
-              final (n, who) = skipped[key] ?? (0, <String>{});
-              skipped[key] = (n + 1, who..add(athlete.nombreVisible));
-              continue;
+            final what = '${exercise.name}${prescription.note == null ? '' : ' ("${prescription.note}")'}';
+            if (exercise.metrics.any((m) => m.isLoad)) {
+              if (p.kg == null) {
+                final why = target.pct != null
+                    ? 'sin RM vigente de ${exercises[rmExerciseIdFor(exercise, exercises)]?.name ?? 'su ejercicio de referencia'}'
+                    : 'sin % ni kilos en la grilla y sin kilaje fijo del atleta';
+                count(withoutKg, '$what: $why', athlete.nombreVisible);
+              } else if (target.pct == null || rmExerciseIdFor(exercise, exercises) == null) {
+                if (fixedByAthlete[athlete.id]?[exercise.id] != null) count(withFixedKg, what, athlete.nombreVisible);
+              }
             }
             final stored = existing == null
                 ? null
@@ -515,8 +525,11 @@ GridImportPlan planGridImport(
       }
     }
   }
-  for (final MapEntry(key: what, value: (n, who)) in skipped.entries) {
-    report.problems.add('$n series no se cargan: $what (${who.join(', ')}).');
+  for (final MapEntry(key: what, value: (n, who)) in withFixedKg.entries) {
+    report.notes.add('$n series estimadas con el kilaje fijo del atleta: $what (${who.join(', ')}).');
+  }
+  for (final MapEntry(key: what, value: (n, who)) in withoutKg.entries) {
+    report.notes.add('$n series estimadas sin kilos, para completar en la app: $what (${who.join(', ')}).');
   }
   if (kept > 0) {
     report.notes.add('$kept series ya corregidas en la app (no estimadas): no se tocan.');

@@ -11,7 +11,9 @@ import 'package:maktub_backend/features/import/sheets.dart';
 import 'package:maktub_backend/features/plan/crear/crear_store.dart';
 import 'package:maktub_backend/features/plan/guardar/guardar_store.dart';
 import 'package:maktub_backend/features/plan/publicar/publicar_store.dart';
+import 'package:maktub_backend/features/sesion/live_broadcast.dart';
 import 'package:maktub_backend/features/sesion/open_session/open_session_store.dart';
+import 'package:maktub_backend/features/sesion/record_set/record_set.dart';
 import 'package:maktub_backend/features/sesion/record_set/record_set_store.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:test/test.dart';
@@ -526,7 +528,7 @@ void main() {
       expect(p.sessions.firstWhere((s) => s.openBody['fecha'] == '2026-05-09').openBody['presentes'], ['ana', 'beto']);
     });
 
-    test('estimated sets with the kilos the app proposes; no kilos, no set', () {
+    test('estimated sets with the kilos the app proposes, or without kilos when there are none', () {
       final first = plan().sessions.first;
       Iterable<(Object?, double?)> of(String athlete) =>
           first.sets.where((s) => s.body['atletaId'] == athlete).map((s) => (s.body['prescripcion'], s.kg));
@@ -542,11 +544,16 @@ void main() {
         first.sets.where((s) => s.body['atletaId'] == 'ana' && s.body['bloque'] == 2).map((s) => s.kg),
         List.filled(3, 20.0),
       );
-      // Beto: the RDL has no % and he has no fixed weight, so it is left out.
-      expect(of('beto').where((s) => s.$2 == null), hasLength(6));
-      expect(first.sets.where((s) => s.body['atletaId'] == 'beto' && s.body['bloque'] == 2), isEmpty);
-      expect(plan().report.problems, contains(allOf(contains('Peso muerto rumano ("con barra")'), contains('(Beto)'))));
-      expect(plan().report.problems, contains(allOf(contains('Curl ("mancuerna")'), contains('Ana, Beto'))));
+      // Beto: the RDL has no % and he has no fixed weight, so it goes done without kilos (never invented).
+      final betoRdl = first.sets.where((s) => s.body['atletaId'] == 'beto' && s.body['bloque'] == 2).toList();
+      expect(betoRdl.map((s) => s.kg), [null, null, null]);
+      expect(betoRdl.every((s) => s.body['estimada'] == true && s.body['hecha'] == true), isTrue);
+      expect(of('beto').where((s) => s.$2 == null), hasLength(9));
+      final notes = plan().report.notes;
+      expect(notes, contains(allOf(contains('sin kilos'), contains('Peso muerto rumano ("con barra")'), contains('(Beto)'))));
+      expect(notes, contains(allOf(contains('sin kilos'), contains('Curl ("mancuerna")'), contains('Ana, Beto'))));
+      expect(notes, contains(allOf(contains('kilaje fijo'), contains('Peso muerto rumano'), contains('(Ana)'))));
+      expect(plan().report.problems, isNot(contains(contains('no se cargan'))));
     });
 
     test('a grid RM that differs from the app is reported', () {
@@ -657,6 +664,37 @@ void main() {
       await _step(db).run(_run());
 
       expect(jsonEncode(db.records[i].toJson()), corrected);
+    });
+
+    test('a set without kilos is stored estimated; typing its kilos in the app makes it recorded, and a re-run keeps it', () async {
+      final db = _Db();
+      await _step(db).run(_run());
+      final empty = db.records.firstWhere((r) => r.athleteId == 'beto' && r.exerciseId == 'rdl');
+      expect([empty.kg, empty.estimated, empty.done, empty.reps], [null, true, true, 8]);
+      final session = db.sessions[empty.sessionId]!;
+
+      final typed = await RecordSet(_Sets(db), MemoryLiveBroadcast())(
+        importClubContext(_club, TipoClub.club),
+        session.id,
+        {
+          'atletaId': 'beto',
+          'bloque': empty.blockIndex,
+          'prescripcion': empty.prescriptionIndex,
+          'serie': empty.setIndex,
+          'hecha': true,
+          'kilosManual': true,
+          'kilos': 40,
+          'estimada': true,
+        },
+      );
+      expect([typed.kg, typed.manualKg, typed.estimated], [40, true, false]);
+      final after = jsonEncode(typed.toJson());
+
+      final report = await _step(db).run(_run());
+
+      final again = db.records.firstWhere((r) => r.id == typed.id);
+      expect(jsonEncode(again.toJson()), after);
+      expect(report.notes, contains(contains('1 series ya corregidas en la app')));
     });
 
     test('a dry run writes nothing', () async {

@@ -597,6 +597,16 @@ void main() {
       expect(record.manualKg, isFalse);
     });
 
+    test('a set with nothing to propose is stored estimated without kilos; typed kilos then clear it', () async {
+      final store = _store()..allReferences.clear();
+
+      final empty = await estimate(store, _body(extra: {'estimada': true}));
+      expect([empty.kg, empty.estimated, empty.done], [null, true, true]);
+
+      final typed = await _record(store, _body(extra: {'kilosManual': true, 'kilos': 60}));
+      expect([typed.kg, typed.manualKg, typed.estimated], [60, true, false]);
+    });
+
     test('the endpoint ignores "estimada"', () async {
       final record = await _record(_store(), _body(extra: {'estimada': true}));
 
