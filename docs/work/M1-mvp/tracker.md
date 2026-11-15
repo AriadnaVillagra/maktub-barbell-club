@@ -28,7 +28,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 27 / 27 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
-| E8 | [Migración](E8-migracion.md) | en curso | 6 / 8 (E8.1 a E8.5 y E8.7 hechos; E8.8 en curso; falta E8.6. Fuera de E8.5 quedan los 37 % de `plans.pctFills`, que completa Ari, y Levantamiento sin asignar) | — |
+| E8 | [Migración](E8-migracion.md) | en curso | 7 / 8 (E8.1 a E8.5, E8.7 y E8.8 hechos; falta E8.6. Fuera de E8.5 quedan los 37 % de `plans.pctFills`, que completa Ari, y Levantamiento sin asignar) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
@@ -143,26 +143,7 @@ publicada**, nunca el borrador.
   - No entran 1149 series de ejercicios con carga sin kilos en la grilla: sentadilla frontal, peso muerto y bench con "barra de…", sit ups con disco, TGU, etc. Tampoco "windmill", que no está en el catálogo.
   - **Deploy:** desplegar el backend antes de correr el paso contra producción.
   - **`diseno.md`** no tiene `estimada`: avisar a su sesión.
-- **Asignaciones por atleta en E6 (pedido por Ari):** Levantamiento es solo de Ari, y E6 solo asigna a grupos. Es un cambio aparte de E8.5 (modelo, backend y app), todavía sin issue. Hasta que exista, Levantamiento queda sin asignar y sus filas no se cargan.
-
-## Para E8.2 (decidido el 2026-11-08)
-
-Si un ejercicio de la planilla ya existe en el catálogo base con otra categoría (por ejemplo `Plancha`, accesorio
-en la base y calentamiento en la planilla), el importador le suma la categoría de la planilla, sin duplicarlo.
-Hasta correr E8.2, los 14 abdominales de calentamiento de la planilla no aparecen en la app.
-
-## D16 aprobada (2026-11-08)
-
-Se elimina "día sin primario". Cada bloque tiene categoría y cada ejercicio pertenece a la categoría de su
-bloque. Al agregar un ejercicio (E5.7), los bloques de categoría `primario`, `secundario` y `accesorio`
-traen las series por defecto de la referencia y sus descansos (`desc_180`, `desc_120`, `desc_90`); las
-demás categorías no traen nada. Las series solo son obligatorias en esas tres categorías, como en la
-referencia: E7 tiene que mostrar un ejercicio sin series (por ejemplo, un estiramiento). Excepción a D16
-(2026-11-08): un bloque de categoría `wod` acepta ejercicios de cualquier categoría; es la forma de armar un EMOM.
-Un bloque de `estiramiento` puede quedar sin ejercicios, con nota o sin ella, sin impedir la publicación. E7 tiene que mostrarlo.
-
-## Pendientes que salieron de E3 (2026-11-08)
-
+- **E8.8 (hecho, `788e3a5`, `d630ab2`, `b78e3a6` y `9bc9b15`):** una asignación es de un grupo o de un atleta (`grupoId` o `atletaId`), y el plan propio convive con el del grupo. D14 se aplica por dueño, con un índice único para cada tipo: `asegurarIndices` recrea `club_grupo_activa_unica` la primera vez que arranca. Si hay dos planes en el día, la sesión muestra uno por plan para elegir. Levantamiento se asigna a Ari, terminado: en la corrida de prueba entraron 10 series (no 14) y 3 tiempos. **Deploy:** primero el backend y después la PWA. **`diseno.md`** no tiene la asignación por atleta: avisar a su sesión.
 - **Datos corporales del atleta** (altura, peso y su seguimiento, cargados por el atleta): van después de
   M1. No tienen diseño. Definir qué datos, si guardan historial, quién los ve y cómo se protegen.
 - **Marcas que no son en kilos** (repeticiones máximas en Dominadas; tiempo, velocidad y km máximos en
