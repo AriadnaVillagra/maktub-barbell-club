@@ -56,6 +56,7 @@ class OpenSession {
     this._broadcast, {
     String Function()? newId,
     DateTime Function()? now,
+    this._history = false,
   }) : _newId = newId ?? (() => ObjectId().oid),
       _now = now ?? DateTime.now;
 
@@ -63,6 +64,10 @@ class OpenSession {
   final LiveBroadcast _broadcast;
   final String Function() _newId;
   final DateTime Function() _now;
+
+  /// Loading history (the E8.5 importer): the session of an assignment that has since ended or is paused is
+  /// opened too. Nothing else changes.
+  final bool _history;
 
   Future<({Session session, List<SetRecord> records})> call(
     ClubContext club,
@@ -95,7 +100,7 @@ class OpenSession {
       final own = await _store.athleteIdOfUser(club.clubId, club.userId);
       if (own == null || !members.contains(own)) throw _assignmentNotFound;
     }
-    if (assignment.status != AssignmentStatus.active) {
+    if (assignment.status != AssignmentStatus.active && !_history) {
       throw const ErrorDeSolicitud(
         'La asignación no está activa.',
         estado: HttpStatus.conflict,

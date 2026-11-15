@@ -7,6 +7,9 @@
 /// script; they reuse [importedId] for stable ids and [ImportAdjustments] for decisions about the data.
 library;
 
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
 import 'package:maktub_backend/features/import/adjustments.dart';
 import 'package:maktub_backend/features/import/import_report.dart';
@@ -50,3 +53,16 @@ ClubContext importClubContext(String clubId, TipoClub clubType) => ClubContext(
 /// derived from the club and the sheet id is what makes a re-run find what the previous run created,
 /// and lets a later step resolve a sheet id without a lookup table.
 String importedId(String clubId, String sheetId) => '$clubId-$sheetId';
+
+/// The stable id of a document built from a sheet row that has no id of its own (Registro, Tiempos), from its
+/// natural key [parts]: a UUID in the shape of version 5 (SHA-1 of club, [kind] and parts). The same row gives
+/// the same id on every run, so a re-run overwrites instead of duplicating; it also fits the ids the app's
+/// clients generate (block times accept at most 64 letters, digits, `-` and `_`).
+String stableImportId(String clubId, String kind, List<Object> parts) {
+  final bytes = sha1.convert(utf8.encode(['maktub-import', clubId, kind, ...parts].join('\u0000'))).bytes.sublist(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  final hex = [for (final b in bytes) b.toRadixString(16).padLeft(2, '0')].join();
+  return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-'
+      '${hex.substring(16, 20)}-${hex.substring(20)}';
+}

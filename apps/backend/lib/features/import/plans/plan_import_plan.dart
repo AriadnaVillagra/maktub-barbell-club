@@ -98,11 +98,19 @@ class PlanImportPlan {
   final toPublish = <String>[];
   final _exact = <String, PlanLocation>{};
   final _byExercise = <String, PlanLocation>{};
+  final _planIds = <String, String>{};
+  final _dayIndexes = <String, int>{};
 
   bool get isEmpty => toCreate.isEmpty && toPublish.isEmpty;
 
   /// The catalog step has work left: its exercises are not there yet, so nothing may be written.
   bool catalogPending = false;
+
+  /// The app id of the sheet plan [sheetPlanId], or null if Planes has no such plan.
+  String? planIdOf(String sheetPlanId) => _planIds[sheetPlanId];
+
+  /// The 0-based index of the PlanDias day number [day] of [sheetPlanId], or null if the plan has no such day.
+  int? dayIndexOf(String sheetPlanId, int day) => _dayIndexes['$sheetPlanId|$day'];
 
   /// Where the Registro row with these columns lands in the imported plan, or null. Stretching and the
   /// warm-up lists of PlanDias have no group or order, so a row that does not match exactly is looked
@@ -166,6 +174,10 @@ PlanImportPlan planPlanImport(
         'plan "${sheetPlan.name}" (${sheetPlan.id}): corrección ${_fmt(c.from)} % → ${_fmt(c.to)} % (M1-D4), '
         '$changed series cambiadas (las de trabajo y su rampa).',
       );
+    }
+    out._planIds[sheetPlan.id] = importedId(clubId, sheetPlan.id);
+    for (var i = 0; i < sheetPlan.days.length; i++) {
+      out._dayIndexes.putIfAbsent('${sheetPlan.id}|${sheetPlan.days[i].day}', () => i);
     }
     final built = _PlanBuilder(sheetPlan, catalog, clubId, now, out).build();
     report.problems.addAll(built.problems);

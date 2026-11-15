@@ -21,6 +21,9 @@ import 'package:maktub_backend/features/import/athletes/athlete_import.dart';
 import 'package:maktub_backend/features/import/athletes/athlete_import_store.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_import.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_import_store.dart';
+import 'package:maktub_backend/features/import/history/history_import.dart';
+import 'package:maktub_backend/features/import/history/history_import_store.dart';
+import 'package:maktub_backend/features/import/history/history_plan.dart';
 import 'package:maktub_backend/features/import/import_run.dart';
 import 'package:maktub_backend/features/import/plans/plan_import.dart';
 import 'package:maktub_backend/features/import/plans/plan_import_store.dart';
@@ -30,12 +33,15 @@ import 'package:maktub_backend/features/plan/crear/crear_store.dart';
 import 'package:maktub_backend/features/plan/guardar/guardar_store.dart';
 import 'package:maktub_backend/features/plan/publicar/publicar_store.dart';
 import 'package:maktub_backend/features/referencias/registrar_rm/registrar_rm_store.dart';
+import 'package:maktub_backend/features/sesion/open_session/open_session_store.dart';
+import 'package:maktub_backend/features/sesion/record_block_time/record_block_time_store.dart';
+import 'package:maktub_backend/features/sesion/record_set/record_set_store.dart';
 import 'package:maktub_backend/features/wods/crear/crear_store.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 
-/// The steps in the order they run. E8.3, E8.4 and E8.5 add theirs here.
+/// The steps in the order they run.
 List<ImportStep> _steps(Db db) {
   final catalog = CatalogImport(
     reads: MongoCatalogImportStore(db),
@@ -43,20 +49,44 @@ List<ImportStep> _steps(Db db) {
     timerWrites: MongoCreateTimerStore(db),
     wodWrites: MongoCreateWodStore(db),
   );
+  final athletes = AthleteImport(
+    reads: MongoAthleteImportStore(db),
+    exercises: (run) async => (await catalog.plan(run)).exerciseIdFor,
+    rmWrites: MongoRegisterRmStore(db),
+    weightWrites: MongoSetFixedWeightStore(db),
+  );
+  final plans = PlanImport(
+    catalog: catalog,
+    reads: MongoPlanImportStore(db),
+    creates: MongoCreatePlanStore(db),
+    saves: MongoSavePlanStore(db),
+    publishes: MongoPublishPlanStore(db),
+  );
   return [
     catalog,
-    AthleteImport(
-      reads: MongoAthleteImportStore(db),
-      exercises: (run) async => (await catalog.plan(run)).exerciseIdFor,
-      rmWrites: MongoRegisterRmStore(db),
-      weightWrites: MongoSetFixedWeightStore(db),
-    ),
-    PlanImport(
-      catalog: catalog,
-      reads: MongoPlanImportStore(db),
-      creates: MongoCreatePlanStore(db),
-      saves: MongoSavePlanStore(db),
-      publishes: MongoPublishPlanStore(db),
+    athletes,
+    plans,
+    HistoryImport(
+      sources: (run) async {
+        final catalogPlan = await catalog.plan(run);
+        final athletePlan = await athletes.plan(run);
+        final planPlan = await plans.plan(run);
+        return HistorySources(
+          exerciseIdFor: catalogPlan.exerciseIdFor,
+          athleteIdFor: athletePlan.athleteIdFor,
+          sheetAthletes: HistoryImport.sheetAthletes(run),
+          plans: planPlan,
+          pending: [
+            if (!catalogPlan.isEmpty) catalog.name,
+            if (athletePlan.rmsToCreate.isNotEmpty || athletePlan.fixedWeightsToCreate.isNotEmpty) athletes.name,
+            if (!planPlan.isEmpty || planPlan.catalogPending) plans.name,
+          ],
+        );
+      },
+      reads: MongoHistoryImportStore(db),
+      sessionWrites: MongoOpenSessionStore(db),
+      setWrites: MongoRecordSetStore(db),
+      timeWrites: MongoRecordBlockTimeStore(db),
     ),
   ];
 }

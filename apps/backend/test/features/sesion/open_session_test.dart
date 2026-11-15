@@ -355,6 +355,18 @@ void main() {
       );
     });
 
+    test('loading history opens the session of an ended assignment', () async {
+      final store = _store(status: AssignmentStatus.ended);
+      final opened = await OpenSession(
+        store,
+        MemoryLiveBroadcast(),
+        newId: () => 'history-1',
+        history: true,
+      )(_coach(), _body(present: ['ari']));
+      expect(opened.session.id, 'history-1');
+      expect(opened.session.presentAthleteIds, ['ari']);
+    });
+
     test('a plan without a published version cannot run', () async {
       final store = _store()..plans.clear();
       await expectStatus(store, _body(), HttpStatus.unprocessableEntity);
