@@ -149,6 +149,85 @@ void main() {
       expect(find.text('Sin permiso.'), findsOneWidget);
     });
 
+    testWidgets('a history plan is copied as a new regular draft and opened', (
+      tester,
+    ) async {
+      final source = samplePlan(
+        id: 'h',
+        name: 'Histórico 2025-05',
+        type: PlanType.history,
+        models: [model('a', 'A', 2)],
+        assignment: ['a', 'a', 'a', 'a'],
+      );
+      final repo = FakePlanRepository(
+        plans: [
+          samplePlan(
+            id: 'h',
+            name: source.name,
+            type: PlanType.history,
+            models: source.weekModels,
+            assignment: source.weekAssignment,
+            published: publishedCopyOf(source),
+          ),
+        ],
+      );
+      tester.view.physicalSize = const Size(900, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final router = GoRouter(
+        initialLocation: '/planes/h',
+        routes: [
+          GoRoute(
+            path: '/planes',
+            builder: (_, _) => const PlansPage(basePath: '/planes'),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (_, s) => PlanEditorPage(
+                  planId: s.pathParameters['id']!,
+                  listPath: '/planes',
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: planOverrides(repo),
+          child: MaterialApp.router(
+            theme: TemaMaktub.claro(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('plan-copy')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('plan-name-field')),
+        'Mayo otra vez',
+      );
+      await tester.tap(find.byKey(const Key('plan-name-ok')));
+      await tester.pumpAndSettle();
+
+      final copy = repo.stored.values.firstWhere(
+        (p) => p.name == 'Mayo otra vez',
+      );
+      expect(copy.id, isNot('h'));
+      expect(copy.type, PlanType.regular);
+      expect(copy.published, isNull);
+      expect(copy.past, isFalse);
+      expect(copy.weekModels.single.days, hasLength(2));
+      expect(copy.weekAssignment, ['a', 'a', 'a', 'a']);
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        '/planes/${copy.id}',
+      );
+      expect(repo.stored['h']!.type, PlanType.history);
+    });
+
     testWidgets('creates a plan with name and type, then opens its editor', (
       tester,
     ) async {

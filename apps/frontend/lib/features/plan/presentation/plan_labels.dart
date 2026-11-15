@@ -6,9 +6,8 @@ String planTypeLabel(PlanType type) => switch (type) {
   PlanType.history => 'Histórico',
 };
 
-String formatNumber(double v) => v == v.roundToDouble()
-    ? '${v.toInt()}'
-    : '$v'.replaceAll('.', ',');
+String formatNumber(double v) =>
+    v == v.roundToDouble() ? '${v.toInt()}' : '$v'.replaceAll('.', ',');
 
 /// One set as "10", "10 al 65 %", "10 con 12,5 kg" or "Máx.".
 String _setLabel(PlanSet s) {

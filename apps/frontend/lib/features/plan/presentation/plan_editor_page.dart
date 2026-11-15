@@ -4,7 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
-import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
+import '../../catalogo/presentation/catalog_admin_widgets.dart'
+    show asyncView, showApiError;
 import '../../catalogo/presentation/exercise_picker.dart';
 import '../../catalogo/presentation/catalog_admin_providers.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
@@ -31,6 +32,28 @@ class PlanEditorPage extends ConsumerWidget {
 
   /// The plan list, where leaving the editor goes.
   final String listPath;
+
+  /// Copies the saved plan into a new one (to repeat it, e.g. a history plan) and opens its editor.
+  Future<void> _copyAsNew(
+    BuildContext context,
+    WidgetRef ref,
+    Plan plan,
+  ) async {
+    final name = await askPlanName(
+      context,
+      title: 'Copiar como plan nuevo',
+      initial: '${plan.name} (copia)',
+    );
+    if (name == null || !context.mounted) return;
+    try {
+      final copy = await copyPlanAsNew(ref, plan, name);
+      if (copy != null && context.mounted) {
+        context.go('$listPath/${Uri.encodeComponent(copy.id)}');
+      }
+    } catch (e) {
+      if (context.mounted) showApiError(context, e);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,6 +86,17 @@ class PlanEditorPage extends ConsumerWidget {
                 )
               : null,
           actions: [
+            if (value.hasValue)
+              IconButton(
+                key: const Key('plan-copy'),
+                icon: const Icon(Icons.copy_all_outlined),
+                tooltip: dirty
+                    ? 'Guardá los cambios para copiar el plan'
+                    : 'Copiar como plan nuevo',
+                onPressed: dirty || saving
+                    ? null
+                    : () => _copyAsNew(context, ref, value.requireValue.base),
+              ),
             if (value.hasValue)
               Padding(
                 padding: const EdgeInsets.only(right: Espacio.s),
@@ -231,10 +265,7 @@ class _PublishStatus extends ConsumerWidget {
     final publishing = ref.watch(planPublishProvider(planId)).publishing;
     final publishable = ref.watch(planPublishableProvider(planId));
     final (label, detail) = switch (plan.published) {
-      null => (
-        'Borrador',
-        'Los atletas todavía no ven este plan.',
-      ),
+      null => ('Borrador', 'Los atletas todavía no ven este plan.'),
       _ when plan.hasUnpublishedChanges => (
         'Publicado con cambios sin publicar',
         'Los atletas ven la última versión publicada.',
@@ -270,7 +301,8 @@ class _PublishStatus extends ConsumerWidget {
                   : const Icon(Icons.publish_outlined),
               label: const Text('Publicar'),
               onPressed: publishable && !publishing
-                  ? () => ref.read(planPublishProvider(planId).notifier).publish()
+                  ? () =>
+                        ref.read(planPublishProvider(planId).notifier).publish()
                   : null,
             ),
           ],

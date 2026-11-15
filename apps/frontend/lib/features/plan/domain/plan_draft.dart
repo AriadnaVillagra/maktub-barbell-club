@@ -289,9 +289,7 @@ class PlanDraft {
         executionMode: b.executionMode,
         athleteMode: b.athleteMode,
         timerId: b.timerId ?? wod.timerId,
-        note: _hasText(b.note) || !_hasText(description)
-            ? b.note
-            : description,
+        note: _hasText(b.note) || !_hasText(description) ? b.note : description,
         prescriptions: [...b.prescriptions, ...wod.prescriptions],
       ),
     );
@@ -331,9 +329,7 @@ class PlanDraft {
       (m) => WeekModel(
         id: m.id,
         name: m.name,
-        days: [
-          for (final (i, x) in m.days.indexed) i == day ? change(x) : x,
-        ],
+        days: [for (final (i, x) in m.days.indexed) i == day ? change(x) : x],
       ),
     );
   }

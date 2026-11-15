@@ -38,6 +38,34 @@ Future<Plan?> createPlan(
   return plan;
 }
 
+/// Creates a new plan named [name] with the week models and cycle assignment of [source], saved as a draft
+/// and active, so it can be completed and published on its own. A history plan's copy is a regular plan.
+/// Returns null without an active club. Errors propagate.
+Future<Plan?> copyPlanAsNew(WidgetRef ref, Plan source, String name) async {
+  final created = await createPlan(
+    ref,
+    name: name,
+    type: source.type == PlanType.history ? PlanType.regular : source.type,
+  );
+  if (created == null) return null;
+  final saved = await ref
+      .read(planRepositoryProvider)
+      .save(
+        created.clubId,
+        Plan(
+          id: created.id,
+          clubId: created.clubId,
+          name: created.name,
+          type: created.type,
+          weekModels: source.weekModels,
+          weekAssignment: source.weekAssignment,
+          auditoria: created.auditoria,
+        ),
+      );
+  ref.invalidate(plansProvider);
+  return saved;
+}
+
 /// The plan [planId] being edited in memory. It is discarded when the editor closes; [planSaveProvider] saves it.
 final planEditorProvider = AsyncNotifierProvider.autoDispose
     .family<PlanEditor, PlanDraft, String>(PlanEditor.new);
@@ -169,7 +197,8 @@ class PlanSave extends Notifier<PlanSaveState> {
       final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
       if (clubId == null) throw StateError('No active club');
       final exercises = {
-        for (final e in await ref.read(catalogExercisesProvider.future)) e.id: e,
+        for (final e in await ref.read(catalogExercisesProvider.future))
+          e.id: e,
       };
       nameOf = (id) => exercises[id]?.name;
       final problems = validatePlan(plan, exerciseById: (id) => exercises[id]);
@@ -289,7 +318,8 @@ class PlanPublish extends Notifier<PlanPublishState> {
       final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
       if (clubId == null) throw StateError('No active club');
       final exercises = {
-        for (final e in await ref.read(catalogExercisesProvider.future)) e.id: e,
+        for (final e in await ref.read(catalogExercisesProvider.future))
+          e.id: e,
       };
       nameOf = (id) => exercises[id]?.name;
       final published = await ref

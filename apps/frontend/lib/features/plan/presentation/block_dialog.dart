@@ -107,9 +107,7 @@ class _BlockDialogState extends ConsumerState<_BlockDialog> {
                   ? _timerId
                   : null,
               isExpanded: true,
-              decoration: const InputDecoration(
-                labelText: 'Temporizador',
-              ),
+              decoration: const InputDecoration(labelText: 'Temporizador'),
               items: [
                 const DropdownMenuItem<String?>(
                   value: null,
