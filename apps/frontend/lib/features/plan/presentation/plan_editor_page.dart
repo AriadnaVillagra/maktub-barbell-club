@@ -17,6 +17,7 @@ import 'plan_labels.dart';
 import 'prescription_dialog.dart';
 import 'wod_picker.dart';
 import 'providers.dart';
+import 'reveal_on_add.dart';
 
 /// Editor of a plan's structure: week models, the assignment of the 4 weeks and the days of each model.
 /// Edits stay in memory until the save action in the app bar validates and sends them (E5.9); a failed
@@ -222,11 +223,14 @@ class _Editor extends ConsumerWidget {
             ),
           ),
         for (final model in draft.weekModels)
-          _ModelCard(
-            key: Key('model-${model.id}'),
-            model: model,
-            draft: draft,
-            editor: editor,
+          RevealOnAdd(
+            target: 'model-${model.id}',
+            child: _ModelCard(
+              key: Key('model-${model.id}'),
+              model: model,
+              draft: draft,
+              editor: editor,
+            ),
           ),
         const SizedBox(height: Espacio.s),
         Align(
@@ -418,13 +422,16 @@ class _ModelCard extends StatelessWidget {
             ),
             for (final (i, _) in model.days.indexed) ...[
               if (i > 0) const Divider(),
-              _DayTile(
-                key: Key('day-$id-$i'),
-                modelId: id,
-                index: i,
-                day: model.days[i],
-                draft: draft,
-                editor: editor,
+              RevealOnAdd(
+                target: 'day-$id-$i',
+                child: _DayTile(
+                  key: Key('day-$id-$i'),
+                  modelId: id,
+                  index: i,
+                  day: model.days[i],
+                  draft: draft,
+                  editor: editor,
+                ),
               ),
             ],
           ],
@@ -543,16 +550,19 @@ class _DayTile extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         if (b > 0) const Divider(),
-                        _BlockTile(
-                          key: Key('block-$modelId-$index-$b'),
-                          keyPrefix: '$modelId-$index',
-                          index: b,
-                          block: block,
-                          categoryName: categoryName(block.categoryId),
-                          timerName: timerName(block.timerId),
-                          editor: editor,
-                          modelId: modelId,
-                          day: index,
+                        RevealOnAdd(
+                          target: 'block-$modelId-$index-$b',
+                          child: _BlockTile(
+                            key: Key('block-$modelId-$index-$b'),
+                            keyPrefix: '$modelId-$index',
+                            index: b,
+                            block: block,
+                            categoryName: categoryName(block.categoryId),
+                            timerName: timerName(block.timerId),
+                            editor: editor,
+                            modelId: modelId,
+                            day: index,
+                          ),
                         ),
                       ],
                     ),
@@ -779,41 +789,44 @@ class _BlockTile extends ConsumerWidget {
               ],
               for (final (p, prescription) in block.prescriptions.indexed) ...[
                 if (p > 0) const Divider(),
-                ListTile(
-                  key: Key('prescription-$keyPrefix-$index-$p'),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  onTap: () => _editPrescription(
-                    context,
-                    p,
-                    prescription,
-                    exerciseOf(prescription.exerciseId),
-                  ),
-                  title: Row(
-                    spacing: Espacio.l,
-                    children: [
-                      Flexible(
-                        child: Text(exerciseName(prescription.exerciseId)),
-                      ),
-                      if (prescription.sets.isNotEmpty)
-                        Flexible(child: Text(setsSummary(prescription.sets))),
-                    ],
-                  ),
-                  subtitle: _textOrNull(
-                    [
-                      if (prescription.timerId != null)
-                        'Temporizador: ${timerLabel(prescription.timerId!)}',
-                      if (prescription.barKg != null)
-                        'Barra: ${formatNumber(prescription.barKg!)} kg',
-                      if (prescription.note != null) prescription.note!,
-                    ].join(' · '),
-                  ),
-                  trailing: IconButton(
-                    key: Key('prescription-remove-$keyPrefix-$index-$p'),
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: 'Quitar ejercicio',
-                    onPressed: () =>
-                        editor.removePrescription(modelId, day, index, p),
+                RevealOnAdd(
+                  target: 'prescription-$keyPrefix-$index-$p',
+                  child: ListTile(
+                    key: Key('prescription-$keyPrefix-$index-$p'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    onTap: () => _editPrescription(
+                      context,
+                      p,
+                      prescription,
+                      exerciseOf(prescription.exerciseId),
+                    ),
+                    title: Row(
+                      spacing: Espacio.l,
+                      children: [
+                        Flexible(
+                          child: Text(exerciseName(prescription.exerciseId)),
+                        ),
+                        if (prescription.sets.isNotEmpty)
+                          Flexible(child: Text(setsSummary(prescription.sets))),
+                      ],
+                    ),
+                    subtitle: _textOrNull(
+                      [
+                        if (prescription.timerId != null)
+                          'Temporizador: ${timerLabel(prescription.timerId!)}',
+                        if (prescription.barKg != null)
+                          'Barra: ${formatNumber(prescription.barKg!)} kg',
+                        if (prescription.note != null) prescription.note!,
+                      ].join(' · '),
+                    ),
+                    trailing: IconButton(
+                      key: Key('prescription-remove-$keyPrefix-$index-$p'),
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'Quitar ejercicio',
+                      onPressed: () =>
+                          editor.removePrescription(modelId, day, index, p),
+                    ),
                   ),
                 ),
               ],

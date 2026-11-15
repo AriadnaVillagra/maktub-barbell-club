@@ -66,6 +66,25 @@ Future<Plan?> copyPlanAsNew(WidgetRef ref, Plan source, String name) async {
   return saved;
 }
 
+/// What the editor scrolls to after it is built: the key name (`model-<id>`, `day-<model>-<i>`,
+/// `block-<model>-<day>-<i>`, `prescription-<model>-<day>-<block>-<i>`) of the last thing added. The widget
+/// with that name scrolls itself into view and clears it ([RevealOnAdd]). One editor is open at a time.
+final planRevealProvider = NotifierProvider.autoDispose<PlanReveal, String?>(
+  PlanReveal.new,
+);
+
+class PlanReveal extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void show(String target) => state = target;
+
+  /// Called by the revealed widget, only if it is still the target.
+  void done(String target) {
+    if (state == target) state = null;
+  }
+}
+
 /// The plan [planId] being edited in memory. It is discarded when the editor closes; [planSaveProvider] saves it.
 final planEditorProvider = AsyncNotifierProvider.autoDispose
     .family<PlanEditor, PlanDraft, String>(PlanEditor.new);
@@ -89,6 +108,21 @@ class PlanEditor extends AsyncNotifier<PlanDraft> {
     if (current != null) state = AsyncData(change(current));
   }
 
+  /// Applies an addition and, when it changed the draft, asks the editor to scroll to what was added
+  /// ([target] reads the new draft).
+  void _add(
+    PlanDraft Function(PlanDraft) change,
+    String? Function(PlanDraft) target,
+  ) {
+    final current = state.value;
+    if (current == null) return;
+    final next = change(current);
+    if (identical(next, current)) return;
+    state = AsyncData(next);
+    final t = target(next);
+    if (t != null) ref.read(planRevealProvider.notifier).show(t);
+  }
+
   /// After a save: [saved] is what the server stored for [sent]. When nothing was edited since [sent] the
   /// draft restarts from [saved] (clean); otherwise the edits made while saving are kept on top of it.
   void commitSaved(PlanDraft sent, Plan saved) {
@@ -101,22 +135,50 @@ class PlanEditor extends AsyncNotifier<PlanDraft> {
     );
   }
 
-  void addModel(String name) => _edit((d) => d.addModel(name));
+  void addModel(String name) =>
+      _add((d) => d.addModel(name), (d) => 'model-${d.weekModels.last.id}');
   void setPast(bool value) => _edit((d) => d.setPast(value));
   void renameModel(String id, String name) =>
       _edit((d) => d.renameModel(id, name));
   void removeModel(String id) => _edit((d) => d.removeModel(id));
   void assign(int week, String? modelId) =>
       _edit((d) => d.assign(week, modelId));
-  void addDay(String modelId) => _edit((d) => d.addDay(modelId));
-  void copyDayTo(String fromModelId, int index, String toModelId) =>
-      _edit((d) => d.copyDayTo(fromModelId, index, toModelId));
+  void addDay(String modelId) =>
+      _add((d) => d.addDay(modelId), (d) => _lastDay(d, modelId));
+  void copyDayTo(String fromModelId, int index, String toModelId) => _add(
+    (d) => d.copyDayTo(fromModelId, index, toModelId),
+    (d) => _lastDay(d, toModelId),
+  );
+
+  static String? _lastDay(PlanDraft d, String modelId) {
+    final days = d.modelById(modelId)?.days.length ?? 0;
+    return days == 0 ? null : 'day-$modelId-${days - 1}';
+  }
+
+  static int _blockCount(PlanDraft d, String modelId, int day) {
+    final days = d.modelById(modelId)?.days ?? const [];
+    return day < days.length ? days[day].blocks.length : 0;
+  }
+
+  static int _prescriptionCount(
+    PlanDraft d,
+    String modelId,
+    int day,
+    int block,
+  ) {
+    final days = d.modelById(modelId)?.days ?? const [];
+    if (day >= days.length || block >= days[day].blocks.length) return 0;
+    return days[day].blocks[block].prescriptions.length;
+  }
+
   void removeDay(String modelId, int index) =>
       _edit((d) => d.removeDay(modelId, index));
   void moveDay(String modelId, int from, int to) =>
       _edit((d) => d.moveDay(modelId, from, to));
-  void addBlock(String modelId, int day, PlanBlock block) =>
-      _edit((d) => d.addBlock(modelId, day, block));
+  void addBlock(String modelId, int day, PlanBlock block) => _add(
+    (d) => d.addBlock(modelId, day, block),
+    (d) => 'block-$modelId-$day-${_blockCount(d, modelId, day) - 1}',
+  );
   void removeBlock(String modelId, int day, int index) =>
       _edit((d) => d.removeBlock(modelId, day, index));
   void moveBlock(String modelId, int day, int from, int to) =>
@@ -132,9 +194,17 @@ class PlanEditor extends AsyncNotifier<PlanDraft> {
     int day,
     int block,
     Prescription prescription,
-  ) => _edit((d) => d.addPrescription(modelId, day, block, prescription));
-  void addWod(String modelId, int day, int block, Wod wod) =>
-      _edit((d) => d.addWod(modelId, day, block, wod));
+  ) => _add(
+    (d) => d.addPrescription(modelId, day, block, prescription),
+    (d) =>
+        'prescription-$modelId-$day-$block-${_prescriptionCount(d, modelId, day, block) - 1}',
+  );
+
+  /// A WoD adds several exercises at once: the editor goes to its block.
+  void addWod(String modelId, int day, int block, Wod wod) => _add(
+    (d) => d.addWod(modelId, day, block, wod),
+    (_) => 'block-$modelId-$day-$block',
+  );
   void removePrescription(String modelId, int day, int block, int index) =>
       _edit((d) => d.removePrescription(modelId, day, block, index));
   void updatePrescription(

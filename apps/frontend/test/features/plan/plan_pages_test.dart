@@ -637,6 +637,28 @@ void main() {
       );
     });
 
+    testWidgets('adding a day scrolls to it', (tester) async {
+      await open(
+        tester,
+        samplePlan(
+          models: [model('a', 'A', 6)],
+          assignment: ['a', 'a', 'a', 'a'],
+        ),
+      );
+      tester.view.physicalSize = const Size(900, 500);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('day-add-a'), skipOffstage: false),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('day-add-a')));
+      await tester.pumpAndSettle();
+
+      final day = tester.getRect(find.byKey(const Key('day-a-6')));
+      expect(day.top, greaterThanOrEqualTo(0));
+      expect(day.bottom, lessThanOrEqualTo(500));
+    });
+
     testWidgets('a block is dragged by its handle to go before another', (
       tester,
     ) async {
