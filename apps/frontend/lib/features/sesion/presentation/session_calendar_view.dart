@@ -42,10 +42,14 @@ class SessionCalendarView extends ConsumerStatefulWidget {
     super.key,
     required this.data,
     required this.onPick,
+    required this.viewToggle,
   });
 
   final SessionDayData data;
   final void Function(int week, int day) onPick;
+
+  /// Day or calendar, the first row of the header card.
+  final Widget viewToggle;
 
   @override
   ConsumerState<SessionCalendarView> createState() =>
@@ -81,47 +85,70 @@ class _SessionCalendarViewState extends ConsumerState<SessionCalendarView> {
     final board = ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
-        Text(
-          data.plan.name,
-          key: const Key('calendar-plan'),
-          style: context.textos.titleLarge,
-        ),
-        Text(
-          'Ciclo ${data.location.cycle} · $planCycleWeeks semanas · '
-          '$daysPerWeek días por semana',
-          key: const Key('calendar-summary'),
-          style: context.textos.bodyMedium,
+        // Compact on purpose (Ari): view, then the plan, then the layout.
+        Card(
+          key: const Key('calendar-header'),
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(Espacio.s),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              spacing: Espacio.s,
+              children: [
+                widget.viewToggle,
+                Wrap(
+                  spacing: Espacio.s,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    Text(
+                      data.plan.name,
+                      key: const Key('calendar-plan'),
+                      style: context.textos.labelLarge,
+                    ),
+                    Text(
+                      'Ciclo ${data.location.cycle} · $planCycleWeeks semanas · '
+                      '$daysPerWeek días por semana',
+                      key: const Key('calendar-summary'),
+                      style: context.textos.bodySmall,
+                    ),
+                  ],
+                ),
+                SegmentedButton<CalendarLayout>(
+                  key: const Key('calendar-layout'),
+                  showSelectedIcon: false,
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                  ),
+                  segments: [
+                    for (final (value, icon, label) in [
+                      (CalendarLayout.compact, Icons.grid_view, 'Compacta'),
+                      (
+                        CalendarLayout.cards,
+                        Icons.view_carousel_outlined,
+                        'Tarjetas',
+                      ),
+                      (
+                        CalendarLayout.detailed,
+                        Icons.view_agenda_outlined,
+                        'Detallada',
+                      ),
+                    ])
+                      ButtonSegment(
+                        value: value,
+                        // On a phone the three labels only fit without icons.
+                        icon: phone ? null : Icon(icon),
+                        label: Text(label),
+                      ),
+                  ],
+                  selected: {layout},
+                  onSelectionChanged: (l) =>
+                      ref.read(calendarLayoutProvider.notifier).choose(l.first),
+                ),
+              ],
+            ),
+          ),
         ),
         const SizedBox(height: Espacio.m),
-        SegmentedButton<CalendarLayout>(
-          key: const Key('calendar-layout'),
-          showSelectedIcon: false,
-          segments: [
-            for (final (value, icon, label) in [
-              (CalendarLayout.compact, Icons.grid_view, 'Compacta'),
-              (
-                CalendarLayout.cards,
-                Icons.view_carousel_outlined,
-                'Tarjetas',
-              ),
-              (
-                CalendarLayout.detailed,
-                Icons.view_agenda_outlined,
-                'Detallada',
-              ),
-            ])
-              ButtonSegment(
-                value: value,
-                // On a phone the three labels only fit without icons.
-                icon: phone ? null : Icon(icon),
-                label: Text(label),
-              ),
-          ],
-          selected: {layout},
-          onSelectionChanged: (l) =>
-              ref.read(calendarLayoutProvider.notifier).choose(l.first),
-        ),
-        const SizedBox(height: Espacio.l),
         switch (layout) {
           CalendarLayout.compact => CompactBoard(
             weeks: weeks,
@@ -147,9 +174,9 @@ class _SessionCalendarViewState extends ConsumerState<SessionCalendarView> {
     // Only the compact grid needs the panel: a card or a detailed day already shows the whole day.
     if (layout != CalendarLayout.compact) return board;
 
-    final selected = [
-      for (final w in weeks) ...w.days,
-    ].where((d) => (d.week, d.day) == _selected).firstOrNull;
+    final selected = [for (final w in weeks) ...w.days]
+        .where((d) => (d.week, d.day) == _selected)
+        .firstOrNull;
     if (!phone) {
       return Row(
         crossAxisAlignment: CrossAxisAlignment.stretch,

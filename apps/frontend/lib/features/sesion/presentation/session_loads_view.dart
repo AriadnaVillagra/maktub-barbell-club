@@ -88,13 +88,7 @@ class SessionLoadsView extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: Espacio.m),
-        _AthleteTabs(
-          data: data,
-          selected: athleteId,
-          onSelect: notifier.selectAthlete,
-        ),
-        const SizedBox(height: Espacio.m),
+        const SizedBox(height: Espacio.s),
         _AdjustmentRow(
           keyPrefix: 'session-adjust-session',
           label: 'Ajuste del día',
@@ -139,65 +133,43 @@ class SessionLoadsView extends ConsumerWidget {
   }
 }
 
-/// One tab per athlete of the group, in the group's order whatever is chosen or present. Chooses whose kilos show.
-class _AthleteTabs extends StatefulWidget {
-  const _AthleteTabs({
+/// One segment per athlete of the plan, in the group's order whatever is chosen or present. Chooses whose kilos
+/// show. Compact, for the session header card.
+class SessionAthleteSelector extends StatelessWidget {
+  const SessionAthleteSelector({
+    super.key,
     required this.data,
     required this.selected,
     required this.onSelect,
   });
 
   final SessionDayData data;
-  final String selected;
+  final String? selected;
   final ValueChanged<String> onSelect;
 
   @override
-  State<_AthleteTabs> createState() => _AthleteTabsState();
-}
-
-class _AthleteTabsState extends State<_AthleteTabs>
-    with TickerProviderStateMixin {
-  late TabController _controller = _create();
-
-  List<String> get _ids => widget.data.memberIds;
-
-  int get _index => _ids.indexOf(widget.selected).clamp(0, _ids.length - 1);
-
-  TabController _create() =>
-      TabController(length: _ids.length, initialIndex: _index, vsync: this);
-
-  @override
-  void didUpdateWidget(_AthleteTabs old) {
-    super.didUpdateWidget(old);
-    if (_controller.length != _ids.length) {
-      _controller.dispose();
-      _controller = _create();
-    } else if (_controller.index != _index) {
-      _controller.index = _index;
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => TabBar(
-    key: const Key('session-athletes'),
-    controller: _controller,
-    isScrollable: true,
-    tabAlignment: TabAlignment.start,
-    onTap: (i) => widget.onSelect(_ids[i]),
-    tabs: [
-      for (final id in _ids)
-        Tab(
-          key: Key('session-athlete-$id'),
-          height: context.densidad.tactilMinimo,
-          text: athleteLabel(widget.data, id),
-        ),
-    ],
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: SegmentedButton<String>(
+      key: const Key('session-athletes'),
+      showSelectedIcon: false,
+      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+      segments: [
+        for (final id in data.memberIds)
+          ButtonSegment(
+            value: id,
+            label: Text(
+              athleteLabel(data, id),
+              key: Key('session-athlete-$id'),
+            ),
+          ),
+      ],
+      selected: {?selected},
+      emptySelectionAllowed: selected == null,
+      onSelectionChanged: (s) {
+        if (s.isNotEmpty) onSelect(s.first);
+      },
+    ),
   );
 }
 
@@ -504,8 +476,10 @@ class _AdjustmentRow extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     children: [
       Expanded(child: Text(label, style: context.textos.labelLarge)),
+      // Compact, so the row fits inside a block card on a phone.
       IconButton(
         key: Key('$keyPrefix-minus'),
+        visualDensity: VisualDensity.compact,
         icon: const Icon(Icons.remove),
         tooltip: 'Bajar el ajuste',
         onPressed: () => onStep(-Ajuste.paso),
@@ -517,14 +491,17 @@ class _AdjustmentRow extends StatelessWidget {
       ),
       IconButton(
         key: Key('$keyPrefix-plus'),
+        visualDensity: VisualDensity.compact,
         icon: const Icon(Icons.add),
         tooltip: 'Subir el ajuste',
         onPressed: () => onStep(Ajuste.paso),
       ),
-      TextButton(
+      IconButton(
         key: Key('$keyPrefix-reset'),
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.restart_alt),
+        tooltip: 'Quitar el ajuste',
         onPressed: () => onStep(0),
-        child: const Text('Quitar'),
       ),
     ],
   );

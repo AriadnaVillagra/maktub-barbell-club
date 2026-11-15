@@ -62,6 +62,18 @@ class _SessionPageState extends ConsumerState<SessionPage> {
       );
       canTrain = planDayOf(day, week, dayNumber) != null;
     }
+    // Day or calendar: the first row of each view's header card (Ari: everything took too much room).
+    final viewToggle = SegmentedButton<SessionView>(
+      key: const Key('session-view'),
+      showSelectedIcon: false,
+      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+      segments: const [
+        ButtonSegment(value: SessionView.day, label: Text('Sesión del día')),
+        ButtonSegment(value: SessionView.calendar, label: Text('Calendario')),
+      ],
+      selected: {_view},
+      onSelectionChanged: (v) => setState(() => _view = v.first),
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sesión'),
@@ -82,29 +94,6 @@ class _SessionPageState extends ConsumerState<SessionPage> {
         builder: (data) => Column(
           children: [
             const LocalCopyNotice(),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                Espacio.l,
-                Espacio.m,
-                Espacio.l,
-                0,
-              ),
-              child: SegmentedButton<SessionView>(
-                key: const Key('session-view'),
-                segments: const [
-                  ButtonSegment(
-                    value: SessionView.day,
-                    label: Text('Sesión del día'),
-                  ),
-                  ButtonSegment(
-                    value: SessionView.calendar,
-                    label: Text('Calendario'),
-                  ),
-                ],
-                selected: {_view},
-                onSelectionChanged: (v) => setState(() => _view = v.first),
-              ),
-            ),
             if (data != null) _PlanPicker(current: data),
             Expanded(
               child: data == null
@@ -112,10 +101,11 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                   : switch (_view) {
                       SessionView.day => _SessionBody(
                         data: data,
-                        guidedPath: widget.guidedPath,
+                        viewToggle: viewToggle,
                       ),
                       SessionView.calendar => SessionCalendarView(
                         data: data,
+                        viewToggle: viewToggle,
                         onPick: (week, day) {
                           ref
                               .read(sessionScreenProvider.notifier)
@@ -205,10 +195,12 @@ class _NoAssignment extends ConsumerWidget {
 }
 
 class _SessionBody extends ConsumerStatefulWidget {
-  const _SessionBody({required this.data, this.guidedPath});
+  const _SessionBody({required this.data, required this.viewToggle});
 
   final SessionDayData data;
-  final String? guidedPath;
+
+  /// Day or calendar, the first row of the header card.
+  final Widget viewToggle;
 
   @override
   ConsumerState<_SessionBody> createState() => _SessionBodyState();
@@ -259,22 +251,52 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ListTile(
-                key: const Key('session-day-picker-toggle'),
-                onTap: () => setState(() => _picking = !_picking),
-                title: Text(
-                  '${plan.name} · ciclo ${location.cycle} · semana ${location.week}',
-                  key: const Key('session-location'),
-                  style: context.textos.titleMedium,
+              // Compact on purpose (Ari: it took too much room): view, then where we are, then who.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Espacio.s,
+                  Espacio.s,
+                  Espacio.xs,
+                  0,
                 ),
-                // Always there: after choosing a week the chosen day shows here too.
-                subtitle: Padding(
-                  padding: const EdgeInsets.only(top: Espacio.xs),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: widget.viewToggle,
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('session-day-picker-toggle'),
+                      tooltip: _picking ? 'Cerrar' : 'Elegir semana y día',
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        _picking ? Icons.expand_less : Icons.expand_more,
+                      ),
+                      onPressed: () => setState(() => _picking = !_picking),
+                    ),
+                  ],
+                ),
+              ),
+              InkWell(
+                onTap: () => setState(() => _picking = !_picking),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Espacio.s,
+                    vertical: Espacio.xs,
+                  ),
                   child: Wrap(
                     key: const Key('session-day-summary'),
                     spacing: Espacio.xs,
                     runSpacing: Espacio.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: [
+                      Text(
+                        '${plan.name} · ciclo ${location.cycle} · semana ${location.week}',
+                        key: const Key('session-location'),
+                        style: context.textos.labelLarge,
+                      ),
                       InsigniaMaktub(
                         ['S$week', ?plan.weekModelOf(week)?.name].join(' '),
                         context.colores.insigniaBase,
@@ -300,18 +322,10 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                     ],
                   ),
                 ),
-                trailing: Icon(
-                  _picking ? Icons.expand_less : Icons.expand_more,
-                ),
               ),
               if (_picking)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    Espacio.m,
-                    0,
-                    Espacio.m,
-                    Espacio.m,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: Espacio.s),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -363,12 +377,28 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                     ],
                   ),
                 ),
+              // Whose kilos show: always at hand while training.
+              if (planDay != null && data.memberIds.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    Espacio.s,
+                    Espacio.xs,
+                    Espacio.s,
+                    Espacio.s,
+                  ),
+                  child: SessionAthleteSelector(
+                    data: data,
+                    selected: athleteOnScreen(data, state),
+                    onSelect: notifier.selectAthlete,
+                  ),
+                )
+              else
+                const SizedBox(height: Espacio.s),
             ],
           ),
         ),
         if (planDay != null) ...[
           // The day's name is in the picker's summary (Ari: a title here repeated it).
-          const SizedBox(height: Espacio.s),
           if (live != null && isLocalSessionId(live.session.id)) ...[
             const SizedBox(height: Espacio.s),
             Align(

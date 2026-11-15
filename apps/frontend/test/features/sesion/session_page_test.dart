@@ -539,16 +539,23 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
-/// The texts of the athlete tabs, in the order they show.
+/// The athletes of the selector, in the order they show.
 List<String> _tabs(WidgetTester tester) => [
-  for (final tab in tester.widgetList<Tab>(
-    find.descendant(
-      of: find.byKey(const Key('session-athletes')),
-      matching: find.byType(Tab),
-    ),
-  ))
-    tab.text!,
+  for (final segment in _athletes(tester).segments)
+    (segment.label! as Text).data!,
 ];
+
+SegmentedButton<String> _athletes(WidgetTester tester) => tester
+    .widget<SegmentedButton<String>>(find.byKey(const Key('session-athletes')));
+
+/// The chosen athlete's label.
+String _chosenTab(WidgetTester tester) {
+  final selector = _athletes(tester);
+  final segment = selector.segments.firstWhere(
+    (s) => selector.selected.contains(s.value),
+  );
+  return (segment.label! as Text).data!;
+}
 
 String _kg(WidgetTester tester, String key) =>
     tester.widget<Text>(find.byKey(Key(key))).data!;
@@ -618,6 +625,17 @@ void main() {
       find.descendant(of: summary, matching: find.text('Día 3 · Tirón')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('on a phone the day header card fits', (tester) async {
+    await _pump(tester, _FakeSessions());
+    tester.view.physicalSize = const Size(360, 2000);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('session-athletes')), findsOneWidget);
+    expect(find.byKey(const Key('session-view')), findsOneWidget);
   });
 
   testWidgets('choosing another day shows that day', (tester) async {
@@ -747,13 +765,7 @@ void main() {
         final sessions = _FakeSessions();
         await _pump(tester, sessions);
         expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
-        expect(
-          tester
-              .widget<TabBar>(find.byKey(const Key('session-athletes')))
-              .controller!
-              .index,
-          0,
-        );
+        expect(_chosenTab(tester), _tabs(tester)[0]);
 
         await tester.tap(find.byKey(const Key('session-athlete-luz')));
         await tester.pumpAndSettle();
@@ -807,13 +819,7 @@ void main() {
       ) async {
         await _pump(tester, _FakeSessions(), ownAthlete: null);
 
-        expect(
-          tester
-              .widget<TabBar>(find.byKey(const Key('session-athletes')))
-              .controller!
-              .index,
-          0,
-        );
+        expect(_chosenTab(tester), _tabs(tester)[0]);
         expect(_tabs(tester).first, 'Ari');
       });
 
@@ -1473,9 +1479,7 @@ void main() {
       expect(find.text('PANTALLA ASIGNACIONES'), findsOneWidget);
     });
 
-    testWidgets('an athlete sees only the message, in both views', (
-      tester,
-    ) async {
+    testWidgets('an athlete sees only the message', (tester) async {
       await _pump(
         tester,
         _FakeSessions(),
@@ -1484,9 +1488,8 @@ void main() {
       );
       expect(find.byKey(const Key('session-empty')), findsOneWidget);
       expect(find.byKey(const Key('session-go-assignments')), findsNothing);
-      await tester.tap(find.text('Calendario'));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('session-empty')), findsOneWidget);
+      // Without a plan there is nothing to see in either view, so there is no view toggle.
+      expect(find.byKey(const Key('session-view')), findsNothing);
     });
   });
 

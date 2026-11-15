@@ -56,9 +56,10 @@ class GuidedStepView extends ConsumerWidget {
     final prescription = block.prescriptions[step.prescription];
     final draft = guided.draftFor(step);
     final turns = run.athleteMode == AthleteMode.turns;
-    final total = setCountsOf(block, guided.athleteIds)[step.prescription]
-        .values
-        .fold(0, (max, n) => n > max ? n : max);
+    final total = setCountsOf(
+      block,
+      guided.athleteIds,
+    )[step.prescription].values.fold(0, (max, n) => n > max ? n : max);
     final whose = athleteLabel(data, step.athleteIds.first);
     final String main;
     if (draft.running) {
@@ -233,10 +234,7 @@ class _AthleteSetCard extends ConsumerWidget {
     final notDone = draft.notDone.contains(athleteId);
     final values = [
       kg == null ? '— kg' : '${formatKg(kg)} kg',
-      if (reps != null)
-        '$reps reps'
-      else if (target.maxReps)
-        'Máx.',
+      if (reps != null) '$reps reps' else if (target.maxReps) 'Máx.',
     ].join(' × ');
 
     Future<void> editValues() async {
@@ -291,10 +289,7 @@ class _AthleteSetCard extends ConsumerWidget {
                   style: context.textos.bodySmall,
                 ),
               if (notDone)
-                Text(
-                  'No hace esta serie',
-                  style: context.textos.bodyMedium,
-                )
+                Text('No hace esta serie', style: context.textos.bodyMedium)
               else
                 TextButton(
                   key: Key('guided-edit-$athleteId'),

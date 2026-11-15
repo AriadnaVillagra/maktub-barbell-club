@@ -434,7 +434,10 @@ class SessionScreenState {
 }
 
 /// The week and day on screen: the chosen ones, else today's week and the D13 day, kept within the week's days.
-({int week, int day}) shownDayOf(SessionDayData data, SessionScreenState state) {
+({int week, int day}) shownDayOf(
+  SessionDayData data,
+  SessionScreenState state,
+) {
   final week = state.week ?? data.location.week;
   final count = data.plan.weekModelOf(week)?.days.length ?? 0;
   final day = (state.day ?? data.openingDay).clamp(1, count < 1 ? 1 : count);
@@ -524,7 +527,9 @@ class SessionScreenController extends Notifier<SessionScreenState> {
         _dayData?.location.assignmentId != data.location.assignmentId ||
         shownDayOf(data, state) != shown;
     if (found == null || stale()) return;
-    final unsent = await ref.read(setSyncQueueProvider).resume(found.session.id);
+    final unsent = await ref
+        .read(setSyncQueueProvider)
+        .resume(found.session.id);
     if (stale()) return;
     _follow(found.session);
     state = _with(
