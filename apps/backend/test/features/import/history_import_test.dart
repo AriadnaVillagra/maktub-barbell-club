@@ -525,6 +525,27 @@ void main() {
     expect(db.records, hasLength(8), reason: '5 sets on Oct 1, 1 on Oct 8 and 2 of the history plan');
   });
 
+  test("an athlete's own assignment (E8.8) loads that athlete's rows and reports the others'", () async {
+    final i = db.assignments.indexWhere((a) => a.id == 'asig-plan_oct');
+    final group = db.assignments[i];
+    db.assignments[i] = Assignment(
+      id: group.id,
+      clubId: _club,
+      planId: group.planId,
+      athleteId: 'ari',
+      startDate: group.startDate,
+      status: AssignmentStatus.ended,
+      endDate: group.endDate,
+      auditoria: _audit,
+    );
+    final report = await importer().run(run());
+    final s = sessionOn(DateTime.utc(2026, 10, 1));
+    expect(s.presentAthleteIds, ['ari']);
+    expect(recordsOf(s, 'ari'), hasLength(4));
+    expect(recordsOf(s, 'andi'), isEmpty);
+    expect(report.problems, contains(contains('no es el de la asignación')));
+  });
+
   test('running twice writes nothing new: no duplicated sets, times or changes', () async {
     await importer().run(run());
     final before = db.snapshot();

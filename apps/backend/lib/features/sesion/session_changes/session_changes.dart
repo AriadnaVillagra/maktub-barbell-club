@@ -75,11 +75,14 @@ class SessionChanges {
   Future<bool> _isInGroup(ClubContext club, Session session) async {
     final own = await _store.athleteIdOfUser(club.clubId, club.userId);
     if (own == null) return false;
-    final groupId = await _store.groupIdOfAssignment(
+    final assignment = await _store.assignment(
       club.clubId,
       session.assignmentId,
     );
-    if (groupId == null) return false;
-    return (await _store.groupMemberIds(club.clubId, groupId)).contains(own);
+    if (assignment == null) return false;
+    final athletes = await assignment.athletes(
+      (groupId) => _store.groupMemberIds(club.clubId, groupId),
+    );
+    return athletes.contains(own);
   }
 }

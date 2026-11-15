@@ -34,7 +34,7 @@ class AssignmentEntry {
   /// Name of the club group that did it.
   final String? group;
 
-  /// Display name of the one athlete that did it, for a plan of one person.
+  /// Display name of the one athlete that did it, for a plan of one person (E8.8): the assignment is theirs.
   final String? athlete;
 
   /// Club athlete ids that did it, for an entry derived from the rows (the history plans): the group is the
@@ -90,12 +90,16 @@ class AssignmentPlan {
 class AssignmentState {
   const AssignmentState({
     this.groups = const [],
+    this.athletes = const [],
     this.plans = const {},
     this.publishedPlans = const {},
     this.assignments = const {},
   });
 
   final List<AthleteGroup> groups;
+
+  /// The club athletes, for an entry of one athlete.
+  final List<Atleta> athletes;
   final Set<String> plans;
   final Set<String> publishedPlans;
 
@@ -108,9 +112,9 @@ String assignmentImportId(String clubId, AssignmentEntry entry) =>
     importedId(clubId, 'asignacion-${entry.plan}-${aIsoFecha(entry.from)}');
 
 /// Decides, entry by entry (pure, no I/O). Each entry becomes an **ended** assignment of the plan imported in E8.4
-/// (`from` to `to`), so D14 (one active assignment per group) is never touched. Rules:
-/// - The group is found by name in the club. An entry for one athlete instead of a group is reported: E6 only
-///   assigns plans to groups.
+/// (`from` to `to`), so D14 (one active assignment per owner) is never touched. Rules:
+/// - The group is found by name in the club. An entry for one athlete (`athlete`, E8.8) becomes that athlete's own
+///   assignment; the athlete is found by display name in the club.
 /// - The plan must be imported and published (E6 assigns only published plans); a draft is reported.
 /// - An assignment that already exists with that id is left alone: unchanged if it says the same, else differing.
 AssignmentPlan planAssignmentImport(List<AssignmentEntry> entries, AssignmentState state, {required String clubId}) {
@@ -129,14 +133,24 @@ AssignmentPlan planAssignmentImport(List<AssignmentEntry> entries, AssignmentSta
         );
         continue;
       }
-      _plan(out, e, smallest.single, state, clubId);
+      _plan(out, e, _Owner.group(smallest.single), state, clubId);
+      continue;
+    }
+    if (e.group == null && e.athlete != null) {
+      final wanted = e.athlete!.trim().toLowerCase();
+      final athletes = state.athletes.where((a) => a.nombreVisible.trim().toLowerCase() == wanted).toList();
+      if (athletes.length != 1) {
+        report.problems.add(
+          '${e.label}: ${athletes.isEmpty ? 'no hay un atleta "${e.athlete}"' : 'hay ${athletes.length} atletas '
+                    '"${e.athlete}"'} en el club.',
+        );
+        continue;
+      }
+      _plan(out, e, _Owner.athlete(athletes.single), state, clubId);
       continue;
     }
     if (e.group == null) {
-      report.problems.add(
-        '${e.label}: es de ${e.athlete == null ? 'nadie' : 'un solo atleta (${e.athlete})'} y E6 solo asigna planes '
-        'a grupos; queda sin asignar y sus filas del historial no se cargan.',
-      );
+      report.problems.add('${e.label}: no dice de qué grupo ni de qué atleta es; queda sin asignar.');
       continue;
     }
     final groups = state.groups.where((g) => g.name.trim().toLowerCase() == e.group!.trim().toLowerCase()).toList();
@@ -147,12 +161,22 @@ AssignmentPlan planAssignmentImport(List<AssignmentEntry> entries, AssignmentSta
       );
       continue;
     }
-    _plan(out, e, groups.single, state, clubId);
+    _plan(out, e, _Owner.group(groups.single), state, clubId);
   }
   return out;
 }
 
-void _plan(AssignmentPlan out, AssignmentEntry e, AthleteGroup group, AssignmentState state, String clubId) {
+/// Who an entry's assignment is for: a club group or one club athlete.
+class _Owner {
+  _Owner.group(AthleteGroup g) : groupId = g.id, athleteId = null, label = 'grupo "${g.name}"';
+  _Owner.athlete(Atleta a) : groupId = null, athleteId = a.id, label = 'atleta "${a.nombreVisible}"';
+
+  final String? groupId;
+  final String? athleteId;
+  final String label;
+}
+
+void _plan(AssignmentPlan out, AssignmentEntry e, _Owner owner, AssignmentState state, String clubId) {
   final report = out.report;
   if (e.to.isBefore(e.from)) {
     report.problems.add('${e.label}: termina antes de empezar.');
@@ -171,19 +195,26 @@ void _plan(AssignmentPlan out, AssignmentEntry e, AthleteGroup group, Assignment
     return;
   }
   final id = assignmentImportId(clubId, e);
-  final label = '${e.label}, grupo "${group.name}"';
+  final label = '${e.label}, ${owner.label}';
   final stored = state.assignments[id];
   if (stored == null) {
     out.toCreate.add(
       PlannedAssignment(
         id: id,
         label: label,
-        body: {'planId': planId, 'grupoId': group.id, 'fechaInicio': aIsoFecha(e.from), 'fechaFin': aIsoFecha(e.to)},
+        body: {
+          'planId': planId,
+          'grupoId': ?owner.groupId,
+          'atletaId': ?owner.athleteId,
+          'fechaInicio': aIsoFecha(e.from),
+          'fechaFin': aIsoFecha(e.to),
+        },
       ),
     );
     report.created.add('$label: terminada.');
   } else if (stored.planId == planId &&
-      stored.groupId == group.id &&
+      stored.groupId == owner.groupId &&
+      stored.athleteId == owner.athleteId &&
       stored.startDate == e.from &&
       stored.endDate == e.to &&
       stored.status == AssignmentStatus.ended) {
@@ -223,6 +254,7 @@ class AssignmentImport implements ImportStep {
     final planIds = {for (final e in entries) importedId(clubId, e.plan)};
     final state = AssignmentState(
       groups: await _reads.groups(clubId),
+      athletes: await _reads.athletes(clubId),
       plans: await _reads.planIds(clubId, planIds),
       publishedPlans: await _reads.publishedPlanIds(clubId, planIds),
       assignments: await _reads.assignments(clubId, {for (final e in entries) assignmentImportId(clubId, e)}),

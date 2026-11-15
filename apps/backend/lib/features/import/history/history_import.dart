@@ -62,7 +62,7 @@ class HistoryImport implements ImportStep {
     final state = HistoryState(
       plans: await _reads.plans(clubId, planIds),
       assignments: assignments,
-      groupMembers: await _reads.groupMembers(clubId, {for (final a in assignments) a.groupId}),
+      groupMembers: await _reads.groupMembers(clubId, {for (final a in assignments) ?a.groupId}),
       sessions: sessions,
       records: await _reads.records(clubId, sessionIds),
       blockTimes: await _reads.blockTimes(clubId, sessionIds),

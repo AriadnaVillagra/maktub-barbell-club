@@ -18,8 +18,19 @@ class _Db implements AssignmentImportStore, CreateAssignmentStore {
     AthleteGroup(id: 'g1', clubId: _club, name: 'Andi y Ari', memberIds: const ['ari', 'andi'], auditoria: _audit),
   ];
 
+  final athletes_ = [
+    Atleta(id: 'ari', clubId: _club, usuarioId: 'u-ari', nombreVisible: 'Ari', auditoria: _audit),
+    Atleta(id: 'andi', clubId: _club, usuarioId: 'u-andi', nombreVisible: 'Andi', auditoria: _audit),
+  ];
+
   /// Plan id → published?
   final plans = <String, bool>{};
+
+  @override
+  Future<List<Atleta>> athletes(String clubId) async => athletes_.where((a) => a.clubId == clubId).toList();
+
+  @override
+  Future<bool> athleteExists(String clubId, String athleteId) async => athletes_.any((a) => a.id == athleteId);
   final all = <Assignment>[];
 
   @override
@@ -50,6 +61,7 @@ class _Db implements AssignmentImportStore, CreateAssignmentStore {
     final taken = all.any(
       (a) =>
           a.groupId == assignment.groupId &&
+          a.athleteId == assignment.athleteId &&
           a.status == AssignmentStatus.active &&
           assignment.status == AssignmentStatus.active,
     );
@@ -121,22 +133,58 @@ void main() {
     expect(db.all.singleWhere((a) => a.id != 'now').endDate, DateTime.utc(2026, 11, 5));
   });
 
-  test('a plan of one athlete, a draft, an unknown group or plan are reported and not written', () async {
+  test('a draft, an unknown group, athlete or plan, or no owner are reported and not written', () async {
     final report = await importer().run(
       run([
-        {'plan': 'plan_oct', 'athlete': 'Ari', 'from': '2026-11-06', 'to': '2026-11-07'},
         {...oct, 'plan': 'plan_borrador'},
         {...oct, 'group': 'Otro'},
         {...oct, 'plan': 'plan_nada'},
+        {'plan': 'plan_oct', 'athlete': 'Nadie', 'from': '2026-11-06', 'to': '2026-11-07'},
+        {'plan': 'plan_oct', 'from': '2026-11-06', 'to': '2026-11-07'},
       ]),
     );
     expect(db.all, hasLength(1));
     expect(report.problems, [
-      allOf(contains('un solo atleta (Ari)'), contains('E6 solo asigna planes a grupos')),
       contains('borrador'),
       contains('no hay un grupo "Otro"'),
       contains('no está importado'),
+      contains('no hay un atleta "Nadie"'),
+      contains('ni de qué atleta'),
     ]);
+  });
+
+  group('a plan of one athlete (E8.8)', () {
+    const lev = {'plan': 'plan_lev', 'athlete': ' ari ', 'from': '2026-11-06', 'to': '2026-11-07'};
+
+    setUp(() => db.plans[importedId(_club, 'plan_lev')] = true);
+
+    test("becomes that athlete's own ended assignment, next to the group's active one", () async {
+      final report = await importer().run(run([lev]));
+      final a = db.all.singleWhere((a) => a.planId == importedId(_club, 'plan_lev'));
+      expect(a.athleteId, 'ari');
+      expect(a.groupId, isNull);
+      expect((a.startDate, a.endDate, a.status), (
+        DateTime.utc(2026, 11, 6),
+        DateTime.utc(2026, 11, 7),
+        AssignmentStatus.ended,
+      ));
+      expect(report.created.single, allOf(contains('atleta "Ari"'), contains('terminada')));
+    });
+
+    test('running twice creates nothing new', () async {
+      await importer().run(run([lev]));
+      final again = await importer().run(run([lev]));
+      expect(db.all, hasLength(2));
+      expect(again.created, isEmpty);
+      expect(again.unchanged.single, contains('atleta "Ari"'));
+    });
+
+    test('still a draft: reported, not written', () async {
+      db.plans[importedId(_club, 'plan_lev')] = false;
+      final report = await importer().run(run([lev]));
+      expect(db.all, hasLength(1));
+      expect(report.problems.single, contains('borrador'));
+    });
   });
 
   test('a dry run writes nothing', () async {

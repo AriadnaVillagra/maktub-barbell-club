@@ -30,10 +30,19 @@ class _FakeStore implements RequestLiveTicketStore {
   }
 
   @override
-  Future<String?> groupIdOfAssignment(
-    String clubId,
-    String assignmentId,
-  ) async => assignmentGroups['$clubId/$assignmentId'];
+  Future<Assignment?> assignment(String clubId, String assignmentId) async {
+    final owner = assignmentGroups['$clubId/$assignmentId'];
+    if (owner == null) return null;
+    return Assignment(
+      id: assignmentId,
+      clubId: clubId,
+      planId: 'p1',
+      groupId: owner.startsWith('athlete:') ? null : owner,
+      athleteId: owner.startsWith('athlete:') ? owner.substring(8) : null,
+      startDate: DateTime.utc(2026, 11, 8),
+      auditoria: Auditoria.nueva('coach', ahora: _now),
+    );
+  }
 
   @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) async =>
@@ -149,6 +158,19 @@ void main() {
 
     expect(response.statusCode, HttpStatus.notFound);
     expect(store.tickets, isEmpty);
+  });
+
+  test("the athlete of an athlete's own assignment gets a ticket, another athlete does not", () async {
+    store.assignmentGroups['c1/a1'] = 'athlete:ath2';
+    store.athletes['c1/u1'] = 'ath2';
+    expect((await _call(store, _club({Rol.atleta}))).statusCode, HttpStatus.ok);
+
+    store.athletes['c1/u1'] = 'ath1';
+    expect(
+      (await _call(store, _club({Rol.atleta}))).statusCode,
+      HttpStatus.notFound,
+    );
+    expect(store.tickets, hasLength(1));
   });
 
   test('a session that does not exist gets a 404 and no ticket', () async {

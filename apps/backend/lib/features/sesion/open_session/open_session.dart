@@ -17,9 +17,9 @@ import 'open_session_store.dart';
 ///
 /// - `fecha` (`yyyy-MM-dd`) gives the cycle and the week. `semana` (1..4) replaces the week when the user picked
 ///   another one in the calendar. `dia` (1-based) is chosen by the client, D13 included.
-/// - `presentes` are athlete ids of the assignment's group; they add to the ones already present, so a device
-///   never removes the athletes another one chose.
-/// - An athlete can only open a session of their own group; a coach, of any group of the club.
+/// - `presentes` are athlete ids of the assignment's group (or its one athlete, for an athlete's own plan, E8.8);
+///   they add to the ones already present, so a device never removes the athletes another one chose.
+/// - An athlete can only open a session of their own group's assignment or their own; a coach, of any of the club.
 ///
 /// Adding someone to `presentes` is published as a change of the session. [broadcast] is for tests, like the rest.
 ///
@@ -92,9 +92,8 @@ class OpenSession {
 
     final assignment = await _store.assignment(club.clubId, assignmentId);
     if (assignment == null) throw _assignmentNotFound;
-    final members = await _store.groupMemberIds(
-      club.clubId,
-      assignment.groupId,
+    final members = await assignment.athletes(
+      (groupId) => _store.groupMemberIds(club.clubId, groupId),
     );
     if (!club.can(Accion.planificar)) {
       final own = await _store.athleteIdOfUser(club.clubId, club.userId);

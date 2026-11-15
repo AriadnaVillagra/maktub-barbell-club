@@ -109,7 +109,9 @@ class ProposedLoads {
     );
     final members = assignment == null
         ? const <String>[]
-        : await _store.groupMemberIds(club.clubId, assignment.groupId);
+        : await assignment.athletes(
+            (groupId) => _store.groupMemberIds(club.clubId, groupId),
+          );
     if (own == null || !members.contains(own)) throw _sessionNotFound;
     if (club.clubType == TipoClub.personal && own != athleteId) {
       throw forbiddenRole;

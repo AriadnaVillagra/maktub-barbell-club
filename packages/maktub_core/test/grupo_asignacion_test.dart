@@ -93,5 +93,45 @@ void main() {
       final json = make().toJson()..['estado'] = 'otra';
       expect(() => Assignment.fromJson(json), throwsFormatException);
     });
+
+    test('a group assignment carries grupoId and no atletaId', () {
+      final json = _roundTrip(make().toJson());
+      expect(json['grupoId'], 'g1');
+      expect(json.containsKey('atletaId'), isFalse);
+      final back = Assignment.fromJson(json);
+      expect(back.groupId, 'g1');
+      expect(back.athleteId, isNull);
+      expect(back.isForAthlete, isFalse);
+    });
+
+    test(
+      "an athlete's assignment round trips with atletaId and no grupoId",
+      () {
+        final json = _roundTrip(
+          Assignment(
+            id: 'as2',
+            clubId: 'c1',
+            planId: 'p1',
+            athleteId: 'a1',
+            startDate: DateTime.utc(2026, 11, 6),
+            auditoria: _audit,
+          ).toJson(),
+        );
+        expect(json['atletaId'], 'a1');
+        expect(json.containsKey('grupoId'), isFalse);
+        final back = Assignment.fromJson(json);
+        expect(back.athleteId, 'a1');
+        expect(back.groupId, isNull);
+        expect(back.isForAthlete, isTrue);
+        expect(back.toJson(), json);
+      },
+    );
+
+    test('a document with both owners or with none is rejected', () {
+      final both = make().toJson()..['atletaId'] = 'a1';
+      final none = make().toJson()..remove('grupoId');
+      expect(() => Assignment.fromJson(both), throwsFormatException);
+      expect(() => Assignment.fromJson(none), throwsFormatException);
+    });
   });
 }

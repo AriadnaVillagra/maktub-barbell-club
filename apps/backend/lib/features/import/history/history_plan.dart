@@ -270,8 +270,10 @@ HistoryPlan planHistoryImport(
   String athleteOf(PlannedSession s, String sheetAthlete, String shown) {
     final id = sources.athleteIdFor(sheetAthlete);
     if (id == null) throw _Skip('el atleta $shown no está vinculado a ningún atleta del club (paso atletas)');
-    if (!(state.groupMembers[s.assignment.groupId] ?? const []).contains(id)) {
-      throw _Skip('el atleta $shown no es del grupo de la asignación');
+    final a = s.assignment;
+    final athletes = a.athleteId != null ? [a.athleteId!] : state.groupMembers[a.groupId] ?? const <String>[];
+    if (!athletes.contains(id)) {
+      throw _Skip('el atleta $shown no es ${a.isForAthlete ? 'el de la asignación' : 'del grupo de la asignación'}');
     }
     return id;
   }

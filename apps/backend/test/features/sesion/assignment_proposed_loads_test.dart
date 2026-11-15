@@ -573,6 +573,23 @@ void main() {
       expect(day['atletas'], hasLength(2));
     });
 
+    test("an athlete's own assignment proposes only for them; another athlete gets not found", () async {
+      Assignment own(String athleteId) => Assignment(
+        id: 'a1',
+        clubId: 'club-a',
+        planId: 'p1',
+        athleteId: athleteId,
+        startDate: DateTime.utc(2026, 11, 16),
+        auditoria: _audit,
+      );
+      final data = _data()..assignments['club-a/a1'] = own('ari');
+      final day = (_dates(await _body(data, club: _athlete())).first['dias'] as List).first as Map;
+      expect([for (final a in day['atletas'] as List) (a as Map)['atletaId']], ['ari']);
+
+      data.assignments['club-a/a1'] = own('andi');
+      expect((await _get(data, club: _athlete())).statusCode, HttpStatus.notFound);
+    });
+
     test('an athlete outside the group gets not found', () async {
       final data = _data()..groups['club-a/g1'] = ['andi'];
 

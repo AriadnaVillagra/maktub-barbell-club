@@ -7,6 +7,9 @@ abstract interface class AssignmentImportStore {
   /// The groups of [clubId].
   Future<List<AthleteGroup>> groups(String clubId);
 
+  /// The athletes of [clubId].
+  Future<List<Atleta>> athletes(String clubId);
+
   /// The plans of [clubId] among [ids] that have a published version.
   Future<Set<String>> publishedPlanIds(String clubId, Set<String> ids);
 
@@ -29,6 +32,11 @@ class MongoAssignmentImportStore implements AssignmentImportStore {
   @override
   Future<List<AthleteGroup>> groups(String clubId) async => [
     for (final j in await _find(Colecciones.grupos, {'clubId': clubId})) AthleteGroup.fromJson(j),
+  ];
+
+  @override
+  Future<List<Atleta>> athletes(String clubId) async => [
+    for (final j in await _find(Colecciones.atletas, {'clubId': clubId})) Atleta.fromJson(j),
   ];
 
   @override

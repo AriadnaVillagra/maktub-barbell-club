@@ -61,7 +61,7 @@
       {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 5, "pct": null},
       {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 6, "pct": null}
     ],
-    "_assignments": "Who did each sheet plan and when: the sheet has no assignments. Each entry becomes an ended assignment (from-to), so D14 is untouched. 'group' is a club group name; an entry with 'athlete' instead is reported, because E6 only assigns plans to groups.",
+    "_assignments": "Who did each sheet plan and when: the sheet has no assignments. Each entry becomes an ended assignment (from-to), so D14 is untouched. 'group' is a club group name; 'athlete' instead is the display name of one club athlete, whose own plan it was (E8.8).",
     "assignments": [
       {"plan": "plan_oct2026", "group": "Andi y Ari", "from": "2026-10-01", "to": "2026-11-05"},
       {"plan": "plan_mw4vrh30", "athlete": "Ari", "from": "2026-11-06", "to": "2026-11-07"}

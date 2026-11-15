@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:maktub_backend/features/asignaciones/crear/crear_store.dart';
 import 'package:maktub_backend/features/asignaciones/listar/listar_store.dart';
 import 'package:maktub_backend/features/asignaciones/terminar/terminar_store.dart';
+import 'package:maktub_backend/features/asignaciones/ubicacion_atleta/ubicacion_atleta_store.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -66,10 +67,134 @@ void main() {
         (i) => i['name'] == 'club_grupo_activa_unica',
       );
       expect(index['unique'], isTrue);
-      expect(index['partialFilterExpression'], {'estado': 'activa'});
+      expect(index['partialFilterExpression'], {
+        'estado': 'activa',
+        'grupoId': {r'$exists': true},
+      });
       expect(index['key'], {'clubId': 1, 'grupoId': 1});
+      final athletes = indexes.firstWhere(
+        (i) => i['name'] == 'club_atleta_activa_unica',
+      );
+      expect(athletes['unique'], isTrue);
+      expect(athletes['key'], {'clubId': 1, 'atletaId': 1});
     },
   );
+
+  mongoTest(
+    'the index from before E8.8 is replaced, and running it again changes nothing',
+    () async {
+      final collection = db!.collection(Colecciones.asignaciones);
+      await collection.dropIndexes('club_grupo_activa_unica');
+      await collection.createIndex(
+        keys: {'clubId': 1, 'grupoId': 1},
+        name: 'club_grupo_activa_unica',
+        unique: true,
+        partialFilterExpression: {'estado': 'activa'},
+      );
+
+      await asegurarIndices(db!);
+      await asegurarIndices(db!);
+
+      final index = (await collection.getIndexes()).firstWhere(
+        (i) => i['name'] == 'club_grupo_activa_unica',
+      );
+      expect(
+        (index['partialFilterExpression'] as Map).containsKey('grupoId'),
+        isTrue,
+      );
+    },
+  );
+
+  Assignment ofAthlete(String clubId, String athleteId) => Assignment(
+    id: 'a${n++}',
+    clubId: clubId,
+    planId: 'p1',
+    athleteId: athleteId,
+    startDate: DateTime.utc(2026, 11, 9),
+    auditoria: Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 8)),
+  );
+
+  mongoTest(
+    "one active per athlete, alongside the group's; athletes do not collide with each other",
+    () async {
+      final store = MongoCreateAssignmentStore(db!);
+
+      expect(await store.insert(assignment('club-a', 'g1')), isTrue);
+      expect(await store.insert(ofAthlete('club-a', 'ari')), isTrue);
+      expect(await store.insert(ofAthlete('club-a', 'andi')), isTrue);
+      expect(await store.insert(ofAthlete('club-a', 'ari')), isFalse);
+      expect(await store.insert(assignment('club-a', 'g2')), isTrue);
+      expect(await db!.collection(Colecciones.asignaciones).count(), 4);
+
+      final list = MongoListAssignmentsStore(db!);
+      expect(
+        [for (final a in await list.assignments('club-a', athleteId: 'ari')) a.athleteId],
+        ['ari'],
+      );
+      expect(await list.assignments('club-a', groupId: 'g1'), hasLength(1));
+    },
+  );
+
+  mongoTest(
+    "the athlete's location reads their groups' active assignments and their own, in the club",
+    () async {
+      await db!.collection(Colecciones.grupos).remove({});
+      await db!.collection(Colecciones.grupos).insertMany([
+        {
+          '_id': 'g1',
+          'clubId': 'club-a',
+          'miembros': ['ari', 'andi'],
+        },
+        {
+          '_id': 'g2',
+          'clubId': 'club-a',
+          'miembros': ['andi'],
+        },
+        {
+          '_id': 'g3',
+          'clubId': 'club-b',
+          'miembros': ['ari'],
+        },
+      ]);
+      final create = MongoCreateAssignmentStore(db!);
+      final group = assignment('club-a', 'g1');
+      final own = ofAthlete('club-a', 'ari');
+      await create.insert(group);
+      await create.insert(own);
+      await create.insert(assignment('club-a', 'g2'));
+      await create.insert(ofAthlete('club-a', 'andi'));
+      await create.insert(assignment('club-b', 'g3'));
+      await create.insert(
+        assignment('club-a', 'g1', status: AssignmentStatus.ended),
+      );
+      final store = MongoAthleteLocationStore(db!);
+
+      final groups = await store.groupIdsOf('club-a', 'ari');
+      expect(groups, {'g1'});
+      final active = await store.activeAssignments(
+        'club-a',
+        groupIds: groups,
+        athleteId: 'ari',
+      );
+      expect({for (final a in active) a.id}, {group.id, own.id});
+      expect(
+        await store.activeAssignments('club-a', groupIds: {}, athleteId: 'x'),
+        isEmpty,
+      );
+    },
+  );
+
+  mongoTest('the athlete check only sees the club', () async {
+    await db!.collection(Colecciones.atletas).remove({});
+    await db!.collection(Colecciones.atletas).insertOne({
+      '_id': 'ari',
+      'clubId': 'club-a',
+    });
+    final store = MongoCreateAssignmentStore(db!);
+
+    expect(await store.athleteExists('club-a', 'ari'), isTrue);
+    expect(await store.athleteExists('club-b', 'ari'), isFalse);
+  });
 
   mongoTest(
     'a second active assignment for the same group is refused',
