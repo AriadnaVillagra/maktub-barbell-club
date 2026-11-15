@@ -17,11 +17,11 @@ import 'find_session_store.dart';
 ///
 /// The key is the opening's: `fecha` gives the cycle and the week, `semana` (1..4) replaces the week when the user
 /// picked another one, `dia` is 1-based. Same access as opening: needs [Accion.registrar]; an athlete only sees
-/// sessions of their own group, a coach of any group of the club. Records are filtered for the viewer like the
+/// sessions of their own group's assignment or their own (E8.8), a coach of any of the club. Records are filtered for the viewer like the
 /// opening does.
 ///
-/// 400 if a parameter is missing or malformed, 404 if the assignment is not in the club or is another group's for
-/// an athlete. [store] is for tests.
+/// 400 if a parameter is missing or malformed, 404 if the assignment is not in the club, or is neither their group's
+/// nor their own for an athlete. [store] is for tests.
 Future<Response> findSessionEndpoint(
   RequestContext context, {
   FindSessionStore? store,
@@ -67,9 +67,8 @@ class FindSession {
     final assignment = await _store.assignment(club.clubId, assignmentId);
     if (assignment == null) throw _assignmentNotFound;
     if (!club.can(Accion.planificar)) {
-      final members = await _store.groupMemberIds(
-        club.clubId,
-        assignment.groupId,
+      final members = await assignment.athletes(
+        (groupId) => _store.groupMemberIds(club.clubId, groupId),
       );
       final own = await _store.athleteIdOfUser(club.clubId, club.userId);
       if (own == null || !members.contains(own)) throw _assignmentNotFound;

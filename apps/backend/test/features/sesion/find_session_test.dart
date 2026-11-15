@@ -58,12 +58,13 @@ class _FakeStore implements FindSessionStore {
       if (r.clubId == clubId && r.sessionId == sessionId) r,
   ];
 
-  void seed(String clubId, {String groupId = 'g1'}) {
+  void seed(String clubId, {String groupId = 'g1', String? athleteId}) {
     assignments['$clubId/a1'] = Assignment(
       id: 'a1',
       clubId: clubId,
       planId: 'p1',
-      groupId: groupId,
+      groupId: athleteId == null ? groupId : null,
+      athleteId: athleteId,
       startDate: DateTime.utc(2026, 11, 9),
       auditoria: Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 8)),
     );
@@ -221,6 +222,17 @@ void main() {
     final response = await _get(store);
 
     expect(response.statusCode, HttpStatus.notFound);
+  });
+
+  test("an athlete's own assignment (E8.8): that athlete and a coach find "
+      'its session, another athlete of the group gets 404', () async {
+    final store = _FakeStore()..seed('club-a', athleteId: 'ari');
+    store.addSession('club-a');
+    expect((await _get(store)).statusCode, HttpStatus.ok);
+    expect((await _get(store, club: _coach())).statusCode, HttpStatus.ok);
+
+    store.athletes['club-a/user-ari'] = 'andi';
+    expect((await _get(store)).statusCode, HttpStatus.notFound);
   });
 
   test('a coach outside the group gets it', () async {
