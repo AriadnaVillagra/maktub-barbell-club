@@ -433,10 +433,35 @@ class _DayTile extends ConsumerWidget {
               IconButton(
                 key: Key('day-copy-$modelId-$index'),
                 icon: const Icon(Icons.copy_outlined),
-                tooltip: 'Duplicar día',
-                onPressed: draft.canAddDay(modelId)
-                    ? () => editor.duplicateDay(modelId, index)
-                    : null,
+                tooltip: 'Duplicar día en otro modelo',
+                onPressed: draft.weekModels.length < 2
+                    ? null
+                    : () async {
+                        final target = await showDialog<String>(
+                          context: context,
+                          builder: (context) => SimpleDialog(
+                            title: const Text('Duplicar día en'),
+                            children: [
+                              for (final m in draft.weekModels)
+                                if (m.id != modelId)
+                                  SimpleDialogOption(
+                                    key: Key('day-copy-to-${m.id}'),
+                                    onPressed: draft.canAddDay(m.id)
+                                        ? () => Navigator.pop(context, m.id)
+                                        : null,
+                                    child: Text(
+                                      draft.canAddDay(m.id)
+                                          ? 'Modelo ${m.name}'
+                                          : 'Modelo ${m.name} (ya tiene 7 días)',
+                                    ),
+                                  ),
+                            ],
+                          ),
+                        );
+                        if (target != null) {
+                          editor.copyDayTo(modelId, index, target);
+                        }
+                      },
               ),
               IconButton(
                 key: Key('day-remove-$modelId-$index'),

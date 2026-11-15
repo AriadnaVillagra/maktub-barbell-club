@@ -80,8 +80,8 @@ class PlanEditor extends AsyncNotifier<PlanDraft> {
   void assign(int week, String? modelId) =>
       _edit((d) => d.assign(week, modelId));
   void addDay(String modelId) => _edit((d) => d.addDay(modelId));
-  void duplicateDay(String modelId, int index) =>
-      _edit((d) => d.duplicateDay(modelId, index));
+  void copyDayTo(String fromModelId, int index, String toModelId) =>
+      _edit((d) => d.copyDayTo(fromModelId, index, toModelId));
   void removeDay(String modelId, int index) =>
       _edit((d) => d.removeDay(modelId, index));
   void moveDay(String modelId, int from, int to) =>

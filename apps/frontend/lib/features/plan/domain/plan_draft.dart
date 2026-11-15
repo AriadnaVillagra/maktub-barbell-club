@@ -134,25 +134,18 @@ class PlanDraft {
           ),
         );
 
-  /// Inserts a copy of the day at [index] right after it, with its blocks, prescriptions and sets.
-  /// A named day gets " (copia)" so both can be told apart. Plan values are immutable and have no ids
-  /// of their own, so sharing them between the two days is safe.
-  PlanDraft duplicateDay(String modelId, int index) {
-    final model = modelById(modelId);
-    if (model == null || index < 0 || index >= model.days.length) return this;
-    if (!canAddDay(modelId)) return this;
-    final day = model.days[index];
-    final copy = PlanDay(
-      name: day.name == null ? null : '${day.name} (copia)',
-      blocks: day.blocks,
-    );
+  /// Appends a copy of day [index] of [fromModelId] to another model, with its name, blocks,
+  /// prescriptions and sets. Plan values are immutable and have no ids of their own, so sharing them
+  /// between the two days is safe. Copying into the same model or into a full one does nothing.
+  PlanDraft copyDayTo(String fromModelId, int index, String toModelId) {
+    final from = modelById(fromModelId);
+    if (from == null || index < 0 || index >= from.days.length) return this;
+    if (fromModelId == toModelId || modelById(toModelId) == null) return this;
+    if (!canAddDay(toModelId)) return this;
+    final day = from.days[index];
     return _mapModel(
-      modelId,
-      (m) => WeekModel(
-        id: m.id,
-        name: m.name,
-        days: [...m.days]..insert(index + 1, copy),
-      ),
+      toModelId,
+      (m) => WeekModel(id: m.id, name: m.name, days: [...m.days, day]),
     );
   }
 

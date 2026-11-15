@@ -71,31 +71,28 @@ void main() {
     expect(d.weekModels[0].days, hasLength(6));
   });
 
-  test('duplicateDay inserts a copy after the day, up to 7 days', () {
+  test('copyDayTo appends the day to another model, never the same or a full one', () {
     final base = PlanDraft.from(
       samplePlan(
-        models: [model('x', 'A', 3)],
-        assignment: ['x', 'x', 'x', 'x'],
+        models: [model('x', 'A', 2), model('y', 'B', 1)],
+        assignment: ['x', 'y', 'x', 'y'],
       ),
     ).addBlock('x', 0, const PlanBlock(name: 'Principal', categoryId: 'c'));
-    final d = base.duplicateDay('x', 0);
-    final days = d.weekModels[0].days;
-    expect([for (final day in days) day.name], [
-      'Dx1',
-      'Dx1 (copia)',
-      'Dx2',
-      'Dx3',
-    ]);
+    final d = base.copyDayTo('x', 0, 'y');
+    final days = d.modelById('y')!.days;
+    expect([for (final day in days) day.name], ['Dy1', 'Dx1']);
     expect(days[1].blocks.map((b) => b.name), ['Principal']);
+    expect(d.modelById('x')!.days, hasLength(2));
     expect(d.isDirty, isTrue);
 
-    expect(identical(base.duplicateDay('x', 3), base), isTrue);
-    expect(identical(base.duplicateDay('nope', 0), base), isTrue);
+    expect(identical(base.copyDayTo('x', 0, 'x'), base), isTrue);
+    expect(identical(base.copyDayTo('x', 5, 'y'), base), isTrue);
+    expect(identical(base.copyDayTo('x', 0, 'nope'), base), isTrue);
     var full = base;
-    while (full.canAddDay('x')) {
-      full = full.addDay('x');
+    while (full.canAddDay('y')) {
+      full = full.addDay('y');
     }
-    expect(identical(full.duplicateDay('x', 0), full), isTrue);
+    expect(identical(full.copyDayTo('x', 0, 'y'), full), isTrue);
   });
 
   test('moveDay reorders and ignores invalid moves', () {

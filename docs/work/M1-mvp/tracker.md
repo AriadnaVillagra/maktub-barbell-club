@@ -126,7 +126,7 @@ publicada**, nunca el borrador.
   - Cada mes queda en el ciclo 1, aunque la planilla diga ciclo 2 a 4.
   - En marzo 2026, las semanas 3 y 4 repiten la 2.
   - Se pierden 23 notas de prescripción en atletas que no hicieron la serie 1.
-- **Editor del plan, tras probar E8.5 (2026-11-15, pedido por Ari):** los bloques de un día se reordenan arrastrando su manija (≡), sin flechas; cada día tiene "Duplicar día", que lo copia con sus bloques justo después (hasta 7 días).
+- **Editor del plan, tras probar E8.5 (2026-11-15, pedido por Ari):** los bloques de un día se reordenan arrastrando su manija (≡), sin flechas; cada día tiene "Duplicar día en otro modelo": elegís el modelo de semana y el día se agrega al final de ese modelo, con sus bloques (hasta 7 días).
 - **Abril a julio 2026 (pedido por Ari):**
   - En Registro no hay series de esos meses, pero se entrenó con la planificación de abril, repetida.
   - Se importa el plan de abril desde la grilla `ABR_2026` de la planilla de planificación. Se le cargan series de abril a julio con los kilos que propone la app (RM × %), marcadas como estimadas, y Ari corrige lo que haga falta.

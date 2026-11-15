@@ -422,15 +422,36 @@ void main() {
       expect(find.text('Archivado'), findsNothing);
     });
 
-    testWidgets('a day is duplicated with its blocks right after it', (
+    testWidgets('a day is duplicated into another model, not the same one', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        samplePlan(
+          models: [model('a', 'A', 1), model('b', 'B', 1)],
+          assignment: ['a', 'b', 'a', 'b'],
+        ),
+      );
+      await addBlock(tester, 'Uno', 'Calentamiento');
+      await tester.tap(find.byKey(const Key('day-copy-a-0')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('day-copy-to-a')), findsNothing);
+      await tester.tap(find.byKey(const Key('day-copy-to-b')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('block-b-1-0')), findsOneWidget);
+      expect(find.byKey(const Key('block-a-1-0')), findsNothing);
+    });
+
+    testWidgets('with a single model there is nowhere to duplicate a day', (
       tester,
     ) async {
       await open(tester);
-      await addBlock(tester, 'Uno', 'Calentamiento');
-      await tester.tap(find.byKey(const Key('day-copy-a-0')));
-      await tester.pump();
-      expect(find.text('Uno'), findsNWidgets(2));
-      expect(find.byKey(const Key('block-a-1-0')), findsOneWidget);
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const Key('day-copy-a-0')))
+            .onPressed,
+        isNull,
+      );
     });
 
     testWidgets('a block is dragged by its handle to go before another', (
