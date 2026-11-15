@@ -110,6 +110,22 @@ Plan _withBlock(PlanBlock block) => _plan(
 void main() {
   publishedPlanTests();
   group('wire contract', () {
+    test('past travels as pasado only when set; a history plan is always past', () {
+      Plan plan({bool past = false, PlanType type = PlanType.regular}) => Plan(
+        id: 'p1',
+        clubId: 'c1',
+        name: 'Plan',
+        type: type,
+        past: past,
+        auditoria: Auditoria(creadoPor: 'u1', creadoEn: DateTime.utc(2026, 11, 1)),
+      );
+      expect(plan().toJson().containsKey('pasado'), isFalse);
+      expect(plan(past: true).toJson()['pasado'], isTrue);
+      expect(Plan.fromJson(plan(past: true).toJson()).past, isTrue);
+      expect(Plan.fromJson(plan().toJson()).isPast, isFalse);
+      expect(plan(type: PlanType.history).isPast, isTrue);
+    });
+
     test('a plan round-trips through JSON with every field', () {
       final plan = Plan(
         id: 'p1',

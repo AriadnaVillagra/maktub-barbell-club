@@ -25,11 +25,13 @@ Plan samplePlan({
   List<WeekModel> models = const [],
   List<String> assignment = const [],
   PublishedPlan? published,
+  bool past = false,
 }) => Plan(
   id: id,
   clubId: 'c1',
   name: name,
   type: type,
+  past: past,
   weekModels: models,
   weekAssignment: assignment,
   published: published,
@@ -89,6 +91,7 @@ class FakePlanRepository implements PlanRepository {
           modelCount: p.weekModels.length,
           published: p.published != null,
           hasUnpublishedChanges: p.hasUnpublishedChanges,
+          past: p.isPast,
         ),
     ];
   }
@@ -116,6 +119,7 @@ class FakePlanRepository implements PlanRepository {
       clubId: clubId,
       name: plan.name,
       type: plan.type,
+      past: plan.past,
       weekModels: plan.weekModels,
       weekAssignment: plan.weekAssignment,
       // The server keeps its own published copy, whatever the client sends.

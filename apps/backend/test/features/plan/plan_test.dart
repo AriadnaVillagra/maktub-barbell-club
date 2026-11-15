@@ -290,6 +290,7 @@ void main() {
           'id': 'p2',
           'nombre': 'abril',
           'tipo': 'test',
+          'pasado': false,
           'cantidadModelos': 0,
           'publicado': false,
           'cambiosSinPublicar': true,

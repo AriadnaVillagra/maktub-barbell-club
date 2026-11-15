@@ -155,6 +155,23 @@ class _Editor extends ConsumerWidget {
           '${planTypeLabel(draft.base.type)} · ciclo de $planCycleWeeks semanas',
           style: context.textos.bodyLarge,
         ),
+        // Where the plans list shows it. A history plan is always past, so it has no choice.
+        if (draft.base.type != PlanType.history) ...[
+          const SizedBox(height: Espacio.m),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: SegmentedButton<bool>(
+              key: const Key('plan-past'),
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: false, label: Text('Activo')),
+                ButtonSegment(value: true, label: Text('Pasado')),
+              ],
+              selected: {draft.past},
+              onSelectionChanged: (s) => editor.setPast(s.first),
+            ),
+          ),
+        ],
         const SizedBox(height: Espacio.l),
         Text('Asignación', style: context.textos.titleMedium),
         const SizedBox(height: Espacio.s),

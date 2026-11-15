@@ -309,6 +309,7 @@ Plan _withType(Plan p, PlanType type) => Plan(
   clubId: p.clubId,
   name: p.name,
   type: type,
+  past: p.past,
   weekModels: p.weekModels,
   weekAssignment: p.weekAssignment,
   published: p.published,

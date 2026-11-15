@@ -360,6 +360,7 @@ class Plan implements DelClub {
     this.weekModels = const [],
     this.weekAssignment = const [],
     this.published,
+    this.past = false,
     required this.auditoria,
   });
 
@@ -368,6 +369,14 @@ class Plan implements DelClub {
   final String clubId;
   final String name;
   final PlanType type;
+
+  /// Set by the coach when the plan is no longer in use, so the plans list shows it under "Pasados".
+  /// A [PlanType.history] plan is always past ([isPast]). It does not count as a content change.
+  final bool past;
+
+  /// Whether the plans list shows this plan under "Pasados".
+  bool get isPast => past || type == PlanType.history;
+
   final List<WeekModel> weekModels;
 
   /// Ids of [weekModels], one per week of the cycle. Must have [planCycleWeeks] entries.
@@ -406,6 +415,7 @@ class Plan implements DelClub {
     clubId: '${j['clubId']}',
     name: '${j['nombre'] ?? ''}',
     type: j['tipo'] == null ? PlanType.regular : PlanType.deCable(j['tipo']),
+    past: j['pasado'] == true,
     weekModels: [
       for (final m in listaJson(j['modelosSemana'])) WeekModel.fromJson(m),
     ],
@@ -423,6 +433,7 @@ class Plan implements DelClub {
     'clubId': clubId,
     'nombre': name,
     'tipo': type.cable,
+    if (past) 'pasado': true,
     'modelosSemana': [for (final m in weekModels) m.toJson()],
     'asignacion': weekAssignment,
     if (published != null) 'publicado': published!.toJson(),

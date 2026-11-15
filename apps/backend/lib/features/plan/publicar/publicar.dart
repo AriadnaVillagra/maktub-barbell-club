@@ -92,6 +92,7 @@ class PublishPlan {
       clubId: plan.clubId,
       name: plan.name,
       type: plan.type,
+      past: plan.past,
       weekModels: plan.weekModels,
       weekAssignment: plan.weekAssignment,
       published: copy,

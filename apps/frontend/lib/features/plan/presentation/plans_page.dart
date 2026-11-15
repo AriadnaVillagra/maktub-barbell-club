@@ -6,21 +6,16 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../asignacion/presentation/assign_plan_dialog.dart';
 import '../../asignacion/presentation/providers.dart'
-    show
-        assignPlan,
-        assignmentTodayProvider,
-        fetchGroupAssignments,
-        groupAssignmentsProvider;
+    show assignPlan, assignmentTodayProvider, fetchGroupAssignments;
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
     show asyncView, showApiError, showNotice;
-import '../domain/plan_filter.dart';
 import '../domain/plan_repository.dart';
 import 'plan_dialogs.dart';
 import 'plan_labels.dart';
 import 'providers.dart';
 
 /// The club's plans: the way into each plan's editor, and where a new one is created. Coach only.
-/// The list is split into active and past plans ([isPastPlan]).
+/// The list is split into active and past plans ([PlanSummary.past]).
 class PlansPage extends ConsumerStatefulWidget {
   const PlansPage({super.key, required this.basePath});
 
@@ -92,9 +87,6 @@ class _PlansPageState extends ConsumerState<PlansPage> {
 
   @override
   Widget build(BuildContext context) {
-    // Until the assignments load, every non-history plan counts as active.
-    final assignments =
-        ref.watch(groupAssignmentsProvider).value?.assignments ?? const [];
     return Scaffold(
       appBar: AppBar(title: const Text('Planes')),
       floatingActionButton: FloatingActionButton(
@@ -109,7 +101,7 @@ class _PlansPageState extends ConsumerState<PlansPage> {
         builder: (allPlans) {
           final plans = [
             for (final p in allPlans)
-              if (isPastPlan(p, assignments) == _showPast) p,
+              if (p.past == _showPast) p,
           ];
           final filter = SegmentedButton<bool>(
             key: const Key('plans-filter'),

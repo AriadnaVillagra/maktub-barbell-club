@@ -128,7 +128,7 @@ publicada**, nunca el borrador.
   - Se pierden 23 notas de prescripción en atletas que no hicieron la serie 1.
 - **Editor del plan, tras probar E8.5 (2026-11-15, pedido por Ari):** los bloques de un día se reordenan arrastrando su manija (≡), sin flechas; cada día tiene "Duplicar día en otro modelo": elegís el modelo de semana y el día se agrega al final de ese modelo, con sus bloques (hasta 7 días).
 - **Planes "Histórico" en el editor (2026-11-15, pedido por Ari):** al guardar mostraban un cartel enorme de % faltantes y pedían asignarlos. Se suma un tipo de plan "histórico": el editor no muestra esos avisos ni pide asignar, y se puede publicar sin %. Lo está haciendo un subagente.
-- **Filtro en la lista de planes (2026-11-15, pedido por Ari):** "Activos" y "Pasados". Activos son los que tienen una asignación activa o ninguna (borradores y planes nuevos). Pasados son los históricos y los que solo tienen asignaciones terminadas. Va después del tipo "histórico".
+- **Filtro en la lista de planes (2026-11-15, pedido por Ari):** "Activos" y "Pasados". Cada plan tiene el campo `pasado` (`Plan.past`), que Ari elige en el editor con el selector Activo / Pasado y se guarda con Guardar. Un plan histórico siempre es pasado y no tiene selector. Reemplaza el criterio por asignaciones que se había elegido antes.
 - **Abril a julio 2026 (pedido por Ari):**
   - En Registro no hay series de esos meses, pero se entrenó con la planificación de abril, repetida.
   - Se importa el plan de abril desde la grilla `ABR_2026` de la planilla de planificación. Se le cargan series de abril a julio con los kilos que propone la app (RM × %), marcadas como estimadas, y Ari corrige lo que haga falta.
