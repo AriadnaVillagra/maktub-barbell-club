@@ -70,7 +70,7 @@
   "planningGrid": {
     "_legend": "E8.7: April to July 2026 are not in Registro, but the April planning grid was repeated those four months. The importer builds a history plan from the grid and loads its sessions with the kilos the app proposes, marked as estimated. Week s, day d of each month is its day 7*(s-1)+d.",
     "sheet": "ABR_2026",
-    "plan": {"id": "planificacion-abr-2026", "name": "Abril 2026"},
+    "plan": {"id": "planificacion-abr-2026", "name": "Histórico 2026-04 a 07"},
     "group": "Andi y Ari",
     "months": ["2026-04", "2026-05", "2026-06", "2026-07"],
     "_absent": "Who missed a day. The grid says 'SEMANA 2 (andi no hizo este dia)' on day 3: taken as April only, since it is April's sheet.",
