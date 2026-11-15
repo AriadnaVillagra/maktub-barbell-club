@@ -315,6 +315,14 @@ void main() {
       await open(tester);
       expect(find.byKey(const Key('model-a')), findsOneWidget);
       expect(find.byKey(const Key('model-b')), findsOneWidget);
+      // Fully assigned: the details start closed, with a summary.
+      expect(find.byKey(const Key('assign-0')), findsNothing);
+      expect(
+        tester.widget<Text>(find.byKey(const Key('plan-details-summary'))).data,
+        contains('Activo'),
+      );
+      await tester.tap(find.text('Detalles'));
+      await tester.pumpAndSettle();
       expect(
         [for (var w = 0; w < 4; w++) selected(tester, w)],
         ['a', 'b', 'b', 'a'],
@@ -368,6 +376,8 @@ void main() {
       'a model can be renamed and removed; removing unassigns its weeks',
       (tester) async {
         await open(tester);
+        await tester.tap(find.text('Detalles'));
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('model-rename-a')));
         await tester.pumpAndSettle();
         await tester.enterText(

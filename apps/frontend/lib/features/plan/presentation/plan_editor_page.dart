@@ -186,31 +186,6 @@ class _Editor extends ConsumerWidget {
           ),
           const SizedBox(height: Espacio.l),
         ],
-        Text(
-          '${planTypeLabel(draft.base.type)} · ciclo de $planCycleWeeks semanas',
-          style: context.textos.bodyLarge,
-        ),
-        // Where the plans list shows it. A history plan is always past, so it has no choice.
-        if (draft.base.type != PlanType.history) ...[
-          const SizedBox(height: Espacio.m),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: SegmentedButton<bool>(
-              key: const Key('plan-past'),
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: false, label: Text('Activo')),
-                ButtonSegment(value: true, label: Text('Pasado')),
-              ],
-              selected: {draft.past},
-              onSelectionChanged: (s) => editor.setPast(s.first),
-            ),
-          ),
-        ],
-        const SizedBox(height: Espacio.l),
-        Text('Asignación', style: context.textos.titleMedium),
-        const SizedBox(height: Espacio.s),
-        _Assignment(draft: draft, onAssign: editor.assign),
         const SizedBox(height: Espacio.xl),
         Text('Modelos de semana', style: context.textos.titleMedium),
         const SizedBox(height: Espacio.s),
@@ -276,41 +251,96 @@ class _PublishStatus extends ConsumerWidget {
       ),
       _ => ('Publicado', 'Los atletas ven la versión guardada.'),
     };
+    final editor = ref.read(planEditorProvider(planId).notifier);
+    String modelName(String? id) => draft.modelById(id)?.name ?? 'Sin modelo';
+    final summary = [
+      planTypeLabel(plan.type),
+      if (plan.type != PlanType.history) draft.past ? 'Pasado' : 'Activo',
+      [for (final a in draft.assignment) modelName(a)].join(', '),
+    ].join(' · ');
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Espacio.m),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    key: const Key('plan-status'),
-                    style: context.textos.titleSmall,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(Espacio.m),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        key: const Key('plan-status'),
+                        style: context.textos.titleSmall,
+                      ),
+                      Text(detail, style: context.textos.bodyMedium),
+                    ],
                   ),
-                  Text(detail, style: context.textos.bodyMedium),
-                ],
+                ),
+                const SizedBox(width: Espacio.m),
+                FilledButton.icon(
+                  key: const Key('plan-publish'),
+                  icon: publishing
+                      ? const SizedBox.square(
+                          dimension: Espacio.l,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.publish_outlined),
+                  label: const Text('Publicar'),
+                  onPressed: publishable && !publishing
+                      ? () => ref
+                            .read(planPublishProvider(planId).notifier)
+                            .publish()
+                      : null,
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Type, Activo / Pasado and the cycle assignment. Open while a week has no model, so a new
+          // plan shows what is missing.
+          ExpansionTile(
+            key: const Key('plan-details'),
+            title: const Text('Detalles'),
+            subtitle: Text(summary, key: const Key('plan-details-summary')),
+            initiallyExpanded: draft.assignment.contains(null),
+            shape: const Border(),
+            collapsedShape: const Border(),
+            childrenPadding: const EdgeInsets.fromLTRB(
+              Espacio.m,
+              0,
+              Espacio.m,
+              Espacio.m,
+            ),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${planTypeLabel(plan.type)} · ciclo de $planCycleWeeks semanas',
+                style: context.textos.bodyLarge,
               ),
-            ),
-            const SizedBox(width: Espacio.m),
-            FilledButton.icon(
-              key: const Key('plan-publish'),
-              icon: publishing
-                  ? const SizedBox.square(
-                      dimension: Espacio.l,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.publish_outlined),
-              label: const Text('Publicar'),
-              onPressed: publishable && !publishing
-                  ? () =>
-                        ref.read(planPublishProvider(planId).notifier).publish()
-                  : null,
-            ),
-          ],
-        ),
+              // Where the plans list shows it. A history plan is always past, so it has no choice.
+              if (plan.type != PlanType.history) ...[
+                const SizedBox(height: Espacio.m),
+                SegmentedButton<bool>(
+                  key: const Key('plan-past'),
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Activo')),
+                    ButtonSegment(value: true, label: Text('Pasado')),
+                  ],
+                  selected: {draft.past},
+                  onSelectionChanged: (s) => editor.setPast(s.first),
+                ),
+              ],
+              const SizedBox(height: Espacio.l),
+              Text('Asignación', style: context.textos.titleMedium),
+              _Assignment(draft: draft, onAssign: editor.assign),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -323,35 +353,30 @@ class _Assignment extends StatelessWidget {
   final void Function(int week, String? modelId) onAssign;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(Espacio.m),
-      child: Column(
-        children: [
-          for (var w = 0; w < planCycleWeeks; w++)
-            Row(
-              children: [
-                Expanded(child: Text('Semana ${w + 1}')),
-                DropdownButton<String?>(
-                  key: Key('assign-$w'),
-                  value: draft.assignment[w],
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Sin modelo'),
-                    ),
-                    for (final m in draft.weekModels)
-                      DropdownMenuItem<String?>(
-                        value: m.id,
-                        child: Text(m.name),
-                      ),
-                  ],
-                  onChanged: (id) => onAssign(w, id),
-                ),
-              ],
-            ),
-        ],
-      ),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: Espacio.s),
+    child: Column(
+      children: [
+        for (var w = 0; w < planCycleWeeks; w++)
+          Row(
+            children: [
+              Expanded(child: Text('Semana ${w + 1}')),
+              DropdownButton<String?>(
+                key: Key('assign-$w'),
+                value: draft.assignment[w],
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Sin modelo'),
+                  ),
+                  for (final m in draft.weekModels)
+                    DropdownMenuItem<String?>(value: m.id, child: Text(m.name)),
+                ],
+                onChanged: (id) => onAssign(w, id),
+              ),
+            ],
+          ),
+      ],
     ),
   );
 }
