@@ -599,9 +599,32 @@ void main() {
     });
   });
 
+  testWidgets('the day picker starts closed with a summary and closes after '
+      'choosing a day', (tester) async {
+    await _pump(tester, _FakeSessions());
+    expect(find.byKey(const Key('session-week-1')), findsNothing);
+    final summary = find.byKey(const Key('session-day-summary'));
+    expect(
+      find.descendant(of: summary, matching: find.text('Día 1')),
+      findsOneWidget,
+    );
+
+    await _openDayPicker(tester);
+    expect(summary, findsNothing);
+    await tester.tap(find.byKey(const Key('session-day-3')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('session-week-1')), findsNothing);
+    expect(
+      find.descendant(of: summary, matching: find.text('Día 3')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('choosing another day shows that day', (tester) async {
     await _pump(tester, _FakeSessions());
 
+    await _openDayPicker(tester);
     await tester.tap(find.byKey(const Key('session-day-3')));
     await tester.pumpAndSettle();
 
@@ -614,6 +637,7 @@ void main() {
   ) async {
     await _pump(tester, _FakeSessions(), calendar: _FakeCalendar(done: {1}));
 
+    await _openDayPicker(tester);
     await tester.tap(find.byKey(const Key('session-week-2')));
     await tester.pumpAndSettle();
 
@@ -679,181 +703,188 @@ void main() {
     });
   });
 
-  group('the athlete tabs and the session born with the first write (E7.27)', () {
-    Finder marked(String id) => find.descendant(
-      of: find.byKey(Key('session-check-$id')),
-      matching: find.byIcon(Icons.check_circle),
-    );
-
-    testWidgets('there is no "Abrir sesión" nor "Presentes"', (tester) async {
-      await _pump(tester, _FakeSessions());
-
-      expect(find.byKey(const Key('session-open')), findsNothing);
-      expect(find.text('Abrir sesión'), findsNothing);
-      expect(find.text('Presentes'), findsNothing);
-    });
-
-    testWidgets('entering without a session opens nothing and shows each '
-        "athlete's kilos by date", (tester) async {
-      final sessions = _FakeSessions();
-      final days = _FakeProposedDays(sessions);
-      await _pump(tester, sessions, proposedDays: days);
-
-      expect(sessions.openings, isEmpty);
-      expect(sessions.finds, greaterThan(0));
-      expect(days.calls, greaterThan(0));
-      expect(sessions.queries, isEmpty);
-      expect(_kg(tester, 'session-kg-0-0-0'), '80 kg');
-
-      await tester.tap(find.byKey(const Key('session-athlete-andi')));
-      await tester.pumpAndSettle();
-
-      final andi = pesoPorPorcentaje(
-        rm: 80,
-        pct: 80,
-        equipo: Equipo.estandarDe('c1'),
-      )!;
-      expect(_kg(tester, 'session-kg-0-0-0'), '${_format(andi)} kg');
-      expect(sessions.openings, isEmpty);
-    });
-
-    testWidgets('every athlete of the group in its order, before and after '
-        'the session exists, whichever is chosen', (tester) async {
-      final sessions = _FakeSessions();
-      await _pump(tester, sessions);
-      expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
-      expect(
-        tester.widget<TabBar>(find.byKey(const Key('session-athletes')))
-            .controller!
-            .index,
-        0,
+  group(
+    'the athlete tabs and the session born with the first write (E7.27)',
+    () {
+      Finder marked(String id) => find.descendant(
+        of: find.byKey(Key('session-check-$id')),
+        matching: find.byIcon(Icons.check_circle),
       );
 
-      await tester.tap(find.byKey(const Key('session-athlete-luz')));
-      await tester.pumpAndSettle();
-      expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
+      testWidgets('there is no "Abrir sesión" nor "Presentes"', (tester) async {
+        await _pump(tester, _FakeSessions());
 
-      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('session-athlete-andi')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
-      await tester.pumpAndSettle();
+        expect(find.byKey(const Key('session-open')), findsNothing);
+        expect(find.text('Abrir sesión'), findsNothing);
+        expect(find.text('Presentes'), findsNothing);
+      });
 
-      expect(sessions.existing!.session.presentAthleteIds, ['luz', 'andi']);
-      expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
-    });
+      testWidgets('entering without a session opens nothing and shows each '
+          "athlete's kilos by date", (tester) async {
+        final sessions = _FakeSessions();
+        final days = _FakeProposedDays(sessions);
+        await _pump(tester, sessions, proposedDays: days);
 
-    testWidgets("marking Andi's first set creates the session with Andi, and "
-        'one of Ari then adds Ari without dropping Andi', (tester) async {
-      final sessions = _FakeSessions();
-      await _pump(tester, sessions);
-      await tester.tap(find.byKey(const Key('session-athlete-andi')));
-      await tester.pumpAndSettle();
+        expect(sessions.openings, isEmpty);
+        expect(sessions.finds, greaterThan(0));
+        expect(days.calls, greaterThan(0));
+        expect(sessions.queries, isEmpty);
+        expect(_kg(tester, 'session-kg-0-0-0'), '80 kg');
 
-      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('session-athlete-andi')));
+        await tester.pumpAndSettle();
 
-      expect(sessions.openings, [
-        {'andi'},
-      ]);
-      expect((sessions.openedWeek, sessions.openedDay), (4, 1));
-      expect(sessions.writes.single.athleteId, 'andi');
-      expect(marked('0-0-0'), findsOneWidget);
+        final andi = pesoPorPorcentaje(
+          rm: 80,
+          pct: 80,
+          equipo: Equipo.estandarDe('c1'),
+        )!;
+        expect(_kg(tester, 'session-kg-0-0-0'), '${_format(andi)} kg');
+        expect(sessions.openings, isEmpty);
+      });
 
-      await tester.tap(find.byKey(const Key('session-check-0-0-1')));
-      await tester.pumpAndSettle();
-      expect(sessions.openings, hasLength(1)); // Andi is already present
+      testWidgets('every athlete of the group in its order, before and after '
+          'the session exists, whichever is chosen', (tester) async {
+        final sessions = _FakeSessions();
+        await _pump(tester, sessions);
+        expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
+        expect(
+          tester
+              .widget<TabBar>(find.byKey(const Key('session-athletes')))
+              .controller!
+              .index,
+          0,
+        );
 
-      await tester.tap(find.byKey(const Key('session-athlete-ari')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('session-athlete-luz')));
+        await tester.pumpAndSettle();
+        expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
 
-      expect(sessions.openings.last, containsAll(['andi', 'ari']));
-      expect(sessions.existing!.session.presentAthleteIds, ['andi', 'ari']);
-      expect(sessions.writes.last.athleteId, 'ari');
-      expect(marked('0-0-0'), findsOneWidget);
-    });
+        await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('session-athlete-andi')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+        await tester.pumpAndSettle();
 
-    testWidgets('a coach outside the group starts on its first athlete', (
-      tester,
-    ) async {
-      await _pump(tester, _FakeSessions(), ownAthlete: null);
+        expect(sessions.existing!.session.presentAthleteIds, ['luz', 'andi']);
+        expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
+      });
 
-      expect(
-        tester.widget<TabBar>(find.byKey(const Key('session-athletes')))
-            .controller!
-            .index,
-        0,
-      );
-      expect(_tabs(tester).first, 'Ari');
-    });
+      testWidgets("marking Andi's first set creates the session with Andi, and "
+          'one of Ari then adds Ari without dropping Andi', (tester) async {
+        final sessions = _FakeSessions();
+        await _pump(tester, sessions);
+        await tester.tap(find.byKey(const Key('session-athlete-andi')));
+        await tester.pumpAndSettle();
 
-    testWidgets('an athlete cannot list names and still sees labels', (
-      tester,
-    ) async {
-      final athletes = _FakeAthletes();
-      await _pump(
+        await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+        await tester.pumpAndSettle();
+
+        expect(sessions.openings, [
+          {'andi'},
+        ]);
+        expect((sessions.openedWeek, sessions.openedDay), (4, 1));
+        expect(sessions.writes.single.athleteId, 'andi');
+        expect(marked('0-0-0'), findsOneWidget);
+
+        await tester.tap(find.byKey(const Key('session-check-0-0-1')));
+        await tester.pumpAndSettle();
+        expect(sessions.openings, hasLength(1)); // Andi is already present
+
+        await tester.tap(find.byKey(const Key('session-athlete-ari')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+        await tester.pumpAndSettle();
+
+        expect(sessions.openings.last, containsAll(['andi', 'ari']));
+        expect(sessions.existing!.session.presentAthleteIds, ['andi', 'ari']);
+        expect(sessions.writes.last.athleteId, 'ari');
+        expect(marked('0-0-0'), findsOneWidget);
+      });
+
+      testWidgets('a coach outside the group starts on its first athlete', (
         tester,
-        _FakeSessions(),
-        roles: const {Rol.atleta},
-        athletes: athletes,
-      );
+      ) async {
+        await _pump(tester, _FakeSessions(), ownAthlete: null);
 
-      expect(athletes.calls, 0);
-      expect(_tabs(tester), ['Yo', 'Atleta 2', 'Atleta 3']);
-    });
+        expect(
+          tester
+              .widget<TabBar>(find.byKey(const Key('session-athletes')))
+              .controller!
+              .index,
+          0,
+        );
+        expect(_tabs(tester).first, 'Ari');
+      });
 
-    testWidgets('a session of the day that already exists is taken without '
-        'opening it, with its records, and followed live', (tester) async {
-      final live = FakeLiveServer();
-      final sessions = _FakeSessions()
-        ..exists(records: [_doneRecord('ari', 1)]);
-      await _pump(tester, sessions, live: live);
+      testWidgets('an athlete cannot list names and still sees labels', (
+        tester,
+      ) async {
+        final athletes = _FakeAthletes();
+        await _pump(
+          tester,
+          _FakeSessions(),
+          roles: const {Rol.atleta},
+          athletes: athletes,
+        );
 
-      expect(sessions.openings, isEmpty);
-      expect(marked('0-0-1'), findsOneWidget);
-      expect(live.openConnections, 1);
-    });
+        expect(athletes.calls, 0);
+        expect(_tabs(tester), ['Yo', 'Atleta 2', 'Atleta 3']);
+      });
 
-    testWidgets('a session another device creates while looking is taken at '
-        'the next lookup', (tester) async {
-      final live = FakeLiveServer();
-      final sessions = _FakeSessions();
-      await _pump(tester, sessions, live: live);
-      expect(marked('0-0-1'), findsNothing);
+      testWidgets('a session of the day that already exists is taken without '
+          'opening it, with its records, and followed live', (tester) async {
+        final live = FakeLiveServer();
+        final sessions = _FakeSessions()
+          ..exists(records: [_doneRecord('ari', 1)]);
+        await _pump(tester, sessions, live: live);
 
-      sessions.exists(records: [_doneRecord('ari', 1)]);
-      await tester.pump(queueRetryInterval);
-      await tester.pumpAndSettle();
+        expect(sessions.openings, isEmpty);
+        expect(marked('0-0-1'), findsOneWidget);
+        expect(live.openConnections, 1);
+      });
 
-      expect(marked('0-0-1'), findsOneWidget);
-      expect(sessions.openings, isEmpty);
-      expect(live.openConnections, 1);
-    });
+      testWidgets('a session another device creates while looking is taken at '
+          'the next lookup', (tester) async {
+        final live = FakeLiveServer();
+        final sessions = _FakeSessions();
+        await _pump(tester, sessions, live: live);
+        expect(marked('0-0-1'), findsNothing);
 
-    testWidgets('choosing another day stops following the session and shows '
-        'that day, without asking', (tester) async {
-      final live = FakeLiveServer();
-      final sessions = _FakeSessions()..exists();
-      await _pump(tester, sessions, live: live);
-      expect(live.openConnections, 1);
+        sessions.exists(records: [_doneRecord('ari', 1)]);
+        await tester.pump(queueRetryInterval);
+        await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('session-day-2')));
-      await tester.pumpAndSettle();
+        expect(marked('0-0-1'), findsOneWidget);
+        expect(sessions.openings, isEmpty);
+        expect(live.openConnections, 1);
+      });
 
-      expect(find.byType(AlertDialog), findsNothing);
-      expect(live.openConnections, 0);
-      expect(find.text('Día 2 · Empuje'), findsOneWidget);
-      expect(find.byKey(const Key('session-kg-0-0-0')), findsNothing);
+      testWidgets('choosing another day stops following the session and shows '
+          'that day, without asking', (tester) async {
+        final live = FakeLiveServer();
+        final sessions = _FakeSessions()..exists();
+        await _pump(tester, sessions, live: live);
+        expect(live.openConnections, 1);
 
-      await tester.tap(find.byKey(const Key('session-day-1')));
-      await tester.pumpAndSettle();
-      expect(live.openConnections, 1);
-      expect(sessions.openings, isEmpty);
-    });
-  });
+        await _openDayPicker(tester);
+        await tester.tap(find.byKey(const Key('session-day-2')));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(live.openConnections, 0);
+        expect(find.text('Día 2 · Empuje'), findsOneWidget);
+        expect(find.byKey(const Key('session-kg-0-0-0')), findsNothing);
+
+        await _openDayPicker(tester);
+        await tester.tap(find.byKey(const Key('session-day-1')));
+        await tester.pumpAndSettle();
+        expect(live.openConnections, 1);
+        expect(sessions.openings, isEmpty);
+      });
+    },
+  );
 
   group('kilos of each set', () {
     final expected = pesoPorPorcentaje(
@@ -970,15 +1001,18 @@ void main() {
   group('the blocks', () {
     testWidgets('each one is its own card, before and after the session '
         'exists', (tester) async {
+      // The day picker is a card too; the rest are the blocks.
+      final blockCards = find.byWidgetPredicate(
+        (w) => w is Card && w.key != const Key('session-day-picker'),
+      );
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      expect(find.byType(Card), findsNWidgets(2));
+      expect(blockCards, findsNWidgets(2));
 
       await tester.tap(find.byKey(const Key('session-check-0-0-0')));
       await tester.pumpAndSettle();
 
-
-      expect(find.byType(Card), findsNWidgets(2));
+      expect(blockCards, findsNWidgets(2));
       expect(
         find.descendant(
           of: find.byKey(const Key('session-block-1')),
@@ -1054,79 +1088,91 @@ void main() {
       expect(marked('0-0-0'), findsNothing);
     });
 
-    testWidgets('a set the importer estimated says so until the app writes it (E8.7)', (
-      tester,
-    ) async {
-      final sessions = _FakeSessions()
-        ..exists(records: [
-          SetRecord(
-            id: 'r-est',
-            clubId: 'c1',
-            sessionId: 's1',
-            athleteId: 'ari',
-            exerciseId: 'sq',
-            exerciseName: 'Sentadilla',
-            blockIndex: 0,
-            prescriptionIndex: 0,
-            setIndex: 0,
-            target: const PlanSet(reps: 5, pct: 80),
-            kg: 80,
-            reps: 5,
-            estimated: true,
-            writtenBy: 'sistema:importador',
-            auditoria: audit(),
-          ),
-        ]);
-      await _pump(tester, sessions);
+    testWidgets(
+      'a set the importer estimated says so until the app writes it (E8.7)',
+      (tester) async {
+        final sessions = _FakeSessions()
+          ..exists(
+            records: [
+              SetRecord(
+                id: 'r-est',
+                clubId: 'c1',
+                sessionId: 's1',
+                athleteId: 'ari',
+                exerciseId: 'sq',
+                exerciseName: 'Sentadilla',
+                blockIndex: 0,
+                prescriptionIndex: 0,
+                setIndex: 0,
+                target: const PlanSet(reps: 5, pct: 80),
+                kg: 80,
+                reps: 5,
+                estimated: true,
+                writtenBy: 'sistema:importador',
+                auditoria: audit(),
+              ),
+            ],
+          );
+        await _pump(tester, sessions);
 
-      expect(find.byKey(const Key('session-estimated-0-0-0')), findsOneWidget);
-      expect(find.byKey(const Key('session-estimated-0-0-1')), findsNothing);
-      expect(marked('0-0-0'), findsOneWidget);
+        expect(
+          find.byKey(const Key('session-estimated-0-0-0')),
+          findsOneWidget,
+        );
+        expect(find.byKey(const Key('session-estimated-0-0-1')), findsNothing);
+        expect(marked('0-0-0'), findsOneWidget);
 
-      await tester.tap(find.byKey(check('0-0-0')));
-      await tester.pumpAndSettle();
+        await tester.tap(find.byKey(check('0-0-0')));
+        await tester.pumpAndSettle();
 
-      expect(find.byKey(const Key('session-estimated-0-0-0')), findsNothing);
-    });
+        expect(find.byKey(const Key('session-estimated-0-0-0')), findsNothing);
+      },
+    );
 
-    testWidgets('an estimated set without kilos shows a dash and takes typed kilos, which end the estimate (E8.7)', (
-      tester,
-    ) async {
-      final sessions = _FakeNoLoads()
-        ..exists(records: [
-          SetRecord(
-            id: 'r-est',
-            clubId: 'c1',
-            sessionId: 's1',
-            athleteId: 'ari',
-            exerciseId: 'sq',
-            exerciseName: 'Sentadilla',
-            blockIndex: 0,
-            prescriptionIndex: 0,
-            setIndex: 0,
-            target: const PlanSet(reps: 5),
-            reps: 5,
-            estimated: true,
-            writtenBy: 'sistema:importador',
-            auditoria: audit(),
-          ),
-        ]);
-      await _pump(tester, sessions);
+    testWidgets(
+      'an estimated set without kilos shows a dash and takes typed kilos, which end the estimate (E8.7)',
+      (tester) async {
+        final sessions = _FakeNoLoads()
+          ..exists(
+            records: [
+              SetRecord(
+                id: 'r-est',
+                clubId: 'c1',
+                sessionId: 's1',
+                athleteId: 'ari',
+                exerciseId: 'sq',
+                exerciseName: 'Sentadilla',
+                blockIndex: 0,
+                prescriptionIndex: 0,
+                setIndex: 0,
+                target: const PlanSet(reps: 5),
+                reps: 5,
+                estimated: true,
+                writtenBy: 'sistema:importador',
+                auditoria: audit(),
+              ),
+            ],
+          );
+        await _pump(tester, sessions);
 
-      expect(find.byKey(const Key('session-estimated-0-0-0')), findsOneWidget);
-      expect(marked('0-0-0'), findsOneWidget);
-      expect(_kg(tester, 'session-kg-0-0-0'), '—');
+        expect(
+          find.byKey(const Key('session-estimated-0-0-0')),
+          findsOneWidget,
+        );
+        expect(marked('0-0-0'), findsOneWidget);
+        expect(_kg(tester, 'session-kg-0-0-0'), '—');
 
-      await typeSet(tester, '0-0-0', kg: '42,5');
+        await typeSet(tester, '0-0-0', kg: '42,5');
 
-      final write = sessions.writes.single;
-      expect(write.toJson()['kilosManual'], isTrue);
-      expect(write.manualKg, 42.5);
-      expect(write.done, isTrue);
-      expect(write.toJson().containsKey('estimada'), isFalse);
-      expect(_kg(tester, 'session-kg-0-0-0'), '42.5 kg');
-      expect(find.byKey(const Key('session-estimated-0-0-0')), findsNothing);
-    });
+        final write = sessions.writes.single;
+        expect(write.toJson()['kilosManual'], isTrue);
+        expect(write.manualKg, 42.5);
+        expect(write.done, isTrue);
+        expect(write.toJson().containsKey('estimada'), isFalse);
+        expect(_kg(tester, 'session-kg-0-0-0'), '42.5 kg');
+        expect(find.byKey(const Key('session-estimated-0-0-0')), findsNothing);
+      },
+    );
 
     testWidgets('marking the same set twice at once leaves one marked record', (
       tester,
@@ -1180,7 +1226,7 @@ void main() {
       (tester) async {
         final sessions = _FakeSessions();
         await _pump(tester, sessions);
-  
+
         await typeSet(tester, '0-0-0', reps: '3');
 
         expect(sessions.writes.single.manualKg, isNull);
@@ -1288,7 +1334,7 @@ void main() {
       (tester) async {
         final sessions = _FakeSessions()..exists();
         await _pump(tester, sessions, live: FakeLiveServer()..hanging = true);
-  
+
         expect(
           find.byKey(const Key('session-live-connecting')),
           findsOneWidget,
@@ -1362,7 +1408,7 @@ void main() {
       (tester) async {
         final sessions = _FakeSessions();
         await _pump(tester, sessions);
-  
+
         await writeNote(tester, 'session-note-0-0', 'Liviano');
 
         final write = sessions.writes.single;
@@ -1399,7 +1445,6 @@ void main() {
 
     await tester.tap(find.byKey(const Key('session-check-0-0-0')));
     await tester.pumpAndSettle();
-
 
     expect(find.text('La asignación no está activa.'), findsOneWidget);
   });
@@ -1478,6 +1523,7 @@ void main() {
 
     testWidgets('day pills say done or pending', (tester) async {
       await _pump(tester, _FakeSessions(), calendar: _FakeCalendar(done: {1}));
+      await _openDayPicker(tester);
       expect(detail('session-day-1', 'Hecho'), findsOneWidget);
       expect(detail('session-day-2', 'Pendiente'), findsOneWidget);
     });
@@ -1521,15 +1567,17 @@ void main() {
     testWidgets('recording a set turns the day pill to done', (tester) async {
       final calendar = _FakeCalendar();
       await _pump(tester, _FakeSessions(), calendar: calendar);
+      await _openDayPicker(tester);
       expect(detail('session-day-1', 'Pendiente'), findsOneWidget);
 
-      calendar.extraDone.add((UbicacionEnCiclo.desdeFechas(
-        inicio: _start,
-        fecha: _today,
-      ).semana, 1));
+      calendar.extraDone.add((
+        UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: _today).semana,
+        1,
+      ));
       await tester.tap(find.byKey(const Key('session-check-0-0-0')));
       await tester.pumpAndSettle();
 
+      await _openDayPicker(tester);
       expect(detail('session-day-1', 'Hecho'), findsOneWidget);
     });
   });
@@ -1703,42 +1751,43 @@ void main() {
     });
 
     for (final label in ['Compacta', 'Tarjetas']) {
-      testWidgets('$label on a phone: a mouse drags the row sideways and its bar shows', (
-        tester,
-      ) async {
-        await _pump(tester, _FakeSessions(), size: const Size(400, 800));
-        await toCalendar(tester);
-        await choose(tester, label);
+      testWidgets(
+        '$label on a phone: a mouse drags the row sideways and its bar shows',
+        (tester) async {
+          await _pump(tester, _FakeSessions(), size: const Size(400, 800));
+          await toCalendar(tester);
+          await choose(tester, label);
 
-        final third = find.byKey(const Key('calendar-day-4-3'));
-        await tester.scrollUntilVisible(
-          find.byKey(const Key('calendar-week-4')),
-          200,
-          scrollable: find.byType(Scrollable).first,
-        );
-        await tester.pumpAndSettle();
-        // The third day starts off screen to the right.
-        expect(tester.getRect(third).right, greaterThan(400));
-        expect(
-          find.ancestor(of: third, matching: find.byType(Scrollbar)),
-          findsOneWidget,
-        );
+          final third = find.byKey(const Key('calendar-day-4-3'));
+          await tester.scrollUntilVisible(
+            find.byKey(const Key('calendar-week-4')),
+            200,
+            scrollable: find.byType(Scrollable).first,
+          );
+          await tester.pumpAndSettle();
+          // The third day starts off screen to the right.
+          expect(tester.getRect(third).right, greaterThan(400));
+          expect(
+            find.ancestor(of: third, matching: find.byType(Scrollbar)),
+            findsOneWidget,
+          );
 
-        final first = find.byKey(const Key('calendar-day-4-1'));
-        final before = tester.getRect(first).left;
-        final drag = await tester.startGesture(
-          tester.getCenter(first),
-          kind: PointerDeviceKind.mouse,
-        );
-        for (var i = 0; i < 10; i++) {
-          await drag.moveBy(const Offset(-30, 0));
-          await tester.pump();
-        }
-        await drag.up();
-        await tester.pumpAndSettle();
-        expect(tester.getRect(first).left, lessThan(before - 100));
-        expect(tester.takeException(), isNull);
-      });
+          final first = find.byKey(const Key('calendar-day-4-1'));
+          final before = tester.getRect(first).left;
+          final drag = await tester.startGesture(
+            tester.getCenter(first),
+            kind: PointerDeviceKind.mouse,
+          );
+          for (var i = 0; i < 10; i++) {
+            await drag.moveBy(const Offset(-30, 0));
+            await tester.pump();
+          }
+          await drag.up();
+          await tester.pumpAndSettle();
+          expect(tester.getRect(first).left, lessThan(before - 100));
+          expect(tester.takeException(), isNull);
+        },
+      );
     }
 
     testWidgets('Detallada shows every day in full with its button', (
@@ -1777,7 +1826,9 @@ void main() {
           expect(find.byKey(const Key('calendar-detail')), findsNothing);
           expect(find.byKey(const Key('calendar-detail-hint')), findsNothing);
           expect(
-            tester.widget<DayCard>(find.byKey(const Key('calendar-day-4-1'))).selected,
+            tester
+                .widget<DayCard>(find.byKey(const Key('calendar-day-4-1')))
+                .selected,
             isTrue,
           );
           expect(
@@ -1822,9 +1873,7 @@ void main() {
             );
             expect(
               tester
-                  .widget<DayCard>(
-                    find.byKey(const Key('calendar-day-4-1')),
-                  )
+                  .widget<DayCard>(find.byKey(const Key('calendar-day-4-1')))
                   .selected,
               isTrue,
             );
@@ -1865,9 +1914,7 @@ void main() {
 
           expect(find.byType(CompactBoard), findsNothing);
           expect(find.text('Día 1 · Empuje A'), findsOneWidget);
-          final adjust = find.byKey(
-            const Key('session-adjust-session-plus'),
-          );
+          final adjust = find.byKey(const Key('session-adjust-session-plus'));
           await tester.ensureVisible(adjust);
           await tester.tap(adjust);
           await tester.pumpAndSettle();
@@ -1948,13 +1995,13 @@ class _FakeNoLoads extends _FakeSessions {
   @override
   List<ProposedSet> setsFor(String athlete, AthleteAdjustments adjustments) =>
       const [
-    ProposedSet(
-      blockIndex: 0,
-      prescriptionIndex: 0,
-      setIndex: 0,
-      exerciseId: 'sq',
-    ),
-  ];
+        ProposedSet(
+          blockIndex: 0,
+          prescriptionIndex: 0,
+          setIndex: 0,
+          exerciseId: 'sq',
+        ),
+      ];
 }
 
 class _FakeOpenFails extends _FakeSessions {
@@ -1968,4 +2015,11 @@ class _FakeOpenFails extends _FakeSessions {
     required Set<String> presentAthleteIds,
   }) async =>
       throw const ErrorDeApi('La asignación no está activa.', estado: 409);
+}
+
+/// Opens the week and day pills, which start closed under a one-row summary.
+Future<void> _openDayPicker(WidgetTester tester) async {
+  if (find.byKey(const Key('session-week-1')).evaluate().isNotEmpty) return;
+  await tester.tap(find.byKey(const Key('session-day-picker-toggle')));
+  await tester.pumpAndSettle();
 }

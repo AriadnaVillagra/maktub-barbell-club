@@ -4,8 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
-import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show asyncView;
+import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
 import '../../access/presentation/providers.dart' show canPlanProvider;
 import '../domain/live_session_sync.dart' show LiveStatus;
@@ -196,6 +195,10 @@ class _SessionBody extends ConsumerStatefulWidget {
 }
 
 class _SessionBodyState extends ConsumerState<_SessionBody> {
+  /// Whether the week and day pills are open. Closed, one row sums up the chosen day (Ari: compact, opened
+  /// to choose or see more).
+  var _picking = false;
+
   @override
   void initState() {
     super.initState();
@@ -229,54 +232,121 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
-        Text(
-          '${plan.name} · ciclo ${location.cycle} · semana ${location.week}',
-          key: const Key('session-location'),
-          style: context.textos.titleMedium,
-        ),
-        const SizedBox(height: Espacio.m),
-        Text('Semana', style: context.textos.labelLarge),
-        const SizedBox(height: Espacio.s),
-        Wrap(
-          spacing: Espacio.s,
-          runSpacing: Espacio.s,
-          children: [
-            for (var w = 1; w <= planCycleWeeks; w++)
-              PildoraMaktub(
-                key: Key('session-week-$w'),
-                texto: 'S$w',
-                detalle: plan.weekModelOf(w)?.name,
-                seleccionada: w == week,
-                onTap: () => notifier.selectWeek(w),
-              ),
-          ],
-        ),
-        const SizedBox(height: Espacio.m),
-        Text('Día', style: context.textos.labelLarge),
-        const SizedBox(height: Espacio.s),
-        if (dayCount == 0)
-          Text(
-            'Esta semana no tiene días cargados.',
-            key: const Key('session-no-days'),
-            style: context.textos.bodyMedium,
-          )
-        else
-          Wrap(
-            spacing: Espacio.s,
-            runSpacing: Espacio.s,
+        Card(
+          key: const Key('session-day-picker'),
+          clipBehavior: Clip.antiAlias,
+          margin: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (var d = 1; d <= dayCount; d++)
-                PildoraMaktub(
-                  key: Key('session-day-$d'),
-                  texto: 'Día $d',
-                  detalle: isDayDone(dayStates, data, week, d)
-                      ? 'Hecho'
-                      : 'Pendiente',
-                  seleccionada: d == day,
-                  onTap: () => notifier.selectDay(week, d),
+              ListTile(
+                key: const Key('session-day-picker-toggle'),
+                onTap: () => setState(() => _picking = !_picking),
+                title: Text(
+                  '${plan.name} · ciclo ${location.cycle} · semana ${location.week}',
+                  key: const Key('session-location'),
+                  style: context.textos.titleMedium,
+                ),
+                subtitle: _picking
+                    ? null
+                    : Padding(
+                        padding: const EdgeInsets.only(top: Espacio.xs),
+                        child: Wrap(
+                          key: const Key('session-day-summary'),
+                          spacing: Espacio.xs,
+                          runSpacing: Espacio.xs,
+                          children: [
+                            InsigniaMaktub(
+                              [
+                                'S$week',
+                                ?plan.weekModelOf(week)?.name,
+                              ].join(' '),
+                              context.colores.insigniaBase,
+                            ),
+                            if (dayCount > 0) ...[
+                              InsigniaMaktub(
+                                'Día $day',
+                                context.colores.insigniaBase,
+                              ),
+                              isDayDone(dayStates, data, week, day)
+                                  ? InsigniaMaktub(
+                                      'Hecho',
+                                      context.colores.exitoContenedor,
+                                    )
+                                  : InsigniaMaktub(
+                                      'Pendiente',
+                                      context.colores.insigniaPropio,
+                                    ),
+                            ],
+                          ],
+                        ),
+                      ),
+                trailing: Icon(
+                  _picking ? Icons.expand_less : Icons.expand_more,
+                ),
+              ),
+              if (_picking)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    Espacio.m,
+                    0,
+                    Espacio.m,
+                    Espacio.m,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Semana', style: context.textos.labelLarge),
+                      const SizedBox(height: Espacio.s),
+                      Wrap(
+                        spacing: Espacio.s,
+                        runSpacing: Espacio.s,
+                        children: [
+                          for (var w = 1; w <= planCycleWeeks; w++)
+                            PildoraMaktub(
+                              key: Key('session-week-$w'),
+                              texto: 'S$w',
+                              detalle: plan.weekModelOf(w)?.name,
+                              seleccionada: w == week,
+                              onTap: () => notifier.selectWeek(w),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: Espacio.m),
+                      Text('Día', style: context.textos.labelLarge),
+                      const SizedBox(height: Espacio.s),
+                      if (dayCount == 0)
+                        Text(
+                          'Esta semana no tiene días cargados.',
+                          key: const Key('session-no-days'),
+                          style: context.textos.bodyMedium,
+                        )
+                      else
+                        Wrap(
+                          spacing: Espacio.s,
+                          runSpacing: Espacio.s,
+                          children: [
+                            for (var d = 1; d <= dayCount; d++)
+                              PildoraMaktub(
+                                key: Key('session-day-$d'),
+                                texto: 'Día $d',
+                                detalle: isDayDone(dayStates, data, week, d)
+                                    ? 'Hecho'
+                                    : 'Pendiente',
+                                seleccionada: d == day,
+                                onTap: () {
+                                  notifier.selectDay(week, d);
+                                  setState(() => _picking = false);
+                                },
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
                 ),
             ],
           ),
+        ),
         if (planDay != null) ...[
           const SizedBox(height: Espacio.l),
           Text(
