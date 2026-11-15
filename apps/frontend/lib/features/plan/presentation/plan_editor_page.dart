@@ -643,21 +643,20 @@ class _BlockTile extends ConsumerWidget {
     editor.addWod(modelId, day, index, wod);
   }
 
-  void _setModes({ExecutionMode? execution, AthleteMode? athletes}) =>
-      editor.updateBlock(
-        modelId,
-        day,
-        index,
-        (b) => PlanBlock(
-          name: b.name,
-          categoryId: b.categoryId,
-          executionMode: execution ?? b.executionMode,
-          athleteMode: athletes ?? b.athleteMode,
-          timerId: b.timerId,
-          note: b.note,
-          prescriptions: b.prescriptions,
-        ),
-      );
+  void _setModes({ExecutionMode? execution}) => editor.updateBlock(
+    modelId,
+    day,
+    index,
+    (b) => PlanBlock(
+      name: b.name,
+      categoryId: b.categoryId,
+      executionMode: execution ?? b.executionMode,
+      athleteMode: b.athleteMode,
+      timerId: b.timerId,
+      note: b.note,
+      prescriptions: b.prescriptions,
+    ),
+  );
 
   Future<void> _editPrescription(
     BuildContext context,
@@ -758,6 +757,8 @@ class _BlockTile extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // The athlete mode (simultaneous or by turns) is chosen live in the guided mode, not here; the
+              // block keeps the one it has.
               if (block.categoryId != wodCategoryId) ...[
                 SegmentedButton<ExecutionMode>(
                   key: Key('block-execution-$keyPrefix-$index'),
@@ -774,23 +775,6 @@ class _BlockTile extends ConsumerWidget {
                   ],
                   selected: {block.executionMode},
                   onSelectionChanged: (s) => _setModes(execution: s.first),
-                ),
-                const SizedBox(height: Espacio.s),
-                SegmentedButton<AthleteMode>(
-                  key: Key('block-athletes-$keyPrefix-$index'),
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(
-                      value: AthleteMode.simultaneous,
-                      label: Text('Simultáneo'),
-                    ),
-                    ButtonSegment(
-                      value: AthleteMode.turns,
-                      label: Text('Por turnos'),
-                    ),
-                  ],
-                  selected: {block.athleteMode},
-                  onSelectionChanged: (s) => _setModes(athletes: s.first),
                 ),
               ],
               for (final (p, prescription) in block.prescriptions.indexed) ...[

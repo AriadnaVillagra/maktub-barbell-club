@@ -7,10 +7,12 @@ import '../catalogo/catalog_admin_fakes.dart';
 import 'fakes.dart';
 
 void main() {
+  late FakePlanRepository repo;
+
   Future<void> open(WidgetTester tester, PlanBlock block) => pumpPlanPage(
     tester,
     const PlanEditorPage(planId: 'p1', listPath: '/x'),
-    FakePlanRepository(
+    repo = FakePlanRepository(
       plans: [
         samplePlan(
           models: [
@@ -39,40 +41,40 @@ void main() {
       .selected
       .cast<Object>();
 
-  testWidgets('the coach picks the execution and athlete modes of a block', (
-    tester,
-  ) async {
-    await open(tester, const PlanBlock(name: 'Fuerza', categoryId: 'primario'));
-    expect(selected<ExecutionMode>(tester, 'block-execution-a-0-0'), {
-      ExecutionMode.sequential,
-    });
-    expect(selected<AthleteMode>(tester, 'block-athletes-a-0-0'), {
-      AthleteMode.simultaneous,
-    });
-    expect(find.byKey(const Key('plan-dirty')), findsNothing);
+  testWidgets(
+    'the coach picks the execution mode; the athlete mode is not in the editor',
+    (tester) async {
+      await open(
+        tester,
+        const PlanBlock(
+          name: 'Fuerza',
+          categoryId: 'primario',
+          athleteMode: AthleteMode.turns,
+        ),
+      );
+      expect(selected<ExecutionMode>(tester, 'block-execution-a-0-0'), {
+        ExecutionMode.sequential,
+      });
+      expect(find.byKey(const Key('block-athletes-a-0-0')), findsNothing);
+      expect(find.text('Por turnos'), findsNothing);
+      expect(find.byKey(const Key('plan-dirty')), findsNothing);
 
-    await tester.tap(find.text('Circuito'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Por turnos'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.text('Circuito'));
+      await tester.pumpAndSettle();
+      expect(selected<ExecutionMode>(tester, 'block-execution-a-0-0'), {
+        ExecutionMode.circuit,
+      });
+      expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
 
-    expect(selected<ExecutionMode>(tester, 'block-execution-a-0-0'), {
-      ExecutionMode.circuit,
-    });
-    expect(selected<AthleteMode>(tester, 'block-athletes-a-0-0'), {
-      AthleteMode.turns,
-    });
-    expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
-
-    await tester.tap(find.text('Secuencial'));
-    await tester.pumpAndSettle();
-    expect(selected<ExecutionMode>(tester, 'block-execution-a-0-0'), {
-      ExecutionMode.sequential,
-    });
-    expect(selected<AthleteMode>(tester, 'block-athletes-a-0-0'), {
-      AthleteMode.turns,
-    });
-  });
+      // The block keeps the athlete mode it had.
+      await tester.tap(find.byKey(const Key('plan-save')));
+      await tester.pumpAndSettle();
+      expect(
+        repo.saved.last.weekModels.single.days.single.blocks.single.athleteMode,
+        AthleteMode.turns,
+      );
+    },
+  );
 
   testWidgets('a wod block does not show the mode controls', (tester) async {
     await open(tester, const PlanBlock(name: 'WoD', categoryId: 'wod'));
