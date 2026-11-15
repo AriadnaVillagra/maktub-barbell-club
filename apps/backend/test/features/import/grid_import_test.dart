@@ -243,6 +243,9 @@ class _Assignments implements CreateAssignmentStore {
   Future<bool> groupExists(String clubId, String groupId) async => db.groups.any((g) => g.id == groupId);
 
   @override
+  Future<bool> athleteExists(String clubId, String athleteId) async => db.athletes.containsKey(athleteId);
+
+  @override
   Future<bool> insert(Assignment assignment) async {
     if (db.assignments.any((a) => a.id == assignment.id)) throw StateError('duplicate _id');
     db.assignments.add(assignment);
