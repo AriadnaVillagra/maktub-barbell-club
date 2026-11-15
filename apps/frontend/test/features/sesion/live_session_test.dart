@@ -79,7 +79,7 @@ class _Phone {
   SessionScreenState get state => container.read(sessionScreenProvider);
 
   Future<void> open() =>
-      screen.open(_data, week: 4, day: 1, present: {'ari', 'andi'});
+      screen.ensureSession(_data, {'ari', 'andi'});
 
   Future<void> mark(String athlete, int set, {double? kg}) => screen.writeSet(
     'c1',
@@ -234,9 +234,17 @@ void main() {
     await _settle();
     expect(server.openConnections, 1);
 
-    a.screen.selectDay(4, 1);
+    a.screen.selectDay(3, 1);
     await _settle();
 
     expect(server.openConnections, 0);
+    expect(a.state.live, isNull);
+
+    // Back to its day, the session is taken again, without opening it.
+    a.screen.selectDay(4, 1);
+    await _settle();
+
+    expect(server.openConnections, 1);
+    expect(a.state.live?.session.id, server.sessionId);
   });
 }

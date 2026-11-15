@@ -91,6 +91,54 @@ class CachedSessionRepository implements SessionRepository, SessionCopy {
     return live;
   }
 
+  /// Without signal, the session this device has saved for that day, or null. With signal, the server's answer is
+  /// kept like an opening's; when the server has none, a session opened on this device whose opening has not gone
+  /// through yet (E7.16) is still the day's session here.
+  @override
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  }) async {
+    final key = _sessionKey(clubId, assignmentId, date, week, day);
+    final LiveSession? live;
+    try {
+      live = await _remote.find(
+        clubId,
+        assignmentId: assignmentId,
+        date: date,
+        week: week,
+        day: day,
+      );
+    } catch (e) {
+      if (!isOfflineError(e)) rethrow;
+      return _savedSession(key, report: true);
+    }
+    _reads.reporter.servedFresh();
+    if (live == null) {
+      final saved = await _savedSession(key);
+      return saved != null && isLocalSessionId(saved.session.id) ? saved : null;
+    }
+    await remember(live);
+    return live;
+  }
+
+  Future<LiveSession?> _savedSession(String key, {bool report = false}) async {
+    final copy = await _reads.store.read(key);
+    if (copy == null) return null;
+    try {
+      final live = liveSessionFromJson(
+        (copy.data as Map).cast<String, dynamic>(),
+      );
+      if (report) _reads.reporter.servedFromCopy(copy.savedAt);
+      return live;
+    } catch (_) {
+      return null;
+    }
+  }
+
   @override
   Future<LiveSession> openOnServer(
     String clubId, {

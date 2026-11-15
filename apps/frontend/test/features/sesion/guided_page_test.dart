@@ -209,6 +209,26 @@ class _Sessions implements SessionRepository {
 
   static double _kg(String athlete) => athlete == 'ari' ? 80 : 64;
 
+  /// Whether the session exists on the server: something was recorded on it, a pass goes on, or it was opened.
+  late var exists = records.isNotEmpty || pass != null;
+
+  @override
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  }) async {
+    if (!exists || day != 1) return null;
+    if (opened.isEmpty) {
+      _week = week;
+      present = {for (final r in records) r.athleteId}.toList();
+    }
+    if (_week != week) return null;
+    return LiveSession(session: _session(), records: records);
+  }
+
   @override
   Future<LiveSession> open(
     String clubId, {
@@ -219,8 +239,9 @@ class _Sessions implements SessionRepository {
     required Set<String> presentAthleteIds,
   }) async {
     opened.add(presentAthleteIds);
-    present = presentAthleteIds.toList();
+    present = {...present, ...presentAthleteIds}.toList();
     _week = week;
+    exists = true;
     return LiveSession(session: _session(), records: records);
   }
 
@@ -412,6 +433,9 @@ Future<_Harness> _pump(
         calendarRepositoryProvider.overrideWithValue(_Calendar()),
         athleteRepositoryProvider.overrideWithValue(_Athletes()),
         sessionRepositoryProvider.overrideWithValue(h.sessions),
+        remoteProposedDaysRepositoryProvider.overrideWithValue(
+          NoProposedDays(),
+        ),
         liveChannelProvider.overrideWithValue(
           FakeLiveChannel(FakeLiveServer()),
         ),
@@ -440,17 +464,8 @@ Future<void> _tap(WidgetTester tester, String key) async {
   await tester.pumpAndSettle();
 }
 
-/// Opens the session with [present] and enters the guided mode.
-Future<void> _train(
-  WidgetTester tester, {
-  Set<String> present = const {'ari', 'andi'},
-}) async {
-  for (final id in present.difference({'ari'})) {
-    await _tap(tester, 'session-present-$id');
-  }
-  await _tap(tester, 'session-open');
-  await _tap(tester, 'session-train');
-}
+/// Enters the guided mode from the day's session, which may not exist yet (E7.27).
+Future<void> _train(WidgetTester tester) => _tap(tester, 'session-train');
 
 /// Enters with Ari and Andi and goes to the preview of block [block] (0-based), skipping the ones before.
 Future<void> _toBlock(WidgetTester tester, int block) async {
@@ -495,15 +510,47 @@ void main() {
       expect(_chosen(tester, 'guided-athlete-luz'), false);
     });
 
+    testWidgets('it enters without a session; choosing who trains creates '
+        'nothing, and "Comenzar" creates it with them (E7.27)', (tester) async {
+      final h = await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-athlete-luz');
+      await _tap(tester, 'guided-athlete-ari');
+      await _tap(tester, 'guided-athlete-ari');
+
+      expect(find.text('¿Quiénes entrenan?'), findsOneWidget);
+      expect(h.sessions.opened, isEmpty);
+
+      await _tap(tester, 'guided-begin');
+
+      expect(h.sessions.opened, [
+        {'ari', 'luz'},
+      ]);
+      expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
+    });
+
+    testWidgets('leaving without "Comenzar" creates nothing', (tester) async {
+      final h = await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-athlete-andi');
+      await _tap(tester, 'guided-exit');
+      await tester.tap(find.text('Salir'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-train')), findsOneWidget);
+      expect(h.sessions.opened, isEmpty);
+    });
+
     testWidgets('an athlete who is not present is added to the session', (
       tester,
     ) async {
-      final h = await _pump(tester);
-      await _train(tester, present: {'ari'});
+      final h = await _pump(tester, records: [_record('ari', 1, 0, 0, done: false)]);
+      await _train(tester);
       await _tap(tester, 'guided-athlete-luz');
       await _tap(tester, 'guided-begin');
 
       expect(h.sessions.opened.last, {'ari', 'luz'});
+      expect(h.sessions.present, ['ari', 'luz']);
       expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
     });
 

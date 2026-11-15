@@ -238,6 +238,15 @@ class _Phone implements SessionRepository, SessionCopy {
   ) => throw UnimplementedError();
 
   @override
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  }) => throw UnimplementedError();
+
+  @override
   Future<Session> writeGuidedPass(
     String clubId,
     String sessionId,

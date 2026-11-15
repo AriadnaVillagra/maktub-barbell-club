@@ -316,6 +316,9 @@ void main() {
             calendarRepositoryProvider.overrideWithValue(_Calendar()),
             athleteRepositoryProvider.overrideWithValue(_Athletes()),
             sessionRepositoryProvider.overrideWithValue(sessions),
+            remoteProposedDaysRepositoryProvider.overrideWithValue(
+              NoProposedDays(),
+            ),
             liveChannelProvider.overrideWithValue(
               FakeLiveChannel(FakeLiveServer()),
             ),
@@ -329,8 +332,6 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('session-open')));
       await tester.pumpAndSettle();
       final container = ProviderScope.containerOf(
         tester.element(find.byType(SessionPage)),

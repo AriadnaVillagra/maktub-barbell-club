@@ -5,6 +5,7 @@ import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
 import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
 import 'package:maktub_frontend/features/sesion/domain/live_channel.dart';
+import 'package:maktub_frontend/features/sesion/domain/proposed_days.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 
@@ -37,6 +38,9 @@ class FakeLiveServer {
 
   int connects = 0;
   final resyncsFrom = <int>[];
+
+  /// Whether the session exists: a device opened it, or a test says another one did (E7.27).
+  var exists = false;
 
   /// The session's guided pass (E7.26) and the number of the last change of the session itself.
   GuidedPass? guidedPass;
@@ -216,10 +220,27 @@ class FakeLiveSessions implements SessionRepository {
     if (server.down) {
       throw const ErrorDeApi('No se pudo conectar con el servidor.');
     }
+    server.exists = true;
     return LiveSession(
       session: server.session,
       records: server.records.values.toList(),
     );
+  }
+
+  @override
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  }) async {
+    if (server.down) {
+      throw const ErrorDeApi('No se pudo conectar con el servidor.');
+    }
+    final s = server.session;
+    if (!server.exists || s.week != week || s.day != day) return null;
+    return LiveSession(session: s, records: server.records.values.toList());
   }
 
   @override
@@ -258,4 +279,15 @@ class FakeLiveSessions implements SessionRepository {
     String sessionId,
     GuidedPassAction action,
   ) async => server.writeGuided(action);
+}
+
+/// The proposed kilos by date (E7.14) of a server that has none: the day shows its sets without kilos.
+class NoProposedDays implements ProposedDaysRepository {
+  @override
+  Future<List<ProposedDate>> proposedDays(
+    String clubId,
+    String assignmentId,
+    DateTime from,
+    DateTime to,
+  ) async => const [];
 }

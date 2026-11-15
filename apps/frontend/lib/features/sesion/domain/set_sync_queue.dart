@@ -202,11 +202,31 @@ class SetSyncQueue {
     );
     _queue = [..._queue, pending];
     _draft[pending.key] = pending;
-    await _persist();
-    _emit();
-    final outcome = await flush();
-    if (outcome.rejected[pending.id] case final error?) throw error;
-    return outcome.stored[pending.id];
+    _awaited.add(pending.id);
+    try {
+      await _persist();
+      _emit();
+      final outcome = await flush();
+      final elsewhere = _settledElsewhere.remove(pending.id);
+      if (outcome.rejected[pending.id] ?? elsewhere?.error case final error?) {
+        throw error;
+      }
+      return outcome.stored[pending.id] ?? elsewhere?.stored;
+    } finally {
+      _awaited.remove(pending.id);
+      _settledElsewhere.remove(pending.id);
+    }
+  }
+
+  /// The writes a [submit] is waiting for, and what a flush that was not its own did with them: another flush (the
+  /// live channel's, when it opens) may send a write between it being queued and its own flush.
+  final _awaited = <String>{};
+  final _settledElsewhere = <String, ({SetRecord? stored, Object? error})>{};
+
+  void _settled(String id, {SetRecord? stored, Object? error}) {
+    if (_awaited.contains(id)) {
+      _settledElsewhere[id] = (stored: stored, error: error);
+    }
   }
 
   /// Keeps the opening [open] on the device, ahead of every write, and sends the queue without waiting for it. An
@@ -332,7 +352,8 @@ class SetSyncQueue {
     while (!_stalled && _queue.isNotEmpty) {
       final head = _queue.first;
       try {
-        stored[head.id] = await send(head).timeout(sendTimeout);
+        final record = stored[head.id] = await send(head).timeout(sendTimeout);
+        _settled(head.id, stored: record);
       } on TimeoutException {
         _stalled = true;
         break;
@@ -342,6 +363,7 @@ class SetSyncQueue {
           break;
         }
         rejected[head.id] = e;
+        _settled(head.id, error: e);
         if (_draft[head.key]?.id == head.id) _draft.remove(head.key);
       }
       _queue = [

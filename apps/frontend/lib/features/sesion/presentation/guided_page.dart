@@ -64,13 +64,22 @@ class GuidedPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final guided = ref.watch(guidedProvider);
     final data = ref.watch(sessionDayProvider).value;
-    final live = ref.watch(sessionScreenProvider.select((s) => s.live));
-    final ready = guided != null && data != null && live != null;
+    final screen = ref.watch(sessionScreenProvider);
+    final live = screen.live;
+    // Choosing who trains needs no session (E7.27); the blocks and the summary come with the pass, which is the
+    // session's.
+    final ready =
+        guided != null &&
+        data != null &&
+        (live != null || guided.phase == GuidedPhase.athletes);
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: ready
-            ? _Title(day: live.session.day, guided: guided)
+            ? _Title(
+                day: live?.session.day ?? shownDayOf(data, screen).day,
+                guided: guided,
+              )
             : const Text('Entrenar'),
         actions: [
           const SessionTimerButton(),
@@ -87,25 +96,25 @@ class GuidedPage extends ConsumerWidget {
       ),
       body: !ready
           ? _Message(
-              text: 'Abrí la sesión del día para entrenar.',
+              text: 'No hay un día del plan para entrenar.',
               onBack: () => _leave(context),
             )
           : ListView(
               padding: const EdgeInsets.all(Espacio.l),
               children: [
-                switch (guided.phase) {
-                  GuidedPhase.athletes => _Athletes(guided: guided, data: data),
-                  GuidedPhase.blocks => _Block(
+                switch ((guided.phase, live)) {
+                  (GuidedPhase.blocks, final live?) => _Block(
                     guided: guided,
                     data: data,
                     live: live,
                   ),
-                  GuidedPhase.finished => GuidedSummary(
+                  (GuidedPhase.finished, final live?) => GuidedSummary(
                     guided: guided,
                     data: data,
                     live: live,
                     onBack: () => _leave(context),
                   ),
+                  _ => _Athletes(guided: guided, data: data),
                 },
               ],
             ),

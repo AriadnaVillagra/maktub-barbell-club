@@ -283,6 +283,48 @@ class OfflineSessions implements SessionRepository {
   /// Every request taken, in order: `open <present>` and `set <session> <athlete> <set> <done>`.
   final log = <String>[];
 
+  /// The present athletes of each session the server has, by date, week and day.
+  final existing = <(DateTime, int, int), Set<String>>{};
+
+  @override
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  }) async {
+    signal.check();
+    final present = existing[(date, week, day)];
+    if (present == null) return null;
+    return LiveSession(
+      session: _session(clubId, assignmentId, date, week, day, present),
+      records: const [],
+    );
+  }
+
+  Session _session(
+    String clubId,
+    String assignmentId,
+    DateTime date,
+    int week,
+    int day,
+    Set<String> present,
+  ) => Session(
+    id: 's1',
+    clubId: clubId,
+    assignmentId: assignmentId,
+    planId: 'p1',
+    cycle: UbicacionEnCiclo.desdeFechas(inicio: offlineStart, fecha: date).ciclo,
+    week: week,
+    day: day,
+    date: date,
+    presentAthleteIds: present.toList(),
+    lastSessionChange: sessionChanges,
+    guidedPass: pass,
+    auditoria: audit(),
+  );
+
   @override
   Future<LiveSession> open(
     String clubId, {
@@ -295,25 +337,12 @@ class OfflineSessions implements SessionRepository {
     signal.check();
     opened.add((date, week, day));
     log.add('open ${(presentAthleteIds.toList()..sort()).join(',')}');
-    final where = UbicacionEnCiclo.desdeFechas(
-      inicio: offlineStart,
-      fecha: date,
-    );
+    final present = existing[(date, week, day)] = {
+      ...?existing[(date, week, day)],
+      ...presentAthleteIds,
+    };
     return LiveSession(
-      session: Session(
-        id: 's1',
-        clubId: clubId,
-        assignmentId: assignmentId,
-        planId: 'p1',
-        cycle: where.ciclo,
-        week: week,
-        day: day,
-        date: date,
-        presentAthleteIds: presentAthleteIds.toList(),
-        lastSessionChange: sessionChanges,
-        guidedPass: pass,
-        auditoria: audit(),
-      ),
+      session: _session(clubId, assignmentId, date, week, day, present),
       records: const [],
     );
   }

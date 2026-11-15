@@ -25,6 +25,16 @@ abstract interface class SessionRepository {
     required Set<String> presentAthleteIds,
   });
 
+  /// The session of [day] of [week] of the assignment on [date] with what was recorded so far, or null when it does
+  /// not exist yet: nobody wrote anything on that day (E7.27). It never creates one.
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  });
+
   /// The kilos proposed for every set of [athleteId] in [sessionId], resolved by the server with
   /// [adjustments]. The work factor comes only when the user can see it.
   Future<List<ProposedSet>> proposedLoads(

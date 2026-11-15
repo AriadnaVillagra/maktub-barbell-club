@@ -295,16 +295,17 @@ void main() {
     (tester) async {
       final server = _Server();
       await _launch(tester, server, _laterDay);
-      await tester.tap(find.byKey(const Key('session-open')));
+      // The first mark creates the session (E7.27); its kilos are the server's.
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
       await tester.pumpAndSettle();
       expect(_kg(tester, 'session-kg-0-0-0'), '90 kg');
       expect(find.byKey(const Key('local-copy-notice')), findsNothing);
 
       server.signal.on = false;
       await _launch(tester, server, _laterDay);
-      await tester.tap(find.byKey(const Key('session-open')));
-      await tester.pumpAndSettle();
 
+      expect(server.sessions.opened, hasLength(1));
+      expect(_checked(tester, '0-0-0'), isTrue);
       expect(_kg(tester, 'session-kg-0-0-0'), '90 kg');
       expect(_kg(tester, 'session-kg-0-0-1'), '90 kg');
       expect(find.byKey(const Key('local-copy-notice')), findsOneWidget);
@@ -329,20 +330,20 @@ void main() {
     server.signal.on = false;
     await _launch(tester, server, _laterDay);
 
-    await tester.tap(find.byKey(const Key('session-open')));
-    await tester.pumpAndSettle();
+    // Before any write there is no session: the day shows the preloaded kilos.
+    expect(find.byKey(const Key('session-opened-offline')), findsNothing);
+    expect(_kg(tester, 'session-kg-0-0-0'), '82.5 kg');
 
+    // The first mark opens it on the phone and queues the opening (E7.16).
+    await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+    await tester.pumpAndSettle();
     expect(find.byKey(const Key('session-opened-offline')), findsOneWidget);
     expect(find.byKey(const Key('session-live-connecting')), findsNothing);
     expect(_kg(tester, 'session-kg-0-0-0'), '82.5 kg'); // the preloaded kilos
-    await tester.tap(find.byKey(const Key('session-check-0-0-0')));
-    await tester.pumpAndSettle();
     expect(_checked(tester, '0-0-0'), isTrue);
 
     // Reload without signal: the session opened on the phone and its mark are still there.
     await _launch(tester, server, _laterDay);
-    await tester.tap(find.byKey(const Key('session-open')));
-    await tester.pumpAndSettle();
     expect(find.byKey(const Key('session-opened-offline')), findsOneWidget);
     expect(_checked(tester, '0-0-0'), isTrue);
     expect(_checked(tester, '0-0-1'), isFalse);
@@ -374,9 +375,10 @@ void main() {
     'what another phone marks arrives through the channel and is kept for opening without signal',
     (tester) async {
       final server = _Server();
+      // Another phone created the session; this one takes it without opening it (E7.27).
+      server.sessions.existing[(_laterDay, 1, 1)] = {'andi'};
       await _launch(tester, server, _laterDay);
-      await tester.tap(find.byKey(const Key('session-open')));
-      await tester.pumpAndSettle();
+      expect(server.sessions.opened, isEmpty);
       expect(_checked(tester, '0-0-1'), isFalse);
 
       server.live.write(
@@ -395,8 +397,6 @@ void main() {
       server.signal.on = false;
       server.live.down = true;
       await _launch(tester, server, _laterDay);
-      await tester.tap(find.byKey(const Key('session-open')));
-      await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('local-copy-notice')), findsOneWidget);
       expect(_checked(tester, '0-0-1'), isTrue);
@@ -444,7 +444,8 @@ void main() {
     await _launch(tester, server, _laterDay, store: store);
 
     expect(find.text('Fuerza · ciclo 4 · semana 1'), findsOneWidget);
-    await tester.tap(find.byKey(const Key('session-open')));
+    expect(_kg(tester, 'session-kg-0-0-0'), '82.5 kg');
+    await tester.tap(find.byKey(const Key('session-check-0-0-0')));
     await tester.pumpAndSettle();
     expect(_kg(tester, 'session-kg-0-0-0'), '90 kg');
 

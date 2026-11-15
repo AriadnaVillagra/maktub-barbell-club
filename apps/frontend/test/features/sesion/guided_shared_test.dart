@@ -94,7 +94,7 @@ class _Phone {
     await container.read(sessionDayProvider.future);
     await container
         .read(sessionScreenProvider.notifier)
-        .open(_data, week: 4, day: 1, present: {'ari', 'andi'});
+        .ensureSession(_data, {'ari', 'andi'});
   }
 
   /// Opens the guided mode, which stays open until [leave].

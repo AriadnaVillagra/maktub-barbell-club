@@ -235,6 +235,35 @@ void main() {
     },
   );
 
+  test(
+    'a refused write is thrown even when another flush sent it first (E7.27)',
+    () async {
+      final server = _FakeServer()..refuseWith = 'Ese atleta no está.';
+      final queue = _queue(server, MemoryDraftStore());
+      await queue.ready;
+
+      // The live channel opens and flushes while the write is being queued.
+      final submitted = _submit(queue, _mark('ari', 0));
+      final other = queue.flush();
+
+      await expectLater(submitted, throwsA(isA<ErrorDeApi>()));
+      expect((await other).rejected, hasLength(1));
+      expect(queue.pending, isEmpty);
+    },
+  );
+
+  test('a write another flush sent first still returns what was stored', () async {
+    final server = _FakeServer();
+    final queue = _queue(server, MemoryDraftStore());
+    await queue.ready;
+
+    final submitted = _submit(queue, _mark('ari', 0));
+    final other = queue.flush();
+
+    expect((await submitted)?.done, isTrue);
+    expect((await other).stored, hasLength(1));
+  });
+
   test('a write that takes too long stays queued', () async {
     final hanging = Completer<SetRecord>();
     final queue = SetSyncQueue(

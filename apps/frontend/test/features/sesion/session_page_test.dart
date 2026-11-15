@@ -17,6 +17,7 @@ import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/data/shared_preferences_calendar_layout_store.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
 import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
+import 'package:maktub_frontend/features/sesion/domain/proposed_days.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 import 'package:maktub_frontend/features/sesion/presentation/calendar_boards.dart';
@@ -130,8 +131,66 @@ class _FakeSessions implements SessionRepository {
   int? openedDay;
   int? openedWeek;
 
-  /// What the session already holds when it opens.
-  List<SetRecord> openedRecords = const [];
+  /// Every set of present athletes the screen opened with, in order.
+  final openings = <Set<String>>[];
+  int finds = 0;
+
+  /// The session stored on the server, which [find] answers for its week and day; null while nobody wrote.
+  LiveSession? existing;
+
+  /// A session another device created: week 4, day 1, with [present] and [records].
+  void exists({
+    Set<String> present = const {'ari'},
+    List<SetRecord> records = const [],
+  }) => existing = LiveSession(
+    session: Session(
+      id: 's1',
+      clubId: 'c1',
+      assignmentId: 'a1',
+      planId: 'p1',
+      cycle: 3,
+      week: 4,
+      day: 1,
+      date: _today,
+      presentAthleteIds: present.toList(),
+      auditoria: audit(),
+    ),
+    records: records,
+  );
+
+  @override
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  }) async {
+    finds++;
+    final live = existing;
+    return live != null &&
+            live.session.week == week &&
+            live.session.day == day
+        ? live
+        : null;
+  }
+
+  /// The kilos the server proposes for [athlete], with [adjustments].
+  List<ProposedSet> setsFor(String athlete, AthleteAdjustments adjustments) {
+    final adjustment = adjustments.effectiveFor('sq');
+    return [
+      for (var s = 0; s < 2; s++)
+        ProposedSet(
+          blockIndex: 0,
+          prescriptionIndex: 0,
+          setIndex: s,
+          exerciseId: 'sq',
+          kg: _kg(athlete, adjustment),
+          appliedPct: pctEfectivo(80, adjustment),
+          workFactor: factor,
+        ),
+    ];
+  }
 
   /// The kilos of `sq` at 80 %, with the rule the server resolves them with: `ari` has an RM of 100, `andi` 80.
   double _kg(String athlete, int adjustment) => pesoPorPorcentaje(
@@ -153,7 +212,14 @@ class _FakeSessions implements SessionRepository {
     openedPresent = presentAthleteIds;
     openedDay = day;
     openedWeek = week;
-    return LiveSession(
+    openings.add(presentAthleteIds);
+    final before = existing;
+    final same =
+        before != null &&
+        before.session.week == week &&
+        before.session.day == day;
+    // Like the server: present athletes add up, and what was recorded stays.
+    return existing = LiveSession(
       session: Session(
         id: 's1',
         clubId: clubId,
@@ -163,10 +229,13 @@ class _FakeSessions implements SessionRepository {
         week: week,
         day: day,
         date: date,
-        presentAthleteIds: presentAthleteIds.toList(),
+        presentAthleteIds: {
+          if (same) ...before.session.presentAthleteIds,
+          ...presentAthleteIds,
+        }.toList(),
         auditoria: audit(),
       ),
-      records: openedRecords,
+      records: same ? before.records : const [],
     );
   }
 
@@ -186,19 +255,7 @@ class _FakeSessions implements SessionRepository {
     AthleteAdjustments adjustments,
   ) async {
     queries.add((athleteId, adjustments));
-    final adjustment = adjustments.effectiveFor('sq');
-    return [
-      for (var s = 0; s < 2; s++)
-        ProposedSet(
-          blockIndex: 0,
-          prescriptionIndex: 0,
-          setIndex: s,
-          exerciseId: 'sq',
-          kg: _kg(athleteId, adjustment),
-          appliedPct: pctEfectivo(80, adjustment),
-          workFactor: factor,
-        ),
-    ];
+    return setsFor(athleteId, adjustments);
   }
 
   final writes = <SetWrite>[];
@@ -277,6 +334,39 @@ class _FakeSessions implements SessionRepository {
   }
 }
 
+/// The proposed kilos by date (E7.14), with the same rule as [_FakeSessions] and the neutral adjustment.
+class _FakeProposedDays implements ProposedDaysRepository {
+  _FakeProposedDays(this.sessions);
+
+  final _FakeSessions sessions;
+  int calls = 0;
+
+  @override
+  Future<List<ProposedDate>> proposedDays(
+    String clubId,
+    String assignmentId,
+    DateTime from,
+    DateTime to,
+  ) async {
+    calls++;
+    final where = UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: from);
+    return [
+      ProposedDate(
+        date: from,
+        cycle: where.ciclo,
+        week: where.semana,
+        days: {
+          for (var d = 1; d <= 3; d++)
+            d: {
+              for (final a in const ['ari', 'andi', 'luz'])
+                a: sessions.setsFor(a, const AthleteAdjustments()),
+            },
+        },
+      ),
+    ];
+  }
+}
+
 // 2026-11-18 is 11 weeks after the start: cycle 3, week 4 (model B).
 final _plan = PublishedPlanView(
   id: 'p1',
@@ -332,6 +422,7 @@ Future<void> _pump(
   _FakeCalendar? calendar,
   MemoryDraftStore? draft,
   FakeLiveServer? live,
+  _FakeProposedDays? proposedDays,
   Widget home = const SessionPage(assignmentsPath: '/asig'),
   bool withRouter = false,
   Size size = const Size(900, 2400),
@@ -357,6 +448,9 @@ Future<void> _pump(
           athletes ?? _FakeAthletes(),
         ),
         sessionRepositoryProvider.overrideWithValue(sessions),
+        remoteProposedDaysRepositoryProvider.overrideWithValue(
+          proposedDays ?? _FakeProposedDays(sessions),
+        ),
         liveChannelProvider.overrideWithValue(
           FakeLiveChannel(live ?? FakeLiveServer()),
         ),
@@ -388,10 +482,16 @@ Future<void> _pump(
   await tester.pumpAndSettle();
 }
 
-Future<void> _open(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('session-open')));
-  await tester.pumpAndSettle();
-}
+/// The texts of the athlete tabs, in the order they show.
+List<String> _tabs(WidgetTester tester) => [
+  for (final tab in tester.widgetList<Tab>(
+    find.descendant(
+      of: find.byKey(const Key('session-athletes')),
+      matching: find.byType(Tab),
+    ),
+  ))
+    tab.text!,
+];
 
 String _kg(WidgetTester tester, String key) =>
     tester.widget<Text>(find.byKey(Key(key))).data!;
@@ -463,34 +563,115 @@ void main() {
     expect(find.text('Día 1 · Empuje A'), findsOneWidget);
   });
 
-  group('present athletes', () {
-    testWidgets('the user starts present and the others can be added', (
-      tester,
-    ) async {
-      final sessions = _FakeSessions();
-      await _pump(tester, sessions);
+  group('the athlete tabs and the session born with the first write (E7.27)', () {
+    Finder marked(String id) => find.descendant(
+      of: find.byKey(Key('session-check-$id')),
+      matching: find.byIcon(Icons.check_circle),
+    );
 
-      await tester.tap(find.byKey(const Key('session-present-andi')));
-      await tester.pumpAndSettle();
-      await _open(tester);
-
-      expect(sessions.openedPresent, {'ari', 'andi'});
-      expect(sessions.openedDay, 1);
-      expect(sessions.openedWeek, 4);
-    });
-
-    testWidgets('without anyone present the session cannot open', (
-      tester,
-    ) async {
+    testWidgets('there is no "Abrir sesión" nor "Presentes"', (tester) async {
       await _pump(tester, _FakeSessions());
 
-      await tester.tap(find.byKey(const Key('session-present-ari')));
+      expect(find.byKey(const Key('session-open')), findsNothing);
+      expect(find.text('Abrir sesión'), findsNothing);
+      expect(find.text('Presentes'), findsNothing);
+    });
+
+    testWidgets('entering without a session opens nothing and shows each '
+        "athlete's kilos by date", (tester) async {
+      final sessions = _FakeSessions();
+      final days = _FakeProposedDays(sessions);
+      await _pump(tester, sessions, proposedDays: days);
+
+      expect(sessions.openings, isEmpty);
+      expect(sessions.finds, greaterThan(0));
+      expect(days.calls, greaterThan(0));
+      expect(sessions.queries, isEmpty);
+      expect(_kg(tester, 'session-kg-0-0-0'), '80 kg');
+
+      await tester.tap(find.byKey(const Key('session-athlete-andi')));
       await tester.pumpAndSettle();
 
-      final button = tester.widget<FilledButton>(
-        find.byKey(const Key('session-open')),
+      final andi = pesoPorPorcentaje(
+        rm: 80,
+        pct: 80,
+        equipo: Equipo.estandarDe('c1'),
+      )!;
+      expect(_kg(tester, 'session-kg-0-0-0'), '${_format(andi)} kg');
+      expect(sessions.openings, isEmpty);
+    });
+
+    testWidgets('every athlete of the group in its order, before and after '
+        'the session exists, whichever is chosen', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
+      expect(
+        tester.widget<TabBar>(find.byKey(const Key('session-athletes')))
+            .controller!
+            .index,
+        0,
       );
-      expect(button.onPressed, isNull);
+
+      await tester.tap(find.byKey(const Key('session-athlete-luz')));
+      await tester.pumpAndSettle();
+      expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
+
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('session-athlete-andi')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+      await tester.pumpAndSettle();
+
+      expect(sessions.existing!.session.presentAthleteIds, ['luz', 'andi']);
+      expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
+    });
+
+    testWidgets("marking Andi's first set creates the session with Andi, and "
+        'one of Ari then adds Ari without dropping Andi', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      await tester.tap(find.byKey(const Key('session-athlete-andi')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+      await tester.pumpAndSettle();
+
+      expect(sessions.openings, [
+        {'andi'},
+      ]);
+      expect((sessions.openedWeek, sessions.openedDay), (4, 1));
+      expect(sessions.writes.single.athleteId, 'andi');
+      expect(marked('0-0-0'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('session-check-0-0-1')));
+      await tester.pumpAndSettle();
+      expect(sessions.openings, hasLength(1)); // Andi is already present
+
+      await tester.tap(find.byKey(const Key('session-athlete-ari')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+      await tester.pumpAndSettle();
+
+      expect(sessions.openings.last, containsAll(['andi', 'ari']));
+      expect(sessions.existing!.session.presentAthleteIds, ['andi', 'ari']);
+      expect(sessions.writes.last.athleteId, 'ari');
+      expect(marked('0-0-0'), findsOneWidget);
+    });
+
+    testWidgets('a coach outside the group starts on its first athlete', (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions(), ownAthlete: null);
+
+      expect(
+        tester.widget<TabBar>(find.byKey(const Key('session-athletes')))
+            .controller!
+            .index,
+        0,
+      );
+      expect(_tabs(tester).first, 'Ari');
     });
 
     testWidgets('an athlete cannot list names and still sees labels', (
@@ -505,8 +686,56 @@ void main() {
       );
 
       expect(athletes.calls, 0);
-      expect(find.text('Yo'), findsOneWidget);
-      expect(find.text('Atleta 2'), findsOneWidget);
+      expect(_tabs(tester), ['Yo', 'Atleta 2', 'Atleta 3']);
+    });
+
+    testWidgets('a session of the day that already exists is taken without '
+        'opening it, with its records, and followed live', (tester) async {
+      final live = FakeLiveServer();
+      final sessions = _FakeSessions()
+        ..exists(records: [_doneRecord('ari', 1)]);
+      await _pump(tester, sessions, live: live);
+
+      expect(sessions.openings, isEmpty);
+      expect(marked('0-0-1'), findsOneWidget);
+      expect(live.openConnections, 1);
+    });
+
+    testWidgets('a session another device creates while looking is taken at '
+        'the next lookup', (tester) async {
+      final live = FakeLiveServer();
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions, live: live);
+      expect(marked('0-0-1'), findsNothing);
+
+      sessions.exists(records: [_doneRecord('ari', 1)]);
+      await tester.pump(queueRetryInterval);
+      await tester.pumpAndSettle();
+
+      expect(marked('0-0-1'), findsOneWidget);
+      expect(sessions.openings, isEmpty);
+      expect(live.openConnections, 1);
+    });
+
+    testWidgets('choosing another day stops following the session and shows '
+        'that day, without asking', (tester) async {
+      final live = FakeLiveServer();
+      final sessions = _FakeSessions()..exists();
+      await _pump(tester, sessions, live: live);
+      expect(live.openConnections, 1);
+
+      await tester.tap(find.byKey(const Key('session-day-2')));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(live.openConnections, 0);
+      expect(find.text('Día 2 · Empuje'), findsOneWidget);
+      expect(find.byKey(const Key('session-kg-0-0-0')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('session-day-1')));
+      await tester.pumpAndSettle();
+      expect(live.openConnections, 1);
+      expect(sessions.openings, isEmpty);
     });
   });
 
@@ -519,7 +748,6 @@ void main() {
 
     testWidgets('shows what the server proposes (E4: RM × %)', (tester) async {
       await _pump(tester, _FakeSessions());
-      await _open(tester);
 
       expect(_kg(tester, 'session-kg-0-0-0'), '${_format(expected)} kg');
       expect(_kg(tester, 'session-kg-0-0-1'), '${_format(expected)} kg');
@@ -530,7 +758,6 @@ void main() {
       tester,
     ) async {
       await _pump(tester, _FakeSessions(factor: 90));
-      await _open(tester);
 
       final withFactor = pesoPorPorcentaje(
         rm: 100,
@@ -549,17 +776,13 @@ void main() {
       tester,
     ) async {
       await _pump(tester, _FakeNoLoads());
-      await _open(tester);
 
       expect(_kg(tester, 'session-kg-0-0-0'), '—');
     });
 
     testWidgets('changing athlete shows their kilos', (tester) async {
-      final sessions = _FakeSessions();
+      final sessions = _FakeSessions()..exists(present: {'ari', 'andi'});
       await _pump(tester, sessions);
-      await tester.tap(find.byKey(const Key('session-present-andi')));
-      await tester.pumpAndSettle();
-      await _open(tester);
 
       await tester.tap(find.byKey(const Key('session-athlete-andi')));
       await tester.pumpAndSettle();
@@ -575,13 +798,19 @@ void main() {
   });
 
   group('the day adjustment', () {
-    testWidgets('moves the % of that athlete', (tester) async {
-      await _pump(tester, _FakeSessions());
-      await _open(tester);
+    testWidgets('touching it without a session creates the session and shows '
+        'the adjusted kilos', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      expect(sessions.openings, isEmpty);
 
       await tester.tap(find.byKey(const Key('session-adjust-session-plus')));
       await tester.pumpAndSettle();
 
+      expect(sessions.openings, [
+        {'ari'},
+      ]);
+      expect(sessions.queries.last.$2.session, 105);
       expect(_kg(tester, 'session-adjust-session-value'), '105 %');
       expect(_kg(tester, 'session-detail-0-0-0'), '5 reps · 84 %');
     });
@@ -590,7 +819,6 @@ void main() {
       tester,
     ) async {
       await _pump(tester, _FakeSessions());
-      await _open(tester);
 
       await tester.tap(find.byKey(const Key('session-adjust-session-plus')));
       await tester.pumpAndSettle();
@@ -602,11 +830,8 @@ void main() {
     });
 
     testWidgets('of one athlete does not affect the others', (tester) async {
-      final sessions = _FakeSessions();
+      final sessions = _FakeSessions()..exists(present: {'ari', 'andi'});
       await _pump(tester, sessions);
-      await tester.tap(find.byKey(const Key('session-present-andi')));
-      await tester.pumpAndSettle();
-      await _open(tester);
 
       await tester.tap(find.byKey(const Key('session-adjust-session-plus')));
       await tester.pumpAndSettle();
@@ -627,13 +852,15 @@ void main() {
   });
 
   group('the blocks', () {
-    testWidgets('each one is its own card, before and after opening', (
-      tester,
-    ) async {
-      await _pump(tester, _FakeSessions());
+    testWidgets('each one is its own card, before and after the session '
+        'exists', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
       expect(find.byType(Card), findsNWidgets(2));
 
-      await _open(tester);
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+      await tester.pumpAndSettle();
+
 
       expect(find.byType(Card), findsNWidgets(2));
       expect(
@@ -649,7 +876,6 @@ void main() {
       tester,
     ) async {
       await _pump(tester, _FakeSessions());
-      await _open(tester);
 
       expect(
         find.byKey(const Key('session-adjust-ex-0-0-plus')),
@@ -697,7 +923,6 @@ void main() {
     testWidgets('marking sends a write of that set only', (tester) async {
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      await _open(tester);
 
       await tester.tap(find.byKey(check('0-0-1')));
       await tester.pumpAndSettle();
@@ -717,7 +942,7 @@ void main() {
       tester,
     ) async {
       final sessions = _FakeSessions()
-        ..openedRecords = [
+        ..exists(records: [
           SetRecord(
             id: 'r-est',
             clubId: 'c1',
@@ -735,9 +960,8 @@ void main() {
             writtenBy: 'sistema:importador',
             auditoria: audit(),
           ),
-        ];
+        ]);
       await _pump(tester, sessions);
-      await _open(tester);
 
       expect(find.byKey(const Key('session-estimated-0-0-0')), findsOneWidget);
       expect(find.byKey(const Key('session-estimated-0-0-1')), findsNothing);
@@ -753,7 +977,7 @@ void main() {
       tester,
     ) async {
       final sessions = _FakeNoLoads()
-        ..openedRecords = [
+        ..exists(records: [
           SetRecord(
             id: 'r-est',
             clubId: 'c1',
@@ -770,9 +994,8 @@ void main() {
             writtenBy: 'sistema:importador',
             auditoria: audit(),
           ),
-        ];
+        ]);
       await _pump(tester, sessions);
-      await _open(tester);
 
       expect(find.byKey(const Key('session-estimated-0-0-0')), findsOneWidget);
       expect(marked('0-0-0'), findsOneWidget);
@@ -794,7 +1017,6 @@ void main() {
     ) async {
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      await _open(tester);
 
       await tester.tap(find.byKey(check('0-0-0')));
       await tester.tap(find.byKey(check('0-0-0')));
@@ -808,7 +1030,6 @@ void main() {
     testWidgets('tapping a marked set unmarks it', (tester) async {
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      await _open(tester);
 
       await tester.tap(find.byKey(check('0-0-0')));
       await tester.pumpAndSettle();
@@ -824,7 +1045,6 @@ void main() {
     ) async {
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      await _open(tester);
 
       await typeSet(tester, '0-0-0', kg: '72,5', reps: '3');
 
@@ -844,8 +1064,7 @@ void main() {
       (tester) async {
         final sessions = _FakeSessions();
         await _pump(tester, sessions);
-        await _open(tester);
-
+  
         await typeSet(tester, '0-0-0', reps: '3');
 
         expect(sessions.writes.single.manualKg, isNull);
@@ -858,7 +1077,6 @@ void main() {
     ) async {
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      await _open(tester);
 
       await typeSet(tester, '0-0-0', kg: 'mucho');
 
@@ -869,7 +1087,6 @@ void main() {
     testWidgets('the day adjustment does not move typed kilos', (tester) async {
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      await _open(tester);
       await typeSet(tester, '0-0-0', kg: '72.5');
 
       await tester.tap(find.byKey(const Key('session-adjust-session-plus')));
@@ -884,7 +1101,6 @@ void main() {
     testWidgets('marking keeps what was typed', (tester) async {
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      await _open(tester);
       await typeSet(tester, '0-0-0', kg: '72.5', reps: '3');
 
       await tester.tap(find.byKey(check('0-0-0')));
@@ -897,7 +1113,6 @@ void main() {
     testWidgets('a refused write shows the backend error', (tester) async {
       final sessions = _FakeSessions()..refuseWith = 'Ese atleta no está.';
       await _pump(tester, sessions);
-      await _open(tester);
 
       await tester.tap(find.byKey(check('0-0-0')));
       await tester.pumpAndSettle();
@@ -912,7 +1127,6 @@ void main() {
       final sessions = _FakeSessions()..offline = true;
       final draft = MemoryDraftStore();
       await _pump(tester, sessions, draft: draft);
-      await _open(tester);
 
       await tester.tap(find.byKey(check('0-0-0')));
       await tester.pumpAndSettle();
@@ -934,8 +1148,7 @@ void main() {
 
     testWidgets('a set marked on another phone shows at once', (tester) async {
       final live = FakeLiveServer();
-      await _pump(tester, _FakeSessions(), live: live);
-      await _open(tester);
+      await _pump(tester, _FakeSessions()..exists(), live: live);
       expect(find.byKey(const Key('session-live-connecting')), findsNothing);
 
       live.write(
@@ -957,10 +1170,9 @@ void main() {
     testWidgets(
       'while the live channel does not answer, it shows it is connecting and marking still works',
       (tester) async {
-        final sessions = _FakeSessions();
+        final sessions = _FakeSessions()..exists();
         await _pump(tester, sessions, live: FakeLiveServer()..hanging = true);
-        await _open(tester);
-
+  
         expect(
           find.byKey(const Key('session-live-connecting')),
           findsOneWidget,
@@ -977,18 +1189,19 @@ void main() {
       final draft = MemoryDraftStore();
       final offline = _FakeSessions()..offline = true;
       await _pump(tester, offline, draft: draft);
-      await _open(tester);
       await tester.tap(find.byKey(check('0-0-1')));
       await tester.pumpAndSettle();
 
-      // A reload: a new app over the same storage, still without signal.
+      // A reload: a new app over the same storage, still without signal for writes. The session exists: the mark
+      // opened it.
       await tester.pumpWidget(const SizedBox());
       await _pump(
         tester,
-        _FakeSessions()..offline = true,
+        _FakeSessions()
+          ..offline = true
+          ..existing = offline.existing,
         draft: MemoryDraftStore(draft.disk),
       );
-      await _open(tester);
 
       expect(marked('0-0-1'), findsOneWidget);
       expect(marked('0-0-0'), findsNothing);
@@ -999,7 +1212,6 @@ void main() {
     ) async {
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      await _open(tester);
       const restore = Key('session-restore-0-0');
       expect(find.byKey(restore), findsNothing);
 
@@ -1034,8 +1246,7 @@ void main() {
       (tester) async {
         final sessions = _FakeSessions();
         await _pump(tester, sessions);
-        await _open(tester);
-
+  
         await writeNote(tester, 'session-note-0-0', 'Liviano');
 
         final write = sessions.writes.single;
@@ -1056,7 +1267,6 @@ void main() {
     testWidgets('the session note is saved and shown', (tester) async {
       final sessions = _FakeSessions();
       await _pump(tester, sessions);
-      await _open(tester);
 
       await writeNote(tester, 'session-note-day', 'Buen día');
 
@@ -1066,21 +1276,14 @@ void main() {
     });
   });
 
-  testWidgets('choosing another day leaves the open session', (tester) async {
-    await _pump(tester, _FakeSessions());
-    await _open(tester);
-
-    await tester.tap(find.byKey(const Key('session-day-2')));
-    await tester.pumpAndSettle();
-
-    expect(find.byKey(const Key('session-open')), findsOneWidget);
-    expect(find.byKey(const Key('session-kg-0-0-0')), findsNothing);
-  });
-
-  testWidgets('the backend error when opening is shown', (tester) async {
+  testWidgets('the backend error when the first write opens is shown', (
+    tester,
+  ) async {
     await _pump(tester, _FakeOpenFails());
 
-    await _open(tester);
+    await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+    await tester.pumpAndSettle();
+
 
     expect(find.text('La asignación no está activa.'), findsOneWidget);
   });
@@ -1135,17 +1338,17 @@ void main() {
       tester,
     ) async {
       await _pump(tester, _FakeSessions());
-      expect(find.byKey(const Key('session-open')), findsOneWidget);
+      expect(find.byKey(const Key('session-athletes')), findsOneWidget);
       expect(find.byKey(const Key('calendar-plan')), findsNothing);
 
       await tester.tap(find.text('Calendario'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('calendar-plan')), findsOneWidget);
-      expect(find.byKey(const Key('session-open')), findsNothing);
+      expect(find.byKey(const Key('session-athletes')), findsNothing);
 
       await tester.tap(find.text('Sesión del día'));
       await tester.pumpAndSettle();
-      expect(find.byKey(const Key('session-open')), findsOneWidget);
+      expect(find.byKey(const Key('session-athletes')), findsOneWidget);
     });
 
     testWidgets('can open on the calendar view', (tester) async {
@@ -1202,7 +1405,6 @@ void main() {
     testWidgets('recording a set turns the day pill to done', (tester) async {
       final calendar = _FakeCalendar();
       await _pump(tester, _FakeSessions(), calendar: calendar);
-      await _open(tester);
       expect(detail('session-day-1', 'Pendiente'), findsOneWidget);
 
       calendar.extraDone.add((UbicacionEnCiclo.desdeFechas(
@@ -1491,7 +1693,7 @@ void main() {
             await tapKey(tester, 'calendar-day-4-1');
 
             expect(find.byType(layouts[label]!), findsOneWidget);
-            expect(find.byKey(const Key('session-open')), findsNothing);
+            expect(find.byKey(const Key('session-athletes')), findsNothing);
             expect(
               tester
                   .widget<Text>(find.byKey(const Key('calendar-detail-title')))
@@ -1547,8 +1749,11 @@ void main() {
 
           expect(find.byType(CompactBoard), findsNothing);
           expect(find.text('Día 1 · Empuje A'), findsOneWidget);
-          await tester.ensureVisible(find.byKey(const Key('session-open')));
-          await tester.tap(find.byKey(const Key('session-open')));
+          final adjust = find.byKey(
+            const Key('session-adjust-session-plus'),
+          );
+          await tester.ensureVisible(adjust);
+          await tester.tap(adjust);
           await tester.pumpAndSettle();
           expect((sessions.openedWeek, sessions.openedDay), (2, 1));
           expect(tester.takeException(), isNull);
@@ -1580,7 +1785,7 @@ void main() {
       await tapKey(tester, 'calendar-go-4-3');
 
       expect(find.text('Día 3 · Tirón'), findsOneWidget);
-      expect(find.byKey(const Key('session-open')), findsOneWidget);
+      expect(find.byKey(const Key('session-athletes')), findsOneWidget);
     });
 
     testWidgets('on a phone the detail closes', (tester) async {
@@ -1602,17 +1807,31 @@ void main() {
   });
 }
 
+SetRecord _doneRecord(String athleteId, int setIndex) => SetRecord(
+  id: 'r-$athleteId-$setIndex',
+  clubId: 'c1',
+  sessionId: 's1',
+  athleteId: athleteId,
+  exerciseId: 'sq',
+  exerciseName: 'Sentadilla',
+  blockIndex: 0,
+  prescriptionIndex: 0,
+  setIndex: setIndex,
+  target: const PlanSet(reps: 5, pct: 80),
+  done: true,
+  kg: 80,
+  reps: 5,
+  writtenBy: 'u1',
+  auditoria: audit(),
+);
+
 String _format(double kg) =>
     kg == kg.roundToDouble() ? kg.toStringAsFixed(0) : '$kg';
 
 class _FakeNoLoads extends _FakeSessions {
   @override
-  Future<List<ProposedSet>> proposedLoads(
-    String clubId,
-    String sessionId,
-    String athleteId,
-    AthleteAdjustments adjustments,
-  ) async => const [
+  List<ProposedSet> setsFor(String athlete, AthleteAdjustments adjustments) =>
+      const [
     ProposedSet(
       blockIndex: 0,
       prescriptionIndex: 0,

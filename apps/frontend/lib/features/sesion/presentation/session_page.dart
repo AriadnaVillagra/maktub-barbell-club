@@ -5,7 +5,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show asyncView, showApiError;
+    show asyncView;
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
 import '../../access/presentation/providers.dart' show canPlanProvider;
 import '../domain/live_session_sync.dart' show LiveStatus;
@@ -21,8 +21,9 @@ import 'session_timers.dart';
 enum SessionView { day, calendar }
 
 /// The day's session and the plan's calendar on one screen (E7.24). A selector switches between the session of
-/// the day (opens on the day D13 gives, lets the user pick another one and the present athletes, and once open
-/// shows each present athlete's kilos with their day adjustment) and the calendar of the whole cycle.
+/// the day (opens on the day D13 gives, lets the user pick another one, and shows each athlete of the group in a tab
+/// with their kilos to mark and edit; the session is created by the first write, E7.27) and the calendar of the
+/// whole cycle.
 class SessionPage extends ConsumerStatefulWidget {
   const SessionPage({
     super.key,
@@ -145,28 +146,44 @@ class _NoAssignment extends ConsumerWidget {
   }
 }
 
-class _SessionBody extends ConsumerWidget {
+class _SessionBody extends ConsumerStatefulWidget {
   const _SessionBody({required this.data, this.guidedPath});
 
   final SessionDayData data;
   final String? guidedPath;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SessionBody> createState() => _SessionBodyState();
+}
+
+class _SessionBodyState extends ConsumerState<_SessionBody> {
+  @override
+  void initState() {
+    super.initState();
+    _show();
+  }
+
+  @override
+  void didUpdateWidget(_SessionBody old) {
+    super.didUpdateWidget(old);
+    if (old.data != widget.data) _show();
+  }
+
+  /// Looks up the chosen day's session every time the view appears (E7.27), once the frame is built.
+  void _show() => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted) ref.read(sessionScreenProvider.notifier).show(widget.data);
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.data;
     final state = ref.watch(sessionScreenProvider);
     final notifier = ref.read(sessionScreenProvider.notifier);
     final location = data.location;
     final plan = data.plan;
-    final week = state.week ?? location.week;
-    final model = plan.weekModelOf(week);
-    final dayCount = model?.days.length ?? 0;
-    final day = (state.day ?? data.openingDay).clamp(
-      1,
-      dayCount < 1 ? 1 : dayCount,
-    );
-    final planDay = model != null && day <= dayCount
-        ? model.days[day - 1]
-        : null;
+    final (:week, :day) = shownDayOf(data, state);
+    final dayCount = plan.weekModelOf(week)?.days.length ?? 0;
+    final planDay = planDayOf(data, week, day);
     final live = state.live;
     final dayStates = watchDayStates(ref, data);
 
@@ -230,133 +247,53 @@ class _SessionBody extends ConsumerWidget {
             key: const Key('session-day-title'),
             style: context.textos.titleLarge,
           ),
-          if (live == null) ...[
-            _PresentPicker(data: data),
-            const SizedBox(height: Espacio.m),
-            _OpenButton(data: data, week: week, day: day),
-            for (final block in planDay.blocks)
-              _BlockPreview(block: block, names: data.exerciseNames),
-          ] else ...[
-            if (isLocalSessionId(live.session.id)) ...[
-              const SizedBox(height: Espacio.s),
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: InsigniaMaktub(
-                  'Abierta sin señal · se sube al volver la señal',
-                  context.colores.insigniaBase,
-                  key: const Key('session-opened-offline'),
-                  icono: Icons.cloud_off,
-                ),
+          if (live != null && isLocalSessionId(live.session.id)) ...[
+            const SizedBox(height: Espacio.s),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: InsigniaMaktub(
+                'Abierta sin señal · se sube al volver la señal',
+                context.colores.insigniaBase,
+                key: const Key('session-opened-offline'),
+                icono: Icons.cloud_off,
               ),
-            ] else if (state.liveStatus
-                case LiveStatus.connecting || LiveStatus.reconnecting) ...[
-              const SizedBox(height: Espacio.s),
-              Align(
-                alignment: AlignmentDirectional.centerStart,
-                child: InsigniaMaktub(
-                  'Conectando…',
-                  context.colores.insigniaBase,
-                  key: const Key('session-live-connecting'),
-                  icono: Icons.sync,
-                ),
+            ),
+          ] else if (live != null &&
+              (state.liveStatus == LiveStatus.connecting ||
+                  state.liveStatus == LiveStatus.reconnecting)) ...[
+            const SizedBox(height: Espacio.s),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: InsigniaMaktub(
+                'Conectando…',
+                context.colores.insigniaBase,
+                key: const Key('session-live-connecting'),
+                icono: Icons.sync,
               ),
-            ],
-            if (guidedPath case final path?) ...[
-              const SizedBox(height: Espacio.m),
-              FilledButton.icon(
-                key: const Key('session-train'),
-                onPressed: () => context.push(path),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('Entrenar'),
-              ),
-            ],
-            SessionLoadsView(data: data, live: live, day: planDay),
+            ),
           ],
+          if (widget.guidedPath case final path?) ...[
+            const SizedBox(height: Espacio.m),
+            FilledButton.icon(
+              key: const Key('session-train'),
+              onPressed: () => context.push(path),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Entrenar'),
+            ),
+          ],
+          if (data.group.memberIds.isEmpty)
+            for (final block in planDay.blocks)
+              _BlockPreview(block: block, names: data.exerciseNames)
+          else
+            SessionLoadsView(
+              data: data,
+              live: live,
+              week: week,
+              day: day,
+              planDay: planDay,
+            ),
         ],
       ],
-    );
-  }
-}
-
-/// Who is present by default: the user, if they are in the group; a coach who is not starts with nobody.
-Set<String> _defaultPresent(SessionDayData data) => {
-  if (data.ownAthleteId != null &&
-      data.group.memberIds.contains(data.ownAthleteId))
-    data.ownAthleteId!,
-};
-
-Set<String> _presentOf(SessionScreenState state, SessionDayData data) =>
-    state.present ?? _defaultPresent(data);
-
-class _PresentPicker extends ConsumerWidget {
-  const _PresentPicker({required this.data});
-
-  final SessionDayData data;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(sessionScreenProvider);
-    final notifier = ref.read(sessionScreenProvider.notifier);
-    final present = _presentOf(state, data);
-    return Padding(
-      padding: const EdgeInsets.only(top: Espacio.m),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Presentes', style: context.textos.labelLarge),
-          const SizedBox(height: Espacio.s),
-          Wrap(
-            spacing: Espacio.s,
-            runSpacing: Espacio.s,
-            children: [
-              for (final id in data.group.memberIds)
-                PildoraMaktub(
-                  key: Key('session-present-$id'),
-                  texto: athleteLabel(data, id),
-                  seleccionada: present.contains(id),
-                  onTap: () => notifier.setPresent(
-                    present.contains(id)
-                        ? ({...present}..remove(id))
-                        : {...present, id},
-                  ),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _OpenButton extends ConsumerWidget {
-  const _OpenButton({
-    required this.data,
-    required this.week,
-    required this.day,
-  });
-
-  final SessionDayData data;
-  final int week;
-  final int day;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(sessionScreenProvider);
-    final present = _presentOf(state, data);
-    return FilledButton(
-      key: const Key('session-open'),
-      onPressed: state.opening || present.isEmpty
-          ? null
-          : () async {
-              try {
-                await ref
-                    .read(sessionScreenProvider.notifier)
-                    .open(data, week: week, day: day, present: present);
-              } catch (e) {
-                if (context.mounted) showApiError(context, e);
-              }
-            },
-      child: const Text('Abrir sesión'),
     );
   }
 }
