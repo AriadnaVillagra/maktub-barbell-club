@@ -202,6 +202,21 @@ void main() {
       expect(store.all, isEmpty);
     });
 
+    test('a history plan cannot be created through the endpoint; the importer can', () async {
+      final store = _FakeStore();
+      final r = await create(_coachA, store, {'nombre': 'X', 'tipo': 'historico'});
+
+      expect(r.statusCode, HttpStatus.badRequest);
+      expect(store.all, isEmpty);
+
+      final plan = await CreatePlan(store, newId: () => 'h1', allowHistory: true)(_coachA, {
+        'nombre': 'Histórico 2025-05',
+        'tipo': 'historico',
+      });
+      expect(plan.type, PlanType.history);
+      expect(store.all, hasLength(1));
+    });
+
     test('an athlete and an admin without coach role get 403 and nothing is stored', () async {
       final store = _FakeStore();
       for (final ctx in [_athleteA, _adminOnlyA]) {

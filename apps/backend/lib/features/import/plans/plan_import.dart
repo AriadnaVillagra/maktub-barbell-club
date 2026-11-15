@@ -20,7 +20,8 @@ import 'package:maktub_backend/infraestructura/http.dart';
 /// the `historico` rows of Registro (E8.5, [historicPlans]), with October 2026 corrected
 /// (M1-D4, `plans.pctCorrections` in the adjustments). See [planPlanImport] for the rules. Writes only through
 /// the plan use cases: [CreatePlan], [SavePlan] (the whole plan in one write) and [PublishPlan], which only
-/// accepts a complete plan; the others stay as drafts and the report says why.
+/// accepts a complete plan; the others stay as drafts and the report says why. The one exception is
+/// [MarkHistoryPlanStore], which only sets the type of a history plan an earlier run created.
 class PlanImport implements ImportStep {
   PlanImport({
     required this._catalog,
@@ -28,6 +29,7 @@ class PlanImport implements ImportStep {
     required this._creates,
     required this._saves,
     required this._publishes,
+    required this._marks,
     DateTime Function()? now,
   }) : _now = now ?? DateTime.now;
 
@@ -36,6 +38,7 @@ class PlanImport implements ImportStep {
   final CreatePlanStore _creates;
   final SavePlanStore _saves;
   final PublishPlanStore _publishes;
+  final MarkHistoryPlanStore _marks;
   final DateTime Function() _now;
 
   @override
@@ -114,7 +117,7 @@ class PlanImport implements ImportStep {
   Future<void> apply(ClubContext club, PlanImportPlan plan) async {
     for (final p in plan.toCreate) {
       try {
-        await CreatePlan(_creates, newId: () => p.plan.id, now: _now)(club, {
+        await CreatePlan(_creates, newId: () => p.plan.id, now: _now, allowHistory: true)(club, {
           'nombre': p.plan.name,
           'tipo': p.plan.type.cable,
         });
@@ -130,6 +133,11 @@ class PlanImport implements ImportStep {
         if (p.publishable) await PublishPlan(_publishes, now: _now, history: p.history)(club, p.plan.id);
       } on ErrorDeSolicitud catch (e) {
         plan.report.problems.add('plan ${p.sheetId}: no se pudo guardar (${e.estado}): ${e.mensaje} ${e.extra}');
+      }
+    }
+    for (final id in plan.toMarkHistory) {
+      if (!await _marks.markHistory(club.clubId, id)) {
+        plan.report.problems.add('plan $id: no se pudo marcar como histórico (no existe).');
       }
     }
     for (final id in plan.toPublish) {

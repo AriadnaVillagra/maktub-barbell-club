@@ -40,6 +40,13 @@ enum PlanProblemCode {
   setWithoutPct,
 }
 
+/// What a [PlanType.history] plan may lack: the old record never had the % or, for a few sets, the reps of
+/// what was done, and a plan rebuilt from it cannot have them. [validatePlan] does not report them for such a plan.
+const historyPlanAccepts = {
+  PlanProblemCode.setWithoutPct,
+  PlanProblemCode.setWithoutReps,
+};
+
 /// A problem and where it is. Indices are 0-based and null when the problem is above that level
 /// (`weekModelIndex` is the position in `Plan.weekModels`; `assignmentIndex` is the week, 0-based).
 class PlanProblem {
@@ -96,7 +103,8 @@ class PlanProblem {
 }
 
 /// Validates [plan]. [exerciseById] resolves catalog exercises (null if unknown); the checks that need the
-/// exercise (percentage, reps, category) only run for the ones it finds.
+/// exercise (percentage, reps, category) only run for the ones it finds. A [PlanType.history] plan is not
+/// asked for what [historyPlanAccepts] lists.
 List<PlanProblem> validatePlan(
   Plan plan, {
   required Exercise? Function(String id) exerciseById,
@@ -138,6 +146,9 @@ List<PlanProblem> validatePlan(
         PlanProblem(PlanProblemCode.assignmentUnknownModel, assignmentIndex: w),
       );
     }
+  }
+  if (plan.type == PlanType.history) {
+    problems.removeWhere((p) => historyPlanAccepts.contains(p.code));
   }
   return problems;
 }

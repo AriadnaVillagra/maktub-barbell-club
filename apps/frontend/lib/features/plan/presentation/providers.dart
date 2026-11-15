@@ -185,6 +185,9 @@ class PlanSave extends Notifier<PlanSaveState> {
         justSaved: true,
         title: problems.isEmpty
             ? null
+            : plan.type == PlanType.history
+            // A history plan is never assigned; validatePlan does not ask it for % or reps.
+            ? 'Plan guardado. Para poder publicarlo falta completar:'
             : 'Plan guardado. Para poder asignarlo falta completar:',
         problems: [
           for (final p in problems)
@@ -285,8 +288,7 @@ class PlanPublish extends Notifier<PlanPublishState> {
       final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
       if (clubId == null) throw StateError('No active club');
       final exercises = {
-        for (final e in await ref.read(catalogExercisesProvider.future))
-          e.id: e,
+        for (final e in await ref.read(catalogExercisesProvider.future)) e.id: e,
       };
       nameOf = (id) => exercises[id]?.name;
       final published = await ref

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:maktub_core/maktub_core.dart' show PlanType;
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../asignacion/presentation/assign_plan_dialog.dart';
@@ -143,13 +144,16 @@ class PlansPage extends ConsumerWidget {
                           ],
                         ),
                       ),
-                      trailing: FilledButton.tonal(
-                        key: Key('plan-assign-${p.id}'),
-                        onPressed: p.published
-                            ? () => _assign(context, ref, p)
-                            : null,
-                        child: const Text('Asignar'),
-                      ),
+                      // A history plan records what was done; it is never assigned again.
+                      trailing: p.type == PlanType.history
+                          ? null
+                          : FilledButton.tonal(
+                              key: Key('plan-assign-${p.id}'),
+                              onPressed: p.published
+                                  ? () => _assign(context, ref, p)
+                                  : null,
+                              child: const Text('Asignar'),
+                            ),
                       onTap: () =>
                           context.go('$basePath/${Uri.encodeComponent(p.id)}'),
                     ),

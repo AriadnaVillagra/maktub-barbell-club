@@ -109,6 +109,10 @@ class PlanImportPlan {
   /// The plans built from Registro, published in history mode.
   final historyPlanIds = <String>{};
 
+  /// Plans an earlier run built from Registro before [PlanType.history] existed: only their type is set, so
+  /// what the coach edited in them stays.
+  final toMarkHistory = <String>[];
+
   /// The plans built from the `historico` rows of Registro ([historicPlans]): where each row went and who
   /// recorded in each plan. Filled by [PlanImport.plan].
   HistoricPlans historic = HistoricPlans();
@@ -121,7 +125,7 @@ class PlanImportPlan {
   final missingPct = <String, List<SheetSetRow>>{};
   final _dayIndexes = <String, int>{};
 
-  bool get isEmpty => toCreate.isEmpty && toUpdate.isEmpty && toPublish.isEmpty;
+  bool get isEmpty => toCreate.isEmpty && toUpdate.isEmpty && toPublish.isEmpty && toMarkHistory.isEmpty;
 
   /// The catalog step has work left: its exercises are not there yet, so nothing may be written.
   bool catalogPending = false;
@@ -174,7 +178,9 @@ String _groupKey(String block, String group) => block == SheetBlocks.accessories
 /// - **Sets.** One per row, ordered by `serie`: `reps` (seconds for an exercise measured only in time) and
 ///   `pct`. `rpe` goes to the prescription note, `temporizador` to its timer. No sheet carries a bar.
 /// - **Existing plans** are never overwritten: equal is "sin cambios", anything else "difiere". The one exception
-///   is a draft only the importer ever saved (see [PlanImportPlan.toUpdate]).
+///   is a draft only the importer ever saved (see [PlanImportPlan.toUpdate]). A plan built from Registro is a
+///   [PlanType.history] plan; one an earlier run left with another type only gets its type set
+///   ([PlanImportPlan.toMarkHistory]).
 PlanImportPlan planPlanImport(
   PlanSheets sheets,
   PlanCatalog catalog, {
@@ -237,7 +243,11 @@ PlanImportPlan planPlanImport(
               'serie ${r.set} (reps ${r.reps ?? '-'}${r.rpe == null ? '' : ', rpe ${r.rpe}'})'].join('; ')}.',
       );
     }
-    final all = validatePlan(plan, exerciseById: (id) => catalog.exercises[id]);
+    // A history plan is validated as a regular one too, to count what history mode lets through.
+    final all = validatePlan(
+      sheetPlan.history ? _withType(plan, PlanType.regular) : plan,
+      exerciseById: (id) => catalog.exercises[id],
+    );
     final problems = sheetPlan.history
         ? [
             for (final p in all)
@@ -263,26 +273,47 @@ PlanImportPlan planPlanImport(
     }
 
     final stored = existing[plan.id];
-    if (stored == null) {
+    // A plan an earlier run built from Registro, before the history type existed: it is compared as if it had
+    // the type, and only the type is written.
+    final markHistory = stored != null && sheetPlan.history && stored.type != PlanType.history;
+    final asStored = markHistory ? _withType(stored, PlanType.history) : stored;
+    if (asStored == null) {
       out.toCreate.add(imported);
       report.created.add('$label: ${_summary(plan)}; ${problems.isEmpty ? 'se publica' : 'queda en borrador'}.');
-    } else if (_content(stored) != _content(plan) && _ownDraft(stored)) {
+    } else if (_content(asStored) != _content(plan) && _ownDraft(asStored)) {
       out.toUpdate.add(imported);
       report.updated.add(
         '$label: borrador del importador que la planilla y los ajustes ahora completan de otra forma '
-        '(${_whatDiffers(stored, plan)}); se guarda de nuevo y ${problems.isEmpty ? 'se publica' : 'sigue en borrador'}.',
+        '(${_whatDiffers(asStored, plan)}); se guarda de nuevo y ${problems.isEmpty ? 'se publica' : 'sigue en borrador'}.',
       );
-    } else if (_content(stored) != _content(plan)) {
-      report.differing.add('$label: ya existe y no coincide con la planilla (${_whatDiffers(stored, plan)}).');
-    } else if (stored.published == null && problems.isEmpty) {
-      out.toPublish.add(plan.id);
-      report.updated.add('$label: guardado igual a la planilla pero sin publicar; se publica.');
     } else {
-      report.unchanged.add(label);
+      if (markHistory) {
+        out.toMarkHistory.add(plan.id);
+        report.updated.add('$label: se marca como plan histórico (solo cambia el tipo; el contenido no se toca).');
+      }
+      if (_content(asStored) != _content(plan)) {
+        report.differing.add('$label: ya existe y no coincide con la planilla (${_whatDiffers(asStored, plan)}).');
+      } else if (asStored.published == null && problems.isEmpty) {
+        out.toPublish.add(plan.id);
+        report.updated.add('$label: guardado igual a la planilla pero sin publicar; se publica.');
+      } else if (!markHistory) {
+        report.unchanged.add(label);
+      }
     }
   }
   return out;
 }
+
+Plan _withType(Plan p, PlanType type) => Plan(
+  id: p.id,
+  clubId: p.clubId,
+  name: p.name,
+  type: type,
+  weekModels: p.weekModels,
+  weekAssignment: p.weekAssignment,
+  published: p.published,
+  auditoria: p.auditoria,
+);
 
 /// Saved only by the importer and never published: nobody touched it in the app, so it may be saved again.
 bool _ownDraft(Plan p) =>
@@ -432,6 +463,7 @@ class _PlanBuilder {
       id: planId,
       clubId: clubId,
       name: sheet.name.trim(),
+      type: sheet.history ? PlanType.history : PlanType.regular,
       weekModels: weekModels,
       weekAssignment: assignment,
       auditoria: Auditoria.nueva(importAuthor, ahora: now),

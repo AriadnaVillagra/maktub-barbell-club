@@ -29,7 +29,8 @@ class AssignmentsPage extends ConsumerWidget {
     AthleteGroup group,
   ) async {
     final plans = (await ref.read(plansProvider.future))
-        .where((p) => p.published)
+        // A history plan records what was done; it is never assigned again.
+        .where((p) => p.published && p.type != PlanType.history)
         .toList();
     if (!context.mounted) return;
     if (plans.isEmpty) {

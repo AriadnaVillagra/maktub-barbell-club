@@ -91,6 +91,27 @@ void main() {
       expect(canPublish(tester), isFalse);
     });
 
+    testWidgets('a saved history plan without % or reps can be published', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        samplePlan(
+          type: PlanType.history,
+          models: [
+            completeModel('a', sets: [const PlanSet(reps: 5), const PlanSet()]),
+          ],
+          assignment: ['a', 'a', 'a', 'a'],
+        ),
+      );
+
+      expect(status(tester), 'Borrador');
+      expect(canPublish(tester), isTrue);
+      await tester.tap(publishButton);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('plan-publish-problems')), findsNothing);
+    });
+
     testWidgets('unsaved changes block the button until they are saved', (
       tester,
     ) async {

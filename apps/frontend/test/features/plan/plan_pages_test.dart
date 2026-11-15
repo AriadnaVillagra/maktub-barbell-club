@@ -41,6 +41,35 @@ void main() {
       expect(repo.calls, ['plans:c1']);
     });
 
+    testWidgets('a history plan shows its type and offers no assignment', (
+      tester,
+    ) async {
+      final plan = samplePlan(
+        id: 'h1',
+        name: 'Histórico 2025-05',
+        type: PlanType.history,
+      );
+      final repo = FakePlanRepository(
+        plans: [
+          samplePlan(
+            id: 'h1',
+            name: plan.name,
+            type: PlanType.history,
+            published: publishedCopyOf(plan),
+          ),
+          samplePlan(
+            id: 'p2',
+            name: 'Fuerza',
+            published: publishedCopyOf(plan),
+          ),
+        ],
+      );
+      await pumpPlanPage(tester, const PlansPage(basePath: '/x'), repo);
+      expect(find.text('Histórico'), findsOneWidget);
+      expect(find.byKey(const Key('plan-assign-h1')), findsNothing);
+      expect(find.byKey(const Key('plan-assign-p2')), findsOneWidget);
+    });
+
     testWidgets('empty state and backend error', (tester) async {
       await pumpPlanPage(
         tester,
@@ -105,6 +134,11 @@ void main() {
       await tester.enterText(
         find.byKey(const Key('plan-name-field')),
         '  Hipertrofia ',
+      );
+      expect(
+        find.byKey(const Key('plan-type-historico')),
+        findsNothing,
+        reason: 'only the import builds history plans',
       );
       await tester.tap(find.byKey(const Key('plan-type-test')));
       await tester.pump();

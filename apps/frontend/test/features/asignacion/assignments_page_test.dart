@@ -135,6 +135,14 @@ FakePlanRepository _plans() {
         auditoria: _audit,
       ),
       samplePlan(id: 'p2', name: 'Borrador'),
+      samplePlan(
+        id: 'p3',
+        name: 'Histórico 2025-05',
+        type: PlanType.history,
+        models: published.weekModels,
+        assignment: published.weekAssignment,
+        published: publishedCopyOf(published),
+      ),
     ],
   );
 }
@@ -163,6 +171,7 @@ void main() {
     await tester.tap(find.byKey(const Key('assign-plan')));
     await tester.pumpAndSettle();
     expect(find.text('Borrador'), findsNothing);
+    expect(find.text('Histórico 2025-05'), findsNothing, reason: 'never assigned');
     await tester.tap(find.text('Fuerza').last);
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('assign-confirm')));

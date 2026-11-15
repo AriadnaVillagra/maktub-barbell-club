@@ -90,18 +90,24 @@ class _PlanReads implements PlanImportStore {
   Future<List<Exercise>> exercises(String clubId) async => db.visible(clubId).values.toList();
 }
 
-Plan _with(Plan p, {List<WeekModel>? weekModels, PublishedPlan? published, Auditoria? auditoria}) => Plan(
+Plan _with(
+  Plan p, {
+  List<WeekModel>? weekModels,
+  PublishedPlan? published,
+  Auditoria? auditoria,
+  PlanType? type,
+}) => Plan(
   id: p.id,
   clubId: p.clubId,
   name: p.name,
-  type: p.type,
+  type: type ?? p.type,
   weekModels: weekModels ?? p.weekModels,
   weekAssignment: p.weekAssignment,
   published: published ?? p.published,
   auditoria: auditoria ?? p.auditoria,
 );
 
-class _PlanWrites implements CreatePlanStore, SavePlanStore, PublishPlanStore {
+class _PlanWrites implements CreatePlanStore, SavePlanStore, PublishPlanStore, MarkHistoryPlanStore {
   _PlanWrites(this.db);
 
   final _Db db;
@@ -137,6 +143,15 @@ class _PlanWrites implements CreatePlanStore, SavePlanStore, PublishPlanStore {
     final stored = db.plans[planId];
     if (stored == null || stored.auditoria.modificadoEn != savedAt) return false;
     db.plans[planId] = _with(stored, published: copy);
+    return true;
+  }
+
+  @override
+  Future<bool> markHistory(String clubId, String planId) async {
+    db.planWrites++;
+    final stored = db.plans[planId];
+    if (stored == null || stored.clubId != clubId) return false;
+    db.plans[planId] = _with(stored, type: PlanType.history);
     return true;
   }
 }
@@ -268,6 +283,7 @@ void main() {
     creates: _PlanWrites(db),
     saves: _PlanWrites(db),
     publishes: _PlanWrites(db),
+    marks: _PlanWrites(db),
     now: () => now,
   );
   ImportRun run({bool dryRun = false, ImportAdjustments? adjustments}) => ImportRun(
@@ -471,6 +487,7 @@ fecha,atleta,ejercicio,bloque,serie,peso_kg,reps,rm_vigente,pct,nota,plan,ciclo,
     final report = await importer().run(run());
     final p = plan('historico-2026-09');
     expect(p.name, 'Histórico 2026-09');
+    expect(p.type, PlanType.history);
     expect(
       [for (final m in p.weekModels) (m.id, m.name, m.days.length)],
       [('s1', 'Semana 1', 2), ('s2', 'Semana 2', 1)],
@@ -505,6 +522,42 @@ fecha,atleta,ejercicio,bloque,serie,peso_kg,reps,rm_vigente,pct,nota,plan,ciclo,
     final report = await importer().run(run());
     expect(report.differing, [contains('historico-2026-09')]);
     expect(plan('historico-2026-09').weekModels, hasLength(1));
+  });
+
+  test('a history plan of an earlier run gets only its type, keeping what the app changed', () async {
+    write('Registro', historico);
+    await importCatalog();
+    await importer().run(run());
+    final p = plan('historico-2026-09');
+    final edited = _with(
+      p,
+      type: PlanType.regular,
+      weekModels: [p.weekModels.first],
+      auditoria: p.auditoria.modificada('coach', ahora: DateTime.utc(2026, 11, 15)),
+    );
+    db.plans[p.id] = edited;
+    final otherPlans = {for (final e in db.plans.entries) e.key: jsonEncode(e.value.toJson())};
+
+    final writes = db.planWrites;
+    final dry = await importer().run(run(dryRun: true));
+    expect(db.planWrites, writes, reason: 'a dry run writes nothing');
+    expect(dry.updated, [allOf(contains('historico-2026-09'), contains('solo cambia el tipo'))]);
+    expect(dry.created, isEmpty);
+    expect(dry.differing, [contains('historico-2026-09')]);
+
+    final report = await importer().run(run());
+    expect(db.planWrites, writes + 1, reason: 'one write: the type');
+    expect(report.updated, hasLength(1));
+    final after = plan('historico-2026-09');
+    expect(after.type, PlanType.history);
+    expect(jsonEncode(_with(after, type: PlanType.regular).toJson()), jsonEncode(edited.toJson()));
+    for (final e in otherPlans.entries.where((e) => e.key != p.id)) {
+      expect(jsonEncode(db.plans[e.key]!.toJson()), e.value);
+    }
+
+    final again = await importer().plan(run());
+    expect(again.toMarkHistory, isEmpty, reason: 'idempotent');
+    expect(again.isEmpty, isTrue);
   });
 
   test('a plan saved but not published (a cut run) is published by the next run', () async {

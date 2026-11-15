@@ -25,9 +25,12 @@ const minDaysPerWeek = 1;
 const maxDaysPerWeek = 7;
 
 /// Regular plans repeat forever; test plans last one cycle and produce new references (diseno, "Planes de test").
+/// History plans are rebuilt from what was recorded before the app (the E8 import): they are never assigned
+/// again and may lack the % or reps the old record never had ([historyPlanAccepts]).
 enum PlanType implements ConCable {
   regular('regular'),
-  test('test');
+  test('test'),
+  history('historico');
 
   const PlanType(this.cable);
   @override

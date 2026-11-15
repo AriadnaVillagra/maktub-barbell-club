@@ -133,10 +133,12 @@ Plan _plan(
   String createdBy = 'coach-1',
   List<WeekModel>? models,
   PublishedPlan? published,
+  PlanType type = PlanType.regular,
 }) => Plan(
   id: id,
   clubId: clubId,
   name: 'Octubre',
+  type: type,
   weekModels: models ?? _models(),
   weekAssignment: const ['A', 'A', 'A', 'A'],
   published: published,
@@ -297,6 +299,72 @@ void main() {
         throwsA(isA<ErrorDeSolicitud>()),
       );
       expect(empty.stored.single.published, isNull);
+    });
+
+    test('a history plan publishes through the endpoint without % or reps', () async {
+      final store = storeWith(
+        _plan(
+          'club-a',
+          type: PlanType.history,
+          models: [
+            WeekModel(
+              id: 'A',
+              name: 'A',
+              days: [
+                PlanDay(
+                  blocks: [
+                    PlanBlock(
+                      name: 'Fuerza',
+                      categoryId: 'cat-1',
+                      prescriptions: [
+                        Prescription(exerciseId: 'ex-1', sets: [PlanSet()]),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      final r = await _publish(coachA, store);
+
+      expect(r.statusCode, HttpStatus.ok);
+      expect(store.stored.single.published, isNotNull);
+    });
+
+    test('a history plan with any other problem is still 422', () async {
+      final store = storeWith(
+        _plan(
+          'club-a',
+          type: PlanType.history,
+          models: [
+            WeekModel(
+              id: 'A',
+              name: 'A',
+              days: [
+                PlanDay(
+                  blocks: [
+                    PlanBlock(
+                      name: 'Fuerza',
+                      categoryId: 'cat-1',
+                      prescriptions: [
+                        Prescription(exerciseId: 'ex-1', sets: [PlanSet()]),
+                        const Prescription(),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+      final r = await _publish(coachA, store);
+
+      expect(r.statusCode, HttpStatus.unprocessableEntity);
+      expect([for (final p in (await _json(r))['problemas'] as List) p['codigo']], ['prescriptionWithoutExercise']);
+      expect(store.stored.single.published, isNull);
     });
 
     test('a plan without week models is 422 and is not published', () async {

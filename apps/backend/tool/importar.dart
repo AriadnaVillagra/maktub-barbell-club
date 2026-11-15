@@ -64,6 +64,7 @@ List<ImportStep> _steps(Db db) {
     creates: MongoCreatePlanStore(db),
     saves: MongoSavePlanStore(db),
     publishes: MongoPublishPlanStore(db),
+    marks: MongoMarkHistoryPlanStore(db),
   );
   final assignments = AssignmentImport(
     reads: MongoAssignmentImportStore(db),
