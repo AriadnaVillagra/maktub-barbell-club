@@ -77,8 +77,8 @@ void main() {
                 samplePlan(id: 'p2', name: 'En borrador'),
               ],
             ),
+            assignments: assignments,
           ),
-          assignmentRepositoryProvider.overrideWithValue(assignments),
           assignmentTodayProvider.overrideWithValue(today),
         ],
         child: MaterialApp(

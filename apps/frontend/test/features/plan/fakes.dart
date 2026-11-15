@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
+import 'package:maktub_frontend/features/asignacion/domain/assignment_repository.dart';
+import 'package:maktub_frontend/features/asignacion/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/plan/domain/plan_repository.dart';
 import 'package:maktub_frontend/features/plan/presentation/providers.dart';
@@ -169,7 +171,11 @@ List<Override> planOverrides(
   Set<Rol> roles = const {Rol.coach},
   FakeCatalogAdminRepository? catalog,
   FakeWodRepository? wods,
+  AssignmentRepository? assignments,
 }) => [
+  assignmentRepositoryProvider.overrideWithValue(
+    assignments ?? FakeGroupAssignments(),
+  ),
   catalogRepositoryProvider.overrideWithValue(
     catalog ?? FakeCatalogAdminRepository(),
   ),
@@ -201,4 +207,45 @@ Future<void> pumpPlanPage(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+/// The club's one group and the given assignments; enough for the plans list filter.
+class FakeGroupAssignments implements AssignmentRepository {
+  FakeGroupAssignments([this.list = const []]);
+
+  final List<Assignment> list;
+
+  @override
+  Future<List<AthleteGroup>> groups(String clubId) async => [
+    AthleteGroup(
+      id: 'g1',
+      clubId: clubId,
+      name: 'Andi y Ari',
+      auditoria: Auditoria(
+        creadoPor: 'u1',
+        creadoEn: DateTime.utc(2026, 11, 1),
+      ),
+    ),
+  ];
+
+  @override
+  Future<List<Assignment>> assignments(
+    String clubId, {
+    String? groupId,
+  }) async => list;
+
+  @override
+  Future<Assignment> assign(
+    String clubId, {
+    required String planId,
+    required String groupId,
+    required DateTime startDate,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<Assignment> end(
+    String clubId,
+    String assignmentId, {
+    DateTime? endDate,
+  }) => throw UnimplementedError();
 }

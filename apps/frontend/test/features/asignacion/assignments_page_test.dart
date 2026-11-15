@@ -102,8 +102,7 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        ...planOverrides(plans),
-        assignmentRepositoryProvider.overrideWithValue(repo),
+        ...planOverrides(plans, assignments: repo),
         assignmentTodayProvider.overrideWithValue(DateTime.utc(2026, 11, 8)),
       ],
       child: MaterialApp(

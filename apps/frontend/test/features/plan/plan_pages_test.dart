@@ -41,6 +41,66 @@ void main() {
       expect(repo.calls, ['plans:c1']);
     });
 
+    testWidgets('Activos and Pasados split the plans by type and assignment', (
+      tester,
+    ) async {
+      Assignment assignment(String id, String planId, AssignmentStatus s) =>
+          Assignment(
+            id: id,
+            clubId: 'c1',
+            planId: planId,
+            groupId: 'g1',
+            startDate: DateTime.utc(2026, 10, 1),
+            status: s,
+            auditoria: Auditoria(
+              creadoPor: 'u1',
+              creadoEn: DateTime.utc(2026, 10, 1),
+            ),
+          );
+      tester.view.physicalSize = const Size(900, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: planOverrides(
+            FakePlanRepository(
+              plans: [
+                samplePlan(id: 'new', name: 'Nuevo'),
+                samplePlan(id: 'run', name: 'En curso'),
+                samplePlan(id: 'done', name: 'Octubre'),
+                samplePlan(
+                  id: 'h',
+                  name: 'Histórico 2025-05',
+                  type: PlanType.history,
+                ),
+              ],
+            ),
+            assignments: FakeGroupAssignments([
+              assignment('a1', 'run', AssignmentStatus.active),
+              assignment('a2', 'done', AssignmentStatus.ended),
+            ]),
+          ),
+          child: MaterialApp(
+            theme: TemaMaktub.claro(),
+            home: const PlansPage(basePath: '/x'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      for (final name in ['Nuevo', 'En curso']) {
+        expect(find.text(name), findsOneWidget);
+      }
+      expect(find.text('Octubre'), findsNothing);
+      expect(find.text('Histórico 2025-05'), findsNothing);
+
+      await tester.tap(find.text('Pasados'));
+      await tester.pumpAndSettle();
+      expect(find.text('Octubre'), findsOneWidget);
+      expect(find.text('Histórico 2025-05'), findsOneWidget);
+      expect(find.text('Nuevo'), findsNothing);
+      expect(find.text('En curso'), findsNothing);
+    });
+
     testWidgets('a history plan shows its type and offers no assignment', (
       tester,
     ) async {
@@ -65,8 +125,13 @@ void main() {
         ],
       );
       await pumpPlanPage(tester, const PlansPage(basePath: '/x'), repo);
+      // A history plan is always past.
+      await tester.tap(find.text('Pasados'));
+      await tester.pumpAndSettle();
       expect(find.text('Histórico'), findsOneWidget);
       expect(find.byKey(const Key('plan-assign-h1')), findsNothing);
+      await tester.tap(find.text('Activos'));
+      await tester.pumpAndSettle();
       expect(find.byKey(const Key('plan-assign-p2')), findsOneWidget);
     });
 
