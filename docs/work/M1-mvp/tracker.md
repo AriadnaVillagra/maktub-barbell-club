@@ -28,7 +28,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 26 / 26 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
-| E8 | [Migración](E8-migracion.md) | en curso | 5 / 8 (E8.1 a E8.5 hechos; E8.7 y E8.8 en curso; falta E8.6. Fuera de E8.5 quedan los 37 % de `plans.pctFills`, que completa Ari, y Levantamiento sin asignar) | — |
+| E8 | [Migración](E8-migracion.md) | en curso | 6 / 8 (E8.1 a E8.5 y E8.7 hechos; E8.8 en curso; falta E8.6. Fuera de E8.5 quedan los 37 % de `plans.pctFills`, que completa Ari, y Levantamiento sin asignar) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
@@ -135,6 +135,13 @@ publicada**, nunca el borrador.
   - Se importa el plan de abril desde la grilla `ABR_2026` de la planilla de planificación. Se le cargan series de abril a julio con los kilos que propone la app (RM × %), marcadas como estimadas, y Ari corrige lo que haga falta.
   - La grilla de abril no tiene kilos, pero sí los %. Los kilos salen de las RMs ya importadas (E8.3) con las reglas de E4: factor de trabajo y peso cargable más cercano.
   - Es un cambio aparte de E8.5, todavía sin issue. Falta decidir cómo se marca una serie estimada en el modelo de E7.
+- **E8.7 (hecho, `9683539` y `1d51587`):**
+  - La serie registrada tiene `estimada`. Solo el importador la pone, y cualquier escritura desde la app la saca.
+  - El paso `abril` arma "Abril 2026" (histórico) desde la grilla y lo asigna terminado del 1/4 al 31/7.
+  - Corrida en una copia: 48 sesiones y 851 series estimadas (395 con kilos y 456 solo con reps). Una segunda corrida no cambia nada, y una serie corregida a mano no se pisa.
+  - No entran 1149 series de ejercicios con carga sin kilos en la grilla: sentadilla frontal, peso muerto y bench con "barra de…", sit ups con disco, TGU, etc. Tampoco "windmill", que no está en el catálogo.
+  - **Deploy:** desplegar el backend antes de correr el paso contra producción.
+  - **`diseno.md`** no tiene `estimada`: avisar a su sesión.
 - **Asignaciones por atleta en E6 (pedido por Ari):** Levantamiento es solo de Ari, y E6 solo asigna a grupos. Es un cambio aparte de E8.5 (modelo, backend y app), todavía sin issue. Hasta que exista, Levantamiento queda sin asignar y sus filas no se cargan.
 
 ## Para E8.2 (decidido el 2026-11-08)
