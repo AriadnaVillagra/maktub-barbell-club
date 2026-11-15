@@ -38,6 +38,11 @@ void main() {
       repo,
       catalog: catalog(),
     );
+    // The status and Publicar live inside the details, closed for a fully assigned plan.
+    if (find.byKey(const Key('plan-publish')).evaluate().isEmpty) {
+      await tester.tap(find.text('Detalles'));
+      await tester.pumpAndSettle();
+    }
     return ProviderScope.containerOf(
       tester.element(find.byType(PlanEditorPage)),
     );

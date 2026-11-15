@@ -232,14 +232,25 @@ class _Editor extends ConsumerWidget {
 /// What the athletes see of the plan (draft, published, or published with unpublished changes) and the
 /// "Publicar" button, which is always there and only enabled when the saved plan is complete and has
 /// something to publish.
-class _PublishStatus extends ConsumerWidget {
+class _PublishStatus extends ConsumerStatefulWidget {
   const _PublishStatus({required this.planId, required this.draft});
 
   final String planId;
   final PlanDraft draft;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PublishStatus> createState() => _PublishStatusState();
+}
+
+class _PublishStatusState extends ConsumerState<_PublishStatus> {
+  // Open while a week has no model, so a new plan shows what is missing.
+  late bool _expanded = widget.draft.assignment.contains(null);
+
+  String get planId => widget.planId;
+  PlanDraft get draft => widget.draft;
+
+  @override
+  Widget build(BuildContext context) {
     final plan = draft.base;
     final publishing = ref.watch(planPublishProvider(planId)).publishing;
     final publishable = ref.watch(planPublishableProvider(planId));
@@ -252,61 +263,58 @@ class _PublishStatus extends ConsumerWidget {
       _ => ('Publicado', 'Los atletas ven la versión guardada.'),
     };
     final editor = ref.read(planEditorProvider(planId).notifier);
-    String modelName(String? id) => draft.modelById(id)?.name ?? 'Sin modelo';
-    final summary = [
-      planTypeLabel(plan.type),
-      if (plan.type != PlanType.history) draft.past ? 'Pasado' : 'Activo',
-      [for (final a in draft.assignment) modelName(a)].join(', '),
-    ].join(' · ');
+    // The details at a glance while closed: type, Activo / Pasado and the model of each week.
+    final summary = Wrap(
+      key: const Key('plan-details-summary'),
+      spacing: Espacio.xs,
+      runSpacing: Espacio.xs,
+      children: [
+        switch ((plan.published, plan.hasUnpublishedChanges)) {
+          (null, _) => InsigniaMaktub(
+            'Borrador',
+            context.colores.insigniaPropio,
+          ),
+          (_, true) => InsigniaMaktub(
+            'Publicado con cambios',
+            context.colores.alertaContenedor,
+          ),
+          _ => InsigniaMaktub('Publicado', context.colores.exitoContenedor),
+        },
+        InsigniaMaktub(planTypeLabel(plan.type), context.colores.insigniaBase),
+        if (plan.type != PlanType.history)
+          draft.past
+              ? InsigniaMaktub('Pasado', context.colores.insigniaBase)
+              : InsigniaMaktub('Activo', context.colores.exitoContenedor),
+        for (final (w, id) in draft.assignment.indexed)
+          switch (draft.modelById(id)) {
+            null => InsigniaMaktub(
+              'S${w + 1} Sin modelo',
+              context.colores.alertaContenedor,
+            ),
+            final m => InsigniaMaktub(
+              'S${w + 1} ${m.name}',
+              context.colores.insigniaBase,
+            ),
+          },
+      ],
+    );
     return Card(
       clipBehavior: Clip.antiAlias,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(Espacio.m),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        key: const Key('plan-status'),
-                        style: context.textos.titleSmall,
-                      ),
-                      Text(detail, style: context.textos.bodyMedium),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: Espacio.m),
-                FilledButton.icon(
-                  key: const Key('plan-publish'),
-                  icon: publishing
-                      ? const SizedBox.square(
-                          dimension: Espacio.l,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.publish_outlined),
-                  label: const Text('Publicar'),
-                  onPressed: publishable && !publishing
-                      ? () => ref
-                            .read(planPublishProvider(planId).notifier)
-                            .publish()
-                      : null,
-                ),
-              ],
-            ),
-          ),
-          const Divider(height: 1),
-          // Type, Activo / Pasado and the cycle assignment. Open while a week has no model, so a new
-          // plan shows what is missing.
+          // Status and Publicar, type, Activo / Pasado and the cycle assignment.
           ExpansionTile(
             key: const Key('plan-details'),
             title: const Text('Detalles'),
-            subtitle: Text(summary, key: const Key('plan-details-summary')),
-            initiallyExpanded: draft.assignment.contains(null),
+            subtitle: _expanded
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(top: Espacio.xs),
+                    child: summary,
+                  ),
+            initiallyExpanded: _expanded,
+            onExpansionChanged: (open) => setState(() => _expanded = open),
             shape: const Border(),
             collapsedShape: const Border(),
             childrenPadding: const EdgeInsets.fromLTRB(
@@ -317,6 +325,40 @@ class _PublishStatus extends ConsumerWidget {
             ),
             expandedCrossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          key: const Key('plan-status'),
+                          style: context.textos.titleSmall,
+                        ),
+                        Text(detail, style: context.textos.bodyMedium),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: Espacio.m),
+                  FilledButton.icon(
+                    key: const Key('plan-publish'),
+                    icon: publishing
+                        ? const SizedBox.square(
+                            dimension: Espacio.l,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.publish_outlined),
+                    label: const Text('Publicar'),
+                    onPressed: publishable && !publishing
+                        ? () => ref
+                              .read(planPublishProvider(planId).notifier)
+                              .publish()
+                        : null,
+                  ),
+                ],
+              ),
+              const Divider(height: Espacio.xl),
               Text(
                 '${planTypeLabel(plan.type)} · ciclo de $planCycleWeeks semanas',
                 style: context.textos.bodyLarge,

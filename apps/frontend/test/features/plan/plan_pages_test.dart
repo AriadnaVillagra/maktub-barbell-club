@@ -34,7 +34,13 @@ void main() {
       );
       await pumpPlanPage(tester, const PlansPage(basePath: '/x'), repo);
       expect(find.text('Fuerza'), findsOneWidget);
-      for (final tag in ['Regular', '2 modelos', 'RM', '0 modelos']) {
+      for (final tag in [
+        'Borrador',
+        'Regular',
+        '2 modelos',
+        'RM',
+        '0 modelos',
+      ]) {
         expect(find.text(tag), findsOneWidget);
       }
       expect(find.text('Borrador'), findsNWidgets(2));
@@ -317,12 +323,19 @@ void main() {
       expect(find.byKey(const Key('model-b')), findsOneWidget);
       // Fully assigned: the details start closed, with a summary.
       expect(find.byKey(const Key('assign-0')), findsNothing);
-      expect(
-        tester.widget<Text>(find.byKey(const Key('plan-details-summary'))).data,
-        contains('Activo'),
-      );
+      for (final tag in ['Regular', 'Activo', 'S1 A', 'S2 B', 'S3 B', 'S4 A']) {
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('plan-details-summary')),
+            matching: find.text(tag),
+          ),
+          findsOneWidget,
+        );
+      }
       await tester.tap(find.text('Detalles'));
       await tester.pumpAndSettle();
+      // Open, the tags give way to the controls.
+      expect(find.byKey(const Key('plan-details-summary')), findsNothing);
       expect(
         [for (var w = 0; w < 4; w++) selected(tester, w)],
         ['a', 'b', 'b', 'a'],
