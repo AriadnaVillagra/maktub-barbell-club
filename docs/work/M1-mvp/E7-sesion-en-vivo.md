@@ -103,6 +103,7 @@ se da por supuesto.
 | E7.24 | [Una sola pantalla para el calendario y la sesión del día](E7.24-unificar-calendario-y-sesion.md) | E7.13, E7.20 |
 | E7.25 | [Calendario como tablero, con vistas a elección](E7.25-calendario-tablero-con-vistas.md) | E7.24 |
 | E7.26 | [Modo guiado compartido entre dispositivos](E7.26-modo-guiado-compartido.md) | E7.10, E7.16, E7.22, E7.23 |
+| E7.27 | [La sesión del día sin "Abrir sesión": se crea con la primera escritura](E7.27-sesion-sin-abrir.md) | E7.24, E7.26 |
 
 **En paralelo:**
 - E7.1 (verificación de R1) no depende de nada y va primero (M1 §6).
