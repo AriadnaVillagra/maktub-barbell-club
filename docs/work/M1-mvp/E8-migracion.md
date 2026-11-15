@@ -62,9 +62,10 @@ cubre, la migración queda incompleta y 8.2, 8.3 y el criterio 10 no se pueden d
 | E8.3 | [Importador de atletas, RMs y kilajes](E8.3-importador-atletas-rms-kilajes.md) | E8.1, E8.2, E1.9, E3.2, E3.3 |
 | E8.4 | [Importador de planes, con octubre corregido](E8.4-importador-planes.md) | E8.1, E8.2, E5.3 |
 | E8.5 | [Importador del historial](E8.5-importador-historial.md) | E8.1, E8.3, E8.4, E7.3 |
-| E8.6 | [Verificación de la migración](E8.6-verificacion-migracion.md) | E8.2, E8.3, E8.4, E8.5 |
+| E8.7 | [Abril a julio 2026: plan de abril y series estimadas](E8.7-abril-julio-estimado.md) | E8.3, E8.5 |
+| E8.6 | [Verificación de la migración](E8.6-verificacion-migracion.md) | E8.2, E8.3, E8.4, E8.5, E8.7 |
 
 **En paralelo:**
 - E8.1 es manual, va adelantado (D12) y no depende de nada.
 - E8.3 y E8.4 se pueden tomar a la vez después de E8.2.
-- E8.5 espera a los dos, y E8.6 cierra la épica.
+- E8.5 espera a los dos. E8.7 (sumada el 2026-11-15) va después de E8.5, y E8.6 cierra la épica.
