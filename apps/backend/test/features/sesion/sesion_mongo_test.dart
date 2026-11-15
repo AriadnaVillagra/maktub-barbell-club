@@ -73,6 +73,7 @@ void main() {
     int? reps = 5,
     double? workFactor,
     bool manualKg = false,
+    bool estimated = false,
     String? note,
     String user = 'u1',
     DateTime? at,
@@ -93,6 +94,7 @@ void main() {
       reps: reps,
       workFactor: workFactor,
       manualKg: manualKg,
+      estimated: estimated,
       note: note,
       writtenBy: user,
       auditoria: Auditoria.nueva(user, ahora: now).modificada(user, ahora: now),
@@ -342,17 +344,19 @@ void main() {
     mongoTest('a rewrite replaces values and clears what it dropped', () async {
       final store = MongoRecordSetStore(db!);
 
-      await store.upsert(record(workFactor: 80, manualKg: true));
+      await store.upsert(record(workFactor: 80, manualKg: true, estimated: true));
       final rewritten = await store.upsert(record(kg: 85, reps: null));
 
       expect(rewritten.kg, 85);
       expect(rewritten.reps, isNull);
       expect(rewritten.workFactor, isNull);
       expect(rewritten.manualKg, isFalse);
+      expect(rewritten.estimated, isFalse);
       final raw = await db!.collection(Colecciones.registros).findOne();
       expect(raw, isNot(contains('reps')));
       expect(raw, isNot(contains('factor')));
       expect(raw, isNot(contains('kilosManual')));
+      expect(raw, isNot(contains('estimada')));
     });
 
     mongoTest('different sets written at once do not touch each other', () async {

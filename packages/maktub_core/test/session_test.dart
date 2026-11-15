@@ -120,7 +120,12 @@ void main() {
   });
 
   group('SetRecord', () {
-    SetRecord record({double? kg, RecordPcts? p, bool manual = false}) =>
+    SetRecord record({
+      double? kg,
+      RecordPcts? p,
+      bool manual = false,
+      bool estimated = false,
+    }) =>
         SetRecord(
           id: 'r1',
           clubId: 'c1',
@@ -144,6 +149,7 @@ void main() {
           pctReal: p?.pctReal,
           rpe: 8.5,
           manualKg: manual,
+          estimated: estimated,
           writtenBy: 'u1',
           auditoria: _audit,
         );
@@ -167,6 +173,14 @@ void main() {
       expect([back.pctPlan, back.pctReal, back.rpe], [80, 72, 8.5]);
       expect(back.writtenBy, 'u1');
       expect(back.done, isTrue);
+    });
+
+    test('an estimated set travels as "estimada" and survives a round trip', () {
+      final json = _roundTrip(record(kg: 72, estimated: true).toJson());
+      expect(json['estimada'], isTrue);
+      expect(SetRecord.fromJson(json).estimated, isTrue);
+      expect(record(kg: 72).toJson().containsKey('estimada'), isFalse);
+      expect(SetRecord.fromJson(record(kg: 72).toJson()).estimated, isFalse);
     });
 
     test('the note survives a JSON round trip', () {

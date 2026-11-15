@@ -130,6 +130,9 @@ class _FakeSessions implements SessionRepository {
   int? openedDay;
   int? openedWeek;
 
+  /// What the session already holds when it opens.
+  List<SetRecord> openedRecords = const [];
+
   /// The kilos of `sq` at 80 %, with the rule the server resolves them with: `ari` has an RM of 100, `andi` 80.
   double _kg(String athlete, int adjustment) => pesoPorPorcentaje(
     rm: athlete == 'ari' ? 100 : 80,
@@ -163,7 +166,7 @@ class _FakeSessions implements SessionRepository {
         presentAthleteIds: presentAthleteIds.toList(),
         auditoria: audit(),
       ),
-      records: const [],
+      records: openedRecords,
     );
   }
 
@@ -708,6 +711,42 @@ void main() {
       expect(write.manualKg, isNull);
       expect(marked('0-0-1'), findsOneWidget);
       expect(marked('0-0-0'), findsNothing);
+    });
+
+    testWidgets('a set the importer estimated says so until the app writes it (E8.7)', (
+      tester,
+    ) async {
+      final sessions = _FakeSessions()
+        ..openedRecords = [
+          SetRecord(
+            id: 'r-est',
+            clubId: 'c1',
+            sessionId: 's1',
+            athleteId: 'ari',
+            exerciseId: 'sq',
+            exerciseName: 'Sentadilla',
+            blockIndex: 0,
+            prescriptionIndex: 0,
+            setIndex: 0,
+            target: const PlanSet(reps: 5, pct: 80),
+            kg: 80,
+            reps: 5,
+            estimated: true,
+            writtenBy: 'sistema:importador',
+            auditoria: audit(),
+          ),
+        ];
+      await _pump(tester, sessions);
+      await _open(tester);
+
+      expect(find.byKey(const Key('session-estimated-0-0-0')), findsOneWidget);
+      expect(find.byKey(const Key('session-estimated-0-0-1')), findsNothing);
+      expect(marked('0-0-0'), findsOneWidget);
+
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-estimated-0-0-0')), findsNothing);
     });
 
     testWidgets('marking the same set twice at once leaves one marked record', (

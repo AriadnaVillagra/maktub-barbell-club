@@ -263,6 +263,7 @@ class SetRecord implements DelClub {
     this.pctReal,
     this.rpe,
     this.manualKg = false,
+    this.estimated = false,
     this.note,
     this.sequence,
     required this.writtenBy,
@@ -315,6 +316,10 @@ class SetRecord implements DelClub {
   /// The athlete typed the kilos by hand, so the percents come from them.
   final bool manualKg;
 
+  /// Loaded by the importer with the kilos the app proposes (RM × %), not recorded by anyone (E8.7). Only the
+  /// importer sets it; any write from the app leaves the set no longer estimated.
+  final bool estimated;
+
   /// Free note about the exercise. It lives on the exercise's first set (`setIndex` 0).
   final String? note;
 
@@ -351,6 +356,7 @@ class SetRecord implements DelClub {
     pctReal: numOpcional(j['pctReal']),
     rpe: numOpcional(j['rpe']),
     manualKg: j['kilosManual'] == true,
+    estimated: j['estimada'] == true,
     note: textoOpcional(j['nota']),
     sequence: enteroOpcional(j['secuencia']),
     writtenBy: '${j['escritoPor']}',
@@ -382,6 +388,7 @@ class SetRecord implements DelClub {
       'pctReal': pctReal,
       'rpe': rpe,
       'kilosManual': manualKg ? true : null,
+      'estimada': estimated ? true : null,
       'nota': note,
       'secuencia': sequence,
     }),

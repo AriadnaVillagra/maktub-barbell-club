@@ -241,5 +241,6 @@ const _optionalFields = [
   'pctReal',
   'rpe',
   'kilosManual',
+  'estimada',
   'nota',
 ];

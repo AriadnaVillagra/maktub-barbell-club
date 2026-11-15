@@ -321,6 +321,17 @@ class _SetRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Serie ${index + 1}', style: context.textos.labelLarge),
+                // Loaded by the importer with the proposed kilos (E8.7): nobody recorded it yet.
+                if (record?.estimated ?? false)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: Espacio.xs),
+                    child: InsigniaMaktub(
+                      'Estimada',
+                      context.colores.insigniaBase,
+                      key: Key('session-estimated-$keyId'),
+                      icono: Icons.auto_fix_high,
+                    ),
+                  ),
                 if (detail.isNotEmpty)
                   Text(
                     detail,
