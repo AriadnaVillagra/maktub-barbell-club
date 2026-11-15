@@ -6,6 +6,9 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
 import 'package:maktub_frontend/features/asignacion/domain/assignment_repository.dart';
 import 'package:maktub_frontend/features/asignacion/presentation/providers.dart';
+import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
+import 'package:maktub_frontend/features/atletas/presentation/providers.dart'
+    show athleteRepositoryProvider;
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/plan/domain/plan_repository.dart';
 import 'package:maktub_frontend/features/plan/presentation/providers.dart';
@@ -176,10 +179,12 @@ List<Override> planOverrides(
   FakeCatalogAdminRepository? catalog,
   FakeWodRepository? wods,
   AssignmentRepository? assignments,
+  List<AthleteSummary> athletes = const [],
 }) => [
   assignmentRepositoryProvider.overrideWithValue(
     assignments ?? FakeGroupAssignments(),
   ),
+  athleteRepositoryProvider.overrideWithValue(FakeAthleteList(athletes)),
   catalogRepositoryProvider.overrideWithValue(
     catalog ?? FakeCatalogAdminRepository(),
   ),
@@ -213,6 +218,20 @@ Future<void> pumpPlanPage(
   await tester.pumpAndSettle();
 }
 
+/// The club's athletes, for whom a plan can be assigned (E8.8); nothing else is read.
+class FakeAthleteList implements AthleteRepository {
+  FakeAthleteList([this.list = const []]);
+
+  final List<AthleteSummary> list;
+
+  @override
+  Future<List<AthleteSummary>> athletes(String clubId) async => list;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
+
 /// The club's one group and the given assignments; enough for the plans list filter.
 class FakeGroupAssignments implements AssignmentRepository {
   FakeGroupAssignments([this.list = const []]);
@@ -242,7 +261,8 @@ class FakeGroupAssignments implements AssignmentRepository {
   Future<Assignment> assign(
     String clubId, {
     required String planId,
-    required String groupId,
+    String? groupId,
+    String? athleteId,
     required DateTime startDate,
   }) => throw UnimplementedError();
 

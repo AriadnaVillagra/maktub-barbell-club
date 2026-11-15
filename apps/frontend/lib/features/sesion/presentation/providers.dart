@@ -175,11 +175,13 @@ final saveStateProvider =
       SaveStateController.new,
     );
 
-/// What the session screen needs for today: the group, where today falls in its assignment and the published plan.
+/// What the session screen needs for today in one assignment: who trains it, where today falls in it and the
+/// published plan. An athlete can have two on the same date, their group's and their own (E8.8).
 class SessionDayData {
   const SessionDayData({
     required this.clubId,
-    required this.group,
+    required this.memberIds,
+    required this.ownerLabel,
     required this.location,
     required this.plan,
     required this.exerciseNames,
@@ -190,7 +192,12 @@ class SessionDayData {
   });
 
   final String clubId;
-  final AthleteGroup group;
+
+  /// The athletes the assignment is for: its group's members, or its one athlete for an athlete's own plan.
+  final List<String> memberIds;
+
+  /// Who the plan is for, to tell two plans of the same date apart: "Grupo Barra" or "Plan propio".
+  final String ownerLabel;
   final CalendarLocation location;
   final PublishedPlanView plan;
 
@@ -242,10 +249,10 @@ final calendarLayoutProvider =
       CalendarLayoutController.new,
     );
 
-/// Which cycle's day states to fetch: the cycle of an assignment started on [startDate].
+/// Which cycle's day states to fetch: the cycle of the assignment [assignmentId], started on [startDate].
 typedef CycleDaysQuery = (
   String clubId,
-  String groupId,
+  String assignmentId,
   DateTime startDate,
   int cycle,
 );
@@ -254,63 +261,140 @@ typedef CycleDaysQuery = (
 /// day pills follow.
 final cycleDayStatesProvider = FutureProvider.autoDispose
     .family<List<DayState>, CycleDaysQuery>((ref, query) {
-      final (clubId, groupId, startDate, cycle) = query;
+      final (clubId, assignmentId, startDate, cycle) = query;
       final (from, to) = cycleDates(startDate, cycle);
       return ref
           .watch(calendarRepositoryProvider)
-          .dayStates(clubId, groupId, from, to);
+          .dayStates(clubId, assignmentId, from, to);
     });
 
-/// Null when the group has no active assignment.
-final sessionDayProvider = FutureProvider.autoDispose<SessionDayData?>((
+/// Where today falls for the user: every active assignment they train, their groups' and their own (E8.8). A user
+/// who is not an athlete of the club sees the first group's.
+Future<List<CalendarLocation>> todaysLocations(
+  CalendarRepository calendar,
+  String clubId, {
+  required String? athleteId,
+  required List<AthleteGroup> groups,
+  required DateTime today,
+}) async {
+  if (athleteId != null) {
+    return calendar.locateAthlete(clubId, athleteId, today);
+  }
+  if (groups.isEmpty) return const [];
+  return [?await calendar.locate(clubId, groups.first.id, today)];
+}
+
+/// Every plan of today, one per active assignment the user trains (E8.8: an athlete's own plan lives alongside their
+/// group's). Empty when there is none.
+final sessionDaysProvider = FutureProvider.autoDispose<List<SessionDayData>>((
   ref,
 ) async {
   final me = await ref.watch(meProvider.future);
   final access = me?.activeClub;
-  if (access == null) return null;
+  if (access == null) return const [];
   final clubId = access.club.id;
   final groups = await ref.watch(assignmentRepositoryProvider).groups(clubId);
-  if (groups.isEmpty) return null;
-  final group = groups.first;
   final calendar = ref.watch(calendarRepositoryProvider);
-  final location = await calendar.locate(
+  final locations = await todaysLocations(
+    calendar,
     clubId,
-    group.id,
-    ref.watch(todayProvider),
+    athleteId: access.athleteId,
+    groups: groups,
+    today: ref.watch(todayProvider),
   );
-  if (location == null) return null;
-  final plan = await calendar.publishedPlan(clubId, location.planId);
+  if (locations.isEmpty) return const [];
   final exercises = await ref
       .watch(catalogRepositoryProvider)
       .exercises(clubId);
   final athletes = access.can(Accion.verReportesDeTodos)
       ? await ref.watch(athleteRepositoryProvider).athletes(clubId)
       : const [];
+  return [
+    for (final location in locations)
+      await _dayData(
+        ref,
+        clubId: clubId,
+        location: location,
+        groups: groups,
+        exerciseNames: {for (final e in exercises) e.id: e.name},
+        athleteNames: {for (final a in athletes) a.id: a.name},
+        ownAthleteId: access.athleteId,
+        userId: me!.user.id,
+      ),
+  ];
+});
+
+Future<SessionDayData> _dayData(
+  Ref ref, {
+  required String clubId,
+  required CalendarLocation location,
+  required List<AthleteGroup> groups,
+  required Map<String, String> exerciseNames,
+  required Map<String, String> athleteNames,
+  required String? ownAthleteId,
+  required String userId,
+}) async {
+  final plan = await ref
+      .watch(calendarRepositoryProvider)
+      .publishedPlan(clubId, location.planId);
   final states = await ref.read(
     cycleDayStatesProvider((
       clubId,
-      group.id,
+      location.assignmentId,
       location.startDate,
       location.cycle,
     )).future,
   );
+  // A location saved before E8.8 does not say whose it is: it was the first group's.
+  final group = location.athleteId != null
+      ? null
+      : groups.where((g) => g.id == location.groupId).firstOrNull ??
+            (location.groupId == null ? groups.firstOrNull : null);
   final dayCount = plan.weekModelOf(location.week)?.days.length ?? 0;
   return SessionDayData(
     clubId: clubId,
-    group: group,
+    memberIds: location.athleteId != null
+        ? [location.athleteId!]
+        : group?.memberIds ?? const [],
+    ownerLabel: location.athleteId != null
+        ? 'Plan propio'
+        : 'Grupo ${group?.name ?? ''}'.trim(),
     location: location,
     plan: plan,
-    exerciseNames: {for (final e in exercises) e.id: e.name},
-    athleteNames: {for (final a in athletes) a.id: a.name},
+    exerciseNames: exerciseNames,
+    athleteNames: athleteNames,
     openingDay: firstPendingDay(
       states,
       cycle: location.cycle,
       week: location.week,
       dayCount: dayCount,
     ),
-    ownAthleteId: access.athleteId,
-    userId: me!.user.id,
+    ownAthleteId: ownAthleteId,
+    userId: userId,
   );
+}
+
+/// Which of today's plans is on screen, by assignment id; null is the first one.
+class ChosenPlanController extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void choose(String assignmentId) => state = assignmentId;
+}
+
+final chosenPlanProvider = NotifierProvider<ChosenPlanController, String?>(
+  ChosenPlanController.new,
+);
+
+/// The plan of today on screen: the chosen one among [sessionDaysProvider], else the first. Null when the user has
+/// no active assignment.
+final sessionDayProvider = FutureProvider.autoDispose<SessionDayData?>((
+  ref,
+) async {
+  final days = await ref.watch(sessionDaysProvider.future);
+  final chosen = ref.watch(chosenPlanProvider);
+  return days.where((d) => d.location.assignmentId == chosen).firstOrNull ??
+      days.firstOrNull;
 });
 
 /// The screen's state: which day is chosen, its session if it exists, the athlete on screen and each athlete's
@@ -437,6 +521,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
         !ref.mounted ||
         state.live != null ||
         state.opening ||
+        _dayData?.location.assignmentId != data.location.assignmentId ||
         shownDayOf(data, state) != shown;
     if (found == null || stale()) return;
     final unsent = await ref.read(setSyncQueueProvider).resume(found.session.id);
@@ -514,6 +599,20 @@ class SessionScreenController extends Notifier<SessionScreenState> {
       day: day,
       athleteId: state.athleteId,
     );
+    unawaited(_lookUp());
+  }
+
+  /// Choosing another of today's plans (E8.8) only shows it, like choosing another day: the session on screen stops
+  /// being followed and the new plan's day is looked up. Day, tab and adjustments start over: they are the plan's.
+  void selectPlan(String assignmentId) {
+    _stopFollowing();
+    _data = ref
+        .read(sessionDaysProvider)
+        .value
+        ?.where((d) => d.location.assignmentId == assignmentId)
+        .firstOrNull;
+    state = const SessionScreenState();
+    ref.read(chosenPlanProvider.notifier).choose(assignmentId);
     unawaited(_lookUp());
   }
 
@@ -863,7 +962,7 @@ final sessionScreenProvider =
 /// The athlete tab on screen: the chosen one, else the user if they are in the group, else the group's first. Null
 /// for a group without athletes.
 String? athleteOnScreen(SessionDayData data, SessionScreenState state) {
-  final members = data.group.memberIds;
+  final members = data.memberIds;
   final chosen = state.athleteId;
   if (chosen != null && members.contains(chosen)) return chosen;
   return members.contains(data.ownAthleteId)

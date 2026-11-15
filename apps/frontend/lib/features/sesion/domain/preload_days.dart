@@ -22,7 +22,7 @@ const preloadDaysAhead = 7;
 }
 
 /// Downloads what the day's screens read, for today and the next [preloadDaysAhead] days, through repositories that
-/// keep a copy on the device (E7.15): who the user is and the active club, the group, where each date falls, the
+/// keep a copy on the device (E7.15): who the user is and the active club, the group, where each date falls in each of the user's plans, the
 /// plans, the days' states of each cycle, the catalog, the timers, the equipment, the athletes and every athlete's
 /// proposed kilos. The reads are the same the screens do, so the copy serves them as they are.
 ///
@@ -59,35 +59,50 @@ class PreloadDays {
         _try(() => athletes.athletes(clubId)),
     ];
     final groups = await _try(() => assignments.groups(clubId));
-    if (groups != null && groups.isNotEmpty) {
-      pending.add(_preloadGroup(clubId, groups.first.id, soloFecha(today)));
+    final athleteId = access.athleteId;
+    if (athleteId != null || (groups != null && groups.isNotEmpty)) {
+      pending.add(
+        _preloadDays(
+          clubId,
+          soloFecha(today),
+          // The same read the session screen does: the athlete's plans (their groups' and their own, E8.8), or the
+          // first group's for a user who is not an athlete.
+          (d) async => athleteId != null
+              ? await calendar.locateAthlete(clubId, athleteId, d)
+              : [?await calendar.locate(clubId, groups!.first.id, d)],
+        ),
+      );
     }
     await Future.wait(pending);
   }
 
-  Future<void> _preloadGroup(String clubId, String groupId, DateTime today) async {
+  Future<void> _preloadDays(
+    String clubId,
+    DateTime today,
+    Future<List<CalendarLocation>> Function(DateTime date) locate,
+  ) async {
     final dates = [
       for (var i = 0; i <= preloadDaysAhead; i++) today.add(Duration(days: i)),
     ];
     final located = await Future.wait([
-      for (final d in dates) _try(() => calendar.locate(clubId, groupId, d)),
+      for (final d in dates) _try(() => locate(d)),
     ]);
     final plans = <String>{};
-    final cycles = <(DateTime, int)>{};
+    final cycles = <(String, DateTime, int)>{};
     final byAssignment = <String, List<DateTime>>{};
     for (var i = 0; i < dates.length; i++) {
-      final l = located[i];
-      if (l == null) continue;
-      plans.add(l.planId);
-      cycles.add((l.startDate, l.cycle));
-      (byAssignment[l.assignmentId] ??= []).add(dates[i]);
+      for (final l in located[i] ?? const <CalendarLocation>[]) {
+        plans.add(l.planId);
+        cycles.add((l.assignmentId, l.startDate, l.cycle));
+        (byAssignment[l.assignmentId] ??= []).add(dates[i]);
+      }
     }
     await Future.wait([
       for (final p in plans) _try(() => calendar.publishedPlan(clubId, p)),
-      for (final (start, cycle) in cycles)
+      for (final (assignmentId, start, cycle) in cycles)
         _try(() {
           final (from, to) = cycleDates(start, cycle);
-          return calendar.dayStates(clubId, groupId, from, to);
+          return calendar.dayStates(clubId, assignmentId, from, to);
         }),
       for (final e in byAssignment.entries)
         _try(

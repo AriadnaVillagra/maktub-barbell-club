@@ -159,7 +159,7 @@ class _AthleteTabsState extends State<_AthleteTabs>
     with TickerProviderStateMixin {
   late TabController _controller = _create();
 
-  List<String> get _ids => widget.data.group.memberIds;
+  List<String> get _ids => widget.data.memberIds;
 
   int get _index => _ids.indexOf(widget.selected).clamp(0, _ids.length - 1);
 

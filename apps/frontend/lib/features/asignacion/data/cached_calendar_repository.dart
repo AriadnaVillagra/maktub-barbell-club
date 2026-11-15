@@ -32,6 +32,25 @@ class CachedCalendarRepository implements CalendarRepository {
   );
 
   @override
+  Future<List<CalendarLocation>> locateAthlete(
+    String clubId,
+    String athleteId,
+    DateTime date,
+  ) => _reads.read(
+    copyKey(['locateAthlete', clubId, athleteId, aIsoFecha(date)]),
+    () => _remote.locateAthlete(clubId, athleteId, date),
+    encode: (ls) => [for (final l in ls) locationToJson(l)],
+    decode: (d) => [
+      for (final l in d as List)
+        locationFromJson((l as Map).cast<String, dynamic>()),
+    ],
+    missing:
+        'Sin señal y sin datos guardados del ${_date(date)}: '
+        'no se precargó ni se abrió antes en este dispositivo. '
+        'Se carga cuando vuelva la señal.',
+  );
+
+  @override
   Future<PublishedPlanView> publishedPlan(String clubId, String planId) =>
       _reads.read(
         copyKey(['plan', clubId, planId]),
@@ -43,12 +62,18 @@ class CachedCalendarRepository implements CalendarRepository {
   @override
   Future<List<DayState>> dayStates(
     String clubId,
-    String groupId,
+    String assignmentId,
     DateTime from,
     DateTime to,
   ) => _reads.read(
-    copyKey(['dayStates', clubId, groupId, aIsoFecha(from), aIsoFecha(to)]),
-    () => _remote.dayStates(clubId, groupId, from, to),
+    copyKey([
+      'assignmentDays',
+      clubId,
+      assignmentId,
+      aIsoFecha(from),
+      aIsoFecha(to),
+    ]),
+    () => _remote.dayStates(clubId, assignmentId, from, to),
     encode: (ss) => [
       for (final s in ss)
         {'ciclo': s.cycle, 'semana': s.week, 'dia': s.day, 'hecho': s.done},
@@ -71,6 +96,8 @@ Json locationToJson(CalendarLocation l) => {
   'fechaInicio': aIsoFecha(l.startDate),
   'ciclo': l.cycle,
   'semana': l.week,
+  'grupoId': ?l.groupId,
+  'atletaId': ?l.athleteId,
 };
 
 CalendarLocation locationFromJson(Json j) => CalendarLocation(
@@ -79,6 +106,8 @@ CalendarLocation locationFromJson(Json j) => CalendarLocation(
   startDate: DateTime.parse('${j['fechaInicio']}'),
   cycle: (j['ciclo'] as num).toInt(),
   week: (j['semana'] as num).toInt(),
+  groupId: j['grupoId'] as String?,
+  athleteId: j['atletaId'] as String?,
 );
 
 Json planToJson(PublishedPlanView p) => {

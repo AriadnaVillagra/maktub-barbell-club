@@ -13,13 +13,8 @@ const _two = [PlanSet(reps: 5, pct: 80), PlanSet(reps: 5, pct: 80)];
 
 final _data = SessionDayData(
   clubId: 'c1',
-  group: AthleteGroup(
-    id: 'g1',
-    clubId: 'c1',
-    name: 'Barra',
-    memberIds: const ['ari', 'andi'],
-    auditoria: Auditoria(creadoPor: 'u1', creadoEn: DateTime.utc(2026)),
-  ),
+  memberIds: const ['ari', 'andi'],
+  ownerLabel: 'Grupo Barra',
   location: CalendarLocation(
     assignmentId: 'a1',
     planId: 'p1',

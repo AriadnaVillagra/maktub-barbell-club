@@ -149,6 +149,13 @@ class _Calendar implements CalendarRepository {
   }
 
   @override
+  Future<List<CalendarLocation>> locateAthlete(
+    String clubId,
+    String athleteId,
+    DateTime date,
+  ) async => [?await locate(clubId, 'g1', date)];
+
+  @override
   Future<PublishedPlanView> publishedPlan(String clubId, String planId) async =>
       _served;
 

@@ -6,7 +6,7 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../asignacion/presentation/assign_plan_dialog.dart';
 import '../../asignacion/presentation/providers.dart'
-    show assignPlan, assignmentTodayProvider, fetchGroupAssignments;
+    show assignPlan, assignmentTodayProvider, fetchClubAssignments;
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
     show asyncView, showApiError, showNotice;
 import '../domain/plan_repository.dart';
@@ -44,41 +44,41 @@ class _PlansPageState extends ConsumerState<PlansPage> {
     }
   }
 
-  /// Quick way to assign [plan] to the club's group, without going through Asignaciones.
+  /// Quick way to assign [plan] to a group or an athlete without an active plan, without going through Asignaciones.
   Future<void> _assign(
     BuildContext context,
     WidgetRef ref,
     PlanSummary plan,
   ) async {
     try {
-      final data = await fetchGroupAssignments(ref);
+      final data = await fetchClubAssignments(ref);
       if (!context.mounted) return;
-      final group = data.group;
-      if (group == null) {
+      if (data.owners.isEmpty) {
         showNotice(context, 'Todavía no hay un grupo en el club.');
         return;
       }
-      if (data.active != null) {
+      if (data.free.isEmpty) {
         showNotice(
           context,
-          'El grupo ya tiene un plan en curso. Terminalo en Asignaciones para asignar otro.',
+          'Todos ya tienen un plan en curso. Terminá uno en Asignaciones para asignar otro.',
         );
         return;
       }
       final choice = await askAssignment(
         context,
         plans: [plan],
+        owners: data.free,
         today: ref.read(assignmentTodayProvider),
       );
       if (choice == null || !context.mounted) return;
       await assignPlan(
         ref,
         planId: choice.planId,
-        groupId: group.id,
+        owner: choice.owner,
         startDate: choice.startDate,
       );
       if (context.mounted) {
-        showNotice(context, '"${plan.name}" asignado a ${group.name}.');
+        showNotice(context, '"${plan.name}" asignado a ${choice.owner.name}.');
       }
     } catch (e) {
       if (context.mounted) showApiError(context, e);

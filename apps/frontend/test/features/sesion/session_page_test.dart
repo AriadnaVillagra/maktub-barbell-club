@@ -54,9 +54,16 @@ class _FakeGroups implements AssignmentRepository {
 
 /// Locates dates with the same rule the backend uses.
 class _FakeCalendar implements CalendarRepository {
-  _FakeCalendar({this.hasAssignment = true, this.done = const {}});
+  _FakeCalendar({
+    this.hasAssignment = true,
+    this.done = const {},
+    this.ownPlan = false,
+  });
 
   final bool hasAssignment;
+
+  /// Whether the athlete also has a plan of their own today, Levantamiento from [_today] (E8.8).
+  final bool ownPlan;
 
   /// The 1-based days of the week of the queried date with sets recorded.
   final Set<int> done;
@@ -83,8 +90,26 @@ class _FakeCalendar implements CalendarRepository {
   }
 
   @override
+  Future<List<CalendarLocation>> locateAthlete(
+    String clubId,
+    String athleteId,
+    DateTime date,
+  ) async => [
+    ?await locate(clubId, 'g1', date),
+    if (ownPlan)
+      CalendarLocation(
+        assignmentId: 'own',
+        planId: 'lev',
+        startDate: _today,
+        cycle: 1,
+        week: 1,
+        athleteId: athleteId,
+      ),
+  ];
+
+  @override
   Future<PublishedPlanView> publishedPlan(String clubId, String planId) async =>
-      _plan;
+      planId == 'lev' ? _levantamiento : _plan;
 
   @override
   Future<List<DayState>> dayStates(
@@ -128,6 +153,7 @@ class _FakeSessions implements SessionRepository {
   final double? factor;
   final queries = <(String, AthleteAdjustments)>[];
   Set<String>? openedPresent;
+  String? openedAssignment;
   int? openedDay;
   int? openedWeek;
 
@@ -169,6 +195,7 @@ class _FakeSessions implements SessionRepository {
     finds++;
     final live = existing;
     return live != null &&
+            live.session.assignmentId == assignmentId &&
             live.session.week == week &&
             live.session.day == day
         ? live
@@ -210,12 +237,14 @@ class _FakeSessions implements SessionRepository {
     required Set<String> presentAthleteIds,
   }) async {
     openedPresent = presentAthleteIds;
+    openedAssignment = assignmentId;
     openedDay = day;
     openedWeek = week;
     openings.add(presentAthleteIds);
     final before = existing;
     final same =
         before != null &&
+        before.session.assignmentId == assignmentId &&
         before.session.week == week &&
         before.session.day == day;
     // Like the server: present athletes add up, and what was recorded stays.
@@ -413,6 +442,34 @@ final _plan = PublishedPlanView(
   ],
 );
 
+final _levantamiento = PublishedPlanView(
+  id: 'lev',
+  name: 'Levantamiento',
+  type: PlanType.regular,
+  publishedAt: DateTime.utc(2026, 11, 1),
+  weekAssignment: const ['L', 'L', 'L', 'L'],
+  weekModels: const [
+    WeekModel(
+      id: 'L',
+      name: 'Técnica',
+      days: [
+        PlanDay(
+          name: 'Arranque',
+          blocks: [
+            PlanBlock(
+              name: 'Principal',
+              categoryId: 'primario',
+              prescriptions: [
+                Prescription(exerciseId: 'sq', sets: [PlanSet(reps: 3)]),
+              ],
+            ),
+          ],
+        ),
+      ],
+    ),
+  ],
+);
+
 Future<void> _pump(
   WidgetTester tester,
   _FakeSessions sessions, {
@@ -561,6 +618,65 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Día 1 · Empuje A'), findsOneWidget);
+  });
+
+  group("an athlete's own plan next to the group's (E8.8)", () {
+    testWidgets('with one plan there is nothing to choose', (tester) async {
+      await _pump(tester, _FakeSessions());
+      expect(find.byKey(const Key('session-plans')), findsNothing);
+    });
+
+    testWidgets('both show by name; in the own plan the only tab is the '
+        'athlete, and marking creates its session with them', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions, calendar: _FakeCalendar(ownPlan: true));
+
+      expect(find.byKey(const Key('session-plan-a1')), findsOneWidget);
+      expect(find.byKey(const Key('session-plan-own')), findsOneWidget);
+      expect(find.text('Plan propio'), findsOneWidget);
+      expect(find.text('Grupo Barra'), findsOneWidget);
+      // The group's plan comes first.
+      expect(find.text('Fuerza · ciclo 3 · semana 4'), findsOneWidget);
+      expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
+
+      await tester.tap(find.byKey(const Key('session-plan-own')));
+      await tester.pumpAndSettle();
+      expect(find.text('Levantamiento · ciclo 1 · semana 1'), findsOneWidget);
+      expect(find.text('Día 1 · Arranque'), findsOneWidget);
+      expect(_tabs(tester), ['Ari']);
+      expect(sessions.openings, isEmpty);
+
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+      await tester.pumpAndSettle();
+      expect(sessions.openedAssignment, 'own');
+      expect(sessions.openings, [
+        {'ari'},
+      ]);
+      expect((sessions.openedWeek, sessions.openedDay), (1, 1));
+      expect(sessions.writes.single.athleteId, 'ari');
+    });
+
+    testWidgets("going back to the group's plan shows its day and writes to "
+        'its session', (tester) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions, calendar: _FakeCalendar(ownPlan: true));
+      await tester.tap(find.byKey(const Key('session-plan-own')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('session-plan-a1')));
+      await tester.pumpAndSettle();
+      expect(find.text('Fuerza · ciclo 3 · semana 4'), findsOneWidget);
+      expect(_tabs(tester), ['Ari', 'Andi', 'Luz']);
+      await tester.tap(find.byKey(const Key('session-athlete-andi')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('session-check-0-0-0')));
+      await tester.pumpAndSettle();
+      expect(sessions.openedAssignment, 'a1');
+      expect(sessions.openings.last, {'andi'});
+      expect((sessions.openedWeek, sessions.openedDay), (4, 1));
+    });
   });
 
   group('the athlete tabs and the session born with the first write (E7.27)', () {

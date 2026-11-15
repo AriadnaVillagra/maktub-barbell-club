@@ -340,7 +340,7 @@ class _Athletes extends ConsumerWidget {
           spacing: Espacio.s,
           runSpacing: Espacio.s,
           children: [
-            for (final id in data.group.memberIds)
+            for (final id in data.memberIds)
               PildoraMaktub(
                 key: Key('guided-athlete-$id'),
                 texto: athleteLabel(data, id),

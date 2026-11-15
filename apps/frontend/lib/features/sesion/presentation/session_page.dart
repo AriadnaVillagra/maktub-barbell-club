@@ -86,6 +86,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                 onSelectionChanged: (v) => setState(() => _view = v.first),
               ),
             ),
+            if (data != null) _PlanPicker(current: data),
             Expanded(
               child: data == null
                   ? _NoAssignment(assignmentsPath: widget.assignmentsPath)
@@ -105,6 +106,44 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                       ),
                     },
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Today's plans when there is more than one (E8.8: an athlete's own plan alongside their group's), each by its
+/// name and whose it is. Choosing one shows its session and calendar.
+class _PlanPicker extends ConsumerWidget {
+  const _PlanPicker({required this.current});
+
+  final SessionDayData current;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final days = ref.watch(sessionDaysProvider).value ?? const [];
+    if (days.length < 2) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Espacio.l, Espacio.m, Espacio.l, 0),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Wrap(
+          key: const Key('session-plans'),
+          spacing: Espacio.s,
+          runSpacing: Espacio.s,
+          children: [
+            for (final d in days)
+              PildoraMaktub(
+                key: Key('session-plan-${d.location.assignmentId}'),
+                texto: d.plan.name,
+                detalle: d.ownerLabel,
+                seleccionada:
+                    d.location.assignmentId == current.location.assignmentId,
+                onTap: () => ref
+                    .read(sessionScreenProvider.notifier)
+                    .selectPlan(d.location.assignmentId),
+              ),
           ],
         ),
       ),
@@ -281,7 +320,7 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
               label: const Text('Entrenar'),
             ),
           ],
-          if (data.group.memberIds.isEmpty)
+          if (data.memberIds.isEmpty)
             for (final block in planDay.blocks)
               _BlockPreview(block: block, names: data.exerciseNames)
           else
@@ -323,7 +362,7 @@ String athleteLabel(SessionDayData data, String id) {
   final name = data.athleteNames[id];
   if (name != null) return name;
   if (id == data.ownAthleteId) return 'Yo';
-  return 'Atleta ${data.group.memberIds.indexOf(id) + 1}';
+  return 'Atleta ${data.memberIds.indexOf(id) + 1}';
 }
 
 /// "Sin señal": says the screen shows the data saved on the device, and from when (E7.15). Nothing while reads reach

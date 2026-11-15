@@ -14,7 +14,7 @@ List<DayState> watchDayStates(WidgetRef ref, SessionDayData data) =>
         .watch(
           cycleDayStatesProvider((
             data.clubId,
-            data.group.id,
+            data.location.assignmentId,
             data.location.startDate,
             data.location.cycle,
           )),
