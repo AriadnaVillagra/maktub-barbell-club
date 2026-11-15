@@ -51,10 +51,30 @@ class _SessionPageState extends ConsumerState<SessionPage> {
     final data = ref.watch(sessionDayProvider);
     // The calendar view picks a day for the session view, so the screen's state must outlive the session view.
     ref.listen(sessionScreenProvider, (_, _) {});
+    // "Entrenar" sits next to the timer (Ari), while the chosen day has something to do.
+    final day = data.value;
+    final path = widget.guidedPath;
+    var canTrain = false;
+    if (day != null && path != null) {
+      final (:week, day: dayNumber) = shownDayOf(
+        day,
+        ref.watch(sessionScreenProvider),
+      );
+      canTrain = planDayOf(day, week, dayNumber) != null;
+    }
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sesión'),
-        actions: const [SessionTimerButton()],
+        actions: [
+          if (canTrain)
+            FilledButton.icon(
+              key: const Key('session-train'),
+              onPressed: () => context.push(path!),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Entrenar'),
+            ),
+          const SessionTimerButton(),
+        ],
       ),
       body: asyncView(
         data,
@@ -247,40 +267,39 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                   key: const Key('session-location'),
                   style: context.textos.titleMedium,
                 ),
-                subtitle: _picking
-                    ? null
-                    : Padding(
-                        padding: const EdgeInsets.only(top: Espacio.xs),
-                        child: Wrap(
-                          key: const Key('session-day-summary'),
-                          spacing: Espacio.xs,
-                          runSpacing: Espacio.xs,
-                          children: [
-                            InsigniaMaktub(
-                              [
-                                'S$week',
-                                ?plan.weekModelOf(week)?.name,
-                              ].join(' '),
-                              context.colores.insigniaBase,
-                            ),
-                            if (dayCount > 0) ...[
-                              InsigniaMaktub(
-                                'Día $day',
-                                context.colores.insigniaBase,
-                              ),
-                              isDayDone(dayStates, data, week, day)
-                                  ? InsigniaMaktub(
-                                      'Hecho',
-                                      context.colores.exitoContenedor,
-                                    )
-                                  : InsigniaMaktub(
-                                      'Pendiente',
-                                      context.colores.insigniaPropio,
-                                    ),
-                            ],
-                          ],
-                        ),
+                // Always there: after choosing a week the chosen day shows here too.
+                subtitle: Padding(
+                  padding: const EdgeInsets.only(top: Espacio.xs),
+                  child: Wrap(
+                    key: const Key('session-day-summary'),
+                    spacing: Espacio.xs,
+                    runSpacing: Espacio.xs,
+                    children: [
+                      InsigniaMaktub(
+                        ['S$week', ?plan.weekModelOf(week)?.name].join(' '),
+                        context.colores.insigniaBase,
                       ),
+                      if (dayCount > 0) ...[
+                        InsigniaMaktub(
+                          planDay?.name == null || planDay!.name!.isEmpty
+                              ? 'Día $day'
+                              : 'Día $day · ${planDay.name}',
+                          context.colores.insigniaBase,
+                          key: const Key('session-day-title'),
+                        ),
+                        isDayDone(dayStates, data, week, day)
+                            ? InsigniaMaktub(
+                                'Hecho',
+                                context.colores.exitoContenedor,
+                              )
+                            : InsigniaMaktub(
+                                'Pendiente',
+                                context.colores.insigniaPropio,
+                              ),
+                      ],
+                    ],
+                  ),
+                ),
                 trailing: Icon(
                   _picking ? Icons.expand_less : Icons.expand_more,
                 ),
@@ -348,14 +367,8 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
           ),
         ),
         if (planDay != null) ...[
-          const SizedBox(height: Espacio.l),
-          Text(
-            planDay.name == null || planDay.name!.isEmpty
-                ? 'Día $day'
-                : 'Día $day · ${planDay.name}',
-            key: const Key('session-day-title'),
-            style: context.textos.titleLarge,
-          ),
+          // The day's name is in the picker's summary (Ari: a title here repeated it).
+          const SizedBox(height: Espacio.s),
           if (live != null && isLocalSessionId(live.session.id)) ...[
             const SizedBox(height: Espacio.s),
             Align(
@@ -379,15 +392,6 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                 key: const Key('session-live-connecting'),
                 icono: Icons.sync,
               ),
-            ),
-          ],
-          if (widget.guidedPath case final path?) ...[
-            const SizedBox(height: Espacio.m),
-            FilledButton.icon(
-              key: const Key('session-train'),
-              onPressed: () => context.push(path),
-              icon: const Icon(Icons.play_arrow),
-              label: const Text('Entrenar'),
             ),
           ],
           if (data.memberIds.isEmpty)

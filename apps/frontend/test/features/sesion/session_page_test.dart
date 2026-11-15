@@ -605,18 +605,17 @@ void main() {
     expect(find.byKey(const Key('session-week-1')), findsNothing);
     final summary = find.byKey(const Key('session-day-summary'));
     expect(
-      find.descendant(of: summary, matching: find.text('Día 1')),
+      find.descendant(of: summary, matching: find.text('Día 1 · Piernas')),
       findsOneWidget,
     );
 
     await _openDayPicker(tester);
-    expect(summary, findsNothing);
     await tester.tap(find.byKey(const Key('session-day-3')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('session-week-1')), findsNothing);
     expect(
-      find.descendant(of: summary, matching: find.text('Día 3')),
+      find.descendant(of: summary, matching: find.text('Día 3 · Tirón')),
       findsOneWidget,
     );
   });
