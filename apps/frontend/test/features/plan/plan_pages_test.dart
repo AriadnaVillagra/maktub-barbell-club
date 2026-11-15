@@ -814,7 +814,25 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(name));
       await tester.pumpAndSettle();
+      // The sets dialog opens right away with the defaults.
+      await tester.tap(find.byKey(const Key('prescription-ok')));
+      await tester.pumpAndSettle();
     }
+
+    testWidgets('picking an exercise opens its sets; cancelling adds nothing', (
+      tester,
+    ) async {
+      await open(tester, 'primario');
+      await tester.tap(find.byKey(const Key('prescription-add-a-0-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sentadilla'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('prescription-ok')), findsOneWidget);
+
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
+    });
 
     testWidgets('the picker only offers exercises of the block category', (
       tester,

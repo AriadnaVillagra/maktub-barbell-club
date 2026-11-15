@@ -701,11 +701,12 @@ class _BlockTile extends ConsumerWidget {
     );
     if (exercise == null) return;
     final timers = await ref.read(clubTimersProvider.future);
-    editor.addPrescription(
-      modelId,
-      day,
-      index,
-      defaultPrescription(
+    if (!context.mounted) return;
+    // The sets are set right away (Ari: picking the exercise and then tapping it again was not
+    // intuitive), starting from the defaults. Cancelling adds nothing.
+    final prescription = await askPrescription(
+      context,
+      initial: defaultPrescription(
         exercise,
         categoryId: block.categoryId,
         activeTimerIds: [
@@ -713,7 +714,10 @@ class _BlockTile extends ConsumerWidget {
             if (t.estado == CatalogStatus.active) t.id,
         ],
       ),
+      exercise: exercise,
     );
+    if (prescription == null) return;
+    editor.addPrescription(modelId, day, index, prescription);
   }
 
   /// Copies a WoD of the library into this block (timer, note and exercises with their sets).
