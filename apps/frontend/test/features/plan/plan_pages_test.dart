@@ -611,10 +611,7 @@ void main() {
       for (var i = 0; i < 5; i++) {
         expect(find.byKey(Key('block-a-0-$i')), findsOneWidget);
       }
-      expect(
-        find.text('Principal · Temporizador: Descanso 90'),
-        findsOneWidget,
-      );
+      expect(find.text('Temporizador: Descanso 90'), findsOneWidget);
       expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('block-add-a-0')));
@@ -741,10 +738,7 @@ void main() {
       await tester.tap(find.byKey(const Key('block-ok')));
       await tester.pumpAndSettle();
       expect(find.text('Uno bis'), findsOneWidget);
-      expect(
-        find.text('Principal · Temporizador: Descanso 90'),
-        findsOneWidget,
-      );
+      expect(find.text('Temporizador: Descanso 90'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('block-remove-a-0-1')));
       await tester.pump();

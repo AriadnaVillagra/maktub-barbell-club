@@ -453,17 +453,20 @@ class _ModelCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: Espacio.s),
-                TextButton.icon(
-                  key: Key('day-add-$id'),
-                  icon: const Icon(Icons.add),
-                  label: Text(
-                    draft.canAddDay(id)
-                        ? 'Agregar día'
-                        : 'Máximo $maxDaysPerWeek días',
+                Flexible(
+                  child: TextButton.icon(
+                    key: Key('day-add-$id'),
+                    icon: const Icon(Icons.add),
+                    label: Text(
+                      draft.canAddDay(id)
+                          ? 'Agregar día'
+                          : 'Máximo $maxDaysPerWeek días',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: draft.canAddDay(id)
+                        ? () => editor.addDay(id)
+                        : null,
                   ),
-                  onPressed: draft.canAddDay(id)
-                      ? () => editor.addDay(id)
-                      : null,
                 ),
                 const Spacer(),
                 IconButton(
@@ -771,10 +774,12 @@ class _BlockTile extends ConsumerWidget {
       return id;
     }
 
-    final details = [
-      categoryName ?? 'Sin categoría',
-      if (block.timerId != null) 'Temporizador: ${timerName ?? block.timerId}',
-    ].join(' · ');
+    // The category is not repeated under the name (Ari: it usually is the name); only the timer and
+    // the note, when there are.
+    final narrow = MediaQuery.sizeOf(context).width < 600;
+    final details = block.timerId == null
+        ? null
+        : 'Temporizador: ${timerName ?? block.timerId}';
     final tile = ListTile(
       contentPadding: EdgeInsets.zero,
       leading: ReorderableDragStartListener(
@@ -786,13 +791,14 @@ class _BlockTile extends ConsumerWidget {
         ),
       ),
       title: Text(block.name),
-      subtitle: block.note == null
-          ? Text(details)
+      subtitle: details == null && block.note == null
+          ? null
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(details),
-                Text(block.note!, key: Key('block-note-$keyPrefix-$index')),
+                if (details != null) Text(details),
+                if (block.note != null)
+                  Text(block.note!, key: Key('block-note-$keyPrefix-$index')),
               ],
             ),
       onTap: () async {
@@ -815,7 +821,33 @@ class _BlockTile extends ConsumerWidget {
       },
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
+        spacing: Espacio.s,
         children: [
+          // The athlete mode (simultaneous or by turns) is chosen live in the guided mode, not here; the
+          // block keeps the one it has.
+          if (block.categoryId != wodCategoryId)
+            SegmentedButton<ExecutionMode>(
+              key: Key('block-execution-$keyPrefix-$index'),
+              showSelectedIcon: false,
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              // On a phone only the icons fit next to the name; the tooltip says which is which.
+              segments: [
+                ButtonSegment(
+                  value: ExecutionMode.sequential,
+                  icon: narrow ? const Icon(Icons.format_list_numbered) : null,
+                  tooltip: narrow ? 'Secuencial' : null,
+                  label: narrow ? null : const Text('Secuencial'),
+                ),
+                ButtonSegment(
+                  value: ExecutionMode.circuit,
+                  icon: narrow ? const Icon(Icons.repeat) : null,
+                  tooltip: narrow ? 'Circuito' : null,
+                  label: narrow ? null : const Text('Circuito'),
+                ),
+              ],
+              selected: {block.executionMode},
+              onSelectionChanged: (s) => _setModes(execution: s.first),
+            ),
           IconButton(
             key: Key('block-remove-$keyPrefix-$index'),
             icon: const Icon(Icons.delete_outline),
@@ -834,26 +866,6 @@ class _BlockTile extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // The athlete mode (simultaneous or by turns) is chosen live in the guided mode, not here; the
-              // block keeps the one it has.
-              if (block.categoryId != wodCategoryId) ...[
-                SegmentedButton<ExecutionMode>(
-                  key: Key('block-execution-$keyPrefix-$index'),
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(
-                      value: ExecutionMode.sequential,
-                      label: Text('Secuencial'),
-                    ),
-                    ButtonSegment(
-                      value: ExecutionMode.circuit,
-                      label: Text('Circuito'),
-                    ),
-                  ],
-                  selected: {block.executionMode},
-                  onSelectionChanged: (s) => _setModes(execution: s.first),
-                ),
-              ],
               for (final (p, prescription) in block.prescriptions.indexed) ...[
                 if (p > 0) const Divider(),
                 RevealOnAdd(

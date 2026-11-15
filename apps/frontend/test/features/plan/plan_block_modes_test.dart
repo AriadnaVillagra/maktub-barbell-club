@@ -76,6 +76,19 @@ void main() {
     },
   );
 
+  testWidgets('on a phone the mode sits next to the name without overflow', (
+    tester,
+  ) async {
+    await open(
+      tester,
+      const PlanBlock(name: 'Estiramiento largo', categoryId: 'primario'),
+    );
+    tester.view.physicalSize = const Size(360, 3000);
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    expect(find.byKey(const Key('block-execution-a-0-0')), findsOneWidget);
+  });
+
   testWidgets('a wod block does not show the mode controls', (tester) async {
     await open(tester, const PlanBlock(name: 'WoD', categoryId: 'wod'));
     expect(find.byKey(const Key('block-execution-a-0-0')), findsNothing);
