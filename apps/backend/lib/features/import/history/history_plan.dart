@@ -3,12 +3,9 @@ import 'dart:convert';
 import 'package:maktub_backend/features/import/history/history_sheets.dart';
 import 'package:maktub_backend/features/import/import_report.dart';
 import 'package:maktub_backend/features/import/import_run.dart';
+import 'package:maktub_backend/features/import/plans/historic_plans.dart';
 import 'package:maktub_backend/features/import/plans/plan_import_plan.dart';
 import 'package:maktub_core/maktub_core.dart';
-
-/// The sheet id of the plan that Registro gives to the rows the old app loaded from the planning spreadsheet
-/// (`reference/importar.py`). It is not a row of Planes.
-const legacyHistoryPlan = 'historico';
 
 /// What the earlier steps resolve for the history: the E8.2 catalog, the E8.3 athletes and the E8.4 plans.
 class HistorySources {
@@ -215,10 +212,12 @@ class _Skip implements Exception {
 /// Resolves Registro and Tiempos against the club and decides what to write (pure, no I/O):
 ///
 /// - **Session.** Each (date, plan, cycle, week, day) of the sheet is one session of the assignment of the plan
-///   imported in E8.4 that covers that date (any status: history includes ended ones). Never invents a plan or an
-///   assignment: a row whose plan is not in Planes (the old `historico` rows), is still a draft (record-a-set uses
-///   the published version), or has no assignment covering the date is reported. The cycle the assignment gives
-///   the date must be the sheet's, and the week's model must be the row's `modelo`.
+///   imported in E8.4 that covers that date (any status: history includes ended ones). A `historico` row goes to
+///   the plan of its month ([historicPlans]), at the position that plan gave it, and its session stays in cycle 1
+///   of that plan. Never invents a plan or an assignment: a row whose plan is not in Planes, is still a draft
+///   (record-a-set uses the published version), or has no assignment covering the date is reported. For a plan of
+///   Planes the cycle the assignment gives the date must be the sheet's; for every row the week's model must be
+///   the row's `modelo`.
 /// - **Set.** The row is located with [PlanImportPlan.locate] (plan, `modelo`, day, block, `grupo`, `orden`,
 ///   exercise) and `serie`, and checked against the published plan. The kilos are the sheet's, as typed kilos
 ///   (`kilosManual`): both percents follow from them and the RM the athlete had that day (E8.3). The target is the
@@ -282,26 +281,41 @@ HistoryPlan planHistoryImport(
   final firstSets = <String, (PlannedSession, PlannedSet)>{};
   final byPosition = <String, (PlannedSession, PlannedSet)>{};
   final repsFromPlan = <int>[];
+  final historicCycles = <String, Set<int>>{};
   for (final row in sheets.records) {
     try {
-      final s = session(row.session);
-      final weekModel = planDay(s).published.weekModelOf(s.week);
-      if (weekModel?.id != row.variant) {
-        throw _Skip(
-          'la semana ${s.week} del plan es el modelo "${weekModel?.id ?? '-'}" y la fila dice "${row.variant}"',
+      // A `historico` row goes to its month's plan, at the position that plan gave it.
+      var key = row.session;
+      var (variant, block, group, order) = (row.variant, row.block, row.group, row.order);
+      if (row.session.plan == legacyHistoryPlan) {
+        final position = sources.plans.historic.positions[row.line];
+        if (position == null) throw const _Skip('la fila "historico" no quedó en ningún plan del mes');
+        key = SheetSessionKey(
+          date: key.date,
+          plan: historicPlanId(key.date),
+          cycle: key.cycle,
+          week: key.week,
+          day: key.day,
         );
+        (variant, block, group, order) = (position.variant, position.block, '', position.order);
+        historicCycles.putIfAbsent(key.plan, () => {}).add(key.cycle);
+      }
+      final s = session(key);
+      final weekModel = planDay(s).published.weekModelOf(s.week);
+      if (weekModel?.id != variant) {
+        throw _Skip('la semana ${s.week} del plan es el modelo "${weekModel?.id ?? '-'}" y la fila dice "$variant"');
       }
       final athleteId = athleteOf(s, row.athlete, row.athlete);
       s.present.add(athleteId);
       final exerciseId = sources.exerciseIdFor(row.exercise);
       if (exerciseId == null) throw _Skip('el ejercicio "${row.exercise}" no está en el catálogo');
       final location = sources.plans.locate(
-        sheetPlanId: row.session.plan,
-        variant: row.variant,
-        day: row.session.day,
-        block: row.block,
-        group: row.group,
-        order: row.order,
+        sheetPlanId: key.plan,
+        variant: variant,
+        day: key.day,
+        block: block,
+        group: group,
+        order: order,
         exercise: row.exercise,
       );
       if (location == null) {
@@ -471,6 +485,15 @@ HistoryPlan planHistoryImport(
     }
   }
 
+  for (final MapEntry(key: plan, value: cycles) in historicCycles.entries) {
+    final others = cycles.where((c) => c != 1).toList()..sort();
+    if (others.isNotEmpty) {
+      report.notes.add(
+        'Registro: el plan $plan tiene filas de ciclo ${others.join(', ')} (archivos de varios meses: el plan se '
+        'repetía); acá cada mes es su propio plan y sus sesiones quedan en el ciclo 1.',
+      );
+    }
+  }
   if (repsFromPlan.isNotEmpty) {
     report.notes.add(
       'Registro: ${repsFromPlan.length} series sin reps anotadas quedan con las del plan (líneas '
@@ -537,7 +560,7 @@ PlannedSession _resolveSession(
   }
   final assignment = covering.single;
   final cycle = UbicacionEnCiclo.desdeFechas(inicio: assignment.startDate, fecha: key.date).ciclo;
-  if (cycle != key.cycle) {
+  if (cycle != key.cycle && historicMonth(key.plan) == null) {
     throw _Skip(
       'la asignación del plan "${plan.name}" (inicio ${aIsoFecha(assignment.startDate)}) pone la fecha en el '
       'ciclo $cycle y la planilla dice ${key.cycle}',

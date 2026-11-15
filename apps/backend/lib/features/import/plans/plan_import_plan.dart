@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:maktub_backend/features/import/catalog/catalog_sheets.dart';
 import 'package:maktub_backend/features/import/import_report.dart';
 import 'package:maktub_backend/features/import/import_run.dart';
+import 'package:maktub_backend/features/import/plans/historic_plans.dart';
 import 'package:maktub_backend/features/import/plans/plan_sheets.dart';
+import 'package:maktub_backend/features/plan/publicar/publicar.dart';
 import 'package:maktub_core/maktub_core.dart';
 
 /// The block kinds of the old app's days (`reference/DISENO.md`, "El modelo"), as they appear in the
@@ -73,10 +75,13 @@ class PlanLocation {
 
 /// A plan as the sheets describe it, ready to be saved.
 class ImportedPlan {
-  const ImportedPlan({required this.sheetId, required this.plan, required this.problems});
+  const ImportedPlan({required this.sheetId, required this.plan, required this.problems, this.history = false});
 
   final String sheetId;
   final Plan plan;
+
+  /// Published in history mode ([SheetPlan.history]).
+  final bool history;
 
   /// What stops it from being published (`validatePlan`). Empty: it is published.
   final List<PlanProblem> problems;
@@ -100,6 +105,13 @@ class PlanImportPlan {
   /// Plans already saved exactly like the sheet but never published (a run cut between saving and
   /// publishing): published now.
   final toPublish = <String>[];
+
+  /// The plans built from Registro, published in history mode.
+  final historyPlanIds = <String>{};
+
+  /// The plans built from the `historico` rows of Registro ([historicPlans]): where each row went and who
+  /// recorded in each plan. Filled by [PlanImport.plan].
+  HistoricPlans historic = HistoricPlans();
   final _exact = <String, PlanLocation>{};
   final _byExercise = <String, PlanLocation>{};
   final _planIds = <String, String>{};
@@ -202,10 +214,12 @@ PlanImportPlan planPlanImport(
     report.notes.addAll(built.notes);
     final plan = built.plan;
     final label = 'plan "${plan.name}" (${sheetPlan.id})';
-    report.notes.add(
-      '$label: activo=${sheetPlan.active ? 'sí' : 'no'}, inicio=${sheetPlan.start ?? '-'}: no se importan; '
-      'asignarlo a un grupo y su fecha de inicio es de E6 (a mano).',
-    );
+    if (!sheetPlan.history) {
+      report.notes.add(
+        '$label: activo=${sheetPlan.active ? 'sí' : 'no'}, inicio=${sheetPlan.start ?? '-'}: no se importan; '
+        'la asignación sale de plans.assignments (paso asignaciones).',
+      );
+    }
 
     final missing = out.missingPct[sheetPlan.id] ?? const [];
     if (missing.isNotEmpty) {
@@ -223,8 +237,24 @@ PlanImportPlan planPlanImport(
               'serie ${r.set} (reps ${r.reps ?? '-'}${r.rpe == null ? '' : ', rpe ${r.rpe}'})'].join('; ')}.',
       );
     }
-    final problems = validatePlan(plan, exerciseById: (id) => catalog.exercises[id]);
-    final imported = ImportedPlan(sheetId: sheetPlan.id, plan: plan, problems: problems);
+    final all = validatePlan(plan, exerciseById: (id) => catalog.exercises[id]);
+    final problems = sheetPlan.history
+        ? [
+            for (final p in all)
+              if (!historyPublishAccepts.contains(p.code)) p,
+          ]
+        : all;
+    if (sheetPlan.history) {
+      out.historyPlanIds.add(plan.id);
+      final accepted = all.length - problems.length;
+      if (accepted > 0) {
+        report.notes.add(
+          '$label: plan armado con lo que registró Registro; $accepted series sin % o sin reps (la planilla '
+          'nunca los tuvo) se aceptan al publicar en modo historial.',
+        );
+      }
+    }
+    final imported = ImportedPlan(sheetId: sheetPlan.id, plan: plan, problems: problems, history: sheetPlan.history);
     if (problems.isNotEmpty) {
       report.notes.add(
         '$label queda en borrador: no se puede publicar (${problems.length} problemas): '
@@ -395,7 +425,7 @@ class _PlanBuilder {
         WeekModel(
           id: m.id,
           name: m.name,
-          days: [for (var i = 0; i < sheet.days.length; i++) _day(m.id, i, sheet.days[i])],
+          days: _trimmed([for (var i = 0; i < sheet.days.length; i++) _day(m.id, i, sheet.days[i])]),
         ),
     ];
     final plan = Plan(
@@ -440,6 +470,16 @@ class _PlanBuilder {
     );
   }
 
+  /// A history plan's week keeps only the days it has: its trailing days without blocks are dropped.
+  List<PlanDay> _trimmed(List<PlanDay> days) {
+    if (!sheet.history) return days;
+    var n = days.length;
+    while (n > 0 && days[n - 1].blocks.isEmpty) {
+      n--;
+    }
+    return days.sublist(0, n);
+  }
+
   PlanDay _day(String variant, int dayIndex, SheetDay day) {
     final dayRows = sheet.rows.where((r) => r.day == day.day).toList();
     final rows = dayRows.where((r) => r.variant == variant).toList();
@@ -471,6 +511,8 @@ class _PlanBuilder {
     ]) {
       final items = dayRows.any((r) => r.block == kind)
           ? _items(rows.where((r) => r.block == kind))
+          : sheet.history
+          ? <_Item>[]
           : [for (final id in _list(kind, list, day)) _Item('', 0, id)];
       final resolved = _resolved(items);
       add(PlanBlock(name: name, categoryId: kind, prescriptions: _prescriptions(resolved)), resolved, kind);
@@ -609,7 +651,7 @@ class _PlanBuilder {
   Prescription _prescription(_Item item) {
     final exerciseId = catalog.exerciseIdFor(item.exercise)!;
     final metrics = catalog.exercises[exerciseId]?.metrics ?? const [];
-    if (metrics.contains(Metric.loadPctRm)) {
+    if (metrics.contains(Metric.loadPctRm) && !sheet.history) {
       out.missingPct.putIfAbsent(sheet.id, () => []).addAll(item.rows.where((r) => r.pct == null));
     }
     final inSeconds = metrics.contains(Metric.time) && !metrics.contains(Metric.reps);

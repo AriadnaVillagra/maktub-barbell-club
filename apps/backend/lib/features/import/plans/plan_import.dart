@@ -1,8 +1,10 @@
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_import.dart';
 import 'package:maktub_backend/features/import/catalog/catalog_sheets.dart';
+import 'package:maktub_backend/features/import/history/history_sheets.dart';
 import 'package:maktub_backend/features/import/import_report.dart';
 import 'package:maktub_backend/features/import/import_run.dart';
+import 'package:maktub_backend/features/import/plans/historic_plans.dart';
 import 'package:maktub_backend/features/import/plans/plan_import_plan.dart';
 import 'package:maktub_backend/features/import/plans/plan_import_store.dart';
 import 'package:maktub_backend/features/import/plans/plan_sheets.dart';
@@ -14,7 +16,8 @@ import 'package:maktub_backend/features/plan/publicar/publicar.dart';
 import 'package:maktub_backend/features/plan/publicar/publicar_store.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
 
-/// E8.4: Planes, PlanModelos, PlanDias and PlanEjercicios into the club's plans, with October 2026 corrected
+/// E8.4: Planes, PlanModelos, PlanDias and PlanEjercicios into the club's plans, plus one plan per month built from
+/// the `historico` rows of Registro (E8.5, [historicPlans]), with October 2026 corrected
 /// (M1-D4, `plans.pctCorrections` in the adjustments). See [planPlanImport] for the rules. Writes only through
 /// the plan use cases: [CreatePlan], [SavePlan] (the whole plan in one write) and [PublishPlan], which only
 /// accepts a complete plan; the others stay as drafts and the report says why.
@@ -60,6 +63,17 @@ class PlanImport implements ImportStep {
       sets: run.sheets.read(PlanSheetNames.sets, columns: PlanSheetNames.setColumns),
       wods: run.sheets.read(PlanSheetNames.wods, columns: PlanSheetNames.wodColumns),
     );
+    final registro = HistorySheets.read(
+      records: run.sheets.read(HistorySheetNames.records, columns: HistorySheetNames.recordColumns),
+    );
+    final historic = historicPlans(
+      registro.records,
+      categoriesOf: (id) =>
+          exercises[catalogPlan.exerciseIdFor(id)]?.categoryIds ??
+          sheetExercises.where((e) => e.id == id).firstOrNull?.categories ??
+          const [],
+    );
+    sheets.plans.addAll(historic.plans);
     final existing = await _reads.plans(clubId, {for (final p in sheets.plans) importedId(clubId, p.id)});
     final plan = planPlanImport(
       sheets,
@@ -75,6 +89,8 @@ class PlanImport implements ImportStep {
       corrections: planAdjustments(run.adjustments.raw),
       fills: planPctFills(run.adjustments.raw),
     );
+    plan.historic = historic;
+    plan.report.notes.addAll(historic.notes);
     if (!catalogPlan.isEmpty) {
       plan.catalogPending = true;
       (run.dryRun ? plan.report.notes : plan.report.problems).add(
@@ -103,7 +119,7 @@ class PlanImport implements ImportStep {
           'tipo': p.plan.type.cable,
         });
         await SavePlan(_saves, now: _now)(club, p.plan.id, p.plan.toJson());
-        if (p.publishable) await PublishPlan(_publishes, now: _now)(club, p.plan.id);
+        if (p.publishable) await PublishPlan(_publishes, now: _now, history: p.history)(club, p.plan.id);
       } on ErrorDeSolicitud catch (e) {
         plan.report.problems.add('plan ${p.sheetId}: no se pudo escribir (${e.estado}): ${e.mensaje} ${e.extra}');
       }
@@ -111,14 +127,14 @@ class PlanImport implements ImportStep {
     for (final p in plan.toUpdate) {
       try {
         await SavePlan(_saves, now: _now)(club, p.plan.id, p.plan.toJson());
-        if (p.publishable) await PublishPlan(_publishes, now: _now)(club, p.plan.id);
+        if (p.publishable) await PublishPlan(_publishes, now: _now, history: p.history)(club, p.plan.id);
       } on ErrorDeSolicitud catch (e) {
         plan.report.problems.add('plan ${p.sheetId}: no se pudo guardar (${e.estado}): ${e.mensaje} ${e.extra}');
       }
     }
     for (final id in plan.toPublish) {
       try {
-        await PublishPlan(_publishes, now: _now)(club, id);
+        await PublishPlan(_publishes, now: _now, history: plan.historyPlanIds.contains(id))(club, id);
       } on ErrorDeSolicitud catch (e) {
         plan.report.problems.add('plan $id: no se pudo publicar (${e.estado}): ${e.mensaje} ${e.extra}');
       }

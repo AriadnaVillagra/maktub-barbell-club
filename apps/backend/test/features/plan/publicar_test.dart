@@ -258,6 +258,47 @@ void main() {
       expect(store.stored.single.published!.toJson(), previous.toJson());
     });
 
+    test('history mode publishes sets without % or reps; any other problem still stops it', () async {
+      final store = storeWith(_plan('club-a', models: _models(pct: 0)));
+      final published = await PublishPlan(store, now: () => _t2, history: true)(
+        coachA,
+        'p1',
+      );
+      expect(published.published, isNotNull);
+      expect(
+        store
+            .stored
+            .single
+            .published!
+            .weekModels
+            .single
+            .days
+            .single
+            .blocks
+            .single
+            .prescriptions
+            .single
+            .sets
+            .single
+            .pct,
+        0,
+      );
+
+      final empty = storeWith(
+        Plan(
+          id: 'p1',
+          clubId: 'club-a',
+          name: 'Vacío',
+          auditoria: Auditoria.nueva('coach-1', ahora: _t0),
+        ),
+      );
+      await expectLater(
+        PublishPlan(empty, now: () => _t2, history: true)(coachA, 'p1'),
+        throwsA(isA<ErrorDeSolicitud>()),
+      );
+      expect(empty.stored.single.published, isNull);
+    });
+
     test('a plan without week models is 422 and is not published', () async {
       final store = storeWith(
         Plan(

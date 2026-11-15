@@ -30,12 +30,23 @@ Future<Response> publishPlanEndpoint(
   return Response.json(body: plan.toJson());
 }
 
+/// What a history-mode publish lets through: the old spreadsheet never recorded the % or, for a few sets, the reps
+/// of what was done, and a plan rebuilt from that record cannot have them.
+const historyPublishAccepts = {
+  PlanProblemCode.setWithoutPct,
+  PlanProblemCode.setWithoutReps,
+};
+
 class PublishPlan {
-  PublishPlan(this._store, {DateTime Function()? now})
+  PublishPlan(this._store, {DateTime Function()? now, this._history = false})
     : _now = now ?? DateTime.now;
 
   final PublishPlanStore _store;
   final DateTime Function() _now;
+
+  /// Loading history (the E8 importer): sets without % or reps ([historyPublishAccepts]) do not stop the
+  /// publication; every other problem still does. The endpoint never sets it.
+  final bool _history;
 
   Future<Plan> call(ClubContext club, String planId) async {
     final plan = await _store.plan(club.clubId, planId);
@@ -44,7 +55,10 @@ class PublishPlan {
     }
 
     final exercises = await _store.exercises(club.clubId);
-    final problems = validatePlan(plan, exerciseById: (id) => exercises[id]);
+    final problems = [
+      for (final p in validatePlan(plan, exerciseById: (id) => exercises[id]))
+        if (!_history || !historyPublishAccepts.contains(p.code)) p,
+    ];
     if (problems.isNotEmpty) {
       throw ErrorDeSolicitud(
         'El plan tiene ${problems.length} problema(s); no se publicó.',

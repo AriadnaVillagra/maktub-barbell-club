@@ -117,9 +117,15 @@ class SheetPlan {
     required this.start,
     required this.sequence,
     required this.line,
+    this.history = false,
   });
 
   final String id;
+
+  /// Built from what Registro recorded (the old `historico` rows), not from Planes: no automatic stretching or
+  /// warm-up lists, each week model keeps only the days that week has, and it is published in history mode
+  /// (sets without % or reps are accepted, since the sheet never had them).
+  final bool history;
   final String name;
   final bool active;
   final String? start;

@@ -68,6 +68,11 @@ List<ImportStep> _steps(Db db) {
   final assignments = AssignmentImport(
     reads: MongoAssignmentImportStore(db),
     writes: MongoCreateAssignmentStore(db),
+    derived: (run) async {
+      final historic = (await plans.plan(run)).historic;
+      final athletePlan = await athletes.plan(run);
+      return historicAssignments(historic, athletePlan.athleteIdFor);
+    },
   );
   return [
     catalog,

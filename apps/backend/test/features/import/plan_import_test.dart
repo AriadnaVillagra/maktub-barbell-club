@@ -229,6 +229,8 @@ plan_nuevo,1,principal,,1,sq_espalda,b,1,8,65,,desc_120
 plan_nuevo,1,final,1,1,row_x,b,1,12,,,
 ''',
   'PlanWods': 'plan,dia,variante,wod\n',
+  'Registro':
+      'fecha,atleta,ejercicio,bloque,serie,peso_kg,reps,rm_vigente,pct,nota,plan,ciclo,semana,dia,grupo,orden,modelo\n',
 };
 
 final _adjustments = ImportAdjustments.fromJson({
@@ -361,7 +363,7 @@ void main() {
 
     expect(plan('plan_viejo').published, isNull, reason: 'a secondary without % cannot be published');
     expect(report.notes, contains(allOf(contains('"Viejo"'), contains('borrador'), contains('setWithoutPct'))));
-    expect(report.notes, contains(allOf(contains('activo=sí'), contains('E6'))));
+    expect(report.notes, contains(allOf(contains('activo=sí'), contains('plans.assignments'))));
   });
 
   test('running twice changes nothing; a plan changed in the app is reported and left alone', () async {
@@ -450,6 +452,59 @@ void main() {
     );
     expect(report.differing.single, contains('plan_viejo'));
     expect(plan('plan_viejo').published, isNull);
+  });
+
+  const historico = '''
+fecha,atleta,ejercicio,bloque,serie,peso_kg,reps,rm_vigente,pct,nota,plan,ciclo,semana,dia,grupo,orden,modelo
+2026-09-01,a1,sq_espalda,principal,1,40,8,,,3x8,historico,1,1,1,,,
+2026-09-01,a2,sq_espalda,principal,1,50,,,,3x8,historico,1,1,1,,,
+2026-09-01,a1,sq_espalda,principal,2,45,,,,3x8,historico,1,1,1,,,
+2026-09-01,a1,row_x,principal,1,12,10,,,,historico,1,1,1,,,
+2026-09-01,a1,hip_thrust,principal,1,60,8,,,,historico,1,1,1,,,
+2026-09-02,a1,sq_zercher,principal,1,30,5,,,,historico,1,1,2,,,
+2026-09-08,a2,sq_espalda,principal,1,42,8,,,,historico,1,2,1,,,
+''';
+
+  test('the historico rows of a month become a plan published in history mode', () async {
+    write('Registro', historico);
+    await importCatalog();
+    final report = await importer().run(run());
+    final p = plan('historico-2026-09');
+    expect(p.name, 'Histórico 2026-09');
+    expect(
+      [for (final m in p.weekModels) (m.id, m.name, m.days.length)],
+      [('s1', 'Semana 1', 2), ('s2', 'Semana 2', 1)],
+    );
+    expect(p.weekAssignment, ['s1', 's2', 's2', 's2']);
+    expect(report.notes, contains(contains('la semana 3 ni la 4')));
+    final day = p.weekModels.first.days.first;
+    expect(
+      [for (final b in day.blocks) b.name],
+      ['Primario', 'Secundario', 'Accesorios'],
+      reason: 'no automatic lists',
+    );
+    expect(exercisesOf(day.blocks[2]), ['row_x'], reason: 'an accessory written under principal');
+    final squat = day.blocks[0].prescriptions.single;
+    expect([for (final s in squat.sets) (s.reps, s.pct)], [(8, null), (null, null)], reason: 'reps of either athlete');
+    expect(p.published, isNotNull, reason: 'sets without % or reps are accepted in history mode');
+    expect(report.notes, contains(contains('modo historial')));
+
+    final again = await importer().plan(run());
+    final position = again.historic.positions[5]!;
+    expect((position.variant, position.block, position.order), ('s1', 'final', 1));
+    expect(again.historic.athletes['historico-2026-09'], {'a1', 'a2'});
+    expect(again.isEmpty, isTrue, reason: 'a re-run changes nothing');
+  });
+
+  test('a history plan changed in the app is left alone', () async {
+    write('Registro', historico);
+    await importCatalog();
+    await importer().run(run());
+    final p = plan('historico-2026-09');
+    db.plans[p.id] = _with(p, weekModels: [p.weekModels.first]);
+    final report = await importer().run(run());
+    expect(report.differing, [contains('historico-2026-09')]);
+    expect(plan('historico-2026-09').weekModels, hasLength(1));
   });
 
   test('a plan saved but not published (a cut run) is published by the next run', () async {

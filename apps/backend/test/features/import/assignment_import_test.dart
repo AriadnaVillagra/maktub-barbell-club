@@ -2,7 +2,9 @@ import 'package:maktub_backend/features/asignaciones/crear/crear_store.dart';
 import 'package:maktub_backend/features/import/adjustments.dart';
 import 'package:maktub_backend/features/import/assignments/assignment_import.dart';
 import 'package:maktub_backend/features/import/assignments/assignment_import_store.dart';
+import 'package:maktub_backend/features/import/history/history_sheets.dart';
 import 'package:maktub_backend/features/import/import_run.dart';
+import 'package:maktub_backend/features/import/plans/historic_plans.dart';
 import 'package:maktub_backend/features/import/sheets.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:test/test.dart';
@@ -85,7 +87,8 @@ void main() {
     }),
     dryRun: dryRun,
   );
-  AssignmentImport importer() => AssignmentImport(reads: db, writes: db, now: () => DateTime.utc(2026, 11, 15));
+  AssignmentImport importer({List<AssignmentEntry> derived = const []}) =>
+      AssignmentImport(reads: db, writes: db, derived: (_) async => derived, now: () => DateTime.utc(2026, 11, 15));
 
   const oct = {'plan': 'plan_oct', 'group': 'andi y ari', 'from': '2026-10-01', 'to': '2026-11-05'};
 
@@ -140,5 +143,88 @@ void main() {
     final report = await importer().run(run([oct], dryRun: true));
     expect(db.all, hasLength(1));
     expect(report.created, hasLength(1));
+  });
+
+  group('history plans', () {
+    AssignmentEntry month(Set<String> athletes, {String plan = 'historico-2025-08'}) => AssignmentEntry(
+      plan: plan,
+      athleteIds: athletes,
+      from: DateTime.utc(2025, 8, 1),
+      to: DateTime.utc(2025, 8, 31),
+    );
+
+    setUp(() {
+      db.plans[importedId(_club, 'historico-2025-08')] = true;
+      db.groups_.add(
+        AthleteGroup(id: 'g2', clubId: _club, name: 'Solo Ari', memberIds: const ['ari'], auditoria: _audit),
+      );
+    });
+
+    test('each month goes to the smallest group with everyone who recorded in it', () async {
+      await importer(
+        derived: [
+          month({'ari', 'andi'}),
+        ],
+      ).run(run(const []));
+      expect(db.all.last.groupId, 'g1');
+      db.all.removeLast();
+      await importer(
+        derived: [
+          month({'ari'}),
+        ],
+      ).run(run(const []));
+      expect(db.all.last.groupId, 'g2');
+      expect(db.all.last.status, AssignmentStatus.ended);
+      final again = await importer(
+        derived: [
+          month({'ari'}),
+        ],
+      ).run(run(const []));
+      expect(again.unchanged, hasLength(1));
+    });
+
+    test('an entry of plans.assignments for the same plan wins over the derived one', () async {
+      await importer(
+        derived: [
+          month({'ari'}),
+        ],
+      ).run(
+        run([
+          {'plan': 'historico-2025-08', 'group': 'Andi y Ari', 'from': '2025-08-01', 'to': '2025-08-31'},
+        ]),
+      );
+      expect(db.all.last.groupId, 'g1');
+    });
+
+    test('athletes no group holds together are reported', () async {
+      final report = await importer(
+        derived: [
+          month({'ari', 'otro'}),
+        ],
+      ).run(run(const []));
+      expect(report.problems.single, contains('ningún grupo'));
+      expect(db.all, hasLength(1));
+    });
+
+    test('historicAssignments: from the first to the last day of the month, by club athlete', () {
+      final historic = historicPlans(
+        HistorySheets.read(
+          records: Sheet.parse(
+            'Registro',
+            'fecha,atleta,ejercicio,bloque,serie,peso_kg,reps,rm_vigente,pct,nota,plan,ciclo,semana,dia,grupo,orden,modelo\n'
+                '2026-02-03,a1,sq,principal,1,40,8,,,,historico,1,1,3,,,\n'
+                '2026-02-10,a9,sq,principal,1,40,8,,,,historico,1,2,3,,,\n',
+            columns: HistorySheetNames.recordColumns,
+          ),
+        ).records,
+        categoriesOf: (_) => const ['primario'],
+      );
+      final entries = historicAssignments(historic, (id) => const {'a1': 'ari'}[id]);
+      expect(
+        [for (final e in entries) (e.plan, e.from, e.to)],
+        [('historico-2026-02', DateTime.utc(2026, 2, 1), DateTime.utc(2026, 2, 28))],
+      );
+      expect(entries.single.athleteIds, {'ari'}, reason: 'the unlinked athlete is left out');
+    });
   });
 }

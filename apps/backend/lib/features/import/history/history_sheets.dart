@@ -42,6 +42,10 @@ abstract final class HistorySheetNames {
   ];
 }
 
+/// The sheet id of the plan that Registro gives to the rows the old app loaded from the planning spreadsheet
+/// (`reference/importar.py`). It is not a row of Planes: the importer builds one plan per month from them.
+const legacyHistoryPlan = 'historico';
+
 /// Where a row of Registro or Tiempos happened: the old app's session (date, plan, cycle, week and day).
 class SheetSessionKey {
   const SheetSessionKey({
@@ -152,7 +156,7 @@ class SheetTimeRow {
 class HistorySheets {
   HistorySheets._();
 
-  factory HistorySheets.read({required Sheet records, required Sheet times}) {
+  factory HistorySheets.read({required Sheet records, Sheet? times}) {
     final out = HistorySheets._();
     for (final row in records.rows) {
       final where = 'Registro línea ${row.line}';
@@ -180,7 +184,7 @@ class HistorySheets {
         out.problems.add('$where: ${e.message}');
       }
     }
-    for (final row in times.rows) {
+    for (final row in times?.rows ?? const <SheetRow>[]) {
       final where = 'Tiempos línea ${row.line}';
       try {
         final start = _instant(row, 'inicio');

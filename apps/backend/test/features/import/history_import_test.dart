@@ -7,6 +7,7 @@ import 'package:maktub_backend/features/import/history/history_import_store.dart
 import 'package:maktub_backend/features/import/history/history_plan.dart';
 import 'package:maktub_backend/features/import/history/history_sheets.dart';
 import 'package:maktub_backend/features/import/import_run.dart';
+import 'package:maktub_backend/features/import/plans/historic_plans.dart';
 import 'package:maktub_backend/features/import/plans/plan_import_plan.dart';
 import 'package:maktub_backend/features/import/plans/plan_sheets.dart';
 import 'package:maktub_backend/features/import/sheets.dart';
@@ -62,6 +63,7 @@ $_registroHeader
 2026-10-01,a1,est_sq,estiramiento,,,,,,,plan_oct,1,1,1,,,descarga
 2026-10-08,a1,sq,principal,3,56,3,70,85,,plan_oct,1,2,1,,1,carga
 2025-08-01,a1,sq,principal,4,55,2,,,8 - 5 - 3,historico,1,1,1,,,
+2025-08-08,a2,sq,principal,1,50,5,,,,historico,2,2,1,,,
 2026-10-01,a1,sq,principal,1,40,5,,,,plan_borrador,1,1,1,,1,descarga
 2026-10-01,a9,sq,principal,1,40,8,,,,plan_oct,1,1,1,,1,descarga
 2026-10-01,a1,nada,principal,1,40,8,,,,plan_oct,1,1,1,,1,descarga
@@ -279,10 +281,16 @@ class _Times implements RecordBlockTimeStore {
   }
 }
 
-Exercise _exercise(String id, List<Metric> metrics, {LoadReference ref = const LoadReference.none()}) => Exercise(
+Exercise _exercise(
+  String id,
+  List<Metric> metrics, {
+  LoadReference ref = const LoadReference.none(),
+  List<String> categories = const [],
+}) => Exercise(
   id: id,
   clubId: _club,
   name: id.toUpperCase(),
+  categoryIds: categories,
   metrics: metrics,
   defaultMetric: metrics.first,
   loadReference: ref,
@@ -291,26 +299,35 @@ Exercise _exercise(String id, List<Metric> metrics, {LoadReference ref = const L
 
 Sheet _sheet(String name, String csv, List<String> columns) => Sheet.parse(name, csv.trimLeft(), columns: columns);
 
-/// E8.4's own planning over the invented plan sheets, with October's correction, as the history step gets it.
-PlanImportPlan _plans(Map<String, Exercise> exercises) => planPlanImport(
-  PlanSheets.read(
+/// E8.4's own planning over the invented plan sheets plus the month plans of the `historico` rows, with October's
+/// correction, as the history step gets it (what `PlanImport.plan` does).
+PlanImportPlan _plans(Map<String, Exercise> exercises) {
+  final sheets = PlanSheets.read(
     plans: _sheet('Planes', _planSheets['Planes']!, PlanSheetNames.planColumns),
     weekModels: _sheet('PlanModelos', _planSheets['PlanModelos']!, PlanSheetNames.weekModelColumns),
     days: _sheet('PlanDias', _planSheets['PlanDias']!, PlanSheetNames.dayColumns),
     sets: _sheet('PlanEjercicios', _planSheets['PlanEjercicios']!, PlanSheetNames.setColumns),
     wods: _sheet('PlanWods', _planSheets['PlanWods']!, PlanSheetNames.wodColumns),
-  ),
-  PlanCatalog(
-    exerciseIdFor: (id) => exercises.containsKey(id) ? id : null,
-    timerIdFor: (_) => null,
-    exercises: exercises,
-    sheetExercises: const [],
-  ),
-  clubId: _club,
-  existing: const {},
-  now: DateTime.utc(2026, 9, 1),
-  corrections: const [PctCorrection(planId: 'plan_oct', from: 85, to: 80)],
-);
+  );
+  final historic = historicPlans(
+    HistorySheets.read(records: _sheet('Registro', _registro, HistorySheetNames.recordColumns)).records,
+    categoriesOf: (id) => exercises[id]?.categoryIds ?? const [],
+  );
+  sheets.plans.addAll(historic.plans);
+  return planPlanImport(
+    sheets,
+    PlanCatalog(
+      exerciseIdFor: (id) => exercises.containsKey(id) ? id : null,
+      timerIdFor: (_) => null,
+      exercises: exercises,
+      sheetExercises: const [],
+    ),
+    clubId: _club,
+    existing: const {},
+    now: DateTime.utc(2026, 9, 1),
+    corrections: const [PctCorrection(planId: 'plan_oct', from: 85, to: 80)],
+  )..historic = historic;
+}
 
 void main() {
   late Directory dir;
@@ -327,9 +344,14 @@ void main() {
     pending = [];
     db = _Db();
     db.exercises.addAll({
-      'sq': _exercise('sq', const [Metric.loadPctRm, Metric.reps], ref: const LoadReference.own()),
-      'row_x': _exercise('row_x', const [Metric.fixedLoad, Metric.reps]),
-      'est_sq': _exercise('est_sq', const [Metric.time]),
+      'sq': _exercise(
+        'sq',
+        const [Metric.loadPctRm, Metric.reps],
+        ref: const LoadReference.own(),
+        categories: const ['primario'],
+      ),
+      'row_x': _exercise('row_x', const [Metric.fixedLoad, Metric.reps], categories: const ['accesorio']),
+      'est_sq': _exercise('est_sq', const [Metric.time], categories: const ['estiramiento']),
     });
     plans = _plans(db.exercises);
     // Both plans as E8.4 creates them; only plan_oct published (the other stays a draft).
@@ -341,7 +363,7 @@ void main() {
         name: plan.name,
         weekModels: plan.weekModels,
         weekAssignment: plan.weekAssignment,
-        published: p.sheetId == 'plan_oct'
+        published: p.sheetId != 'plan_borrador'
             ? PublishedPlan(
                 weekModels: plan.weekModels,
                 weekAssignment: plan.weekAssignment,
@@ -352,16 +374,20 @@ void main() {
         auditoria: _audit,
       );
     }
-    for (final sheetId in ['plan_oct', 'plan_borrador']) {
+    for (final (sheetId, start, end) in [
+      ('plan_oct', DateTime.utc(2026, 10, 1), DateTime.utc(2026, 10, 31)),
+      ('plan_borrador', DateTime.utc(2026, 10, 1), DateTime.utc(2026, 10, 31)),
+      ('historico-2025-08', DateTime.utc(2025, 8, 1), DateTime.utc(2025, 8, 31)),
+    ]) {
       db.assignments.add(
         Assignment(
           id: 'asig-$sheetId',
           clubId: _club,
           planId: planId(sheetId),
           groupId: 'g1',
-          startDate: DateTime.utc(2026, 10, 1),
+          startDate: start,
           status: AssignmentStatus.ended,
-          endDate: DateTime.utc(2026, 10, 31),
+          endDate: end,
           auditoria: _audit,
         ),
       );
@@ -435,6 +461,21 @@ void main() {
     expect(recordsOf(s, 'andi').single.referenceValue, isNull, reason: 'no RM for that athlete: kilos only');
   });
 
+  test('a historico row loads into the plan of its month, in cycle 1 of it', () async {
+    final report = await importer().run(run());
+    final s = sessionOn(DateTime.utc(2025, 8, 1));
+    expect(s.planId, planId('historico-2025-08'));
+    expect(s.assignmentId, 'asig-historico-2025-08');
+    expect((s.cycle, s.week, s.day), (1, 1, 1));
+    final record = recordsOf(s, 'ari').single;
+    expect((record.blockIndex, record.setIndex, record.kg, record.reps), (0, 0, 55.0, 2));
+    expect(record.manualKg, isTrue);
+    expect(record.note, '8 - 5 - 3');
+    expect(record.target.pct, isNull, reason: 'the sheet never had a %');
+    expect(sessionOn(DateTime.utc(2025, 8, 8)).cycle, 1, reason: 'the sheet says cycle 2: the plan was repeated');
+    expect(report.notes, contains(allOf(contains('historico-2025-08'), contains('ciclo 2'))));
+  });
+
   test('October sets carry the E8.4 correction in their target', () async {
     await importer().run(run());
     final record = recordsOf(sessionOn(DateTime.utc(2026, 10, 8)), 'ari').single;
@@ -470,19 +511,18 @@ void main() {
   test('every row that is not loaded is reported with its reason', () async {
     final report = await importer().run(run());
     String problem(String text) => report.problems.singleWhere((p) => p.contains(text));
-    expect(problem('"historico"'), contains('línea'));
-    expect(problem('"Borrador" (plan_borrador) está en borrador'), contains('líneas 10)'));
+    expect(problem('"Borrador" (plan_borrador) está en borrador'), contains('líneas 11)'));
     expect(problem('a9'), contains('no está vinculado'));
     expect(problem('"nada"'), contains('catálogo'));
-    expect(problem('posición del plan'), contains('líneas 13)'));
-    expect(problem('ciclo 1 y la planilla dice 2'), contains('líneas 14)'));
-    expect(problem('no se inventan'), contains('líneas 15)'));
-    expect(problem('asignación que cubra'), contains('líneas 16)'));
+    expect(problem('posición del plan'), contains('líneas 14)'));
+    expect(problem('ciclo 1 y la planilla dice 2'), contains('líneas 15)'));
+    expect(problem('no se inventan'), contains('líneas 16)'));
+    expect(problem('asignación que cubra'), contains('líneas 17)'));
     expect(problem('"Pedro"'), startsWith('Tiempos: 1 filas'));
-    expect(report.problems, hasLength(9));
+    expect(report.problems, hasLength(8));
     expect(report.notes, contains(allOf(contains('sin series en el plan'), contains('líneas 7)'))));
     expect(report.notes, contains(allOf(contains('línea 4'), contains('RM 72 '))));
-    expect(db.records, hasLength(6), reason: '5 sets on Oct 1 and 1 on Oct 8');
+    expect(db.records, hasLength(8), reason: '5 sets on Oct 1, 1 on Oct 8 and 2 of the history plan');
   });
 
   test('running twice writes nothing new: no duplicated sets, times or changes', () async {
@@ -494,7 +534,7 @@ void main() {
     expect(db.timeWrites, timeWrites);
     expect(report.created, isEmpty);
     expect(report.updated, isEmpty);
-    expect(report.unchanged, hasLength(2));
+    expect(report.unchanged, hasLength(4));
     expect(report.unchanged.first, contains('0 series escritas'));
   });
 
@@ -504,7 +544,7 @@ void main() {
     final id = db.records[i].id;
     db.records[i] = SetRecord.fromJson(db.records[i].toJson()..['kilos'] = 99);
     final report = await importer(now: DateTime.utc(2026, 11, 16)).run(run());
-    expect(db.records, hasLength(6));
+    expect(db.records, hasLength(8));
     expect(db.records.singleWhere((r) => r.id == id).kg, 35);
     expect(report.updated, [contains('1 series escritas')]);
   });
@@ -514,8 +554,8 @@ void main() {
     expect(db.sessions, isEmpty);
     expect(db.records, isEmpty);
     expect(db.times, isEmpty);
-    expect(report.created, hasLength(2));
-    expect(report.created.first, contains('5 series, 2 tiempos'));
+    expect(report.created, hasLength(4));
+    expect(report.created, contains(contains('5 series, 2 tiempos')));
   });
 
   test('nothing is written while an earlier step has work left', () async {

@@ -5,6 +5,7 @@ import 'package:maktub_backend/features/import/history/history_plan.dart';
 import 'package:maktub_backend/features/import/history/history_sheets.dart';
 import 'package:maktub_backend/features/import/import_report.dart';
 import 'package:maktub_backend/features/import/import_run.dart';
+import 'package:maktub_backend/features/import/plans/historic_plans.dart';
 import 'package:maktub_backend/features/sesion/live_broadcast.dart';
 import 'package:maktub_backend/features/sesion/open_session/open_session.dart';
 import 'package:maktub_backend/features/sesion/open_session/open_session_store.dart';
@@ -49,7 +50,11 @@ class HistoryImport implements ImportStep {
       times: run.sheets.read(HistorySheetNames.times, columns: HistorySheetNames.timeColumns),
     );
     final sources = await _sources(run);
-    final sheetPlans = {for (final r in sheets.records) r.session.plan, for (final t in sheets.times) t.session.plan};
+    final sheetPlans = {
+      for (final r in sheets.records)
+        r.session.plan == legacyHistoryPlan ? historicPlanId(r.session.date) : r.session.plan,
+      for (final t in sheets.times) t.session.plan,
+    };
     final planIds = {for (final p in sheetPlans) ?sources.plans.planIdOf(p)};
     final assignments = await _reads.assignments(clubId, planIds);
     final sessions = await _reads.sessions(clubId, {for (final a in assignments) a.id});
