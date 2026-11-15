@@ -84,6 +84,16 @@ Plan _plan({
 
 List<PlanProblem> _validate(Plan p) => validatePlan(p, exerciseById: _lookup);
 
+Plan _withType(Plan p, PlanType type) => Plan(
+  id: p.id,
+  clubId: p.clubId,
+  name: p.name,
+  type: type,
+  weekModels: p.weekModels,
+  weekAssignment: p.weekAssignment,
+  auditoria: p.auditoria,
+);
+
 Plan _withBlock(PlanBlock block) => _plan(
   models: [
     WeekModel(
@@ -100,6 +110,22 @@ Plan _withBlock(PlanBlock block) => _plan(
 void main() {
   publishedPlanTests();
   group('wire contract', () {
+    test('past travels as pasado only when set; a history plan is always past', () {
+      Plan plan({bool past = false, PlanType type = PlanType.regular}) => Plan(
+        id: 'p1',
+        clubId: 'c1',
+        name: 'Plan',
+        type: type,
+        past: past,
+        auditoria: Auditoria(creadoPor: 'u1', creadoEn: DateTime.utc(2026, 11, 1)),
+      );
+      expect(plan().toJson().containsKey('pasado'), isFalse);
+      expect(plan(past: true).toJson()['pasado'], isTrue);
+      expect(Plan.fromJson(plan(past: true).toJson()).past, isTrue);
+      expect(Plan.fromJson(plan().toJson()).isPast, isFalse);
+      expect(plan(type: PlanType.history).isPast, isTrue);
+    });
+
     test('a plan round-trips through JSON with every field', () {
       final plan = Plan(
         id: 'p1',
@@ -191,7 +217,10 @@ void main() {
     });
 
     test('enums have stable wire names and reject unknown ones', () {
-      expect([for (final v in PlanType.values) v.cable], ['regular', 'test']);
+      expect(
+        [for (final v in PlanType.values) v.cable],
+        ['regular', 'test', 'historico'],
+      );
       expect(
         [for (final v in ExecutionMode.values) v.cable],
         ['secuencial', 'circuito', 'por_tiempo'],
@@ -203,6 +232,13 @@ void main() {
       expect(() => PlanType.deCable('otro'), throwsFormatException);
       expect(() => ExecutionMode.deCable('otro'), throwsFormatException);
       expect(() => AthleteMode.deCable('otro'), throwsFormatException);
+    });
+
+    test('a history plan travels as historico and comes back', () {
+      final json = _withType(_plan(), PlanType.history).toJson();
+      expect(json['tipo'], 'historico');
+      expect(Plan.fromJson(json).type, PlanType.history);
+      expect(PlanType.deCable('historico'), PlanType.history);
     });
 
     test('a plan is a club document with audit and defaults to regular', () {
@@ -227,6 +263,41 @@ void main() {
     test('a well-formed plan has no problems', () {
       expect(_validate(_plan()), isEmpty);
     });
+
+    test(
+      'a history plan is not asked for % or reps; anything else still counts',
+      () {
+        final plan = _withBlock(
+          const PlanBlock(
+            name: 'Strength',
+            categoryId: 'strength',
+            prescriptions: [
+              Prescription(exerciseId: 'squat', sets: [PlanSet()]),
+              Prescription(exerciseId: null),
+            ],
+          ),
+        );
+        expect(
+          [for (final p in _validate(plan)) p.code],
+          [
+            PlanProblemCode.setWithoutReps,
+            PlanProblemCode.setWithoutPct,
+            PlanProblemCode.prescriptionWithoutExercise,
+          ],
+        );
+        expect(
+          [
+            for (final p in _validate(_withType(plan, PlanType.history)))
+              p.code,
+          ],
+          [PlanProblemCode.prescriptionWithoutExercise],
+        );
+        expect(historyPlanAccepts, {
+          PlanProblemCode.setWithoutPct,
+          PlanProblemCode.setWithoutReps,
+        });
+      },
+    );
 
     test('empty name', () {
       expect(_validate(_plan(name: '  ')), [

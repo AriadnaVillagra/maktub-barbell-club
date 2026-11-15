@@ -12,7 +12,8 @@ import 'publicar_store.dart';
 /// Athletes only ever see that copy; saving a plan never changes it. Publishing twice in a row just refreshes
 /// the date. Needs [Accion.planificar] (the coach). 404 if the plan does not exist in the club.
 ///
-/// The saved plan must have no problem at all (`validatePlan`, not only the ones that block saving): otherwise
+/// The saved plan must have no problem at all (`validatePlan`, not only the ones that block saving; a
+/// [PlanType.history] plan is not asked for % or reps, [historyPlanAccepts]): otherwise
 /// it is 422 with `problemas` in the same shape as saving, nothing is written and the previous published
 /// version stays. The copy is one document write; if the plan was saved between the read and the write it is
 /// 409 and nothing is written (publish again). [store] and [now] are for tests.
@@ -30,12 +31,22 @@ Future<Response> publishPlanEndpoint(
   return Response.json(body: plan.toJson());
 }
 
+/// What a history-mode publish lets through: the old spreadsheet never recorded the % or, for a few sets, the reps
+/// of what was done, and a plan rebuilt from that record cannot have them. A [PlanType.history] plan gets the same
+/// through the endpoint, because `validatePlan` does not report them for it ([historyPlanAccepts]).
+const historyPublishAccepts = historyPlanAccepts;
+
 class PublishPlan {
-  PublishPlan(this._store, {DateTime Function()? now})
+  PublishPlan(this._store, {DateTime Function()? now, this._history = false})
     : _now = now ?? DateTime.now;
 
   final PublishPlanStore _store;
   final DateTime Function() _now;
+
+  /// Loading history (the E8 importer): sets without % or reps ([historyPublishAccepts]) do not stop the
+  /// publication of any plan; every other problem still does. The endpoint never sets it (a [PlanType.history]
+  /// plan already gets that from `validatePlan`).
+  final bool _history;
 
   Future<Plan> call(ClubContext club, String planId) async {
     final plan = await _store.plan(club.clubId, planId);
@@ -44,7 +55,10 @@ class PublishPlan {
     }
 
     final exercises = await _store.exercises(club.clubId);
-    final problems = validatePlan(plan, exerciseById: (id) => exercises[id]);
+    final problems = [
+      for (final p in validatePlan(plan, exerciseById: (id) => exercises[id]))
+        if (!_history || !historyPublishAccepts.contains(p.code)) p,
+    ];
     if (problems.isNotEmpty) {
       throw ErrorDeSolicitud(
         'El plan tiene ${problems.length} problema(s); no se publicó.',
@@ -78,6 +92,7 @@ class PublishPlan {
       clubId: plan.clubId,
       name: plan.name,
       type: plan.type,
+      past: plan.past,
       weekModels: plan.weekModels,
       weekAssignment: plan.weekAssignment,
       published: copy,

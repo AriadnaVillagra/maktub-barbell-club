@@ -89,6 +89,7 @@ class EndAssignment {
       clubId: current.clubId,
       planId: current.planId,
       groupId: current.groupId,
+      athleteId: current.athleteId,
       startDate: current.startDate,
       status: AssignmentStatus.ended,
       endDate: endDate,

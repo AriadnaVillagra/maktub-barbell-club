@@ -70,6 +70,8 @@ se da por supuesto.
    los tiempos y las diferencias con el plan.
 10. Está comprobado si Cloud Run sostiene el WebSocket en una instancia con reconexión cada 60
    minutos como máximo, o se decidió cómo repensar el canal.
+11. El modo guiado es uno solo para la sesión: lo que se empieza, salta o termina en un teléfono se
+   ve igual en el otro (E7.26).
 
 ## Issues
 
@@ -100,6 +102,8 @@ se da por supuesto.
 | E7.23 | [Modo guiado: seguir desde lo pendiente o hacer todo de nuevo](E7.23-modo-guiado-seguir-o-empezar-de-cero.md) | E7.21 |
 | E7.24 | [Una sola pantalla para el calendario y la sesión del día](E7.24-unificar-calendario-y-sesion.md) | E7.13, E7.20 |
 | E7.25 | [Calendario como tablero, con vistas a elección](E7.25-calendario-tablero-con-vistas.md) | E7.24 |
+| E7.26 | [Modo guiado compartido entre dispositivos](E7.26-modo-guiado-compartido.md) | E7.10, E7.16, E7.22, E7.23 |
+| E7.27 | [La sesión del día sin "Abrir sesión": se crea con la primera escritura](E7.27-sesion-sin-abrir.md) | E7.24, E7.26 |
 
 **En paralelo:**
 - E7.1 (verificación de R1) no depende de nada y va primero (M1 §6).

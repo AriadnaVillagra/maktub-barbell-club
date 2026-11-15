@@ -1,5 +1,6 @@
 import 'package:maktub_core/maktub_core.dart';
 
+import '../../../core/offline/local_copy.dart';
 import 'athlete_adjustments.dart';
 import 'block_time_write.dart';
 import 'set_write.dart';
@@ -24,6 +25,16 @@ abstract interface class SessionRepository {
     required Set<String> presentAthleteIds,
   });
 
+  /// The session of [day] of [week] of the assignment on [date] with what was recorded so far, or null when it does
+  /// not exist yet: nobody wrote anything on that day (E7.27). It never creates one.
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  });
+
   /// The kilos proposed for every set of [athleteId] in [sessionId], resolved by the server with
   /// [adjustments]. The work factor comes only when the user can see it.
   Future<List<ProposedSet>> proposedLoads(
@@ -46,4 +57,46 @@ abstract interface class SessionRepository {
 
   /// Writes the note of the whole session, or clears it when [note] is empty.
   Future<Session> saveSessionNote(String clubId, String sessionId, String note);
+
+  /// Writes [action] on the session's guided pass (E7.26) and returns the session with the pass as the server left
+  /// it. Repeating it changes nothing.
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  );
+}
+
+/// Opening without signal a session this device never opened: there is nothing saved to resume, so the app opens it
+/// on the device (E7.16).
+class SessionNotOpenedHere extends NoLocalCopy {
+  const SessionNotOpenedHere()
+    : super(
+        'Sin señal: esta sesión no se abrió antes en este dispositivo. Se abre cuando vuelva la señal.',
+      );
+}
+
+/// The device's copy of the sessions it opened (E7.15), for what the app learns outside the repository's reads.
+abstract interface class SessionCopy {
+  /// Keeps [live] as the last state seen of its session, so it opens again without signal.
+  Future<void> remember(LiveSession live);
+
+  /// Applies to the saved copy of [sessionId] the [changes] that arrived through the live channel, so a session
+  /// opened again without signal has what other devices marked.
+  Future<void> applyChanges(
+    String clubId,
+    String sessionId,
+    List<SessionChange> changes,
+  );
+
+  /// Opens or resumes the session on the server, never from the copy, and keeps what the server answered. The queue
+  /// sends the openings made without signal with it.
+  Future<LiveSession> openOnServer(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+    required Set<String> presentAthleteIds,
+  });
 }

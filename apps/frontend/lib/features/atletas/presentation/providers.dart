@@ -1,14 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
+import '../../../core/offline/local_copy_providers.dart';
 import '../../../core/red/api_providers.dart';
 import '../../access/presentation/providers.dart';
 import '../../catalogo/presentation/providers.dart';
+import '../data/cached_athlete_repository.dart';
 import '../data/http_athlete_repository.dart';
 import '../domain/athlete_repository.dart';
 
-final athleteRepositoryProvider = Provider<AthleteRepository>(
+/// Athletes straight from the server. Tests replace it to keep the device's copy in between.
+final remoteAthleteRepositoryProvider = Provider<AthleteRepository>(
   (ref) => HttpAthleteRepository(ref.watch(clienteApiProvider)),
+);
+
+/// The athlete list with the device's copy as fallback without signal (E7.15); sheets and writes from the server.
+final athleteRepositoryProvider = Provider<AthleteRepository>(
+  (ref) => CachedAthleteRepository(
+    ref.watch(remoteAthleteRepositoryProvider),
+    ref.watch(localCopyReadsProvider),
+  ),
 );
 
 /// The calendar day the sheet is computed for. Tests override it.

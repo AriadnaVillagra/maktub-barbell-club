@@ -32,15 +32,38 @@ class HttpSessionRepository implements SessionRepository {
         'dia': day,
         'presentes': presentAthleteIds.toList(),
       },
+      // Opening is a read for the screen: without an answer soon it opens from the copy or on the device (E7.16).
+      timeout: _client.readTimeout,
     );
-    return LiveSession(
-      session: Session.fromJson((j['sesion'] as Map).cast<String, dynamic>()),
-      records: [
-        for (final r in (j['registros'] as List? ?? const []))
-          SetRecord.fromJson((r as Map).cast<String, dynamic>()),
-      ],
-    );
+    return _liveOf(j);
   }
+
+  @override
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  }) async {
+    final query = [
+      'asignacionId=${Uri.encodeQueryComponent(assignmentId)}',
+      'fecha=${aIsoFecha(date)}',
+      'semana=$week',
+      'dia=$day',
+    ].join('&');
+    // 204 when there is none: the client reads an empty body as an empty object.
+    final j = await _client.get('${_sessions(clubId)}?$query');
+    return j['sesion'] == null ? null : _liveOf(j);
+  }
+
+  static LiveSession _liveOf(Map<String, dynamic> j) => LiveSession(
+    session: Session.fromJson((j['sesion'] as Map).cast<String, dynamic>()),
+    records: [
+      for (final r in (j['registros'] as List? ?? const []))
+        SetRecord.fromJson((r as Map).cast<String, dynamic>()),
+    ],
+  );
 
   @override
   Future<List<ProposedSet>> proposedLoads(
@@ -99,6 +122,18 @@ class HttpSessionRepository implements SessionRepository {
     await _client.put(
       '${_sessions(clubId)}/${Uri.encodeComponent(sessionId)}/nota',
       {'nota': note},
+    ),
+  );
+
+  @override
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  ) async => Session.fromJson(
+    await _client.post(
+      '${_sessions(clubId)}/${Uri.encodeComponent(sessionId)}/pasada',
+      cuerpo: action.toJson(),
     ),
   );
 }

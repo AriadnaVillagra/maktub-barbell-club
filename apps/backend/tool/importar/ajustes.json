@@ -1,0 +1,97 @@
+{
+  "_legend": "Decisions about the spreadsheet data that the importer rules cannot take on their own (tool/importar.dart). Catalog ids and display names only: never personal data such as emails. Each step reads its own section; E8.3 to E8.5 add theirs.",
+  "exercises": {
+    "_notBase": "Sheet ids that a default exercise also uses for a different exercise: the sheet renamed the row. They become club exercises. cal_sq is 'Sit ups' in the sheet and 'Movilidad de cadera y tobillo' in the base list.",
+    "notBase": ["cal_sq"],
+    "_sameAs": "Sheet id -> visible exercise that is the same one under another name. The row adds its category to it instead of creating a duplicate.",
+    "sameAs": {
+      "skull_crushers": "skull",
+      "caminata_de_granjero": "farmer_walk"
+    }
+  },
+  "athletes": {
+    "_sameAs": "Sheet athlete id (Atletas.id) -> display name of the club athlete created by tool/alta.dart, when the sheet's name is not that one. Display names only, never emails.",
+    "sameAs": {
+      "a1": "Ari",
+      "a2": "Andi"
+    },
+    "_testedRmDates": "Dates of RMs rows that are the February 2026 test (M1-D4): they get origin 'testeado', the rest 'importado'. The test was measured in February and loaded on 2026-03-01 (reference/DISENO.md, 'Los RMs se midieron una sola vez').",
+    "testedRmDates": ["2026-03-01"]
+  },
+  "plans": {
+    "_pctCorrections": "M1-D4: October 2026 says 85 % where it should say 80 %. Every set of that plan at 'from' becomes 'to', and the ramp below it moves with it (the empty-bar set stays).",
+    "pctCorrections": [{"plan": "plan_oct2026", "from": 85, "to": 80}],
+    "_pctFills": "Percentages the sheet leaves empty in sets of exercises measured by % of RM: without them a plan stays a draft and cannot be assigned or loaded. One entry per PlanEjercicios row; pct null is still to be supplied by Ari (never invented). Applied after pctCorrections.",
+    "pctFills": [
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "hip_thrust", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 2, "bloque": "principal", "orden": 2, "ejercicio": "dl_rumano", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "descarga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 3, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 1, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 2, "pct": null},
+      {"plan": "plan_oct2026", "variante": "carga2", "dia": 3, "bloque": "principal", "orden": 2, "ejercicio": "mil_press", "serie": 3, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 1, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 2, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 3, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 4, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "a", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 5, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 1, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 2, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 3, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 4, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 5, "pct": null},
+      {"plan": "plan_mw4vrh30", "variante": "b", "dia": 1, "bloque": "principal", "orden": 1, "ejercicio": "snatch", "serie": 6, "pct": null}
+    ],
+    "_assignments": "Who did each sheet plan and when: the sheet has no assignments. Each entry becomes an ended assignment (from-to), so D14 is untouched. 'group' is a club group name; 'athlete' instead is the display name of one club athlete, whose own plan it was (E8.8).",
+    "assignments": [
+      {"plan": "plan_oct2026", "group": "Andi y Ari", "from": "2026-10-01", "to": "2026-11-05"},
+      {"plan": "plan_mw4vrh30", "athlete": "Ari", "from": "2026-11-06", "to": "2026-11-07"}
+    ]
+  },
+  "planningGrid": {
+    "_legend": "E8.7: April to July 2026 are not in Registro, but the April planning grid was repeated those four months. The importer builds a history plan from the grid and loads its sessions with the kilos the app proposes, marked as estimated. Week s, day d of each month is its day 7*(s-1)+d.",
+    "sheet": "ABR_2026",
+    "plan": {"id": "planificacion-abr-2026", "name": "Histórico 2026-04 a 07"},
+    "group": "Andi y Ari",
+    "months": ["2026-04", "2026-05", "2026-06", "2026-07"],
+    "_absent": "Who missed a day. The grid says 'SEMANA 2 (andi no hizo este dia)' on day 3: taken as April only, since it is April's sheet.",
+    "absent": [{"month": "2026-04", "week": 2, "day": 3, "athlete": "Andi"}],
+    "_exerciseNames": "Grid name (lowercase, no accents) -> sheet exercise id (resolved through the catalog step) or app exercise id, for the names that are not an Ejercicios or catalog name. From reference/importar.py ALIAS, plus bird-dogs, espinales con disco and levantada turca (Turkish get-up).",
+    "exerciseNames": {
+      "back squat": "sq_espalda",
+      "front squat": "sq_frontal",
+      "peso muerto": "dl_convencional",
+      "deadlift": "dl_convencional",
+      "bench press": "bp_plano",
+      "bench": "bp_plano",
+      "rumanos": "dl_rumano",
+      "biceps con barra": "curl_barra",
+      "biceps martillo": "curl_martillo",
+      "skullcrashers": "skull_crushers",
+      "push press mancuerna": "push_press",
+      "press arnold": "arnold_press",
+      "bird-dogs": "pajaros",
+      "espinales con disco": "espinales",
+      "levantada turca": "tgu"
+    }
+  }
+}

@@ -8,6 +8,7 @@ import '../../catalogo/presentation/catalog_admin_widgets.dart'
 import '../domain/athlete_adjustments.dart';
 import '../domain/session_repository.dart';
 import '../domain/set_write.dart';
+import '../../atletas/presentation/providers.dart' show todayProvider;
 import 'providers.dart';
 import 'session_block_card.dart';
 import 'session_page.dart';
@@ -26,72 +27,91 @@ Future<void> _guarded(
   }
 }
 
-/// The open session: which present athlete is on screen, their day adjustment and each set to mark and edit.
+/// The chosen day with or without its session (E7.27): a tab per athlete of the group, always in the group's order,
+/// and for the athlete on screen their day adjustment, each set to mark and edit and the session's note. The kilos
+/// come from the session once the athlete is present in it; before that, from the proposed kilos by date (E7.14)
+/// with the neutral adjustment. Any write creates the session, or adds the athlete to it, first.
 class SessionLoadsView extends ConsumerWidget {
   const SessionLoadsView({
     super.key,
     required this.data,
     required this.live,
+    required this.week,
     required this.day,
+    required this.planDay,
   });
 
   final SessionDayData data;
-  final LiveSession live;
-  final PlanDay day;
+
+  /// The day's session; null while it does not exist.
+  final LiveSession? live;
+  final int week;
+  final int day;
+  final PlanDay planDay;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(sessionScreenProvider);
     final notifier = ref.read(sessionScreenProvider.notifier);
-    final present = live.session.presentAthleteIds;
-    if (present.isEmpty) return const SizedBox.shrink();
-    final athleteId = athleteOnScreen(data, state, live)!;
+    final athleteId = athleteOnScreen(data, state);
+    if (athleteId == null) return const SizedBox.shrink();
+    final live = this.live;
     final adjustments = state.adjustmentsOf(athleteId);
-    final loads = ref.watch(
-      proposedLoadsProvider((
-        clubId: data.clubId,
-        sessionId: live.session.id,
-        athleteId: athleteId,
-        adjustments: adjustments,
-      )),
+    final present =
+        live != null && live.session.presentAthleteIds.contains(athleteId);
+    final DayLoadsQuery dayQuery = (
+      clubId: data.clubId,
+      assignmentId: data.location.assignmentId,
+      date: proposedDateOf(data, week, ref.watch(todayProvider)),
+      cycle: data.location.cycle,
+      week: week,
+      day: day,
+      athleteId: athleteId,
     );
+    var loads = present
+        ? ref.watch(
+            proposedLoadsProvider((
+              clubId: data.clubId,
+              sessionId: live.session.id,
+              athleteId: athleteId,
+              adjustments: adjustments,
+            )),
+          )
+        : ref.watch(dayLoadsProvider(dayQuery));
+    // Right after the first write creates the session, the day's kilos stay until the session's arrive, so the sets
+    // never leave the screen (and a refused write can still say so).
+    if (present && loads.isLoading && !loads.hasValue && !loads.hasError) {
+      final before = ref.watch(dayLoadsProvider(dayQuery));
+      if (before.hasValue) loads = before;
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SizedBox(height: Espacio.m),
-        Wrap(
-          spacing: Espacio.s,
-          runSpacing: Espacio.s,
-          children: [
-            for (final id in present)
-              PildoraMaktub(
-                key: Key('session-athlete-$id'),
-                texto: athleteLabel(data, id),
-                seleccionada: id == athleteId,
-                onTap: () => notifier.selectAthlete(id),
-              ),
-          ],
-        ),
-        const SizedBox(height: Espacio.m),
+        const SizedBox(height: Espacio.s),
         _AdjustmentRow(
           keyPrefix: 'session-adjust-session',
           label: 'Ajuste del día',
           value: adjustments.session,
-          onStep: (delta) => notifier.stepSessionAdjustment(athleteId, delta),
+          onStep: (delta) => _guarded(
+            context,
+            () => notifier.stepSessionAdjustment(athleteId, delta),
+          ),
         ),
         asyncView(
           loads,
-          onRetry: () => ref.invalidate(proposedLoadsProvider),
+          onRetry: () => present
+              ? ref.invalidate(proposedLoadsProvider)
+              : ref.invalidate(dayLoadsProvider),
           builder: (sets) => _Blocks(
-            day: day,
+            day: planDay,
             names: data.exerciseNames,
             sets: {
               for (final s in sets)
                 (s.blockIndex, s.prescriptionIndex, s.setIndex): s,
             },
             records: {
-              for (final r in live.records)
+              for (final r in live?.records ?? const <SetRecord>[])
                 if (r.athleteId == athleteId)
                   (r.blockIndex, r.prescriptionIndex, r.setIndex): r,
             },
@@ -104,12 +124,53 @@ class SessionLoadsView extends ConsumerWidget {
         _NoteRow(
           keyPrefix: 'session-note-day',
           title: 'Nota de la sesión',
-          note: live.session.note,
-          onSave: (note) => notifier.saveSessionNote(data.clubId, note),
+          note: live?.session.note,
+          onSave: (note) =>
+              notifier.saveSessionNote(data.clubId, note, athleteId: athleteId),
         ),
       ],
     );
   }
+}
+
+/// One segment per athlete of the plan, in the group's order whatever is chosen or present. Chooses whose kilos
+/// show. Compact, for the session header card.
+class SessionAthleteSelector extends StatelessWidget {
+  const SessionAthleteSelector({
+    super.key,
+    required this.data,
+    required this.selected,
+    required this.onSelect,
+  });
+
+  final SessionDayData data;
+  final String? selected;
+  final ValueChanged<String> onSelect;
+
+  @override
+  Widget build(BuildContext context) => SingleChildScrollView(
+    scrollDirection: Axis.horizontal,
+    child: SegmentedButton<String>(
+      key: const Key('session-athletes'),
+      showSelectedIcon: false,
+      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+      segments: [
+        for (final id in data.memberIds)
+          ButtonSegment(
+            value: id,
+            label: Text(
+              athleteLabel(data, id),
+              key: Key('session-athlete-$id'),
+            ),
+          ),
+      ],
+      selected: {?selected},
+      emptySelectionAllowed: selected == null,
+      onSelectionChanged: (s) {
+        if (s.isNotEmpty) onSelect(s.first);
+      },
+    ),
+  );
 }
 
 class _Blocks extends ConsumerWidget {
@@ -170,10 +231,13 @@ class _Blocks extends ConsumerWidget {
                       keyPrefix: 'session-adjust-ex-$b-$p',
                       label: 'Ajuste del ejercicio',
                       value: adjustments.effectiveFor(exerciseId),
-                      onStep: (delta) => notifier.stepExerciseAdjustment(
-                        athleteId,
-                        exerciseId,
-                        delta,
+                      onStep: (delta) => _guarded(
+                        context,
+                        () => notifier.stepExerciseAdjustment(
+                          athleteId,
+                          exerciseId,
+                          delta,
+                        ),
                       ),
                     ),
                   for (
@@ -321,6 +385,17 @@ class _SetRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Serie ${index + 1}', style: context.textos.labelLarge),
+                // Loaded by the importer with the proposed kilos (E8.7): nobody recorded it yet.
+                if (record?.estimated ?? false)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: Espacio.xs),
+                    child: InsigniaMaktub(
+                      'Estimada',
+                      context.colores.insigniaBase,
+                      key: Key('session-estimated-$keyId'),
+                      icono: Icons.auto_fix_high,
+                    ),
+                  ),
                 if (detail.isNotEmpty)
                   Text(
                     detail,
@@ -401,8 +476,10 @@ class _AdjustmentRow extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     children: [
       Expanded(child: Text(label, style: context.textos.labelLarge)),
+      // Compact, so the row fits inside a block card on a phone.
       IconButton(
         key: Key('$keyPrefix-minus'),
+        visualDensity: VisualDensity.compact,
         icon: const Icon(Icons.remove),
         tooltip: 'Bajar el ajuste',
         onPressed: () => onStep(-Ajuste.paso),
@@ -414,14 +491,17 @@ class _AdjustmentRow extends StatelessWidget {
       ),
       IconButton(
         key: Key('$keyPrefix-plus'),
+        visualDensity: VisualDensity.compact,
         icon: const Icon(Icons.add),
         tooltip: 'Subir el ajuste',
         onPressed: () => onStep(Ajuste.paso),
       ),
-      TextButton(
+      IconButton(
         key: Key('$keyPrefix-reset'),
+        visualDensity: VisualDensity.compact,
+        icon: const Icon(Icons.restart_alt),
+        tooltip: 'Quitar el ajuste',
         onPressed: () => onStep(0),
-        child: const Text('Quitar'),
       ),
     ],
   );

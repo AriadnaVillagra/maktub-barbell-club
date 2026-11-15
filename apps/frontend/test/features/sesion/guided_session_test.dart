@@ -502,4 +502,91 @@ void main() {
       expect(recordedOfAthletes(recorded, ['luz']), isEmpty);
     });
   });
+
+  group('the shared pass (E7.26)', () {
+    test('entering with a pass going on resumes it; a finished one or none chooses', () {
+      final going = _onBlock(1).pass!;
+      final resumed = GuidedSession.entering(_day, going, const ['luz']);
+      expect(resumed.phase, GuidedPhase.blocks);
+      expect(resumed.current, 1);
+      expect(resumed.athleteIds, ['ari', 'andi']);
+
+      final finished = _onBlock(0).finishDay(now: _t0).pass!;
+      final again = GuidedSession.entering(_day, finished, const ['luz']);
+      expect(again.phase, GuidedPhase.athletes);
+      expect(again.athleteIds, ['luz']);
+      expect(
+        GuidedSession.entering(_day, null, const ['ari']).phase,
+        GuidedPhase.athletes,
+      );
+    });
+
+    test('while choosing, a pass another device begins is joined', () {
+      final choosing = GuidedSession.choosing(_day, const ['ari']);
+      final other = _onBlock(2).pass!;
+
+      final joined = choosing.withPass(other);
+
+      expect(joined.phase, GuidedPhase.blocks);
+      expect(joined.current, 2);
+    });
+
+    test(
+      'starting over keeps the pass until "Comenzar", which replaces it',
+      () {
+        final going = _onBlock(1);
+        final over = going.startingOver();
+        expect(over.phase, GuidedPhase.athletes);
+        expect(over.athleteIds, ['ari', 'andi']);
+        expect(over.canResume, true);
+        expect(over.resuming().current, 1);
+        expect(
+          over.withPass(going.pass).phase,
+          GuidedPhase.athletes,
+          reason: 'changes of the old pass do not take it back',
+        );
+
+        final action = over
+            .beginActions(passId: 'nueva', now: _t0, redo: true)
+            .single;
+        expect(action.replaces, going.pass!.id);
+        final begun = over.applying([action]);
+        expect(begun.phase, GuidedPhase.blocks);
+        expect(begun.current, 0);
+        expect(begun.redo, true);
+      },
+    );
+
+    test('the actions carry the pass and the version read', () {
+      final g = _onBlock(1);
+      final start = g.startBlockActions(_none, now: _at(1)).single;
+      expect(start.kind, GuidedActionKind.startBlock);
+      expect(start.passId, g.pass!.id);
+      expect(start.version, g.pass!.version);
+      expect(start.blockIndex, 1);
+      expect(start.at, _at(1));
+    });
+
+    test(
+      'a step finished goes through the pass, so the other device skips it too',
+      () {
+        final g = _onBlock(1).startBlock(_none, now: _t0);
+        final result = g.finishStepActions(_none, now: _t0);
+        final other = GuidedSession.following(
+          _day,
+          g.pass!,
+        ).applying(result.actions);
+
+        expect(other.currentStep(_none), _step(0, 0, ['andi']));
+      },
+    );
+
+    test('the draft goes when the block on screen changes', () {
+      final g = _onBlock(1)
+          .startBlock(_none, now: _t0)
+          .toggleNotDone('ari', _none);
+      expect(g.draft, isNotNull);
+      expect(g.interruptBlock(now: _t0).draft, isNull);
+    });
+  });
 }

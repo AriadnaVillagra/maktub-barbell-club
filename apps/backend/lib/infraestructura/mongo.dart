@@ -137,20 +137,36 @@ Future<void> asegurarIndices(Db db) async {
   // Listing the groups of a club.
   await db.collection(Colecciones.grupos).createIndex(keys: {'clubId': 1}, name: 'club');
 
-  // Assignments (E6.3): listing by club and group, and the rule "a group has at most one active assignment"
-  // (D14). Atomic writes touch one document and the driver has no transactions (D15), so the rule lives in the
-  // database: a unique partial index, which only covers the active ones (ended and paused ones may repeat).
-  await db
-      .collection(Colecciones.asignaciones)
-      .createIndex(keys: {'clubId': 1}, name: 'club');
-  await db
-      .collection(Colecciones.asignaciones)
-      .createIndex(
-        keys: {'clubId': 1, 'grupoId': 1},
-        name: 'club_grupo_activa_unica',
-        unique: true,
-        partialFilterExpression: {'estado': 'activa'},
-      );
+  // Assignments (E6.3, E8.8): listing by club and owner, and the rule "an owner has at most one active
+  // assignment" (D14: one per group and one per athlete). Atomic writes touch one document and the driver has no
+  // transactions (D15), so the rule lives in the database: one unique partial index per kind of owner, covering
+  // only the active ones of that kind (ended and paused ones may repeat). Each index needs its owner field to
+  // exist: otherwise every athlete's assignment would count as group `null`, and the other way around.
+  final assignments = db.collection(Colecciones.asignaciones);
+  await assignments.createIndex(keys: {'clubId': 1}, name: 'club');
+  await _dropIndexUnlessFilterHas(
+    assignments,
+    'club_grupo_activa_unica',
+    'grupoId',
+  );
+  await assignments.createIndex(
+    keys: {'clubId': 1, 'grupoId': 1},
+    name: 'club_grupo_activa_unica',
+    unique: true,
+    partialFilterExpression: {
+      'estado': 'activa',
+      'grupoId': {r'$exists': true},
+    },
+  );
+  await assignments.createIndex(
+    keys: {'clubId': 1, 'atletaId': 1},
+    name: 'club_atleta_activa_unica',
+    unique: true,
+    partialFilterExpression: {
+      'estado': 'activa',
+      'atletaId': {r'$exists': true},
+    },
+  );
 
   // "In use" checks (E5.4): multikey indexes on the exercise and timer references inside plans.
   const blocks = 'modelosSemana.dias.bloques';
@@ -240,4 +256,21 @@ Map<String, dynamic> aDocumento(Json json, {String? id}) {
   final copia = Map<String, dynamic>.of(json);
   final propio = copia.remove('id');
   return {'_id': id ?? propio, ...copia};
+}
+
+/// Drops the index [name] of [collection] when its partial filter does not mention [field]: an index from before
+/// that filter existed, which `createIndex` cannot change in place (same name, other options). Nothing happens if
+/// there is no such index or it already has the field.
+Future<void> _dropIndexUnlessFilterHas(
+  DbCollection collection,
+  String name,
+  String field,
+) async {
+  for (final index in await collection.getIndexes()) {
+    if (index['name'] != name) continue;
+    final filter = index['partialFilterExpression'];
+    if (filter is Map && filter.containsKey(field)) return;
+    await collection.dropIndexes(name);
+    return;
+  }
 }

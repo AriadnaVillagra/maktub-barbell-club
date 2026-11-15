@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/features/asignacion/domain/assignment_repository.dart';
 import 'package:maktub_frontend/features/asignacion/presentation/providers.dart';
+import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
 import 'package:maktub_frontend/features/plan/presentation/plans_page.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
@@ -15,7 +16,8 @@ class _FakeAssignments implements AssignmentRepository {
   _FakeAssignments({this.withActive = false});
 
   final bool withActive;
-  final assigned = <(String, String, DateTime)>[];
+  final assigned = <(String, String?, DateTime)>[];
+  final athletes = <String?>[];
 
   Assignment _active() => Assignment(
     id: 'a1',
@@ -41,10 +43,12 @@ class _FakeAssignments implements AssignmentRepository {
   Future<Assignment> assign(
     String clubId, {
     required String planId,
-    required String groupId,
+    String? groupId,
+    String? athleteId,
     required DateTime startDate,
   }) async {
     assigned.add((planId, groupId, startDate));
+    athletes.add(athleteId);
     return _active();
   }
 
@@ -63,7 +67,11 @@ void main() {
     publishedBy: 'u1',
   );
 
-  Future<void> open(WidgetTester tester, _FakeAssignments assignments) async {
+  Future<void> open(
+    WidgetTester tester,
+    _FakeAssignments assignments, {
+    List<AthleteSummary> athletes = const [],
+  }) async {
     tester.view.physicalSize = const Size(900, 3000);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -77,8 +85,9 @@ void main() {
                 samplePlan(id: 'p2', name: 'En borrador'),
               ],
             ),
+            assignments: assignments,
+            athletes: athletes,
           ),
-          assignmentRepositoryProvider.overrideWithValue(assignments),
           assignmentTodayProvider.overrideWithValue(today),
         ],
         child: MaterialApp(
@@ -123,7 +132,29 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('assign-confirm')), findsNothing);
-    expect(find.textContaining('ya tiene un plan en curso'), findsOneWidget);
+    expect(find.textContaining('ya tienen un plan en curso'), findsOneWidget);
     expect(assignments.assigned, isEmpty);
   });
+
+  testWidgets(
+    'with the group busy it still assigns to an athlete without a plan (E8.8)',
+    (tester) async {
+      final assignments = _FakeAssignments(withActive: true);
+      await open(
+        tester,
+        assignments,
+        athletes: const [AthleteSummary(id: 'ari', userId: 'u1', name: 'Ari')],
+      );
+      await tester.tap(find.byKey(const Key('plan-assign-p1')));
+      await tester.pumpAndSettle();
+      // Only Ari is free: the group already has a plan in course.
+      expect(find.text('Grupo Barra'), findsNothing);
+      await tester.tap(find.byKey(const Key('assign-confirm')));
+      await tester.pumpAndSettle();
+
+      expect(assignments.assigned, [('p1', null, today)]);
+      expect(assignments.athletes, ['ari']);
+      expect(find.text('"Listo" asignado a Ari.'), findsOneWidget);
+    },
+  );
 }

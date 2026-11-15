@@ -4,8 +4,12 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 /// What the "list assignments" slice reads.
 abstract interface class ListAssignmentsStore {
-  /// The assignments of [clubId] and of no other club; only those of [groupId] when it is given.
-  Future<List<Assignment>> assignments(String clubId, {String? groupId});
+  /// The assignments of [clubId] and of no other club; only those of [groupId] or of [athleteId] when given.
+  Future<List<Assignment>> assignments(
+    String clubId, {
+    String? groupId,
+    String? athleteId,
+  });
 }
 
 class MongoListAssignmentsStore implements ListAssignmentsStore {
@@ -14,10 +18,15 @@ class MongoListAssignmentsStore implements ListAssignmentsStore {
   final Db _db;
 
   @override
-  Future<List<Assignment>> assignments(String clubId, {String? groupId}) async {
+  Future<List<Assignment>> assignments(
+    String clubId, {
+    String? groupId,
+    String? athleteId,
+  }) async {
     final docs = await _db.collection(Colecciones.asignaciones).find({
       'clubId': clubId,
       'grupoId': ?groupId,
+      'atletaId': ?athleteId,
     }).toList();
     return [for (final d in docs) Assignment.fromJson(desdeDocumento(d))];
   }

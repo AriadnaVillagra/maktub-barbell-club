@@ -13,6 +13,9 @@ abstract interface class DayStatusStore {
   /// The active assignment of [groupId] in [clubId], or null if it has none.
   Future<Assignment?> activeAssignment(String clubId, String groupId);
 
+  /// The assignment [assignmentId] of [clubId], whatever its owner and status, or null if the club has none.
+  Future<Assignment?> assignment(String clubId, String assignmentId);
+
   /// The published version of the plan [planId] of [clubId] (never the draft), or null if it has none.
   Future<PublishedPlan?> publishedPlan(String clubId, String planId);
 
@@ -44,6 +47,15 @@ class MongoDayStatusStore implements DayStatusStore {
       'clubId': clubId,
       'grupoId': groupId,
       'estado': AssignmentStatus.active.cable,
+    });
+    return doc == null ? null : Assignment.fromJson(desdeDocumento(doc));
+  }
+
+  @override
+  Future<Assignment?> assignment(String clubId, String assignmentId) async {
+    final doc = await _db.collection(Colecciones.asignaciones).findOne({
+      '_id': assignmentId,
+      'clubId': clubId,
     });
     return doc == null ? null : Assignment.fromJson(desdeDocumento(doc));
   }

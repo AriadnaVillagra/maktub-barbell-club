@@ -121,7 +121,7 @@ void main() {
   ) async {
     await open(tester, wodBlock, FakeWodRepository(wods: [fran]));
     await addWod(tester, 'Fran');
-    expect(find.text('WoD · Temporizador: AMRAP 12'), findsOneWidget);
+    expect(find.text('Temporizador: AMRAP 12'), findsOneWidget);
     expect(find.text('21-15-9 de thrusters'), findsOneWidget);
     expect(find.text('Sentadilla'), findsOneWidget);
     expect(find.text('1x21, 1x15, 1x9'), findsOneWidget);
@@ -141,7 +141,7 @@ void main() {
       FakeWodRepository(wods: [fran]),
     );
     await addWod(tester, 'Fran');
-    expect(find.text('WoD · Temporizador: Descanso 90'), findsOneWidget);
+    expect(find.text('Temporizador: Descanso 90'), findsOneWidget);
     expect(find.text('Mi nota'), findsOneWidget);
     expect(find.text('21-15-9 de thrusters'), findsNothing);
     expect(find.text('Sentadilla'), findsOneWidget);

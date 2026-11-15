@@ -109,7 +109,8 @@ class _NewPlanDialogState extends State<_NewPlanDialog> {
         SegmentedButton<PlanType>(
           key: const Key('plan-type'),
           segments: [
-            for (final t in PlanType.values)
+            // History plans are built only by the import of the old record.
+            for (final t in PlanType.values.where((t) => t != PlanType.history))
               ButtonSegment(
                 value: t,
                 label: Text(planTypeLabel(t), key: Key('plan-type-${t.cable}')),

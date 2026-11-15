@@ -39,6 +39,14 @@ class _FakeStore implements DayStatusStore {
   }
 
   @override
+  Future<Assignment?> assignment(String clubId, String assignmentId) async {
+    for (final a in assignments) {
+      if (a.clubId == clubId && a.id == assignmentId) return a;
+    }
+    return null;
+  }
+
+  @override
   Future<PublishedPlan?> publishedPlan(String clubId, String planId) async =>
       plans['$clubId/$planId'];
 
@@ -89,6 +97,20 @@ Future<Response> _get(_FakeStore s, String query) async {
       .thenReturn(Request('GET', Uri.parse('http://localhost/x$query')));
   when(() => context.read<ClubContext>()).thenReturn(_ctx('club-a'));
   return manejarErrores()((c) => dayStatusEndpoint(c, 'g1', store: s))(context);
+}
+
+Future<Response> _getByAssignment(
+  _FakeStore s,
+  String assignmentId,
+  String query,
+) async {
+  final context = _Context();
+  when(() => context.request)
+      .thenReturn(Request('GET', Uri.parse('http://localhost/x$query')));
+  when(() => context.read<ClubContext>()).thenReturn(_ctx('club-a'));
+  return manejarErrores()(
+    (c) => assignmentDayStatusEndpoint(c, assignmentId, store: s),
+  )(context);
 }
 
 Future<Map<String, dynamic>> _json(Response r) async =>
@@ -181,7 +203,70 @@ void main() {
     });
   });
 
+  group('status of each day of one assignment (E8.8)', () {
+    Assignment own({AssignmentStatus status = AssignmentStatus.active}) =>
+        Assignment(
+          id: 'own',
+          clubId: 'club-a',
+          planId: 'p2',
+          athleteId: 'ari',
+          startDate: DateTime.utc(2026, 11, 9),
+          status: status,
+          auditoria: Auditoria.nueva('coach-1', ahora: DateTime.utc(2026, 11, 8)),
+        );
+
+    test("an athlete's own assignment gives its own days, not the group's", () async {
+      final s = store()
+        ..assignments.add(own())
+        ..plans['club-a/p2'] = _plan(days: 2)
+        ..done['club-a/own'] = [
+          (cycle: 1, week: 1, day: 1, date: DateTime.utc(2026, 11, 9)),
+        ]
+        ..done['club-a/a1'] = [
+          (cycle: 1, week: 1, day: 2, date: DateTime.utc(2026, 11, 10)),
+        ];
+      final json = await _json(await _getByAssignment(s, 'own', week1));
+
+      expect(json['asignacion'], {
+        'id': 'own',
+        'planId': 'p2',
+        'fechaInicio': '2026-11-09',
+      });
+      expect(states(json), ['1.1:hecho', '1.2:pendiente']);
+    });
+
+    test("a group's assignment by id gives the same as the group's days", () async {
+      final s = store();
+      expect(
+        await _json(await _getByAssignment(s, 'a1', week1)),
+        await _json(await _get(s, week1)),
+      );
+    });
+
+    test('an ended one still answers; unknown is 404; bad dates are 400', () async {
+      final s = store()
+        ..assignments.add(own(status: AssignmentStatus.ended))
+        ..plans['club-a/p2'] = _plan(days: 2);
+      expect((await _getByAssignment(s, 'own', week1)).statusCode, 200);
+      expect((await _getByAssignment(s, 'nope', week1)).statusCode, 404);
+      expect((await _getByAssignment(s, 'own', '?desde=x')).statusCode, 400);
+    });
+  });
+
   group('club isolation', () {
+    final byId = _FakeStore();
+    testClubIsolation(
+      'GET /clubes/{clubId}/asignaciones/{asignacionId}/dias',
+      endpoint: (c) => assignmentDayStatusEndpoint(c, 'a1', store: byId),
+      path: '/clubes/{clubId}/asignaciones/a1/dias?desde=2026-11-09&hasta=2026-11-15',
+      action: Accion.verCatalogoYPlanes,
+      seed: (clubId, marker) {
+        byId.plans['$clubId/$marker'] = _plan();
+        byId.assignments.removeWhere((a) => a.clubId == clubId);
+        byId.assignments.add(_assignment(clubId, planId: marker));
+      },
+    );
+
     final s = _FakeStore();
     testClubIsolation(
       'GET /clubes/{clubId}/grupos/{grupoId}/dias',

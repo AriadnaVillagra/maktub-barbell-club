@@ -32,7 +32,8 @@ Future<void> guardedGuided(
 }
 
 /// The guided mode "Entrenar" (E7.20): who trains, then each block of the day with its preview and its steps. It
-/// writes the same sets as the session's list, so leaving it keeps everything finished.
+/// writes the same sets as the session's list, so leaving it keeps everything finished. The pass is the session's
+/// (E7.26): every device in it sees the same block and step, and entering with a pass going on resumes it.
 class GuidedPage extends ConsumerWidget {
   const GuidedPage({super.key, required this.sessionPath});
 
@@ -51,7 +52,9 @@ class GuidedPage extends ConsumerWidget {
     final ok = await confirmAction(
       context,
       title: '¿Salir del modo guiado?',
-      body: 'Lo que ya terminaron quedó registrado.',
+      body:
+          'Lo que ya terminaron quedó registrado. La pasada sigue para los '
+          'demás y al volver la retomás donde esté.',
       action: 'Salir',
     );
     if (ok && context.mounted) _leave(context);
@@ -61,16 +64,26 @@ class GuidedPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final guided = ref.watch(guidedProvider);
     final data = ref.watch(sessionDayProvider).value;
-    final live = ref.watch(sessionScreenProvider.select((s) => s.live));
-    final ready = guided != null && data != null && live != null;
+    final screen = ref.watch(sessionScreenProvider);
+    final live = screen.live;
+    // Choosing who trains needs no session (E7.27); the blocks and the summary come with the pass, which is the
+    // session's.
+    final ready =
+        guided != null &&
+        data != null &&
+        (live != null || guided.phase == GuidedPhase.athletes);
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
         title: ready
-            ? _Title(day: live.session.day, guided: guided)
+            ? _Title(
+                day: live?.session.day ?? shownDayOf(data, screen).day,
+                guided: guided,
+              )
             : const Text('Entrenar'),
         actions: [
           const SessionTimerButton(),
+          if (ready && guided.phase == GuidedPhase.blocks) const _PassMenu(),
           IconButton(
             key: const Key('guided-exit'),
             tooltip: 'Salir del modo guiado',
@@ -83,25 +96,25 @@ class GuidedPage extends ConsumerWidget {
       ),
       body: !ready
           ? _Message(
-              text: 'Abrí la sesión del día para entrenar.',
+              text: 'No hay un día del plan para entrenar.',
               onBack: () => _leave(context),
             )
           : ListView(
               padding: const EdgeInsets.all(Espacio.l),
               children: [
-                switch (guided.phase) {
-                  GuidedPhase.athletes => _Athletes(guided: guided, data: data),
-                  GuidedPhase.blocks => _Block(
+                switch ((guided.phase, live)) {
+                  (GuidedPhase.blocks, final live?) => _Block(
                     guided: guided,
                     data: data,
                     live: live,
                   ),
-                  GuidedPhase.finished => GuidedSummary(
+                  (GuidedPhase.finished, final live?) => GuidedSummary(
                     guided: guided,
                     data: data,
                     live: live,
                     onBack: () => _leave(context),
                   ),
+                  _ => _Athletes(guided: guided, data: data),
                 },
               ],
             ),
@@ -219,6 +232,55 @@ class _Message extends StatelessWidget {
   );
 }
 
+enum _PassAction { finishDay, startOver }
+
+/// What can be done with the whole pass while it goes on: finish the day for everyone, or start a new pass.
+class _PassMenu extends ConsumerWidget {
+  const _PassMenu();
+
+  Future<void> _choose(
+    BuildContext context,
+    WidgetRef ref,
+    _PassAction action,
+  ) async {
+    final notifier = ref.read(guidedProvider.notifier);
+    switch (action) {
+      case _PassAction.finishDay:
+        final ok = await confirmAction(
+          context,
+          title: '¿Terminar el día?',
+          body:
+              'Termina la pasada para todos los dispositivos. Lo que ya '
+              'terminaron quedó registrado; lo que falta queda sin hacer.',
+          action: 'Terminar',
+        );
+        if (ok) notifier.finishDay();
+      case _PassAction.startOver:
+        notifier.startOver();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) =>
+      PopupMenuButton<_PassAction>(
+        key: const Key('guided-pass-menu'),
+        tooltip: 'Pasada',
+        onSelected: (a) => _choose(context, ref, a),
+        itemBuilder: (_) => const [
+          PopupMenuItem(
+            key: Key('guided-finish-day'),
+            value: _PassAction.finishDay,
+            child: Text('Terminar el día'),
+          ),
+          PopupMenuItem(
+            key: Key('guided-start-over'),
+            value: _PassAction.startOver,
+            child: Text('Empezar una pasada nueva'),
+          ),
+        ],
+      );
+}
+
 enum _BeginChoice { resume, redo }
 
 class _Athletes extends ConsumerWidget {
@@ -278,7 +340,7 @@ class _Athletes extends ConsumerWidget {
           spacing: Espacio.s,
           runSpacing: Espacio.s,
           children: [
-            for (final id in data.group.memberIds)
+            for (final id in data.memberIds)
               PildoraMaktub(
                 key: Key('guided-athlete-$id'),
                 texto: athleteLabel(data, id),
@@ -287,12 +349,24 @@ class _Athletes extends ConsumerWidget {
               ),
           ],
         ),
-        FilledButton(
-          key: const Key('guided-begin'),
-          onPressed: guided.athleteIds.isEmpty || opening
-              ? null
-              : () => guardedGuided(context, () => _begin(context, ref)),
-          child: const Text('Comenzar'),
+        Wrap(
+          spacing: Espacio.s,
+          runSpacing: Espacio.s,
+          children: [
+            if (guided.canResume)
+              OutlinedButton(
+                key: const Key('guided-back-to-pass'),
+                onPressed: notifier.resume,
+                child: const Text('Volver a la pasada'),
+              ),
+            FilledButton(
+              key: const Key('guided-begin'),
+              onPressed: guided.athleteIds.isEmpty || opening
+                  ? null
+                  : () => guardedGuided(context, () => _begin(context, ref)),
+              child: const Text('Comenzar'),
+            ),
+          ],
         ),
       ],
     );

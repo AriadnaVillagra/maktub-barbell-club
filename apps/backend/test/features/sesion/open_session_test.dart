@@ -213,6 +213,61 @@ SetRecord _record(String sessionId, {double? factor, double? pctReal}) =>
 void main() {
   setUpAll(() => registerFallbackValue(_athlete()));
 
+  group("an athlete's own assignment (E8.8)", () {
+    _FakeStore own() => _store()
+      ..assignments['club-a/lev'] = Assignment(
+        id: 'lev',
+        clubId: 'club-a',
+        planId: 'p1',
+        athleteId: 'ari',
+        startDate: DateTime.utc(2026, 11, 16),
+        auditoria: Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 8)),
+      );
+
+    test('its athlete opens it, located by its own start date', () async {
+      final store = own();
+      final response = await _post(
+        store,
+        _body(assignmentId: 'lev', present: ['ari']),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      final session = Session.fromJson(
+        ((await _json(response))['sesion'] as Map).cast<String, dynamic>(),
+      );
+      expect(session.assignmentId, 'lev');
+      expect((session.cycle, session.week), (1, 1));
+      expect(session.presentAthleteIds, ['ari']);
+    });
+
+    test("it and the group's plan open as two sessions of the same date", () async {
+      final store = own();
+      await _post(store, _body(present: ['ari']));
+      await _post(store, _body(assignmentId: 'lev', present: ['ari']));
+
+      expect(
+        {for (final s in store.sessions.values) s.assignmentId},
+        {'a1', 'lev'},
+      );
+    });
+
+    test('another athlete of the group cannot open it, nor be present in it', () async {
+      final store = own()..athletes['club-a/user-ari'] = 'andi';
+      expect(
+        (await _post(store, _body(assignmentId: 'lev'))).statusCode,
+        HttpStatus.notFound,
+      );
+      expect(
+        (await _post(
+          own(),
+          _body(assignmentId: 'lev', present: ['andi']),
+          club: _coach(),
+        )).statusCode,
+        HttpStatus.unprocessableEntity,
+      );
+    });
+  });
+
   group('opening', () {
     test('creates the session of that date, with cycle and week from it', () async {
       final store = _store();
@@ -353,6 +408,18 @@ void main() {
         _body(),
         HttpStatus.conflict,
       );
+    });
+
+    test('loading history opens the session of an ended assignment', () async {
+      final store = _store(status: AssignmentStatus.ended);
+      final opened = await OpenSession(
+        store,
+        MemoryLiveBroadcast(),
+        newId: () => 'history-1',
+        history: true,
+      )(_coach(), _body(present: ['ari']));
+      expect(opened.session.id, 'history-1');
+      expect(opened.session.presentAthleteIds, ['ari']);
     });
 
     test('a plan without a published version cannot run', () async {

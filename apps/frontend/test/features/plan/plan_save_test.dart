@@ -180,6 +180,40 @@ void main() {
       expect(find.text('Falta el % de la serie.'), findsOneWidget);
     });
 
+    testWidgets(
+      'a history plan is not asked for % or reps, nor to be assigned',
+      (tester) async {
+        final noPct = [const PlanSet(reps: 5), const PlanSet()];
+        Plan history(List<String> assignment) => samplePlan(
+          type: PlanType.history,
+          models: [
+            completeModel('a', sets: noPct),
+            completeModel('b', sets: noPct),
+          ],
+          assignment: assignment,
+        );
+        final c = await open(tester, history(['a', 'a', 'a', 'a']));
+        editor(c).assign(1, 'b');
+        await tester.pumpAndSettle();
+        await tapSave(tester);
+
+        expect(repo.saved, hasLength(1));
+        expect(find.byKey(const Key('plan-problems')), findsNothing);
+        expect(find.textContaining('asignarlo'), findsNothing);
+
+        // Anything else it lacks is still listed, to publish it.
+        final c2 = await open(tester, history(['a', 'a', 'a', '']));
+        editor(c2).assign(1, 'b');
+        await tester.pumpAndSettle();
+        await tapSave(tester);
+        expect(
+          find.text('Plan guardado. Para poder publicarlo falta completar:'),
+          findsOneWidget,
+        );
+        expect(find.text('Falta el % de la serie.'), findsNothing);
+      },
+    );
+
     testWidgets('a valid plan is sent, shows its id and is no longer dirty', (
       tester,
     ) async {

@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
-import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
+import '../../catalogo/presentation/catalog_admin_widgets.dart'
+    show asyncView, showApiError;
 import '../../catalogo/presentation/exercise_picker.dart';
 import '../../catalogo/presentation/catalog_admin_providers.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
+import '../domain/models_view.dart';
 import '../domain/plan_draft.dart';
 import '../domain/prescription_defaults.dart';
 import 'block_dialog.dart';
@@ -16,6 +18,7 @@ import 'plan_labels.dart';
 import 'prescription_dialog.dart';
 import 'wod_picker.dart';
 import 'providers.dart';
+import 'reveal_on_add.dart';
 
 /// Editor of a plan's structure: week models, the assignment of the 4 weeks and the days of each model.
 /// Edits stay in memory until the save action in the app bar validates and sends them (E5.9); a failed
@@ -31,6 +34,28 @@ class PlanEditorPage extends ConsumerWidget {
 
   /// The plan list, where leaving the editor goes.
   final String listPath;
+
+  /// Copies the saved plan into a new one (to repeat it, e.g. a history plan) and opens its editor.
+  Future<void> _copyAsNew(
+    BuildContext context,
+    WidgetRef ref,
+    Plan plan,
+  ) async {
+    final name = await askPlanName(
+      context,
+      title: 'Copiar como plan nuevo',
+      initial: '${plan.name} (copia)',
+    );
+    if (name == null || !context.mounted) return;
+    try {
+      final copy = await copyPlanAsNew(ref, plan, name);
+      if (copy != null && context.mounted) {
+        context.go('$listPath/${Uri.encodeComponent(copy.id)}');
+      }
+    } catch (e) {
+      if (context.mounted) showApiError(context, e);
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -63,6 +88,17 @@ class PlanEditorPage extends ConsumerWidget {
                 )
               : null,
           actions: [
+            if (value.hasValue)
+              IconButton(
+                key: const Key('plan-copy'),
+                icon: const Icon(Icons.copy_all_outlined),
+                tooltip: dirty
+                    ? 'Guardá los cambios para copiar el plan'
+                    : 'Copiar como plan nuevo',
+                onPressed: dirty || saving
+                    ? null
+                    : () => _copyAsNew(context, ref, value.requireValue.base),
+              ),
             if (value.hasValue)
               Padding(
                 padding: const EdgeInsets.only(right: Espacio.s),
@@ -103,6 +139,8 @@ class _Editor extends ConsumerWidget {
     final editor = ref.read(planEditorProvider(planId).notifier);
     final save = ref.watch(planSaveProvider(planId));
     final publish = ref.watch(planPublishProvider(planId));
+    final modelsView = ref.watch(modelsViewProvider);
+    final phone = MediaQuery.sizeOf(context).width < 600;
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
@@ -151,16 +189,39 @@ class _Editor extends ConsumerWidget {
           ),
           const SizedBox(height: Espacio.l),
         ],
-        Text(
-          '${planTypeLabel(draft.base.type)} · ciclo de $planCycleWeeks semanas',
-          style: context.textos.bodyLarge,
-        ),
-        const SizedBox(height: Espacio.l),
-        Text('Asignación', style: context.textos.titleMedium),
-        const SizedBox(height: Espacio.s),
-        _Assignment(draft: draft, onAssign: editor.assign),
         const SizedBox(height: Espacio.xl),
-        Text('Modelos de semana', style: context.textos.titleMedium),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Modelos de semana',
+                style: context.textos.titleMedium,
+              ),
+            ),
+            // Like a folder's views (Ari): every day in full, or one row per day with its blocks as tags.
+            SegmentedButton<ModelsView>(
+              key: const Key('models-view'),
+              showSelectedIcon: false,
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              // On a phone the labels only fit without icons, like the calendar views.
+              segments: [
+                ButtonSegment(
+                  value: ModelsView.detailed,
+                  icon: phone ? null : const Icon(Icons.view_agenda_outlined),
+                  label: const Text('Detallada'),
+                ),
+                ButtonSegment(
+                  value: ModelsView.compact,
+                  icon: phone ? null : const Icon(Icons.view_headline),
+                  label: const Text('Compacta'),
+                ),
+              ],
+              selected: {modelsView},
+              onSelectionChanged: (v) =>
+                  ref.read(modelsViewProvider.notifier).choose(v.first),
+            ),
+          ],
+        ),
         const SizedBox(height: Espacio.s),
         if (draft.weekModels.isEmpty)
           const Padding(
@@ -171,11 +232,15 @@ class _Editor extends ConsumerWidget {
             ),
           ),
         for (final model in draft.weekModels)
-          _ModelCard(
-            key: Key('model-${model.id}'),
-            model: model,
-            draft: draft,
-            editor: editor,
+          RevealOnAdd(
+            target: 'model-${model.id}',
+            child: _ModelCard(
+              key: Key('model-${model.id}'),
+              model: model,
+              draft: draft,
+              editor: editor,
+              compact: modelsView == ModelsView.compact,
+            ),
           ),
         const SizedBox(height: Espacio.s),
         Align(
@@ -202,62 +267,157 @@ class _Editor extends ConsumerWidget {
 /// What the athletes see of the plan (draft, published, or published with unpublished changes) and the
 /// "Publicar" button, which is always there and only enabled when the saved plan is complete and has
 /// something to publish.
-class _PublishStatus extends ConsumerWidget {
+class _PublishStatus extends ConsumerStatefulWidget {
   const _PublishStatus({required this.planId, required this.draft});
 
   final String planId;
   final PlanDraft draft;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_PublishStatus> createState() => _PublishStatusState();
+}
+
+class _PublishStatusState extends ConsumerState<_PublishStatus> {
+  // Open while a week has no model, so a new plan shows what is missing.
+  late bool _expanded = widget.draft.assignment.contains(null);
+
+  String get planId => widget.planId;
+  PlanDraft get draft => widget.draft;
+
+  @override
+  Widget build(BuildContext context) {
     final plan = draft.base;
     final publishing = ref.watch(planPublishProvider(planId)).publishing;
     final publishable = ref.watch(planPublishableProvider(planId));
     final (label, detail) = switch (plan.published) {
-      null => (
-        'Borrador',
-        'Los atletas todavía no ven este plan.',
-      ),
+      null => ('Borrador', 'Los atletas todavía no ven este plan.'),
       _ when plan.hasUnpublishedChanges => (
         'Publicado con cambios sin publicar',
         'Los atletas ven la última versión publicada.',
       ),
       _ => ('Publicado', 'Los atletas ven la versión guardada.'),
     };
+    final editor = ref.read(planEditorProvider(planId).notifier);
+    // The details at a glance while closed: type, Activo / Pasado and the model of each week.
+    final summary = Wrap(
+      key: const Key('plan-details-summary'),
+      spacing: Espacio.xs,
+      runSpacing: Espacio.xs,
+      children: [
+        switch ((plan.published, plan.hasUnpublishedChanges)) {
+          (null, _) => InsigniaMaktub(
+            'Borrador',
+            context.colores.insigniaPropio,
+          ),
+          (_, true) => InsigniaMaktub(
+            'Publicado con cambios',
+            context.colores.alertaContenedor,
+          ),
+          _ => InsigniaMaktub('Publicado', context.colores.exitoContenedor),
+        },
+        InsigniaMaktub(planTypeLabel(plan.type), context.colores.insigniaBase),
+        if (plan.type != PlanType.history)
+          draft.past
+              ? InsigniaMaktub('Pasado', context.colores.insigniaBase)
+              : InsigniaMaktub('Activo', context.colores.exitoContenedor),
+        for (final (w, id) in draft.assignment.indexed)
+          switch (draft.modelById(id)) {
+            null => InsigniaMaktub(
+              'S${w + 1} Sin modelo',
+              context.colores.alertaContenedor,
+            ),
+            final m => InsigniaMaktub(
+              'S${w + 1} ${m.name}',
+              context.colores.insigniaBase,
+            ),
+          },
+      ],
+    );
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(Espacio.m),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    label,
-                    key: const Key('plan-status'),
-                    style: context.textos.titleSmall,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Status and Publicar, type, Activo / Pasado and the cycle assignment.
+          ExpansionTile(
+            key: const Key('plan-details'),
+            title: const Text('Detalles'),
+            subtitle: _expanded
+                ? null
+                : Padding(
+                    padding: const EdgeInsets.only(top: Espacio.xs),
+                    child: summary,
                   ),
-                  Text(detail, style: context.textos.bodyMedium),
+            initiallyExpanded: _expanded,
+            onExpansionChanged: (open) => setState(() => _expanded = open),
+            shape: const Border(),
+            collapsedShape: const Border(),
+            childrenPadding: const EdgeInsets.fromLTRB(
+              Espacio.m,
+              0,
+              Espacio.m,
+              Espacio.m,
+            ),
+            expandedCrossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label,
+                          key: const Key('plan-status'),
+                          style: context.textos.titleSmall,
+                        ),
+                        Text(detail, style: context.textos.bodyMedium),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: Espacio.m),
+                  FilledButton.icon(
+                    key: const Key('plan-publish'),
+                    icon: publishing
+                        ? const SizedBox.square(
+                            dimension: Espacio.l,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.publish_outlined),
+                    label: const Text('Publicar'),
+                    onPressed: publishable && !publishing
+                        ? () => ref
+                              .read(planPublishProvider(planId).notifier)
+                              .publish()
+                        : null,
+                  ),
                 ],
               ),
-            ),
-            const SizedBox(width: Espacio.m),
-            FilledButton.icon(
-              key: const Key('plan-publish'),
-              icon: publishing
-                  ? const SizedBox.square(
-                      dimension: Espacio.l,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.publish_outlined),
-              label: const Text('Publicar'),
-              onPressed: publishable && !publishing
-                  ? () => ref.read(planPublishProvider(planId).notifier).publish()
-                  : null,
-            ),
-          ],
-        ),
+              const Divider(height: Espacio.xl),
+              Text(
+                '${planTypeLabel(plan.type)} · ciclo de $planCycleWeeks semanas',
+                style: context.textos.bodyLarge,
+              ),
+              // Where the plans list shows it. A history plan is always past, so it has no choice.
+              if (plan.type != PlanType.history) ...[
+                const SizedBox(height: Espacio.m),
+                SegmentedButton<bool>(
+                  key: const Key('plan-past'),
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: false, label: Text('Activo')),
+                    ButtonSegment(value: true, label: Text('Pasado')),
+                  ],
+                  selected: {draft.past},
+                  onSelectionChanged: (s) => editor.setPast(s.first),
+                ),
+              ],
+              const SizedBox(height: Espacio.l),
+              Text('Asignación', style: context.textos.titleMedium),
+              _Assignment(draft: draft, onAssign: editor.assign),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -270,35 +430,30 @@ class _Assignment extends StatelessWidget {
   final void Function(int week, String? modelId) onAssign;
 
   @override
-  Widget build(BuildContext context) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(Espacio.m),
-      child: Column(
-        children: [
-          for (var w = 0; w < planCycleWeeks; w++)
-            Row(
-              children: [
-                Expanded(child: Text('Semana ${w + 1}')),
-                DropdownButton<String?>(
-                  key: Key('assign-$w'),
-                  value: draft.assignment[w],
-                  items: [
-                    const DropdownMenuItem<String?>(
-                      value: null,
-                      child: Text('Sin modelo'),
-                    ),
-                    for (final m in draft.weekModels)
-                      DropdownMenuItem<String?>(
-                        value: m.id,
-                        child: Text(m.name),
-                      ),
-                  ],
-                  onChanged: (id) => onAssign(w, id),
-                ),
-              ],
-            ),
-        ],
-      ),
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: Espacio.s),
+    child: Column(
+      children: [
+        for (var w = 0; w < planCycleWeeks; w++)
+          Row(
+            children: [
+              Expanded(child: Text('Semana ${w + 1}')),
+              DropdownButton<String?>(
+                key: Key('assign-$w'),
+                value: draft.assignment[w],
+                items: [
+                  const DropdownMenuItem<String?>(
+                    value: null,
+                    child: Text('Sin modelo'),
+                  ),
+                  for (final m in draft.weekModels)
+                    DropdownMenuItem<String?>(value: m.id, child: Text(m.name)),
+                ],
+                onChanged: (id) => onAssign(w, id),
+              ),
+            ],
+          ),
+      ],
     ),
   );
 }
@@ -309,11 +464,15 @@ class _ModelCard extends StatelessWidget {
     required this.model,
     required this.draft,
     required this.editor,
+    this.compact = false,
   });
 
   final WeekModel model;
   final PlanDraft draft;
   final PlanEditor editor;
+
+  /// The compact view: each day is a row with its blocks as tags until it is opened.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -333,17 +492,20 @@ class _ModelCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: Espacio.s),
-                TextButton.icon(
-                  key: Key('day-add-$id'),
-                  icon: const Icon(Icons.add),
-                  label: Text(
-                    draft.canAddDay(id)
-                        ? 'Agregar día'
-                        : 'Máximo $maxDaysPerWeek días',
+                Flexible(
+                  child: TextButton.icon(
+                    key: Key('day-add-$id'),
+                    icon: const Icon(Icons.add),
+                    label: Text(
+                      draft.canAddDay(id)
+                          ? 'Agregar día'
+                          : 'Máximo $maxDaysPerWeek días',
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: draft.canAddDay(id)
+                        ? () => editor.addDay(id)
+                        : null,
                   ),
-                  onPressed: draft.canAddDay(id)
-                      ? () => editor.addDay(id)
-                      : null,
                 ),
                 const Spacer(),
                 IconButton(
@@ -369,13 +531,17 @@ class _ModelCard extends StatelessWidget {
             ),
             for (final (i, _) in model.days.indexed) ...[
               if (i > 0) const Divider(),
-              _DayTile(
-                key: Key('day-$id-$i'),
-                modelId: id,
-                index: i,
-                day: model.days[i],
-                draft: draft,
-                editor: editor,
+              RevealOnAdd(
+                target: 'day-$id-$i',
+                child: _DayTile(
+                  key: Key('day-$id-$i'),
+                  modelId: id,
+                  index: i,
+                  day: model.days[i],
+                  draft: draft,
+                  editor: editor,
+                  compact: compact,
+                ),
               ),
             ],
           ],
@@ -386,7 +552,7 @@ class _ModelCard extends StatelessWidget {
 }
 
 /// One day of a week model with its blocks (add, edit, remove).
-class _DayTile extends ConsumerWidget {
+class _DayTile extends ConsumerStatefulWidget {
   const _DayTile({
     super.key,
     required this.modelId,
@@ -394,6 +560,7 @@ class _DayTile extends ConsumerWidget {
     required this.day,
     required this.draft,
     required this.editor,
+    this.compact = false,
   });
 
   final String modelId;
@@ -402,8 +569,26 @@ class _DayTile extends ConsumerWidget {
   final PlanDraft draft;
   final PlanEditor editor;
 
+  /// Shows the day as one row with a tag per block; tapping it opens the day in full.
+  final bool compact;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DayTile> createState() => _DayTileState();
+}
+
+class _DayTileState extends ConsumerState<_DayTile> {
+  // An empty day (a new one) starts open in the compact view, ready to add blocks.
+  late bool _open = widget.day.blocks.isEmpty;
+
+  String get modelId => widget.modelId;
+  int get index => widget.index;
+  PlanDay get day => widget.day;
+  PlanDraft get draft => widget.draft;
+  PlanEditor get editor => widget.editor;
+
+  @override
+  Widget build(BuildContext context) {
+    final collapsed = widget.compact && !_open;
     final categories = ref.watch(catalogCategoriesProvider).value ?? const [];
     final timers = ref.watch(clubTimersProvider).value ?? const [];
     String? categoryName(String? id) {
@@ -424,59 +609,142 @@ class _DayTile extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ListTile(
+          key: Key('day-header-$modelId-$index'),
           contentPadding: EdgeInsets.zero,
-          leading: const Icon(Icons.today_outlined),
+          leading: widget.compact
+              ? Icon(_open ? Icons.expand_less : Icons.expand_more)
+              : const Icon(Icons.today_outlined),
           title: Text(day.name ?? 'Día ${index + 1}'),
-          trailing: IconButton(
-            key: Key('day-remove-$modelId-$index'),
-            icon: const Icon(Icons.delete_outline),
-            tooltip: 'Quitar día',
-            onPressed: draft.canRemoveDay(modelId)
-                ? () => editor.removeDay(modelId, index)
-                : null,
-          ),
-        ),
-        Padding(
-          padding: const EdgeInsets.only(left: Espacio.xl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          onTap: widget.compact ? () => setState(() => _open = !_open) : null,
+          subtitle: collapsed
+              ? Padding(
+                  padding: const EdgeInsets.only(top: Espacio.xs),
+                  child: day.blocks.isEmpty
+                      ? const Text('Sin bloques')
+                      : Wrap(
+                          key: Key('day-tags-$modelId-$index'),
+                          spacing: Espacio.xs,
+                          runSpacing: Espacio.xs,
+                          children: [
+                            for (final b in day.blocks)
+                              InsigniaMaktub(
+                                b.prescriptions.isEmpty
+                                    ? b.name
+                                    : '${b.name} · ${b.prescriptions.length}',
+                                context.colores.insigniaBase,
+                              ),
+                          ],
+                        ),
+                )
+              : null,
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              for (final (b, block) in day.blocks.indexed) ...[
-                if (b > 0) const Divider(),
-                _BlockTile(
-                  key: Key('block-$modelId-$index-$b'),
-                  keyPrefix: '$modelId-$index',
-                  index: b,
-                  block: block,
-                  categoryName: categoryName(block.categoryId),
-                  timerName: timerName(block.timerId),
-                  editor: editor,
-                  modelId: modelId,
-                  day: index,
-                ),
-              ],
-              TextButton.icon(
-                key: Key('block-add-$modelId-$index'),
-                icon: const Icon(Icons.add),
-                label: const Text('Agregar bloque'),
-                onPressed: () async {
-                  final fields = await askBlock(context);
-                  if (fields == null) return;
-                  editor.addBlock(
-                    modelId,
-                    index,
-                    PlanBlock(
-                      name: fields.name,
-                      categoryId: fields.categoryId,
-                      timerId: fields.timerId,
-                      note: fields.note,
-                    ),
-                  );
-                },
+              IconButton(
+                key: Key('day-copy-$modelId-$index'),
+                icon: const Icon(Icons.copy_outlined),
+                tooltip: 'Duplicar día en otro modelo',
+                onPressed: draft.weekModels.length < 2
+                    ? null
+                    : () async {
+                        final target = await showDialog<String>(
+                          context: context,
+                          builder: (context) => SimpleDialog(
+                            title: const Text('Duplicar día en'),
+                            children: [
+                              for (final m in draft.weekModels)
+                                if (m.id != modelId)
+                                  SimpleDialogOption(
+                                    key: Key('day-copy-to-${m.id}'),
+                                    onPressed: draft.canAddDay(m.id)
+                                        ? () => Navigator.pop(context, m.id)
+                                        : null,
+                                    child: Text(
+                                      draft.canAddDay(m.id)
+                                          ? 'Modelo ${m.name}'
+                                          : 'Modelo ${m.name} (ya tiene 7 días)',
+                                    ),
+                                  ),
+                            ],
+                          ),
+                        );
+                        if (target != null) {
+                          editor.copyDayTo(modelId, index, target);
+                        }
+                      },
+              ),
+              IconButton(
+                key: Key('day-remove-$modelId-$index'),
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Quitar día',
+                onPressed: draft.canRemoveDay(modelId)
+                    ? () => editor.removeDay(modelId, index)
+                    : null,
               ),
             ],
           ),
         ),
+        if (!collapsed)
+          Padding(
+            padding: const EdgeInsets.only(left: Espacio.xl),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Blocks are reordered by dragging their handle (no arrows, decided after the E5 test).
+                ReorderableListView(
+                  key: Key('blocks-$modelId-$index'),
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  buildDefaultDragHandles: false,
+                  onReorderItem: (from, to) =>
+                      editor.moveBlock(modelId, index, from, to),
+                  children: [
+                    for (final (b, block) in day.blocks.indexed)
+                      Column(
+                        key: ValueKey('block-item-$modelId-$index-$b'),
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          if (b > 0) const Divider(),
+                          RevealOnAdd(
+                            target: 'block-$modelId-$index-$b',
+                            child: _BlockTile(
+                              key: Key('block-$modelId-$index-$b'),
+                              keyPrefix: '$modelId-$index',
+                              index: b,
+                              block: block,
+                              categoryName: categoryName(block.categoryId),
+                              timerName: timerName(block.timerId),
+                              editor: editor,
+                              modelId: modelId,
+                              day: index,
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+                TextButton.icon(
+                  key: Key('block-add-$modelId-$index'),
+                  icon: const Icon(Icons.add),
+                  label: const Text('Agregar bloque'),
+                  onPressed: () async {
+                    final fields = await askBlock(context);
+                    if (fields == null) return;
+                    editor.addBlock(
+                      modelId,
+                      index,
+                      PlanBlock(
+                        name: fields.name,
+                        categoryId: fields.categoryId,
+                        timerId: fields.timerId,
+                        note: fields.note,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
       ],
     );
   }
@@ -518,11 +786,12 @@ class _BlockTile extends ConsumerWidget {
     );
     if (exercise == null) return;
     final timers = await ref.read(clubTimersProvider.future);
-    editor.addPrescription(
-      modelId,
-      day,
-      index,
-      defaultPrescription(
+    if (!context.mounted) return;
+    // The sets are set right away (Ari: picking the exercise and then tapping it again was not
+    // intuitive), starting from the defaults. Cancelling adds nothing.
+    final prescription = await askPrescription(
+      context,
+      initial: defaultPrescription(
         exercise,
         categoryId: block.categoryId,
         activeTimerIds: [
@@ -530,7 +799,10 @@ class _BlockTile extends ConsumerWidget {
             if (t.estado == CatalogStatus.active) t.id,
         ],
       ),
+      exercise: exercise,
     );
+    if (prescription == null) return;
+    editor.addPrescription(modelId, day, index, prescription);
   }
 
   /// Copies a WoD of the library into this block (timer, note and exercises with their sets).
@@ -540,21 +812,20 @@ class _BlockTile extends ConsumerWidget {
     editor.addWod(modelId, day, index, wod);
   }
 
-  void _setModes({ExecutionMode? execution, AthleteMode? athletes}) =>
-      editor.updateBlock(
-        modelId,
-        day,
-        index,
-        (b) => PlanBlock(
-          name: b.name,
-          categoryId: b.categoryId,
-          executionMode: execution ?? b.executionMode,
-          athleteMode: athletes ?? b.athleteMode,
-          timerId: b.timerId,
-          note: b.note,
-          prescriptions: b.prescriptions,
-        ),
-      );
+  void _setModes({ExecutionMode? execution}) => editor.updateBlock(
+    modelId,
+    day,
+    index,
+    (b) => PlanBlock(
+      name: b.name,
+      categoryId: b.categoryId,
+      executionMode: execution ?? b.executionMode,
+      athleteMode: b.athleteMode,
+      timerId: b.timerId,
+      note: b.note,
+      prescriptions: b.prescriptions,
+    ),
+  );
 
   Future<void> _editPrescription(
     BuildContext context,
@@ -592,20 +863,31 @@ class _BlockTile extends ConsumerWidget {
       return id;
     }
 
-    final details = [
-      categoryName ?? 'Sin categoría',
-      if (block.timerId != null) 'Temporizador: ${timerName ?? block.timerId}',
-    ].join(' · ');
+    // The category is not repeated under the name (Ari: it usually is the name); only the timer and
+    // the note, when there are.
+    final narrow = MediaQuery.sizeOf(context).width < 600;
+    final details = block.timerId == null
+        ? null
+        : 'Temporizador: ${timerName ?? block.timerId}';
     final tile = ListTile(
       contentPadding: EdgeInsets.zero,
+      leading: ReorderableDragStartListener(
+        key: Key('block-drag-$keyPrefix-$index'),
+        index: index,
+        child: const Tooltip(
+          message: 'Mover bloque',
+          child: Icon(Icons.drag_handle),
+        ),
+      ),
       title: Text(block.name),
-      subtitle: block.note == null
-          ? Text(details)
+      subtitle: details == null && block.note == null
+          ? null
           : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(details),
-                Text(block.note!, key: Key('block-note-$keyPrefix-$index')),
+                if (details != null) Text(details),
+                if (block.note != null)
+                  Text(block.note!, key: Key('block-note-$keyPrefix-$index')),
               ],
             ),
       onTap: () async {
@@ -628,7 +910,33 @@ class _BlockTile extends ConsumerWidget {
       },
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
+        spacing: Espacio.s,
         children: [
+          // The athlete mode (simultaneous or by turns) is chosen live in the guided mode, not here; the
+          // block keeps the one it has.
+          if (block.categoryId != wodCategoryId)
+            SegmentedButton<ExecutionMode>(
+              key: Key('block-execution-$keyPrefix-$index'),
+              showSelectedIcon: false,
+              style: const ButtonStyle(visualDensity: VisualDensity.compact),
+              // On a phone only the icons fit next to the name; the tooltip says which is which.
+              segments: [
+                ButtonSegment(
+                  value: ExecutionMode.sequential,
+                  icon: narrow ? const Icon(Icons.format_list_numbered) : null,
+                  tooltip: narrow ? 'Secuencial' : null,
+                  label: narrow ? null : const Text('Secuencial'),
+                ),
+                ButtonSegment(
+                  value: ExecutionMode.circuit,
+                  icon: narrow ? const Icon(Icons.repeat) : null,
+                  tooltip: narrow ? 'Circuito' : null,
+                  label: narrow ? null : const Text('Circuito'),
+                ),
+              ],
+              selected: {block.executionMode},
+              onSelectionChanged: (s) => _setModes(execution: s.first),
+            ),
           IconButton(
             key: Key('block-remove-$keyPrefix-$index'),
             icon: const Icon(Icons.delete_outline),
@@ -647,78 +955,46 @@ class _BlockTile extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (block.categoryId != wodCategoryId) ...[
-                SegmentedButton<ExecutionMode>(
-                  key: Key('block-execution-$keyPrefix-$index'),
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(
-                      value: ExecutionMode.sequential,
-                      label: Text('Secuencial'),
-                    ),
-                    ButtonSegment(
-                      value: ExecutionMode.circuit,
-                      label: Text('Circuito'),
-                    ),
-                  ],
-                  selected: {block.executionMode},
-                  onSelectionChanged: (s) => _setModes(execution: s.first),
-                ),
-                const SizedBox(height: Espacio.s),
-                SegmentedButton<AthleteMode>(
-                  key: Key('block-athletes-$keyPrefix-$index'),
-                  showSelectedIcon: false,
-                  segments: const [
-                    ButtonSegment(
-                      value: AthleteMode.simultaneous,
-                      label: Text('Simultáneo'),
-                    ),
-                    ButtonSegment(
-                      value: AthleteMode.turns,
-                      label: Text('Por turnos'),
-                    ),
-                  ],
-                  selected: {block.athleteMode},
-                  onSelectionChanged: (s) => _setModes(athletes: s.first),
-                ),
-              ],
               for (final (p, prescription) in block.prescriptions.indexed) ...[
                 if (p > 0) const Divider(),
-                ListTile(
-                  key: Key('prescription-$keyPrefix-$index-$p'),
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  onTap: () => _editPrescription(
-                    context,
-                    p,
-                    prescription,
-                    exerciseOf(prescription.exerciseId),
-                  ),
-                  title: Row(
-                    spacing: Espacio.l,
-                    children: [
-                      Flexible(
-                        child: Text(exerciseName(prescription.exerciseId)),
-                      ),
-                      if (prescription.sets.isNotEmpty)
-                        Flexible(child: Text(setsSummary(prescription.sets))),
-                    ],
-                  ),
-                  subtitle: _textOrNull(
-                    [
-                      if (prescription.timerId != null)
-                        'Temporizador: ${timerLabel(prescription.timerId!)}',
-                      if (prescription.barKg != null)
-                        'Barra: ${formatNumber(prescription.barKg!)} kg',
-                      if (prescription.note != null) prescription.note!,
-                    ].join(' · '),
-                  ),
-                  trailing: IconButton(
-                    key: Key('prescription-remove-$keyPrefix-$index-$p'),
-                    icon: const Icon(Icons.delete_outline),
-                    tooltip: 'Quitar ejercicio',
-                    onPressed: () =>
-                        editor.removePrescription(modelId, day, index, p),
+                RevealOnAdd(
+                  target: 'prescription-$keyPrefix-$index-$p',
+                  child: ListTile(
+                    key: Key('prescription-$keyPrefix-$index-$p'),
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    onTap: () => _editPrescription(
+                      context,
+                      p,
+                      prescription,
+                      exerciseOf(prescription.exerciseId),
+                    ),
+                    title: Row(
+                      spacing: Espacio.l,
+                      children: [
+                        Flexible(
+                          child: Text(exerciseName(prescription.exerciseId)),
+                        ),
+                        if (prescription.sets.isNotEmpty)
+                          Flexible(child: Text(setsSummary(prescription.sets))),
+                      ],
+                    ),
+                    subtitle: _textOrNull(
+                      [
+                        if (prescription.timerId != null)
+                          'Temporizador: ${timerLabel(prescription.timerId!)}',
+                        if (prescription.barKg != null)
+                          'Barra: ${formatNumber(prescription.barKg!)} kg',
+                        if (prescription.note != null) prescription.note!,
+                      ].join(' · '),
+                    ),
+                    trailing: IconButton(
+                      key: Key('prescription-remove-$keyPrefix-$index-$p'),
+                      icon: const Icon(Icons.delete_outline),
+                      tooltip: 'Quitar ejercicio',
+                      onPressed: () =>
+                          editor.removePrescription(modelId, day, index, p),
+                    ),
                   ),
                 ),
               ],

@@ -7,11 +7,12 @@ import 'package:maktub_core/maktub_core.dart';
 /// (7 days, 4 weeks) returns the same draft. Blocks are edited here (E5.6) and prescriptions are added and removed (E5.7);
 /// E5.8 edits the sets.
 class PlanDraft {
-  const PlanDraft({
+  PlanDraft({
     required this.base,
     required this.weekModels,
     required this.assignment,
-  });
+    bool? past,
+  }) : past = past ?? base.past;
 
   /// Starts editing [plan]. A missing or short assignment is padded with unassigned weeks; an id that
   /// points to no model is cleared.
@@ -35,10 +36,25 @@ class PlanDraft {
   /// One entry per week of the cycle: the id of a week model, or null while unassigned.
   final List<String?> assignment;
 
+  /// Whether the coach marked the plan as no longer in use ([Plan.past]).
+  final bool past;
+
+  /// Marks the plan as past or active. A history plan is always past, so it ignores this.
+  PlanDraft setPast(bool value) =>
+      base.type == PlanType.history || value == past
+      ? this
+      : PlanDraft(
+          base: base,
+          weekModels: weekModels,
+          assignment: assignment,
+          past: value,
+        );
+
   /// Whether the structure differs from the plan it came from.
   bool get isDirty {
     final original = PlanDraft.from(base);
-    return !_sameModels(original.weekModels, weekModels) ||
+    return past != base.past ||
+        !_sameModels(original.weekModels, weekModels) ||
         !_sameList(original.assignment, assignment);
   }
 
@@ -49,6 +65,7 @@ class PlanDraft {
     clubId: base.clubId,
     name: base.name,
     type: base.type,
+    past: past,
     weekModels: weekModels,
     weekAssignment: [for (final a in assignment) a ?? ''],
     // Never lost: the published copy only changes by publishing.
@@ -58,8 +75,12 @@ class PlanDraft {
 
   /// This same edited structure on top of [saved], the plan the server returned for it: the draft is
   /// clean again when [saved] has the structure that was sent.
-  PlanDraft rebasedOn(Plan saved) =>
-      PlanDraft(base: saved, weekModels: weekModels, assignment: assignment);
+  PlanDraft rebasedOn(Plan saved) => PlanDraft(
+    base: saved,
+    weekModels: weekModels,
+    assignment: assignment,
+    past: past,
+  );
 
   WeekModel? modelById(String? id) {
     for (final m in weekModels) {
@@ -133,6 +154,21 @@ class PlanDraft {
             days: [...m.days, const PlanDay()],
           ),
         );
+
+  /// Appends a copy of day [index] of [fromModelId] to another model, with its name, blocks,
+  /// prescriptions and sets. Plan values are immutable and have no ids of their own, so sharing them
+  /// between the two days is safe. Copying into the same model or into a full one does nothing.
+  PlanDraft copyDayTo(String fromModelId, int index, String toModelId) {
+    final from = modelById(fromModelId);
+    if (from == null || index < 0 || index >= from.days.length) return this;
+    if (fromModelId == toModelId || modelById(toModelId) == null) return this;
+    if (!canAddDay(toModelId)) return this;
+    final day = from.days[index];
+    return _mapModel(
+      toModelId,
+      (m) => WeekModel(id: m.id, name: m.name, days: [...m.days, day]),
+    );
+  }
 
   PlanDraft removeDay(String modelId, int index) {
     final model = modelById(modelId);
@@ -253,9 +289,7 @@ class PlanDraft {
         executionMode: b.executionMode,
         athleteMode: b.athleteMode,
         timerId: b.timerId ?? wod.timerId,
-        note: _hasText(b.note) || !_hasText(description)
-            ? b.note
-            : description,
+        note: _hasText(b.note) || !_hasText(description) ? b.note : description,
         prescriptions: [...b.prescriptions, ...wod.prescriptions],
       ),
     );
@@ -295,9 +329,7 @@ class PlanDraft {
       (m) => WeekModel(
         id: m.id,
         name: m.name,
-        days: [
-          for (final (i, x) in m.days.indexed) i == day ? change(x) : x,
-        ],
+        days: [for (final (i, x) in m.days.indexed) i == day ? change(x) : x],
       ),
     );
   }
@@ -310,6 +342,7 @@ class PlanDraft {
         base: base,
         weekModels: models ?? weekModels,
         assignment: assignment ?? this.assignment,
+        past: past,
       );
 }
 

@@ -4,10 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
-import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show asyncView, showApiError;
+import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
 import '../../plan/presentation/plan_labels.dart' show setsSummary;
 import '../../access/presentation/providers.dart' show canPlanProvider;
+import '../domain/live_session_sync.dart' show LiveStatus;
+import '../domain/session_draft_store.dart' show isLocalSessionId;
+import '../../../core/offline/local_copy_providers.dart';
 import 'providers.dart';
 import 'session_block_card.dart';
 import 'session_calendar_view.dart';
@@ -18,8 +20,9 @@ import 'session_timers.dart';
 enum SessionView { day, calendar }
 
 /// The day's session and the plan's calendar on one screen (E7.24). A selector switches between the session of
-/// the day (opens on the day D13 gives, lets the user pick another one and the present athletes, and once open
-/// shows each present athlete's kilos with their day adjustment) and the calendar of the whole cycle.
+/// the day (opens on the day D13 gives, lets the user pick another one, and shows each athlete of the group in a tab
+/// with their kilos to mark and edit; the session is created by the first write, E7.27) and the calendar of the
+/// whole cycle.
 class SessionPage extends ConsumerStatefulWidget {
   const SessionPage({
     super.key,
@@ -48,49 +51,61 @@ class _SessionPageState extends ConsumerState<SessionPage> {
     final data = ref.watch(sessionDayProvider);
     // The calendar view picks a day for the session view, so the screen's state must outlive the session view.
     ref.listen(sessionScreenProvider, (_, _) {});
+    // "Entrenar" sits next to the timer (Ari), while the chosen day has something to do.
+    final day = data.value;
+    final path = widget.guidedPath;
+    var canTrain = false;
+    if (day != null && path != null) {
+      final (:week, day: dayNumber) = shownDayOf(
+        day,
+        ref.watch(sessionScreenProvider),
+      );
+      canTrain = planDayOf(day, week, dayNumber) != null;
+    }
+    // Day or calendar: the first row of each view's header card (Ari: everything took too much room).
+    final viewToggle = SegmentedButton<SessionView>(
+      key: const Key('session-view'),
+      showSelectedIcon: false,
+      style: const ButtonStyle(visualDensity: VisualDensity.compact),
+      segments: const [
+        ButtonSegment(value: SessionView.day, label: Text('Sesión del día')),
+        ButtonSegment(value: SessionView.calendar, label: Text('Calendario')),
+      ],
+      selected: {_view},
+      onSelectionChanged: (v) => setState(() => _view = v.first),
+    );
     return Scaffold(
       appBar: AppBar(
         title: const Text('Sesión'),
-        actions: const [SessionTimerButton()],
+        actions: [
+          if (canTrain)
+            FilledButton.icon(
+              key: const Key('session-train'),
+              onPressed: () => context.push(path!),
+              icon: const Icon(Icons.play_arrow),
+              label: const Text('Entrenar'),
+            ),
+          const SessionTimerButton(),
+        ],
       ),
       body: asyncView(
         data,
         onRetry: () => ref.invalidate(sessionDayProvider),
         builder: (data) => Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                Espacio.l,
-                Espacio.m,
-                Espacio.l,
-                0,
-              ),
-              child: SegmentedButton<SessionView>(
-                key: const Key('session-view'),
-                segments: const [
-                  ButtonSegment(
-                    value: SessionView.day,
-                    label: Text('Sesión del día'),
-                  ),
-                  ButtonSegment(
-                    value: SessionView.calendar,
-                    label: Text('Calendario'),
-                  ),
-                ],
-                selected: {_view},
-                onSelectionChanged: (v) => setState(() => _view = v.first),
-              ),
-            ),
+            const LocalCopyNotice(),
+            if (data != null) _PlanPicker(current: data),
             Expanded(
               child: data == null
                   ? _NoAssignment(assignmentsPath: widget.assignmentsPath)
                   : switch (_view) {
                       SessionView.day => _SessionBody(
                         data: data,
-                        guidedPath: widget.guidedPath,
+                        viewToggle: viewToggle,
                       ),
                       SessionView.calendar => SessionCalendarView(
                         data: data,
+                        viewToggle: viewToggle,
                         onPick: (week, day) {
                           ref
                               .read(sessionScreenProvider.notifier)
@@ -100,6 +115,44 @@ class _SessionPageState extends ConsumerState<SessionPage> {
                       ),
                     },
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Today's plans when there is more than one (E8.8: an athlete's own plan alongside their group's), each by its
+/// name and whose it is. Choosing one shows its session and calendar.
+class _PlanPicker extends ConsumerWidget {
+  const _PlanPicker({required this.current});
+
+  final SessionDayData current;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final days = ref.watch(sessionDaysProvider).value ?? const [];
+    if (days.length < 2) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Espacio.l, Espacio.m, Espacio.l, 0),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: Wrap(
+          key: const Key('session-plans'),
+          spacing: Espacio.s,
+          runSpacing: Espacio.s,
+          children: [
+            for (final d in days)
+              PildoraMaktub(
+                key: Key('session-plan-${d.location.assignmentId}'),
+                texto: d.plan.name,
+                detalle: d.ownerLabel,
+                seleccionada:
+                    d.location.assignmentId == current.location.assignmentId,
+                onTap: () => ref
+                    .read(sessionScreenProvider.notifier)
+                    .selectPlan(d.location.assignmentId),
+              ),
           ],
         ),
       ),
@@ -141,194 +194,249 @@ class _NoAssignment extends ConsumerWidget {
   }
 }
 
-class _SessionBody extends ConsumerWidget {
-  const _SessionBody({required this.data, this.guidedPath});
+class _SessionBody extends ConsumerStatefulWidget {
+  const _SessionBody({required this.data, required this.viewToggle});
 
   final SessionDayData data;
-  final String? guidedPath;
+
+  /// Day or calendar, the first row of the header card.
+  final Widget viewToggle;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_SessionBody> createState() => _SessionBodyState();
+}
+
+class _SessionBodyState extends ConsumerState<_SessionBody> {
+  /// Whether the week and day pills are open. Closed, one row sums up the chosen day (Ari: compact, opened
+  /// to choose or see more).
+  var _picking = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _show();
+  }
+
+  @override
+  void didUpdateWidget(_SessionBody old) {
+    super.didUpdateWidget(old);
+    if (old.data != widget.data) _show();
+  }
+
+  /// Looks up the chosen day's session every time the view appears (E7.27), once the frame is built.
+  void _show() => WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (mounted) ref.read(sessionScreenProvider.notifier).show(widget.data);
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final data = widget.data;
     final state = ref.watch(sessionScreenProvider);
     final notifier = ref.read(sessionScreenProvider.notifier);
     final location = data.location;
     final plan = data.plan;
-    final week = state.week ?? location.week;
-    final model = plan.weekModelOf(week);
-    final dayCount = model?.days.length ?? 0;
-    final day = (state.day ?? data.openingDay).clamp(
-      1,
-      dayCount < 1 ? 1 : dayCount,
-    );
-    final planDay = model != null && day <= dayCount
-        ? model.days[day - 1]
-        : null;
+    final (:week, :day) = shownDayOf(data, state);
+    final dayCount = plan.weekModelOf(week)?.days.length ?? 0;
+    final planDay = planDayOf(data, week, day);
     final live = state.live;
     final dayStates = watchDayStates(ref, data);
 
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
-        Text(
-          '${plan.name} · ciclo ${location.cycle} · semana ${location.week}',
-          key: const Key('session-location'),
-          style: context.textos.titleMedium,
-        ),
-        const SizedBox(height: Espacio.m),
-        Text('Semana', style: context.textos.labelLarge),
-        const SizedBox(height: Espacio.s),
-        Wrap(
-          spacing: Espacio.s,
-          runSpacing: Espacio.s,
-          children: [
-            for (var w = 1; w <= planCycleWeeks; w++)
-              PildoraMaktub(
-                key: Key('session-week-$w'),
-                texto: 'S$w',
-                detalle: plan.weekModelOf(w)?.name,
-                seleccionada: w == week,
-                onTap: () => notifier.selectWeek(w),
-              ),
-          ],
-        ),
-        const SizedBox(height: Espacio.m),
-        Text('Día', style: context.textos.labelLarge),
-        const SizedBox(height: Espacio.s),
-        if (dayCount == 0)
-          Text(
-            'Esta semana no tiene días cargados.',
-            key: const Key('session-no-days'),
-            style: context.textos.bodyMedium,
-          )
-        else
-          Wrap(
-            spacing: Espacio.s,
-            runSpacing: Espacio.s,
+        Card(
+          key: const Key('session-day-picker'),
+          clipBehavior: Clip.antiAlias,
+          margin: EdgeInsets.zero,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (var d = 1; d <= dayCount; d++)
-                PildoraMaktub(
-                  key: Key('session-day-$d'),
-                  texto: 'Día $d',
-                  detalle: isDayDone(dayStates, data, week, d)
-                      ? 'Hecho'
-                      : 'Pendiente',
-                  seleccionada: d == day,
-                  onTap: () => notifier.selectDay(week, d),
+              // Compact on purpose (Ari: it took too much room): view, then where we are, then who.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Espacio.s,
+                  Espacio.s,
+                  Espacio.xs,
+                  0,
                 ),
-            ],
-          ),
-        if (planDay != null) ...[
-          const SizedBox(height: Espacio.l),
-          Text(
-            planDay.name == null || planDay.name!.isEmpty
-                ? 'Día $day'
-                : 'Día $day · ${planDay.name}',
-            key: const Key('session-day-title'),
-            style: context.textos.titleLarge,
-          ),
-          if (live == null) ...[
-            _PresentPicker(data: data),
-            const SizedBox(height: Espacio.m),
-            _OpenButton(data: data, week: week, day: day),
-            for (final block in planDay.blocks)
-              _BlockPreview(block: block, names: data.exerciseNames),
-          ] else ...[
-            if (guidedPath case final path?) ...[
-              const SizedBox(height: Espacio.m),
-              FilledButton.icon(
-                key: const Key('session-train'),
-                onPressed: () => context.push(path),
-                icon: const Icon(Icons.play_arrow),
-                label: const Text('Entrenar'),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Align(
+                        alignment: AlignmentDirectional.centerStart,
+                        child: widget.viewToggle,
+                      ),
+                    ),
+                    IconButton(
+                      key: const Key('session-day-picker-toggle'),
+                      tooltip: _picking ? 'Cerrar' : 'Elegir semana y día',
+                      visualDensity: VisualDensity.compact,
+                      icon: Icon(
+                        _picking ? Icons.expand_less : Icons.expand_more,
+                      ),
+                      onPressed: () => setState(() => _picking = !_picking),
+                    ),
+                  ],
+                ),
               ),
-            ],
-            SessionLoadsView(data: data, live: live, day: planDay),
-          ],
-        ],
-      ],
-    );
-  }
-}
-
-/// Who is present by default: the user, if they are in the group; a coach who is not starts with nobody.
-Set<String> _defaultPresent(SessionDayData data) => {
-  if (data.ownAthleteId != null &&
-      data.group.memberIds.contains(data.ownAthleteId))
-    data.ownAthleteId!,
-};
-
-Set<String> _presentOf(SessionScreenState state, SessionDayData data) =>
-    state.present ?? _defaultPresent(data);
-
-class _PresentPicker extends ConsumerWidget {
-  const _PresentPicker({required this.data});
-
-  final SessionDayData data;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(sessionScreenProvider);
-    final notifier = ref.read(sessionScreenProvider.notifier);
-    final present = _presentOf(state, data);
-    return Padding(
-      padding: const EdgeInsets.only(top: Espacio.m),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Presentes', style: context.textos.labelLarge),
-          const SizedBox(height: Espacio.s),
-          Wrap(
-            spacing: Espacio.s,
-            runSpacing: Espacio.s,
-            children: [
-              for (final id in data.group.memberIds)
-                PildoraMaktub(
-                  key: Key('session-present-$id'),
-                  texto: athleteLabel(data, id),
-                  seleccionada: present.contains(id),
-                  onTap: () => notifier.setPresent(
-                    present.contains(id)
-                        ? ({...present}..remove(id))
-                        : {...present, id},
+              InkWell(
+                onTap: () => setState(() => _picking = !_picking),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Espacio.s,
+                    vertical: Espacio.xs,
+                  ),
+                  child: Wrap(
+                    key: const Key('session-day-summary'),
+                    spacing: Espacio.xs,
+                    runSpacing: Espacio.xs,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        '${plan.name} · ciclo ${location.cycle} · semana ${location.week}',
+                        key: const Key('session-location'),
+                        style: context.textos.labelLarge,
+                      ),
+                      InsigniaMaktub(
+                        ['S$week', ?plan.weekModelOf(week)?.name].join(' '),
+                        context.colores.insigniaBase,
+                      ),
+                      if (dayCount > 0) ...[
+                        InsigniaMaktub(
+                          planDay?.name == null || planDay!.name!.isEmpty
+                              ? 'Día $day'
+                              : 'Día $day · ${planDay.name}',
+                          context.colores.insigniaBase,
+                          key: const Key('session-day-title'),
+                        ),
+                        isDayDone(dayStates, data, week, day)
+                            ? InsigniaMaktub(
+                                'Hecho',
+                                context.colores.exitoContenedor,
+                              )
+                            : InsigniaMaktub(
+                                'Pendiente',
+                                context.colores.insigniaPropio,
+                              ),
+                      ],
+                    ],
                   ),
                 ),
+              ),
+              if (_picking)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Espacio.s),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Semana', style: context.textos.labelLarge),
+                      const SizedBox(height: Espacio.s),
+                      Wrap(
+                        spacing: Espacio.s,
+                        runSpacing: Espacio.s,
+                        children: [
+                          for (var w = 1; w <= planCycleWeeks; w++)
+                            PildoraMaktub(
+                              key: Key('session-week-$w'),
+                              texto: 'S$w',
+                              detalle: plan.weekModelOf(w)?.name,
+                              seleccionada: w == week,
+                              onTap: () => notifier.selectWeek(w),
+                            ),
+                        ],
+                      ),
+                      const SizedBox(height: Espacio.m),
+                      Text('Día', style: context.textos.labelLarge),
+                      const SizedBox(height: Espacio.s),
+                      if (dayCount == 0)
+                        Text(
+                          'Esta semana no tiene días cargados.',
+                          key: const Key('session-no-days'),
+                          style: context.textos.bodyMedium,
+                        )
+                      else
+                        Wrap(
+                          spacing: Espacio.s,
+                          runSpacing: Espacio.s,
+                          children: [
+                            for (var d = 1; d <= dayCount; d++)
+                              PildoraMaktub(
+                                key: Key('session-day-$d'),
+                                texto: 'Día $d',
+                                detalle: isDayDone(dayStates, data, week, d)
+                                    ? 'Hecho'
+                                    : 'Pendiente',
+                                seleccionada: d == day,
+                                onTap: () {
+                                  notifier.selectDay(week, d);
+                                  setState(() => _picking = false);
+                                },
+                              ),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+              // Whose kilos show: always at hand while training.
+              if (planDay != null && data.memberIds.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(
+                    Espacio.s,
+                    Espacio.xs,
+                    Espacio.s,
+                    Espacio.s,
+                  ),
+                  child: SessionAthleteSelector(
+                    data: data,
+                    selected: athleteOnScreen(data, state),
+                    onSelect: notifier.selectAthlete,
+                  ),
+                )
+              else
+                const SizedBox(height: Espacio.s),
             ],
           ),
+        ),
+        if (planDay != null) ...[
+          // The day's name is in the picker's summary (Ari: a title here repeated it).
+          if (live != null && isLocalSessionId(live.session.id)) ...[
+            const SizedBox(height: Espacio.s),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: InsigniaMaktub(
+                'Abierta sin señal · se sube al volver la señal',
+                context.colores.insigniaBase,
+                key: const Key('session-opened-offline'),
+                icono: Icons.cloud_off,
+              ),
+            ),
+          ] else if (live != null &&
+              (state.liveStatus == LiveStatus.connecting ||
+                  state.liveStatus == LiveStatus.reconnecting)) ...[
+            const SizedBox(height: Espacio.s),
+            Align(
+              alignment: AlignmentDirectional.centerStart,
+              child: InsigniaMaktub(
+                'Conectando…',
+                context.colores.insigniaBase,
+                key: const Key('session-live-connecting'),
+                icono: Icons.sync,
+              ),
+            ),
+          ],
+          if (data.memberIds.isEmpty)
+            for (final block in planDay.blocks)
+              _BlockPreview(block: block, names: data.exerciseNames)
+          else
+            SessionLoadsView(
+              data: data,
+              live: live,
+              week: week,
+              day: day,
+              planDay: planDay,
+            ),
         ],
-      ),
-    );
-  }
-}
-
-class _OpenButton extends ConsumerWidget {
-  const _OpenButton({
-    required this.data,
-    required this.week,
-    required this.day,
-  });
-
-  final SessionDayData data;
-  final int week;
-  final int day;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(sessionScreenProvider);
-    final present = _presentOf(state, data);
-    return FilledButton(
-      key: const Key('session-open'),
-      onPressed: state.opening || present.isEmpty
-          ? null
-          : () async {
-              try {
-                await ref
-                    .read(sessionScreenProvider.notifier)
-                    .open(data, week: week, day: day, present: present);
-              } catch (e) {
-                if (context.mounted) showApiError(context, e);
-              }
-            },
-      child: const Text('Abrir sesión'),
+      ],
     );
   }
 }
@@ -358,5 +466,37 @@ String athleteLabel(SessionDayData data, String id) {
   final name = data.athleteNames[id];
   if (name != null) return name;
   if (id == data.ownAthleteId) return 'Yo';
-  return 'Atleta ${data.group.memberIds.indexOf(id) + 1}';
+  return 'Atleta ${data.memberIds.indexOf(id) + 1}';
+}
+
+/// "Sin señal": says the screen shows the data saved on the device, and from when (E7.15). Nothing while reads reach
+/// the server.
+class LocalCopyNotice extends ConsumerWidget {
+  const LocalCopyNotice({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final savedAt = ref.watch(localCopyNoticeProvider);
+    if (savedAt == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Espacio.l, Espacio.m, Espacio.l, 0),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: InsigniaMaktub(
+          savedDataLabel(savedAt),
+          context.colores.insigniaBase,
+          key: const Key('local-copy-notice'),
+          icono: Icons.cloud_off,
+        ),
+      ),
+    );
+  }
+}
+
+/// "Sin señal · datos guardados el 14/11 a las 09:30", in the device's time.
+String savedDataLabel(DateTime savedAt) {
+  final t = savedAt.toLocal();
+  String two(int n) => n.toString().padLeft(2, '0');
+  return 'Sin señal · datos guardados el ${two(t.day)}/${two(t.month)} '
+      'a las ${two(t.hour)}:${two(t.minute)}';
 }

@@ -26,6 +26,7 @@ import '../catalogo/catalog_admin_fakes.dart';
 import '../catalogo/catalog_fakes.dart';
 import '../temporizador/timer_fakes.dart';
 import 'draft_fakes.dart';
+import 'live_fakes.dart';
 
 final _today = DateTime.utc(2026, 11, 18);
 final _start = DateTime.utc(2026, 9, 1);
@@ -151,6 +152,13 @@ class _Calendar implements CalendarRepository {
       week: where.semana,
     );
   }
+
+  @override
+  Future<List<CalendarLocation>> locateAthlete(
+    String clubId,
+    String athleteId,
+    DateTime date,
+  ) async => [?await locate(clubId, 'g1', date)];
 
   @override
   Future<PublishedPlanView> publishedPlan(String clubId, String planId) async =>
@@ -315,6 +323,12 @@ void main() {
             calendarRepositoryProvider.overrideWithValue(_Calendar()),
             athleteRepositoryProvider.overrideWithValue(_Athletes()),
             sessionRepositoryProvider.overrideWithValue(sessions),
+            remoteProposedDaysRepositoryProvider.overrideWithValue(
+              NoProposedDays(),
+            ),
+            liveChannelProvider.overrideWithValue(
+              FakeLiveChannel(FakeLiveServer()),
+            ),
             sessionDraftStoreProvider.overrideWithValue(MemoryDraftStore()),
             todayProvider.overrideWithValue(_today),
             timerPlatformProvider.overrideWithValue(platform),
@@ -325,8 +339,6 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('session-open')));
       await tester.pumpAndSettle();
       final container = ProviderScope.containerOf(
         tester.element(find.byType(SessionPage)),

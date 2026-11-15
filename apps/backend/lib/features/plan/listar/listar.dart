@@ -5,7 +5,7 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'listar_store.dart';
 
-/// `GET /clubes/{clubId}/planes` → `[{id, nombre, tipo, cantidadModelos, publicado, cambiosSinPublicar, actualizadoEn}]`, sorted by
+/// `GET /clubes/{clubId}/planes` → `[{id, nombre, tipo, pasado, cantidadModelos, publicado, cambiosSinPublicar, actualizadoEn}]`, sorted by
 /// `nombre` (case-insensitive, ties broken by id). `actualizadoEn` is the last modification instant, or the
 /// creation one if never modified. `publicado` is whether the plan has a published version and
 /// `cambiosSinPublicar` whether the saved content differs from it (always true while never published). Needs [Accion.planificar] (the coach). [store] is for tests.
@@ -37,6 +37,7 @@ class ListPlans {
           'id': p.id,
           'nombre': p.name,
           'tipo': p.type.cable,
+          'pasado': p.isPast,
           'cantidadModelos': p.weekModels.length,
           'publicado': p.published != null,
           'cambiosSinPublicar': p.hasUnpublishedChanges,

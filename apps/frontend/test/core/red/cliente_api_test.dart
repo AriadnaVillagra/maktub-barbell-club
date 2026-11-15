@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:maktub_frontend/core/offline/local_copy.dart';
 import 'package:maktub_frontend/core/red/cliente_api.dart';
 
 class _Source implements AccessTokenSource {
@@ -117,5 +118,39 @@ void main() {
     );
     expect(await api.getList('/ok'), [{'id': 'a1'}]);
     await expectLater(api.getList('/no'), throwsA(isA<ErrorDeApi>().having((e) => e.mensaje, 'mensaje', 'Sin permiso.')));
+  });
+
+  group('timeouts', () {
+    ClienteApi slow(Duration delay) => ClienteApi(
+      base: Uri.parse('http://api.test'),
+      readTimeout: const Duration(milliseconds: 50),
+      writeTimeout: const Duration(milliseconds: 200),
+      cliente: MockClient((request) async {
+        await Future<void>.delayed(delay);
+        return http.Response('{}', 200);
+      }),
+    );
+
+    test('a read without an answer in time fails as without connection, so the copy serves it', () async {
+      final error = await slow(const Duration(milliseconds: 120)).get('/x').then<Object?>((_) => null, onError: (Object e) => e);
+
+      expect(error, isA<ErrorDeApi>().having((e) => e.estado, 'estado', isNull));
+      expect(isOfflineError(error!), isTrue);
+    });
+
+    test('a write waits longer than a read', () async {
+      expect(await slow(const Duration(milliseconds: 120)).put('/x', {'a': 1}), <String, dynamic>{});
+      await expectLater(
+        slow(const Duration(milliseconds: 300)).put('/x', {'a': 1}),
+        throwsA(isA<ErrorDeApi>().having((e) => e.estado, 'estado', isNull)),
+      );
+    });
+
+    test('a call can pass its own limit', () async {
+      await expectLater(
+        slow(const Duration(milliseconds: 120)).post('/x', cuerpo: {}, timeout: const Duration(milliseconds: 50)),
+        throwsA(isA<ErrorDeApi>()),
+      );
+    });
   });
 }

@@ -79,10 +79,21 @@ class _FakeStore implements SessionChangesStore {
       athletes['$clubId/$userId'];
 
   @override
-  Future<String?> groupIdOfAssignment(
-    String clubId,
-    String assignmentId,
-  ) async => sessions.containsKey('$clubId/s1') ? 'g1' : null;
+  Future<Assignment?> assignment(String clubId, String assignmentId) async =>
+      sessions.containsKey('$clubId/s1')
+      ? Assignment(
+          id: assignmentId,
+          clubId: clubId,
+          planId: 'p1',
+          groupId: ownAthleteAssignment ? null : 'g1',
+          athleteId: ownAthleteAssignment ? 'athlete-ari' : null,
+          startDate: DateTime.utc(2026, 11, 1),
+          auditoria: Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 1)),
+        )
+      : null;
+
+  /// Whether the session's assignment is the athlete `athlete-ari`'s own instead of group `g1`'s (E8.8).
+  bool ownAthleteAssignment = false;
 
   @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) async =>
@@ -209,6 +220,27 @@ void main() {
 
     expect(response.statusCode, HttpStatus.notFound);
   });
+
+  test(
+    "only the athlete of an athlete's own assignment follows it (E8.8)",
+    () async {
+      final store = _FakeStore()
+        ..seed('club-a')
+        ..addRecord(1)
+        ..ownAthleteAssignment = true
+        ..athletes['club-a/user-ari'] = 'athlete-ari'
+        ..groups['club-a/g1'] = const ['athlete-ari'];
+
+      expect((await _get(store, club: _athlete())).statusCode, HttpStatus.ok);
+
+      store.athletes['club-a/user-ari'] = 'andi';
+      store.groups['club-a/g1'] = const ['andi'];
+      expect(
+        (await _get(store, club: _athlete())).statusCode,
+        HttpStatus.notFound,
+      );
+    },
+  );
 
   test('records of another club never come', () async {
     final store = _FakeStore()

@@ -23,15 +23,37 @@ class HttpCalendarRepository implements CalendarRepository {
     );
     final assignment = j['asignacion'];
     if (assignment == null) return null;
-    final a = (assignment as Map).cast<String, dynamic>();
-    return CalendarLocation(
-      assignmentId: '${a['id']}',
-      planId: '${a['planId']}',
-      startDate: DateTime.parse('${a['fechaInicio']}'),
-      cycle: (j['ciclo'] as num).toInt(),
-      week: (j['semana'] as num).toInt(),
-    );
+    return _location(j, (assignment as Map).cast<String, dynamic>());
   }
+
+  @override
+  Future<List<CalendarLocation>> locateAthlete(
+    String clubId,
+    String athleteId,
+    DateTime date,
+  ) async {
+    final j = await _client.get(
+      '${_club(clubId)}/atletas/${Uri.encodeComponent(athleteId)}/ubicacion'
+      '?fecha=${aIsoFecha(date)}',
+    );
+    return [
+      for (final u in (j['ubicaciones'] as List? ?? const []))
+        _location(
+          (u as Map).cast<String, dynamic>(),
+          (u['asignacion'] as Map).cast<String, dynamic>(),
+        ),
+    ];
+  }
+
+  static CalendarLocation _location(Json where, Json a) => CalendarLocation(
+    assignmentId: '${a['id']}',
+    planId: '${a['planId']}',
+    startDate: DateTime.parse('${a['fechaInicio']}'),
+    cycle: (where['ciclo'] as num).toInt(),
+    week: (where['semana'] as num).toInt(),
+    groupId: a['grupoId'] as String?,
+    athleteId: a['atletaId'] as String?,
+  );
 
   @override
   Future<PublishedPlanView> publishedPlan(String clubId, String planId) async {
@@ -56,12 +78,12 @@ class HttpCalendarRepository implements CalendarRepository {
   @override
   Future<List<DayState>> dayStates(
     String clubId,
-    String groupId,
+    String assignmentId,
     DateTime from,
     DateTime to,
   ) async {
     final j = await _client.get(
-      '${_club(clubId)}/grupos/${Uri.encodeComponent(groupId)}/dias'
+      '${_club(clubId)}/asignaciones/${Uri.encodeComponent(assignmentId)}/dias'
       '?desde=${aIsoFecha(from)}&hasta=${aIsoFecha(to)}',
     );
     return [

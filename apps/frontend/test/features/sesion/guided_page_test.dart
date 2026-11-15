@@ -29,6 +29,7 @@ import '../catalogo/catalog_admin_fakes.dart';
 import '../catalogo/catalog_fakes.dart';
 import '../temporizador/timer_fakes.dart';
 import 'draft_fakes.dart';
+import 'live_fakes.dart';
 
 final _today = DateTime.utc(2026, 11, 18);
 final _start = DateTime.utc(2026, 9, 1);
@@ -148,6 +149,13 @@ class _Calendar implements CalendarRepository {
   }
 
   @override
+  Future<List<CalendarLocation>> locateAthlete(
+    String clubId,
+    String athleteId,
+    DateTime date,
+  ) async => [?await locate(clubId, 'g1', date)];
+
+  @override
   Future<PublishedPlanView> publishedPlan(String clubId, String planId) async =>
       _served;
 
@@ -191,6 +199,13 @@ class _Sessions implements SessionRepository {
   /// Without signal, sets are not taken either; they stay in the device's queue.
   bool offlineSets = false;
 
+  /// The session's guided pass (E7.26), as the server keeps it, and its last change number.
+  GuidedPass? pass;
+  var sessionChanges = 0;
+
+  /// The present athletes of the last opening.
+  var present = <String>[];
+
   /// The reps the plan has for each prescription.
   static int _planReps(int block, int prescription) =>
       switch ((block, prescription)) {
@@ -200,6 +215,26 @@ class _Sessions implements SessionRepository {
       };
 
   static double _kg(String athlete) => athlete == 'ari' ? 80 : 64;
+
+  /// Whether the session exists on the server: something was recorded on it, a pass goes on, or it was opened.
+  late var exists = records.isNotEmpty || pass != null;
+
+  @override
+  Future<LiveSession?> find(
+    String clubId, {
+    required String assignmentId,
+    required DateTime date,
+    required int week,
+    required int day,
+  }) async {
+    if (!exists || day != 1) return null;
+    if (opened.isEmpty) {
+      _week = week;
+      present = {for (final r in records) r.athleteId}.toList();
+    }
+    if (_week != week) return null;
+    return LiveSession(session: _session(), records: records);
+  }
 
   @override
   Future<LiveSession> open(
@@ -211,21 +246,42 @@ class _Sessions implements SessionRepository {
     required Set<String> presentAthleteIds,
   }) async {
     opened.add(presentAthleteIds);
-    return LiveSession(
-      session: Session(
-        id: 's1',
-        clubId: clubId,
-        assignmentId: assignmentId,
-        planId: 'p1',
-        cycle: 3,
-        week: week,
-        day: day,
-        date: date,
-        presentAthleteIds: presentAthleteIds.toList(),
-        auditoria: audit(),
-      ),
-      records: records,
-    );
+    present = {...present, ...presentAthleteIds}.toList();
+    _week = week;
+    exists = true;
+    return LiveSession(session: _session(), records: records);
+  }
+
+  var _week = 1;
+
+  Session _session() => Session(
+    id: 's1',
+    clubId: 'c1',
+    assignmentId: 'a1',
+    planId: 'p1',
+    cycle: 3,
+    week: _week,
+    day: 1,
+    date: _today,
+    presentAthleteIds: present,
+    lastSessionChange: sessionChanges,
+    guidedPass: pass,
+    auditoria: audit(),
+  );
+
+  @override
+  Future<Session> writeGuidedPass(
+    String clubId,
+    String sessionId,
+    GuidedPassAction action,
+  ) async {
+    if (offline) throw const ErrorDeApi('No se pudo conectar.');
+    final next = applyGuidedAction(pass, action);
+    if (next != null && !identical(next, pass)) {
+      pass = next;
+      sessionChanges++;
+    }
+    return _session();
   }
 
   @override
@@ -328,8 +384,9 @@ class _Harness {
 Future<_Harness> _pump(
   WidgetTester tester, {
   List<SetRecord> records = const [],
+  GuidedPass? pass,
 }) async {
-  final h = _Harness(_Sessions(records: records));
+  final h = _Harness(_Sessions(records: records)..pass = pass);
   tester.view.physicalSize = const Size(900, 3000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -383,6 +440,12 @@ Future<_Harness> _pump(
         calendarRepositoryProvider.overrideWithValue(_Calendar()),
         athleteRepositoryProvider.overrideWithValue(_Athletes()),
         sessionRepositoryProvider.overrideWithValue(h.sessions),
+        remoteProposedDaysRepositoryProvider.overrideWithValue(
+          NoProposedDays(),
+        ),
+        liveChannelProvider.overrideWithValue(
+          FakeLiveChannel(FakeLiveServer()),
+        ),
         sessionDraftStoreProvider.overrideWithValue(MemoryDraftStore()),
         todayProvider.overrideWithValue(_today),
         timerPlatformProvider.overrideWithValue(h.platform),
@@ -408,17 +471,8 @@ Future<void> _tap(WidgetTester tester, String key) async {
   await tester.pumpAndSettle();
 }
 
-/// Opens the session with [present] and enters the guided mode.
-Future<void> _train(
-  WidgetTester tester, {
-  Set<String> present = const {'ari', 'andi'},
-}) async {
-  for (final id in present.difference({'ari'})) {
-    await _tap(tester, 'session-present-$id');
-  }
-  await _tap(tester, 'session-open');
-  await _tap(tester, 'session-train');
-}
+/// Enters the guided mode from the day's session, which may not exist yet (E7.27).
+Future<void> _train(WidgetTester tester) => _tap(tester, 'session-train');
 
 /// Enters with Ari and Andi and goes to the preview of block [block] (0-based), skipping the ones before.
 Future<void> _toBlock(WidgetTester tester, int block) async {
@@ -463,15 +517,47 @@ void main() {
       expect(_chosen(tester, 'guided-athlete-luz'), false);
     });
 
+    testWidgets('it enters without a session; choosing who trains creates '
+        'nothing, and "Comenzar" creates it with them (E7.27)', (tester) async {
+      final h = await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-athlete-luz');
+      await _tap(tester, 'guided-athlete-ari');
+      await _tap(tester, 'guided-athlete-ari');
+
+      expect(find.text('¿Quiénes entrenan?'), findsOneWidget);
+      expect(h.sessions.opened, isEmpty);
+
+      await _tap(tester, 'guided-begin');
+
+      expect(h.sessions.opened, [
+        {'ari', 'luz'},
+      ]);
+      expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
+    });
+
+    testWidgets('leaving without "Comenzar" creates nothing', (tester) async {
+      final h = await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-athlete-andi');
+      await _tap(tester, 'guided-exit');
+      await tester.tap(find.text('Salir'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-train')), findsOneWidget);
+      expect(h.sessions.opened, isEmpty);
+    });
+
     testWidgets('an athlete who is not present is added to the session', (
       tester,
     ) async {
-      final h = await _pump(tester);
-      await _train(tester, present: {'ari'});
+      final h = await _pump(tester, records: [_record('ari', 1, 0, 0, done: false)]);
+      await _train(tester);
       await _tap(tester, 'guided-athlete-luz');
       await _tap(tester, 'guided-begin');
 
       expect(h.sessions.opened.last, {'ari', 'luz'});
+      expect(h.sessions.present, ['ari', 'luz']);
       expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
     });
 
@@ -1291,18 +1377,142 @@ void main() {
       expect(find.byKey(const Key('session-train')), findsOneWidget);
     });
 
-    testWidgets('entering again starts over: the position is not kept', (
+    testWidgets('entering again resumes the pass where it is, without asking', (
       tester,
     ) async {
-      await _pump(tester);
-      await _toBlock(tester, 2);
+      final h = await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-exit');
       await tester.tap(find.text('Salir'));
       await tester.pumpAndSettle();
 
+      expect(
+        h.sessions.pass!.finished,
+        false,
+        reason: 'leaving does not finish it for the others',
+      );
+      await _tap(tester, 'session-train');
+
+      expect(find.text('¿Quiénes entrenan?'), findsNothing);
+      expect(find.byKey(const Key('guided-resume-dialog')), findsNothing);
+      expect(_text(tester, 'guided-block-name'), 'Principal');
+      expect(_text(tester, 'guided-set'), 'Serie 2 de 2');
+    });
+
+    testWidgets('a finished pass is not resumed: it chooses who trains again', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 4);
+      expect(find.text('Día terminado'), findsOneWidget);
+      await _tap(tester, 'guided-save');
+
       await _tap(tester, 'session-train');
 
       expect(find.text('¿Quiénes entrenan?'), findsOneWidget);
+    });
+  });
+
+  group('the shared pass (E7.26)', () {
+    /// The pass another device left on block 1 ("Principal", by turns), started at 10:00, with Ari's first set
+    /// recorded.
+    GuidedPass running() => [
+      GuidedPassAction.begin(
+        passId: 'other',
+        version: 0,
+        at: DateTime.utc(2026, 11, 18, 9, 55),
+        athleteIds: const ['ari', 'andi'],
+        blocks: [
+          for (final b in _plan.weekModels.first.days.first.blocks)
+            GuidedBlockStart(
+              athleteMode: b.athleteMode,
+              executionMode: b.executionMode,
+            ),
+        ],
+      ),
+      GuidedPassAction.onBlock(
+        GuidedActionKind.skipBlock,
+        passId: 'other',
+        version: 1,
+        at: DateTime.utc(2026, 11, 18, 9, 56),
+        block: 0,
+      ),
+      GuidedPassAction.onBlock(
+        GuidedActionKind.startBlock,
+        passId: 'other',
+        version: 2,
+        at: DateTime.utc(2026, 11, 18, 10),
+        block: 1,
+      ),
+    ].fold<GuidedPass?>(null, applyGuidedAction)!;
+
+    testWidgets(
+      'entering with a pass going on resumes it without asking, on its block, step and clocks',
+      (tester) async {
+        final h = await _pump(
+          tester,
+          records: [_record('ari', 1, 0, 0, kg: 80)],
+          pass: running(),
+        );
+        h.now = DateTime.utc(2026, 11, 18, 10, 2, 5);
+        await _train(tester);
+
+        expect(find.text('¿Quiénes entrenan?'), findsNothing);
+        expect(find.byKey(const Key('guided-resume-dialog')), findsNothing);
+        expect(_text(tester, 'guided-block-count'), 'Bloque 2 de 4');
+        expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+        expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 02:05');
+        expect(_text(tester, 'guided-total-clock'), '02:05');
+      },
+    );
+
+    testWidgets(
+      '"Terminar el día" closes the pass for everyone and shows the summary',
+      (tester) async {
+        final h = await _pump(tester, pass: running());
+        await _train(tester);
+
+        await _tap(tester, 'guided-pass-menu');
+        await _tap(tester, 'guided-finish-day');
+        expect(find.text('¿Terminar el día?'), findsOneWidget);
+        await tester.tap(find.text('Terminar'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('Día terminado'), findsOneWidget);
+        expect(h.sessions.pass!.finished, true);
+        expect(
+          h.sessions.pass!.blocks[1].status,
+          GuidedBlockStatus.interrupted,
+        );
+        expect(h.sessions.times.single.$1, 'other-1');
+      },
+    );
+
+    testWidgets('a new pass can be started over the one going on, or left', (
+      tester,
+    ) async {
+      final h = await _pump(tester, pass: running());
+      await _train(tester);
+
+      await _tap(tester, 'guided-pass-menu');
+      await _tap(tester, 'guided-start-over');
+      expect(find.text('¿Quiénes entrenan?'), findsOneWidget);
+      expect(_chosen(tester, 'guided-athlete-andi'), true);
+      await _tap(tester, 'guided-back-to-pass');
+      expect(_text(tester, 'guided-block-name'), 'Principal');
+      expect(h.sessions.pass!.id, 'other');
+
+      await _tap(tester, 'guided-pass-menu');
+      await _tap(tester, 'guided-start-over');
+      await _tap(tester, 'guided-begin');
+
+      expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
+      expect(h.sessions.pass!.id, isNot('other'));
+      expect(h.sessions.pass!.blocks[1].status, GuidedBlockStatus.pending);
     });
   });
 }

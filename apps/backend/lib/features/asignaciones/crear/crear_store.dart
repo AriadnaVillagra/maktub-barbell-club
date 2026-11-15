@@ -10,8 +10,11 @@ abstract interface class CreateAssignmentStore {
   /// Whether the group [groupId] exists in [clubId].
   Future<bool> groupExists(String clubId, String groupId);
 
-  /// Inserts [assignment]. Returns false, and writes nothing, if its group already has an active assignment:
-  /// the store enforces "at most one active per group" atomically, not the caller.
+  /// Whether the athlete [athleteId] exists in [clubId].
+  Future<bool> athleteExists(String clubId, String athleteId);
+
+  /// Inserts [assignment]. Returns false, and writes nothing, if its owner (group or athlete) already has an
+  /// active assignment: the store enforces "at most one active per owner" atomically, not the caller.
   Future<bool> insert(Assignment assignment);
 }
 
@@ -37,8 +40,17 @@ class MongoCreateAssignmentStore implements CreateAssignmentStore {
       }) !=
       null;
 
-  // Two concurrent requests for the same group cannot both pass: the unique partial index
-  // `club_grupo_activa_unica` (see `asegurarIndices`) rejects the second insert with a duplicate key error.
+  @override
+  Future<bool> athleteExists(String clubId, String athleteId) async =>
+      await _db.collection(Colecciones.atletas).findOne({
+        '_id': athleteId,
+        'clubId': clubId,
+      }) !=
+      null;
+
+  // Two concurrent requests for the same owner cannot both pass: the unique partial indexes
+  // `club_grupo_activa_unica` and `club_atleta_activa_unica` (see `asegurarIndices`) reject the second insert
+  // with a duplicate key error.
   @override
   Future<bool> insert(Assignment assignment) async {
     final result = await _db

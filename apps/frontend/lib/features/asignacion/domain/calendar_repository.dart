@@ -1,6 +1,7 @@
 import 'package:maktub_core/maktub_core.dart';
 
-/// Where a date falls in the group's active assignment (`.../grupos/{id}/ubicacion`).
+/// Where a date falls in an active assignment: the group's (`.../grupos/{id}/ubicacion`) or one of those an athlete
+/// trains (`.../atletas/{id}/ubicacion`, E8.8).
 class CalendarLocation {
   const CalendarLocation({
     required this.assignmentId,
@@ -8,11 +9,19 @@ class CalendarLocation {
     required this.startDate,
     required this.cycle,
     required this.week,
+    this.groupId,
+    this.athleteId,
   });
 
   final String assignmentId;
   final String planId;
   final DateTime startDate;
+
+  /// The group the assignment is for; null for an athlete's own plan, or when the answer did not say.
+  final String? groupId;
+
+  /// The one athlete the assignment is for, when it is their own plan (E8.8).
+  final String? athleteId;
 
   /// 1-based cycle number.
   final int cycle;
@@ -97,14 +106,22 @@ abstract interface class CalendarRepository {
     DateTime date,
   );
 
+  /// Where [date] falls in every active assignment [athleteId] trains: their groups' and their own (E8.8), the
+  /// groups' first. Empty when there is none.
+  Future<List<CalendarLocation>> locateAthlete(
+    String clubId,
+    String athleteId,
+    DateTime date,
+  );
+
   /// The published version of [planId]. Throws `ErrorDeApi` (404) when the plan has none.
   Future<PublishedPlanView> publishedPlan(String clubId, String planId);
 
-  /// The state of every day of the active assignment of [groupId] in the cycles and weeks that
-  /// [from]..[to] touch. Empty when the group has no active assignment.
+  /// The state of every day of the assignment [assignmentId], a group's or an athlete's, in the cycles and weeks
+  /// that [from]..[to] touch.
   Future<List<DayState>> dayStates(
     String clubId,
-    String groupId,
+    String assignmentId,
     DateTime from,
     DateTime to,
   );

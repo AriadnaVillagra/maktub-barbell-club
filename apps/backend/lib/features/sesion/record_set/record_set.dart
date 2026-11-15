@@ -26,6 +26,8 @@ import 'record_set_store.dart';
 /// - With `kilosManual: true`, `kilos` is mandatory and both percents follow from it (E4.5).
 /// - `reps`, `segundos`, `distanciaM` and `calorias` default to the target's when omitted.
 /// - `nota` left out keeps the stored note, so marking a set never loses it; empty clears it.
+/// - Every write through here leaves the set **not estimated** (E8.7): correcting a set the importer estimated
+///   makes it a recorded one. Only the importer's use case reads `estimada`.
 ///
 /// A coach writes for any present athlete, and an athlete present in the session for any present athlete
 /// (in a personal club, only for themselves). 400 if the body is malformed, 403 if the user cannot write for that
@@ -56,6 +58,7 @@ class RecordSet {
     this._broadcast, {
     String Function()? newId,
     DateTime Function()? now,
+    this._estimates = false,
   }) : _newId = newId ?? (() => ObjectId().oid),
        _now = now ?? DateTime.now;
 
@@ -64,8 +67,12 @@ class RecordSet {
   final String Function() _newId;
   final DateTime Function() _now;
 
+  /// Loading estimated sets (the E8.7 importer): the body's `estimada: true` marks the set as estimated. Without
+  /// it the field is ignored and the set is stored as not estimated. The endpoint never sets it.
+  final bool _estimates;
+
   Future<SetRecord> call(ClubContext club, String sessionId, Json body) async {
-    final input = _SetInput.fromBody(body);
+    final input = _SetInput.fromBody(body, estimates: _estimates);
     final session = await _store.session(club.clubId, sessionId);
     if (session == null) {
       throw const ErrorDeSolicitud.noEncontrado('Sesión no encontrada.');
@@ -122,6 +129,7 @@ class RecordSet {
       pctReal: load.pcts?.pctReal,
       rpe: input.rpe,
       manualKg: input.manualKg,
+      estimated: input.estimated,
       note: input.note,
       writtenBy: club.userId,
       auditoria: Auditoria.nueva(
@@ -284,6 +292,7 @@ class _SetInput {
     required this.setIndex,
     required this.done,
     required this.manualKg,
+    required this.estimated,
     required this.adjustment,
     required this.writesNote,
     this.kg,
@@ -295,7 +304,7 @@ class _SetInput {
     this.note,
   });
 
-  factory _SetInput.fromBody(Json body) {
+  factory _SetInput.fromBody(Json body, {required bool estimates}) {
     final athleteId = body['atletaId'] is String
         ? (body['atletaId'] as String).trim()
         : '';
@@ -308,6 +317,10 @@ class _SetInput {
       throw const ErrorDeSolicitud(
         '"kilos" es obligatorio cuando los kilos son manuales.',
       );
+    }
+    final estimated = body['estimada'];
+    if (estimates && estimated != null && estimated is! bool) {
+      throw const ErrorDeSolicitud('"estimada" debe ser verdadero o falso.');
     }
     final rpe = _nonNegative(body['rpe'], 'rpe');
     if (rpe != null && (rpe < 6 || rpe > 10 || rpe * 2 != (rpe * 2).round())) {
@@ -322,6 +335,7 @@ class _SetInput {
       setIndex: _index(body['serie'], 'serie'),
       done: body['hecha'] != false,
       manualKg: manualKg,
+      estimated: estimates && estimated == true,
       adjustment: snapAdjustment(
         _nonNegative(body['ajuste'], 'ajuste')?.round() ?? Ajuste.neutro,
       ),
@@ -342,6 +356,9 @@ class _SetInput {
   final int setIndex;
   final bool done;
   final bool manualKg;
+
+  /// Loaded as estimated by the importer (only when the use case accepts it).
+  final bool estimated;
 
   /// The day's adjustment in force for this exercise, resolved by the client (see `effectiveAdjustment`).
   final int adjustment;

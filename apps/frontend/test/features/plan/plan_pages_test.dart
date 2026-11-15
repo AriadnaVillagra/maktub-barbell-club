@@ -41,6 +41,96 @@ void main() {
       expect(repo.calls, ['plans:c1']);
     });
 
+    testWidgets('Activos and Pasados split the plans by the coach mark', (
+      tester,
+    ) async {
+      await pumpPlanPage(
+        tester,
+        const PlansPage(basePath: '/x'),
+        FakePlanRepository(
+          plans: [
+            samplePlan(id: 'new', name: 'Nuevo'),
+            samplePlan(id: 'done', name: 'Octubre', past: true),
+            samplePlan(
+              id: 'h',
+              name: 'Histórico 2025-05',
+              type: PlanType.history,
+            ),
+          ],
+        ),
+      );
+      expect(find.text('Nuevo'), findsOneWidget);
+      expect(find.text('Octubre'), findsNothing);
+      expect(find.text('Histórico 2025-05'), findsNothing);
+
+      await tester.tap(find.text('Pasados'));
+      await tester.pumpAndSettle();
+      expect(find.text('Octubre'), findsOneWidget);
+      expect(find.text('Histórico 2025-05'), findsOneWidget);
+      expect(find.text('Nuevo'), findsNothing);
+    });
+
+    testWidgets('the editor marks a plan as past, and saving sends it', (
+      tester,
+    ) async {
+      final repo = FakePlanRepository(plans: [samplePlan(id: 'p1')]);
+      await pumpPlanPage(
+        tester,
+        const PlanEditorPage(planId: 'p1', listPath: '/x'),
+        repo,
+      );
+      await tester.tap(find.text('Pasado'));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('plan-save')));
+      await tester.pumpAndSettle();
+      expect(repo.stored['p1']!.past, isTrue);
+    });
+
+    testWidgets('a history plan has no Activo / Pasado choice', (tester) async {
+      await pumpPlanPage(
+        tester,
+        const PlanEditorPage(planId: 'h', listPath: '/x'),
+        FakePlanRepository(
+          plans: [samplePlan(id: 'h', type: PlanType.history)],
+        ),
+      );
+      expect(find.byKey(const Key('plan-past')), findsNothing);
+    });
+
+    testWidgets('a history plan shows its type and offers no assignment', (
+      tester,
+    ) async {
+      final plan = samplePlan(
+        id: 'h1',
+        name: 'Histórico 2025-05',
+        type: PlanType.history,
+      );
+      final repo = FakePlanRepository(
+        plans: [
+          samplePlan(
+            id: 'h1',
+            name: plan.name,
+            type: PlanType.history,
+            published: publishedCopyOf(plan),
+          ),
+          samplePlan(
+            id: 'p2',
+            name: 'Fuerza',
+            published: publishedCopyOf(plan),
+          ),
+        ],
+      );
+      await pumpPlanPage(tester, const PlansPage(basePath: '/x'), repo);
+      // A history plan is always past.
+      await tester.tap(find.text('Pasados'));
+      await tester.pumpAndSettle();
+      expect(find.text('Histórico'), findsOneWidget);
+      expect(find.byKey(const Key('plan-assign-h1')), findsNothing);
+      await tester.tap(find.text('Activos'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('plan-assign-p2')), findsOneWidget);
+    });
+
     testWidgets('empty state and backend error', (tester) async {
       await pumpPlanPage(
         tester,
@@ -57,6 +147,85 @@ void main() {
         ),
       );
       expect(find.text('Sin permiso.'), findsOneWidget);
+    });
+
+    testWidgets('a history plan is copied as a new regular draft and opened', (
+      tester,
+    ) async {
+      final source = samplePlan(
+        id: 'h',
+        name: 'Histórico 2025-05',
+        type: PlanType.history,
+        models: [model('a', 'A', 2)],
+        assignment: ['a', 'a', 'a', 'a'],
+      );
+      final repo = FakePlanRepository(
+        plans: [
+          samplePlan(
+            id: 'h',
+            name: source.name,
+            type: PlanType.history,
+            models: source.weekModels,
+            assignment: source.weekAssignment,
+            published: publishedCopyOf(source),
+          ),
+        ],
+      );
+      tester.view.physicalSize = const Size(900, 3000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final router = GoRouter(
+        initialLocation: '/planes/h',
+        routes: [
+          GoRoute(
+            path: '/planes',
+            builder: (_, _) => const PlansPage(basePath: '/planes'),
+            routes: [
+              GoRoute(
+                path: ':id',
+                builder: (_, s) => PlanEditorPage(
+                  planId: s.pathParameters['id']!,
+                  listPath: '/planes',
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: planOverrides(repo),
+          child: MaterialApp.router(
+            theme: TemaMaktub.claro(),
+            routerConfig: router,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('plan-copy')));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('plan-name-field')),
+        'Mayo otra vez',
+      );
+      await tester.tap(find.byKey(const Key('plan-name-ok')));
+      await tester.pumpAndSettle();
+
+      final copy = repo.stored.values.firstWhere(
+        (p) => p.name == 'Mayo otra vez',
+      );
+      expect(copy.id, isNot('h'));
+      expect(copy.type, PlanType.regular);
+      expect(copy.published, isNull);
+      expect(copy.past, isFalse);
+      expect(copy.weekModels.single.days, hasLength(2));
+      expect(copy.weekAssignment, ['a', 'a', 'a', 'a']);
+      expect(
+        router.routerDelegate.currentConfiguration.uri.path,
+        '/planes/${copy.id}',
+      );
+      expect(repo.stored['h']!.type, PlanType.history);
     });
 
     testWidgets('creates a plan with name and type, then opens its editor', (
@@ -87,7 +256,10 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: planOverrides(repo),
-          child: MaterialApp.router(theme: TemaMaktub.claro(), routerConfig: router),
+          child: MaterialApp.router(
+            theme: TemaMaktub.claro(),
+            routerConfig: router,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -105,6 +277,11 @@ void main() {
       await tester.enterText(
         find.byKey(const Key('plan-name-field')),
         '  Hipertrofia ',
+      );
+      expect(
+        find.byKey(const Key('plan-type-historico')),
+        findsNothing,
+        reason: 'only the import builds history plans',
       );
       await tester.tap(find.byKey(const Key('plan-type-test')));
       await tester.pump();
@@ -138,6 +315,29 @@ void main() {
       await open(tester);
       expect(find.byKey(const Key('model-a')), findsOneWidget);
       expect(find.byKey(const Key('model-b')), findsOneWidget);
+      // Fully assigned: the details start closed, with a summary.
+      expect(find.byKey(const Key('assign-0')), findsNothing);
+      for (final tag in [
+        'Borrador',
+        'Regular',
+        'Activo',
+        'S1 A',
+        'S2 B',
+        'S3 B',
+        'S4 A',
+      ]) {
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('plan-details-summary')),
+            matching: find.text(tag),
+          ),
+          findsOneWidget,
+        );
+      }
+      await tester.tap(find.text('Detalles'));
+      await tester.pumpAndSettle();
+      // Open, the tags give way to the controls.
+      expect(find.byKey(const Key('plan-details-summary')), findsNothing);
       expect(
         [for (var w = 0; w < 4; w++) selected(tester, w)],
         ['a', 'b', 'b', 'a'],
@@ -191,6 +391,8 @@ void main() {
       'a model can be renamed and removed; removing unassigns its weeks',
       (tester) async {
         await open(tester);
+        await tester.tap(find.text('Detalles'));
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('model-rename-a')));
         await tester.pumpAndSettle();
         await tester.enterText(
@@ -281,7 +483,10 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: planOverrides(repo),
-            child: MaterialApp.router(theme: TemaMaktub.claro(), routerConfig: router),
+            child: MaterialApp.router(
+              theme: TemaMaktub.claro(),
+              routerConfig: router,
+            ),
           ),
         );
         await tester.pumpAndSettle();
@@ -406,7 +611,7 @@ void main() {
       for (var i = 0; i < 5; i++) {
         expect(find.byKey(Key('block-a-0-$i')), findsOneWidget);
       }
-      expect(find.text('Principal · Temporizador: Descanso 90'), findsOneWidget);
+      expect(find.text('Temporizador: Descanso 90'), findsOneWidget);
       expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('block-add-a-0')));
@@ -420,6 +625,83 @@ void main() {
         reason: 'every active timer, of any type',
       );
       expect(find.text('Archivado'), findsNothing);
+    });
+
+    testWidgets('a day is duplicated into another model, not the same one', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        samplePlan(
+          models: [model('a', 'A', 1), model('b', 'B', 1)],
+          assignment: ['a', 'b', 'a', 'b'],
+        ),
+      );
+      await addBlock(tester, 'Uno', 'Calentamiento');
+      await tester.tap(find.byKey(const Key('day-copy-a-0')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('day-copy-to-a')), findsNothing);
+      await tester.tap(find.byKey(const Key('day-copy-to-b')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('block-b-1-0')), findsOneWidget);
+      expect(find.byKey(const Key('block-a-1-0')), findsNothing);
+    });
+
+    testWidgets('with a single model there is nowhere to duplicate a day', (
+      tester,
+    ) async {
+      await open(tester);
+      expect(
+        tester
+            .widget<IconButton>(find.byKey(const Key('day-copy-a-0')))
+            .onPressed,
+        isNull,
+      );
+    });
+
+    testWidgets('adding a day scrolls to it', (tester) async {
+      await open(
+        tester,
+        samplePlan(
+          models: [model('a', 'A', 6)],
+          assignment: ['a', 'a', 'a', 'a'],
+        ),
+      );
+      tester.view.physicalSize = const Size(900, 500);
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const Key('day-add-a'), skipOffstage: false),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('day-add-a')));
+      await tester.pumpAndSettle();
+
+      final day = tester.getRect(find.byKey(const Key('day-a-6')));
+      expect(day.top, greaterThanOrEqualTo(0));
+      expect(day.bottom, lessThanOrEqualTo(500));
+    });
+
+    testWidgets('a block is dragged by its handle to go before another', (
+      tester,
+    ) async {
+      await open(tester);
+      await addBlock(tester, 'Uno', 'Calentamiento');
+      await addBlock(tester, 'Dos', 'Principal');
+      double topOf(String name) => tester.getTopLeft(find.text(name)).dy;
+      expect(topOf('Uno'), lessThan(topOf('Dos')));
+
+      final handle = find.byKey(const Key('block-drag-a-0-1'));
+      final gesture = await tester.startGesture(tester.getCenter(handle));
+      await tester.pump();
+      final distance = topOf('Dos') - topOf('Uno') + 40;
+      for (var i = 0; i < 10; i++) {
+        await gesture.moveBy(Offset(0, -distance / 10));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      expect(topOf('Dos'), lessThan(topOf('Uno')));
     });
 
     testWidgets('a block can be edited and removed, and has no move arrows', (
@@ -456,7 +738,7 @@ void main() {
       await tester.tap(find.byKey(const Key('block-ok')));
       await tester.pumpAndSettle();
       expect(find.text('Uno bis'), findsOneWidget);
-      expect(find.text('Principal · Temporizador: Descanso 90'), findsOneWidget);
+      expect(find.text('Temporizador: Descanso 90'), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('block-remove-a-0-1')));
       await tester.pump();
@@ -489,7 +771,10 @@ void main() {
 
     FakeCatalogAdminRepository catalog({bool withRestTimers = true}) =>
         FakeCatalogAdminRepository(
-          categoriesList: [category('primario', 'Primario'), category('wod', 'WoD')],
+          categoriesList: [
+            category('primario', 'Primario'),
+            category('wod', 'WoD'),
+          ],
           timersList: [
             if (withRestTimers) timer('desc_180', 'Descanso 3 min', work: 180),
           ],
@@ -529,7 +814,25 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text(name));
       await tester.pumpAndSettle();
+      // The sets dialog opens right away with the defaults.
+      await tester.tap(find.byKey(const Key('prescription-ok')));
+      await tester.pumpAndSettle();
     }
+
+    testWidgets('picking an exercise opens its sets; cancelling adds nothing', (
+      tester,
+    ) async {
+      await open(tester, 'primario');
+      await tester.tap(find.byKey(const Key('prescription-add-a-0-0')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Sentadilla'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('prescription-ok')), findsOneWidget);
+
+      await tester.tap(find.text('Cancelar'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
+    });
 
     testWidgets('the picker only offers exercises of the block category', (
       tester,
@@ -542,17 +845,21 @@ void main() {
       expect(find.text('Plancha'), findsNothing);
     });
 
-    testWidgets('a percent exercise arrives with the reference sets and timer', (
-      tester,
-    ) async {
-      await open(tester, 'primario');
-      expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
-      await add(tester, 'Sentadilla');
-      expect(find.text('Sentadilla'), findsOneWidget);
-      expect(find.text('1x8 al 65 %, 1x5 al 72,5 %, 2x3 al 80 %'), findsOneWidget);
-      expect(find.text('Temporizador: Descanso 3 min'), findsOneWidget);
-      expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
-    });
+    testWidgets(
+      'a percent exercise arrives with the reference sets and timer',
+      (tester) async {
+        await open(tester, 'primario');
+        expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
+        await add(tester, 'Sentadilla');
+        expect(find.text('Sentadilla'), findsOneWidget);
+        expect(
+          find.text('1x8 al 65 %, 1x5 al 72,5 %, 2x3 al 80 %'),
+          findsOneWidget,
+        );
+        expect(find.text('Temporizador: Descanso 3 min'), findsOneWidget);
+        expect(find.byKey(const Key('plan-dirty')), findsOneWidget);
+      },
+    );
 
     testWidgets('a fixed-load exercise arrives with reps and no percent', (
       tester,
@@ -560,10 +867,7 @@ void main() {
       await open(tester, 'primario');
       await add(tester, 'Curl');
       expect(find.text('1x8, 1x5, 2x3'), findsOneWidget);
-      expect(
-        find.text('Temporizador: Descanso 3 min'),
-        findsOneWidget,
-      );
+      expect(find.text('Temporizador: Descanso 3 min'), findsOneWidget);
     });
 
     testWidgets('without the default timer in the club it stays empty', (
@@ -571,11 +875,16 @@ void main() {
     ) async {
       await open(tester, 'primario', withRestTimers: false);
       await add(tester, 'Sentadilla');
-      expect(find.text('1x8 al 65 %, 1x5 al 72,5 %, 2x3 al 80 %'), findsOneWidget);
+      expect(
+        find.text('1x8 al 65 %, 1x5 al 72,5 %, 2x3 al 80 %'),
+        findsOneWidget,
+      );
       expect(find.textContaining('Temporizador:'), findsNothing);
     });
 
-    testWidgets('a WoD block offers exercises of every category', (tester) async {
+    testWidgets('a WoD block offers exercises of every category', (
+      tester,
+    ) async {
       await open(tester, 'wod');
       await add(tester, 'Sentadilla');
       expect(find.byKey(const Key('prescription-a-0-0-0')), findsOneWidget);
@@ -591,28 +900,33 @@ void main() {
       expect(find.textContaining(RegExp(r'\dx\d')), findsNothing);
     });
 
-    testWidgets('dismissing the picker adds nothing; prescriptions are removed', (
-      tester,
-    ) async {
-      await open(tester, 'primario');
-      await tester.tap(find.byKey(const Key('prescription-add-a-0-0')));
-      await tester.pumpAndSettle();
-      await tester.tapAt(const Offset(10, 10));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
+    testWidgets(
+      'dismissing the picker adds nothing; prescriptions are removed',
+      (tester) async {
+        await open(tester, 'primario');
+        await tester.tap(find.byKey(const Key('prescription-add-a-0-0')));
+        await tester.pumpAndSettle();
+        await tester.tapAt(const Offset(10, 10));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
 
-      await add(tester, 'Sentadilla');
-      await add(tester, 'Curl');
-      expect(find.byKey(const Key('prescription-a-0-0-1')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('prescription-remove-a-0-0-0')));
-      await tester.pumpAndSettle();
-      expect(find.text('Sentadilla'), findsNothing);
-      expect(find.byKey(const Key('prescription-a-0-0-1')), findsNothing);
-      await tester.tap(find.byKey(const Key('prescription-remove-a-0-0-0')));
-      await tester.pumpAndSettle();
-      expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
-      expect(find.text('Curl'), findsNothing, reason: 'an empty block stays empty');
-    });
+        await add(tester, 'Sentadilla');
+        await add(tester, 'Curl');
+        expect(find.byKey(const Key('prescription-a-0-0-1')), findsOneWidget);
+        await tester.tap(find.byKey(const Key('prescription-remove-a-0-0-0')));
+        await tester.pumpAndSettle();
+        expect(find.text('Sentadilla'), findsNothing);
+        expect(find.byKey(const Key('prescription-a-0-0-1')), findsNothing);
+        await tester.tap(find.byKey(const Key('prescription-remove-a-0-0-0')));
+        await tester.pumpAndSettle();
+        expect(find.byKey(const Key('prescription-a-0-0-0')), findsNothing);
+        expect(
+          find.text('Curl'),
+          findsNothing,
+          reason: 'an empty block stays empty',
+        );
+      },
+    );
   });
 
   group('editing a prescription', () {
@@ -711,8 +1025,14 @@ void main() {
     testWidgets('numeric fields do not accept letters', (tester) async {
       await openFirst(tester);
       await tester.enterText(find.byKey(const ValueKey('set-reps-0-0')), '1a2');
-      await tester.enterText(find.byKey(const ValueKey('set-pct-0-0')), '7x0,5');
-      await tester.enterText(find.byKey(const Key('prescription-bar-field')), '1b5');
+      await tester.enterText(
+        find.byKey(const ValueKey('set-pct-0-0')),
+        '7x0,5',
+      );
+      await tester.enterText(
+        find.byKey(const Key('prescription-bar-field')),
+        '1b5',
+      );
       await tester.pump();
       expect(find.text('12'), findsOneWidget);
       expect(find.text('70,5'), findsNothing);
@@ -738,43 +1058,55 @@ void main() {
       await tester.tap(find.byKey(const Key('set-remove-0')));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('set-row-1')), findsNothing);
-      final last = tester.widget<IconButton>(find.byKey(const Key('set-remove-0')));
+      final last = tester.widget<IconButton>(
+        find.byKey(const Key('set-remove-0')),
+      );
       expect(last.onPressed, isNull);
       await accept(tester);
       expect(find.text('1x5 al 72,5 %'), findsOneWidget);
     });
 
-    testWidgets('note, own timer and bar are stored; empty timer uses the block', (
-      tester,
-    ) async {
-      await openFirst(tester);
-      await tester.enterText(
-        find.byKey(const Key('prescription-note-field')),
-        'RPE 8',
-      );
-      await tester.enterText(find.byKey(const Key('prescription-bar-field')), '15,5');
-      await tester.tap(find.byKey(const Key('prescription-timer-field')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Descanso 90 s').last);
-      await tester.pumpAndSettle();
-      await accept(tester);
-      expect(find.text('1x8 al 65 %, 1x5 al 72,5 %'), findsOneWidget);
-      expect(
-        find.text('Temporizador: Descanso 90 s · Barra: 15,5 kg · RPE 8'),
-        findsOneWidget,
-      );
+    testWidgets(
+      'note, own timer and bar are stored; empty timer uses the block',
+      (tester) async {
+        await openFirst(tester);
+        await tester.enterText(
+          find.byKey(const Key('prescription-note-field')),
+          'RPE 8',
+        );
+        await tester.enterText(
+          find.byKey(const Key('prescription-bar-field')),
+          '15,5',
+        );
+        await tester.tap(find.byKey(const Key('prescription-timer-field')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Descanso 90 s').last);
+        await tester.pumpAndSettle();
+        await accept(tester);
+        expect(find.text('1x8 al 65 %, 1x5 al 72,5 %'), findsOneWidget);
+        expect(
+          find.text('Temporizador: Descanso 90 s · Barra: 15,5 kg · RPE 8'),
+          findsOneWidget,
+        );
 
-      await tester.tap(find.byKey(const Key('prescription-a-0-0-0')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.byKey(const Key('prescription-timer-field')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('El del bloque').last);
-      await tester.pumpAndSettle();
-      await tester.enterText(find.byKey(const Key('prescription-bar-field')), '');
-      await tester.enterText(find.byKey(const Key('prescription-note-field')), '');
-      await accept(tester);
-      expect(find.text('1x8 al 65 %, 1x5 al 72,5 %'), findsOneWidget);
-    });
+        await tester.tap(find.byKey(const Key('prescription-a-0-0-0')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('prescription-timer-field')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('El del bloque').last);
+        await tester.pumpAndSettle();
+        await tester.enterText(
+          find.byKey(const Key('prescription-bar-field')),
+          '',
+        );
+        await tester.enterText(
+          find.byKey(const Key('prescription-note-field')),
+          '',
+        );
+        await accept(tester);
+        expect(find.text('1x8 al 65 %, 1x5 al 72,5 %'), findsOneWidget);
+      },
+    );
 
     testWidgets('cancelling changes nothing', (tester) async {
       await openFirst(tester);

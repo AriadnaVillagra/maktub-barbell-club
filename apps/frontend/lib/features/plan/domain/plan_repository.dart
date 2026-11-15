@@ -9,6 +9,7 @@ class PlanSummary {
     required this.modelCount,
     this.published = false,
     this.hasUnpublishedChanges = true,
+    this.past = false,
     this.updatedAt,
   });
 
@@ -22,6 +23,9 @@ class PlanSummary {
 
   /// Whether the saved content differs from the published copy (always true while never published).
   final bool hasUnpublishedChanges;
+
+  /// Whether the list shows it under "Pasados" ([Plan.isPast]: marked by the coach, or a history plan).
+  final bool past;
   final DateTime? updatedAt;
 
   factory PlanSummary.fromJson(Json j) => PlanSummary(
@@ -31,6 +35,7 @@ class PlanSummary {
     modelCount: (j['cantidadModelos'] as num?)?.toInt() ?? 0,
     published: j['publicado'] == true,
     hasUnpublishedChanges: j['cambiosSinPublicar'] != false,
+    past: j['pasado'] == true || j['tipo'] == PlanType.history.cable,
     updatedAt: j['actualizadoEn'] == null
         ? null
         : DateTime.parse('${j['actualizadoEn']}'),

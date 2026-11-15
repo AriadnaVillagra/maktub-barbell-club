@@ -468,11 +468,11 @@ class DetailedBoard extends StatelessWidget {
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
-      final perRow = (constraints.maxWidth / DayCard.detailWidth)
-          .floor()
-          .clamp(1, 4);
-      final width =
-          (constraints.maxWidth - Espacio.m * (perRow - 1)) / perRow;
+      final perRow = (constraints.maxWidth / DayCard.detailWidth).floor().clamp(
+        1,
+        4,
+      );
+      final width = (constraints.maxWidth - Espacio.m * (perRow - 1)) / perRow;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

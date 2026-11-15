@@ -8,6 +8,7 @@ library;
 
 import 'base.dart';
 import 'cable.dart';
+import 'guided_pass.dart';
 import 'json.dart';
 import 'plan.dart';
 import '../reglas/equipo.dart';
@@ -58,6 +59,7 @@ class Session implements DelClub {
     this.note,
     this.sequence = 0,
     this.lastSessionChange = 0,
+    this.guidedPass,
     required this.auditoria,
   });
 
@@ -90,8 +92,11 @@ class Session implements DelClub {
   /// The number of the last change of this session. See [SessionChange].
   final int sequence;
 
-  /// The number of the last change to the session itself (its note or who is present).
+  /// The number of the last change to the session itself (its note, who is present or its guided pass).
   final int lastSessionChange;
+
+  /// The guided mode of the session, the same on every device (E7.26); null while nobody began one.
+  final GuidedPass? guidedPass;
   final Auditoria auditoria;
 
   factory Session.fromJson(Json j) => Session(
@@ -109,6 +114,11 @@ class Session implements DelClub {
     note: textoOpcional(j['nota']),
     sequence: enteroOpcional(j['secuencia']) ?? 0,
     lastSessionChange: enteroOpcional(j['secuenciaSesion']) ?? 0,
+    guidedPass: j['pasadaGuiada'] == null
+        ? null
+        : GuidedPass.fromJson(
+            (j['pasadaGuiada'] as Map).cast<String, dynamic>(),
+          ),
     auditoria: _auditoria(j['auditoria']),
   );
 
@@ -125,6 +135,7 @@ class Session implements DelClub {
     ...sinNulos({'nota': note}),
     'secuencia': sequence,
     'secuenciaSesion': lastSessionChange,
+    ...sinNulos({'pasadaGuiada': guidedPass?.toJson()}),
     'auditoria': auditoria.toJson(),
   };
 }
@@ -252,6 +263,7 @@ class SetRecord implements DelClub {
     this.pctReal,
     this.rpe,
     this.manualKg = false,
+    this.estimated = false,
     this.note,
     this.sequence,
     required this.writtenBy,
@@ -304,6 +316,10 @@ class SetRecord implements DelClub {
   /// The athlete typed the kilos by hand, so the percents come from them.
   final bool manualKg;
 
+  /// Loaded by the importer with the kilos the app proposes (RM × %), not recorded by anyone (E8.7). Only the
+  /// importer sets it; any write from the app leaves the set no longer estimated.
+  final bool estimated;
+
   /// Free note about the exercise. It lives on the exercise's first set (`setIndex` 0).
   final String? note;
 
@@ -340,6 +356,7 @@ class SetRecord implements DelClub {
     pctReal: numOpcional(j['pctReal']),
     rpe: numOpcional(j['rpe']),
     manualKg: j['kilosManual'] == true,
+    estimated: j['estimada'] == true,
     note: textoOpcional(j['nota']),
     sequence: enteroOpcional(j['secuencia']),
     writtenBy: '${j['escritoPor']}',
@@ -371,6 +388,7 @@ class SetRecord implements DelClub {
       'pctReal': pctReal,
       'rpe': rpe,
       'kilosManual': manualKg ? true : null,
+      'estimada': estimated ? true : null,
       'nota': note,
       'secuencia': sequence,
     }),

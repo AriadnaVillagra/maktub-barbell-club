@@ -38,6 +38,11 @@ void main() {
       repo,
       catalog: catalog(),
     );
+    // The status and Publicar live inside the details, closed for a fully assigned plan.
+    if (find.byKey(const Key('plan-publish')).evaluate().isEmpty) {
+      await tester.tap(find.text('Detalles'));
+      await tester.pumpAndSettle();
+    }
     return ProviderScope.containerOf(
       tester.element(find.byType(PlanEditorPage)),
     );
@@ -89,6 +94,27 @@ void main() {
 
       expect(status(tester), 'Borrador');
       expect(canPublish(tester), isFalse);
+    });
+
+    testWidgets('a saved history plan without % or reps can be published', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        samplePlan(
+          type: PlanType.history,
+          models: [
+            completeModel('a', sets: [const PlanSet(reps: 5), const PlanSet()]),
+          ],
+          assignment: ['a', 'a', 'a', 'a'],
+        ),
+      );
+
+      expect(status(tester), 'Borrador');
+      expect(canPublish(tester), isTrue);
+      await tester.tap(publishButton);
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('plan-publish-problems')), findsNothing);
     });
 
     testWidgets('unsaved changes block the button until they are saved', (

@@ -17,6 +17,8 @@ class AthleteSummary {
     userId: '${j['usuarioId']}',
     name: '${j['nombreVisible']}',
   );
+
+  Json toJson() => {'id': id, 'usuarioId': userId, 'nombreVisible': name};
 }
 
 /// An athlete's references, work factors and fixed weights, in no defined order.

@@ -8,7 +8,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'crear_store.dart';
 
-/// `POST /clubes/{clubId}/planes` body `{nombre, tipo?}` (`tipo` is `regular` or `test`, default `regular`)
+/// `POST /clubes/{clubId}/planes` body `{nombre, tipo?}` (`tipo` is `regular` or `test`, default `regular`;
+/// `historico` is only for the E8 importer, which builds those plans from the old record)
 /// → 201 with the created plan: no week models and no assignment yet (they are saved whole in E5.3).
 /// Needs [Accion.planificar] (the coach). The server sets `id`, `clubId` and `auditoria`.
 /// [store], [newId] and [now] are for tests.
@@ -29,11 +30,18 @@ Future<Response> createPlanEndpoint(
 }
 
 class CreatePlan {
-  CreatePlan(this._store, {String Function()? newId, DateTime Function()? now})
-    : _newId = newId ?? (() => ObjectId().oid),
-      _now = now ?? DateTime.now;
+  CreatePlan(
+    this._store, {
+    String Function()? newId,
+    DateTime Function()? now,
+    this._allowHistory = false,
+  }) : _newId = newId ?? (() => ObjectId().oid),
+       _now = now ?? DateTime.now;
 
   final CreatePlanStore _store;
+
+  /// Loading history (the E8 importer): a [PlanType.history] plan may be created. The endpoint never sets it.
+  final bool _allowHistory;
   final String Function() _newId;
   final DateTime Function() _now;
 
@@ -49,6 +57,11 @@ class CreatePlan {
           ? PlanType.regular
           : PlanType.deCable(body['tipo']);
     } on FormatException {
+      throw const ErrorDeSolicitud(
+        'El tipo de plan debe ser "regular" o "test".',
+      );
+    }
+    if (type == PlanType.history && !_allowHistory) {
       throw const ErrorDeSolicitud(
         'El tipo de plan debe ser "regular" o "test".',
       );

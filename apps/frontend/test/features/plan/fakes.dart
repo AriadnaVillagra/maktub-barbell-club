@@ -4,6 +4,11 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
+import 'package:maktub_frontend/features/asignacion/domain/assignment_repository.dart';
+import 'package:maktub_frontend/features/asignacion/presentation/providers.dart';
+import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
+import 'package:maktub_frontend/features/atletas/presentation/providers.dart'
+    show athleteRepositoryProvider;
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/plan/domain/plan_repository.dart';
 import 'package:maktub_frontend/features/plan/presentation/providers.dart';
@@ -23,11 +28,13 @@ Plan samplePlan({
   List<WeekModel> models = const [],
   List<String> assignment = const [],
   PublishedPlan? published,
+  bool past = false,
 }) => Plan(
   id: id,
   clubId: 'c1',
   name: name,
   type: type,
+  past: past,
   weekModels: models,
   weekAssignment: assignment,
   published: published,
@@ -87,6 +94,7 @@ class FakePlanRepository implements PlanRepository {
           modelCount: p.weekModels.length,
           published: p.published != null,
           hasUnpublishedChanges: p.hasUnpublishedChanges,
+          past: p.isPast,
         ),
     ];
   }
@@ -114,6 +122,7 @@ class FakePlanRepository implements PlanRepository {
       clubId: clubId,
       name: plan.name,
       type: plan.type,
+      past: plan.past,
       weekModels: plan.weekModels,
       weekAssignment: plan.weekAssignment,
       // The server keeps its own published copy, whatever the client sends.
@@ -169,7 +178,13 @@ List<Override> planOverrides(
   Set<Rol> roles = const {Rol.coach},
   FakeCatalogAdminRepository? catalog,
   FakeWodRepository? wods,
+  AssignmentRepository? assignments,
+  List<AthleteSummary> athletes = const [],
 }) => [
+  assignmentRepositoryProvider.overrideWithValue(
+    assignments ?? FakeGroupAssignments(),
+  ),
+  athleteRepositoryProvider.overrideWithValue(FakeAthleteList(athletes)),
   catalogRepositoryProvider.overrideWithValue(
     catalog ?? FakeCatalogAdminRepository(),
   ),
@@ -201,4 +216,60 @@ Future<void> pumpPlanPage(
     ),
   );
   await tester.pumpAndSettle();
+}
+
+/// The club's athletes, for whom a plan can be assigned (E8.8); nothing else is read.
+class FakeAthleteList implements AthleteRepository {
+  FakeAthleteList([this.list = const []]);
+
+  final List<AthleteSummary> list;
+
+  @override
+  Future<List<AthleteSummary>> athletes(String clubId) async => list;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
+
+/// The club's one group and the given assignments; enough for the plans list filter.
+class FakeGroupAssignments implements AssignmentRepository {
+  FakeGroupAssignments([this.list = const []]);
+
+  final List<Assignment> list;
+
+  @override
+  Future<List<AthleteGroup>> groups(String clubId) async => [
+    AthleteGroup(
+      id: 'g1',
+      clubId: clubId,
+      name: 'Andi y Ari',
+      auditoria: Auditoria(
+        creadoPor: 'u1',
+        creadoEn: DateTime.utc(2026, 11, 1),
+      ),
+    ),
+  ];
+
+  @override
+  Future<List<Assignment>> assignments(
+    String clubId, {
+    String? groupId,
+  }) async => list;
+
+  @override
+  Future<Assignment> assign(
+    String clubId, {
+    required String planId,
+    String? groupId,
+    String? athleteId,
+    required DateTime startDate,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<Assignment> end(
+    String clubId,
+    String assignmentId, {
+    DateTime? endDate,
+  }) => throw UnimplementedError();
 }

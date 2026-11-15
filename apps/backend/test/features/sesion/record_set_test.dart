@@ -583,6 +583,55 @@ void main() {
     });
   });
 
+  group('estimated sets (E8.7)', () {
+    Future<SetRecord> estimate(_FakeStore store, Map<String, dynamic> body) =>
+        RecordSet(store, MemoryLiveBroadcast(), newId: () => 'record-${_ids++}', estimates: true)(_coach(), 's1', body);
+
+    test('the importer\'s use case stores the set as estimated, with the kilos the server computes', () async {
+      final store = _store();
+
+      final record = await estimate(store, _body(extra: {'estimada': true}));
+
+      expect(record.estimated, isTrue);
+      expect(record.kg, 80);
+      expect(record.manualKg, isFalse);
+    });
+
+    test('a set with nothing to propose is stored estimated without kilos; typed kilos then clear it', () async {
+      final store = _store()..allReferences.clear();
+
+      final empty = await estimate(store, _body(extra: {'estimada': true}));
+      expect([empty.kg, empty.estimated, empty.done], [null, true, true]);
+
+      final typed = await _record(store, _body(extra: {'kilosManual': true, 'kilos': 60}));
+      expect([typed.kg, typed.manualKg, typed.estimated], [60, true, false]);
+    });
+
+    test('the endpoint ignores "estimada"', () async {
+      final record = await _record(_store(), _body(extra: {'estimada': true}));
+
+      expect(record.estimated, isFalse);
+    });
+
+    test('any write from the app leaves an estimated set no longer estimated', () async {
+      final store = _store();
+      await estimate(store, _body(extra: {'estimada': true}));
+
+      final corrected = await _record(store, _body());
+
+      expect(corrected.estimated, isFalse);
+      expect(corrected.kg, 80);
+      expect(store.stored_.values.single.estimated, isFalse);
+    });
+
+    test('a non-boolean "estimada" is a bad request for the importer', () async {
+      expect(
+        () => estimate(_store(), _body(extra: {'estimada': 'sí'})),
+        throwsA(isA<ErrorDeSolicitud>()),
+      );
+    });
+  });
+
   group('who writes', () {
     test('a present athlete writes for a present teammate', () async {
       final record = await _record(

@@ -40,6 +40,25 @@ Future<Response> dayStatusEndpoint(
   return Response.json(body: result);
 }
 
+/// `GET /clubes/{clubId}/asignaciones/{asignacionId}/dias?desde=yyyy-MM-dd&hasta=yyyy-MM-dd` → the same as the
+/// group's `.../dias`, for one assignment given by id, whoever it belongs to: a group's or one athlete's own (E8.8,
+/// where an athlete can train two plans at once). Same responses and errors, except 404 when the assignment is not
+/// in the club. The assignment is taken whatever its status. [store] is for tests.
+Future<Response> assignmentDayStatusEndpoint(
+  RequestContext context,
+  String assignmentId, {
+  DayStatusStore? store,
+}) async {
+  final club = context.read<ClubContext>().authorize(Accion.verCatalogoYPlanes);
+  final query = context.request.uri.queryParameters;
+  final from = fechaDeSolicitud(query['desde'], 'desde');
+  final to = fechaDeSolicitud(query['hasta'], 'hasta');
+  final result = await ListDayStatus(
+    store ?? MongoDayStatusStore(context.read<Db>()),
+  ).ofAssignment(club, assignmentId, from, to);
+  return Response.json(body: result);
+}
+
 class ListDayStatus {
   ListDayStatus(this._store);
 
@@ -51,6 +70,31 @@ class ListDayStatus {
     DateTime from,
     DateTime to,
   ) async {
+    _checkRange(from, to);
+    if (!await _store.groupExists(club.clubId, groupId)) {
+      throw const ErrorDeSolicitud.noEncontrado('Grupo no encontrado.');
+    }
+    final assignment = await _store.activeAssignment(club.clubId, groupId);
+    if (assignment == null) return {'asignacion': null, 'dias': <Json>[]};
+    return _days(club, assignment, from, to);
+  }
+
+  /// The days of the assignment [assignmentId], whoever it belongs to.
+  Future<Json> ofAssignment(
+    ClubContext club,
+    String assignmentId,
+    DateTime from,
+    DateTime to,
+  ) async {
+    _checkRange(from, to);
+    final assignment = await _store.assignment(club.clubId, assignmentId);
+    if (assignment == null) {
+      throw const ErrorDeSolicitud.noEncontrado('Asignación no encontrada.');
+    }
+    return _days(club, assignment, from, to);
+  }
+
+  void _checkRange(DateTime from, DateTime to) {
     if (to.isBefore(from)) {
       throw const ErrorDeSolicitud('"hasta" no puede ser anterior a "desde".');
     }
@@ -59,11 +103,14 @@ class ListDayStatus {
         'El rango no puede pasar de $maxDayStatusRange días.',
       );
     }
-    if (!await _store.groupExists(club.clubId, groupId)) {
-      throw const ErrorDeSolicitud.noEncontrado('Grupo no encontrado.');
-    }
-    final assignment = await _store.activeAssignment(club.clubId, groupId);
-    if (assignment == null) return {'asignacion': null, 'dias': <Json>[]};
+  }
+
+  Future<Json> _days(
+    ClubContext club,
+    Assignment assignment,
+    DateTime from,
+    DateTime to,
+  ) async {
     final plan = await _store.publishedPlan(club.clubId, assignment.planId);
     if (plan == null) {
       throw const ErrorDeSolicitud(

@@ -27,8 +27,8 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | en curso | 21 / 25 (E7.1 a E7.9, E7.11 a E7.13 y E7.17 a E7.25 hechos; del otro agente siguen E7.10 y E7.14 a E7.16) | — |
-| E8 | [Migración](E8-migracion.md) | en curso | 1 / 6 (E8.1 hecho) | — |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 27 / 27 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
+| E8 | [Migración](E8-migracion.md) | en curso | 7 / 8 (E8.1 a E8.5, E8.7 y E8.8 hechos; falta E8.6. Fuera de E8.5 quedan los 37 % de `plans.pctFills`, que completa Ari, y Levantamiento sin asignar) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
@@ -91,30 +91,59 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
   como menú de entrada, resumen global del plan, editar el día en ejecución, días salteados, rampa
   configurable, medida del ejercicio y ejercicios inactivos. Falta ver si a M1 le falta algo de eso.
 
+## Cierre de E7: canal en vivo y sin señal (2026-11-14)
+
+- **E7.10:** la app pide el ticket, abre el WebSocket y resincroniza con `cambios?desde=N`. Ante un corte reconecta sola (esperas de 0,5 s a 30 s) y muestra "Conectando…". Deja de reintentar con 403/404. Al abrir el canal manda la cola. Un cambio de una serie que todavía está en la cola de este dispositivo se retiene hasta que la escritura sale. Gana el número más alto. El canal se corta al cambiar de día o salir de la pantalla. "Conectando…" no aparece en el modo guiado.
+- **E7.14:** `GET .../asignaciones/{id}/kilos-propuestos?desde&hasta` (31 días como máximo, todos los días de la semana de cada fecha). El cálculo del día pasó a `maktub_core` (`set_load.dart`) y lo comparten los dos endpoints. No tiene parámetro `semana`: si alguien elige otra semana, esa semana no queda precargada.
+- **E7.15:** la copia local está en `shared_preferences` (`maktub.copy.*`). Se precargan hoy y los 7 días siguientes al iniciar sesión, y se borra lo que tiene más de 14 días. Un 4xx a propósito no usa la copia; sin conexión, un 5xx, un 408 y un 429 sí. Sin señal, el ajuste del día no se recalcula: solo sirven el 100 % o un ajuste ya visto.
+- **E7.16:** una sesión abierta sin señal tiene un id `local-…`. La apertura va en la cola adelante de todo, y cuando sale, la cola reemplaza el id por el del servidor en las series, los tiempos y el borrador. El backend no cambió. Si el servidor rechaza la apertura con un 4xx, se descartan también las marcas de esa sesión. Timeouts del cliente: 8 s en lecturas y al abrir, 30 s en escrituras.
+- **E7.26 (hecho, salió de la prueba en local):** la sesión tiene `pasadaGuiada` (opcional; sin ella no hay pasada). Se escribe con `POST .../sesiones/{id}/pasada` con una acción (`comenzar`, `iniciar_bloque`, `saltar_bloque`, `terminar_bloque`, `pasar_series`, `dejar`, `terminar`, etc.). La regla `applyGuidedAction` está en `maktub_core`, y la usan el servidor y el teléfono. No se rechazan escrituras por versión: cada acción se aplica sobre el estado actual, y si ya no tiene sentido no cambia nada. Dos "Comenzar" a la vez quedan en una sola pasada. La pasada guarda también las series pasadas y los ejercicios dejados de cada bloque. El id de un tiempo de bloque es `{pasadaId}-{bloque}`. "Terminar el día" con un bloque en curso lo cierra como interrumpido. En la cola, la pasada va después de las series y antes de los tiempos. **`diseno.md`** no tiene `pasadaGuiada`: avisar a su sesión.
+- **E7.27 (hecho, salió de la prueba en local del 2026-11-15):** la sesión del día ya no tiene "Abrir sesión" ni "Presentes". Muestra pestañas por atleta del grupo (`TabBar`, en el orden del grupo) y la sesión se crea con la primera escritura (serie, valor, ajuste, nota o "Comenzar"), sumando a presentes al atleta que escribe. Antes de que exista, `GET .../sesiones?asignacionId&fecha&semana&dia` (slice `find_session`, 200 o 204) la busca sin crear nada, se consulta cada 15 s, y los kilos salen de los kilos por fecha con ajuste neutro (los de un día de otra semana usan el primer día de esa semana). Un ajuste que no cambia nada no crea la sesión; si la apertura falla, el ajuste vuelve atrás. El guiado funciona sin sesión hasta "Comenzar" (sin vista previa de bloques antes). Se arregló `SetSyncQueue.submit`, que perdía el rechazo cuando otro flush mandaba la escritura primero. Volver de segundo plano no consulta en el momento: espera la consulta de 15 s. **`diseno.md`** 3.6 y 5.3 todavía dicen que los presentes se eligen al abrir: avisar a su sesión.
+- **Sin probar en real:** todo E7.10 a E7.16 y E7.26 pasó solo con fakes (sin WebSocket real, sin modo avión, sin dos teléfonos). Va en la prueba después del merge (D3).
+
 ## Para E6 (decidido el 2026-11-08)
 
 Guardar deja un borrador, y publicar (E5.14) exige el plan completo. **E6.3 solo asigna un plan publicado.**
 Editar un plan asignado no afecta a los atletas hasta volver a publicar: **E6 y E7 leen siempre la versión
 publicada**, nunca el borrador.
 
-## Para E8.2 (decidido el 2026-11-08)
+## E8.5: decisiones (2026-11-15, aprobadas por Ari)
 
-Si un ejercicio de la planilla ya existe en el catálogo base con otra categoría (por ejemplo `Plancha`, accesorio
-en la base y calentamiento en la planilla), el importador le suma la categoría de la planilla, sin duplicarlo.
-Hasta correr E8.2, los 14 abdominales de calentamiento de la planilla no aparecen en la app.
-
-## D16 aprobada (2026-11-08)
-
-Se elimina "día sin primario". Cada bloque tiene categoría y cada ejercicio pertenece a la categoría de su
-bloque. Al agregar un ejercicio (E5.7), los bloques de categoría `primario`, `secundario` y `accesorio`
-traen las series por defecto de la referencia y sus descansos (`desc_180`, `desc_120`, `desc_90`); las
-demás categorías no traen nada. Las series solo son obligatorias en esas tres categorías, como en la
-referencia: E7 tiene que mostrar un ejercicio sin series (por ejemplo, un estiramiento). Excepción a D16
-(2026-11-08): un bloque de categoría `wod` acepta ejercicios de cualquier categoría; es la forma de armar un EMOM.
-Un bloque de `estiramiento` puede quedar sin ejercicios, con nota o sin ella, sin impedir la publicación. E7 tiene que mostrarlo.
-
-## Pendientes que salieron de E3 (2026-11-08)
-
+- Las filas "historico" de Registro (3976) entran en un plan "Histórico" por mes que arma y publica el importador.
+- Octubre y Levantamiento: Ari completa los % que faltan y después se publican. No se inventan valores.
+- El importador crea las asignaciones ya terminadas (respeta D14): Octubre para "Andi y Ari", Levantamiento solo para Ari.
+- Aprobadas las decisiones de la primera parte (`6282bfb`):
+  - `OpenSession` con `history: true` acepta asignaciones terminadas o pausadas.
+  - Las series históricas quedan como kilos escritos a mano, y la hora de la planilla se toma como Europe/Berlin.
+  - Una fila sin reps queda con las reps del plan, y se avisa.
+  - "Bloque accesorios" va al primer bloque de accesorios; "Bloque principal" y "Bloque secundario" van al Secundario.
+  - La nota del ejercicio va en la primera serie.
+- Segunda parte (`9017aa1`):
+  - El paso `asignaciones` crea asignaciones terminadas desde `plans.assignments`.
+  - `plans.pctFills` tiene en `ajustes.json` las 37 series sin % (26 de Octubre y 11 de Levantamiento), con `pct: null`; Ari los completa.
+  - El importador vuelve a guardar y publica sus propios borradores cuando quedan completos.
+- Los planes "Histórico" no traen %. Se publican con un modo historial que acepta series sin %, solo desde el importador.
+- Tercera parte (`f0fb3f8`): 14 planes "Histórico 2025-05" a "Histórico 2026-10", publicados en modo historial, con asignaciones terminadas para "Andi y Ari". Corrida local: 155 sesiones y 3974 series (2 filas repetidas en Registro); una segunda corrida no cambia nada. Para revisar:
+  - Cada mes queda en el ciclo 1, aunque la planilla diga ciclo 2 a 4.
+  - En marzo 2026, las semanas 3 y 4 repiten la 2.
+  - Se pierden 23 notas de prescripción en atletas que no hicieron la serie 1.
+- **Editor del plan, tras probar E8.5 (2026-11-15, pedido por Ari):** los bloques de un día se reordenan arrastrando su manija (≡), sin flechas; cada día tiene "Duplicar día en otro modelo": elegís el modelo de semana y el día se agrega al final de ese modelo, con sus bloques (hasta 7 días).
+- **Planes "Histórico" en el editor (2026-11-15, pedido por Ari):** al guardar mostraban un cartel enorme de % faltantes y pedían asignarlos. Se suma un tipo de plan "histórico": el editor no muestra esos avisos ni pide asignar, y se puede publicar sin %. Lo está haciendo un subagente.
+- **Filtro en la lista de planes (2026-11-15, pedido por Ari):** "Activos" y "Pasados". Cada plan tiene el campo `pasado` (`Plan.past`), que Ari elige en el editor con el selector Activo / Pasado y se guarda con Guardar. Un plan histórico siempre es pasado y no tiene selector. Reemplaza el criterio por asignaciones que se había elegido antes.
+- **Copiar como plan nuevo (2026-11-15, pedido por Ari):** el editor tiene "Copiar como plan nuevo", que crea un plan regular en borrador y activo con los modelos de semana y la asignación del plan guardado, y abre su editor. Sirve para repetir un plan histórico: antes de publicar hay que completar los % que falten.
+- **Abril a julio 2026 (pedido por Ari):**
+  - En Registro no hay series de esos meses, pero se entrenó con la planificación de abril, repetida.
+  - Se importa el plan de abril desde la grilla `ABR_2026` de la planilla de planificación. Se le cargan series de abril a julio con los kilos que propone la app (RM × %), marcadas como estimadas, y Ari corrige lo que haga falta.
+  - La grilla de abril no tiene kilos, pero sí los %. Los kilos salen de las RMs ya importadas (E8.3) con las reglas de E4: factor de trabajo y peso cargable más cercano.
+  - Es un cambio aparte de E8.5, todavía sin issue. Falta decidir cómo se marca una serie estimada en el modelo de E7.
+- **E8.7 (hecho, `9683539` y `1d51587`):**
+  - La serie registrada tiene `estimada`. Solo el importador la pone, y cualquier escritura desde la app la saca.
+  - El paso `abril` arma "Abril 2026" (histórico) desde la grilla y lo asigna terminado del 1/4 al 31/7.
+  - Corrida en una copia: 48 sesiones y 851 series estimadas (395 con kilos y 456 solo con reps). Una segunda corrida no cambia nada, y una serie corregida a mano no se pisa.
+  - No entran 1149 series de ejercicios con carga sin kilos en la grilla: sentadilla frontal, peso muerto y bench con "barra de…", sit ups con disco, TGU, etc. Tampoco "windmill", que no está en el catálogo.
+  - **Deploy:** desplegar el backend antes de correr el paso contra producción.
+  - **`diseno.md`** no tiene `estimada`: avisar a su sesión.
+- **E8.8 (hecho, `788e3a5`, `d630ab2`, `b78e3a6` y `9bc9b15`):** una asignación es de un grupo o de un atleta (`grupoId` o `atletaId`), y el plan propio convive con el del grupo. D14 se aplica por dueño, con un índice único para cada tipo: `asegurarIndices` recrea `club_grupo_activa_unica` la primera vez que arranca. Si hay dos planes en el día, la sesión muestra uno por plan para elegir. Levantamiento se asigna a Ari, terminado: en la corrida de prueba entraron 10 series (no 14) y 3 tiempos. **Deploy:** primero el backend y después la PWA. **`diseno.md`** no tiene la asignación por atleta: avisar a su sesión.
 - **Datos corporales del atleta** (altura, peso y su seguimiento, cargados por el atleta): van después de
   M1. No tienen diseño. Definir qué datos, si guardan historial, quién los ve y cómo se protegen.
 - **Marcas que no son en kilos** (repeticiones máximas en Dominadas; tiempo, velocidad y km máximos en

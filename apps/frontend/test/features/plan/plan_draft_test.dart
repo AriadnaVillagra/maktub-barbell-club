@@ -71,6 +71,33 @@ void main() {
     expect(d.weekModels[0].days, hasLength(6));
   });
 
+  test(
+    'copyDayTo appends the day to another model, never the same or a full one',
+    () {
+      final base = PlanDraft.from(
+        samplePlan(
+          models: [model('x', 'A', 2), model('y', 'B', 1)],
+          assignment: ['x', 'y', 'x', 'y'],
+        ),
+      ).addBlock('x', 0, const PlanBlock(name: 'Principal', categoryId: 'c'));
+      final d = base.copyDayTo('x', 0, 'y');
+      final days = d.modelById('y')!.days;
+      expect([for (final day in days) day.name], ['Dy1', 'Dx1']);
+      expect(days[1].blocks.map((b) => b.name), ['Principal']);
+      expect(d.modelById('x')!.days, hasLength(2));
+      expect(d.isDirty, isTrue);
+
+      expect(identical(base.copyDayTo('x', 0, 'x'), base), isTrue);
+      expect(identical(base.copyDayTo('x', 5, 'y'), base), isTrue);
+      expect(identical(base.copyDayTo('x', 0, 'nope'), base), isTrue);
+      var full = base;
+      while (full.canAddDay('y')) {
+        full = full.addDay('y');
+      }
+      expect(identical(full.copyDayTo('x', 0, 'y'), full), isTrue);
+    },
+  );
+
   test('moveDay reorders and ignores invalid moves', () {
     final base = PlanDraft.from(
       samplePlan(
@@ -202,7 +229,11 @@ void main() {
       expect((b.name, b.categoryId, b.timerId), ('main', 'k', 't'));
       expect(d.isDirty, isTrue);
       d = d.removePrescription(id, 0, 0, 0).removePrescription(id, 0, 0, 0);
-      expect(list(d), isEmpty, reason: 'a block without prescriptions is empty');
+      expect(
+        list(d),
+        isEmpty,
+        reason: 'a block without prescriptions is empty',
+      );
     });
 
     test('out-of-range operations change nothing', () {
@@ -210,10 +241,7 @@ void main() {
       final id = d.weekModels[0].id;
       expect(list(d.removePrescription(id, 0, 0, 3)), isEmpty);
       expect(
-        identical(
-          d.addPrescription(id, 0, 4, const Prescription()),
-          d,
-        ),
+        identical(d.addPrescription(id, 0, 4, const Prescription()), d),
         isTrue,
       );
       expect(
@@ -266,28 +294,31 @@ void main() {
       );
       final b = blockOf(d.addWod(id, 0, 0, wod));
       expect((b.timerId, b.note), ('mine', 'mía'));
-      expect([for (final p in b.prescriptions) p.exerciseId], [
-        'press',
-        'squat',
-      ]);
+      expect(
+        [for (final p in b.prescriptions) p.exerciseId],
+        ['press', 'squat'],
+      );
     });
 
-    test('a blank block note counts as none; a blank description adds none', () {
-      final (d, id) = withBlock(
-        PlanBlock(name: 'WoD', categoryId: 'wod', note: '  '),
-      );
-      expect(
-        blockOf(d.addWod(id, 0, 0, sampleWod(description: 'desc'))).note,
-        'desc',
-      );
-      expect(
-        blockOf(d.addWod(id, 0, 0, sampleWod(description: '  '))).note,
-        '  ',
-        reason: 'nothing to copy leaves the block as it was',
-      );
-      final (e, eid) = withBlock(PlanBlock(name: 'WoD', categoryId: 'wod'));
-      expect(blockOf(e.addWod(eid, 0, 0, sampleWod())).note, isNull);
-    });
+    test(
+      'a blank block note counts as none; a blank description adds none',
+      () {
+        final (d, id) = withBlock(
+          PlanBlock(name: 'WoD', categoryId: 'wod', note: '  '),
+        );
+        expect(
+          blockOf(d.addWod(id, 0, 0, sampleWod(description: 'desc'))).note,
+          'desc',
+        );
+        expect(
+          blockOf(d.addWod(id, 0, 0, sampleWod(description: '  '))).note,
+          '  ',
+          reason: 'nothing to copy leaves the block as it was',
+        );
+        final (e, eid) = withBlock(PlanBlock(name: 'WoD', categoryId: 'wod'));
+        expect(blockOf(e.addWod(eid, 0, 0, sampleWod())).note, isNull);
+      },
+    );
 
     test('adding twice appends both; the draft is dirty and a plain copy', () {
       final (d, id) = withBlock(PlanBlock(name: 'WoD', categoryId: 'wod'));
