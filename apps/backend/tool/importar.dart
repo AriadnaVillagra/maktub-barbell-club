@@ -48,7 +48,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 
 /// The steps in the order they run. [planningFolder] holds the planning grids (E8.7).
-List<ImportStep> _steps(Db db, {String planningFolder = '../../docs/planillas/csv/planificacion'}) {
+List<ImportStep> importSteps(Db db, {String planningFolder = '../../docs/planillas/csv/planificacion'}) {
   final catalog = CatalogImport(
     reads: MongoCatalogImportStore(db),
     exerciseWrites: MongoWriteExerciseStore(db),
@@ -133,7 +133,7 @@ Future<void> main(List<String> args) async {
   final db = await abrirMongo();
   var failed = false;
   try {
-    final clubId = options.club ?? await _maktubClubId(db);
+    final clubId = options.club ?? await maktubClubId(db);
     final type = await MongoClubContextStore(db).clubType(clubId);
     if (type == null) throw StateError('No existe el club $clubId.');
     stdout.writeln(
@@ -145,8 +145,8 @@ Future<void> main(List<String> args) async {
       adjustments: ImportAdjustments.fromFile(options.adjustments),
       dryRun: !options.apply,
     );
-    final steps = _steps(db, planningFolder: options.planning).where((s) => options.only.isEmpty || options.only.contains(s.name)).toList();
-    final unknown = options.only.difference({for (final s in _steps(db)) s.name});
+    final steps = importSteps(db, planningFolder: options.planning).where((s) => options.only.isEmpty || options.only.contains(s.name)).toList();
+    final unknown = options.only.difference({for (final s in importSteps(db)) s.name});
     if (unknown.isNotEmpty) throw ArgumentError('Pasos desconocidos: ${unknown.join(', ')}.');
     for (final step in steps) {
       final report = await step.run(run);
@@ -159,7 +159,7 @@ Future<void> main(List<String> args) async {
   if (failed) exitCode = 1;
 }
 
-Future<String> _maktubClubId(Db db) async {
+Future<String> maktubClubId(Db db) async {
   final club = await db
       .collection(Colecciones.clubes)
       .findOne(where.eq('tipo', TipoClub.club.cable).eq('nombre', 'Maktub'));
