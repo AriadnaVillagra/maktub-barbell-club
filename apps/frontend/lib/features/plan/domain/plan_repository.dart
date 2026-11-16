@@ -64,6 +64,10 @@ abstract interface class PlanRepository {
   /// Coach only. Throws [PlanRejected] when the saved plan has problems (422) and `ErrorDeApi` for any other
   /// failure (409 when it was saved meanwhile).
   Future<Plan> publish(String clubId, String planId);
+
+  /// Deletes [planId] and its assignments; the sessions and sets recorded with it stay (E8.9). Coach or club
+  /// admin. Throws `ErrorDeApi` on failure (404 when it no longer exists).
+  Future<void> delete(String clubId, String planId);
 }
 
 /// The server refused to save or publish the plan because it is invalid (422): it lists every problem, with

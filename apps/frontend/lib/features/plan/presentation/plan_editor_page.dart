@@ -5,7 +5,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show asyncView, showApiError;
+    show asyncView, confirmAction, showApiError;
 import '../../catalogo/presentation/exercise_picker.dart';
 import '../../catalogo/presentation/catalog_admin_providers.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
@@ -57,6 +57,26 @@ class PlanEditorPage extends ConsumerWidget {
     }
   }
 
+  /// Deletes the plan after confirming and goes back to the list (E8.9). What was recorded with it stays.
+  Future<void> _delete(BuildContext context, WidgetRef ref, Plan plan) async {
+    final ok = await confirmAction(
+      context,
+      title: 'Eliminar plan',
+      body:
+          'Se elimina "${plan.name}" con sus asignaciones y deja de verse en el calendario. '
+          'Las series que ya se registraron con este plan se conservan para los informes. '
+          'No se puede deshacer.',
+      action: 'Eliminar',
+    );
+    if (!ok || !context.mounted) return;
+    try {
+      await deletePlan(ref, plan);
+      if (context.mounted) context.go(listPath);
+    } catch (e) {
+      if (context.mounted) showApiError(context, e);
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final editor = planEditorProvider(planId);
@@ -98,6 +118,13 @@ class PlanEditorPage extends ConsumerWidget {
                 onPressed: dirty || saving
                     ? null
                     : () => _copyAsNew(context, ref, value.requireValue.base),
+              ),
+            if (value.hasValue)
+              IconButton(
+                key: const Key('plan-delete'),
+                icon: Icon(Icons.delete_outline, color: saving ? null : context.esquema.error),
+                tooltip: 'Eliminar plan',
+                onPressed: saving ? null : () => _delete(context, ref, value.requireValue.base),
               ),
             if (value.hasValue)
               Padding(

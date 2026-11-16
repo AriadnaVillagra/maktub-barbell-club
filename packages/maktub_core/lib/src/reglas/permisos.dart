@@ -20,6 +20,9 @@ enum Accion {
   /// Planificar y asignar.
   planificar,
 
+  /// Delete a plan with its assignments; what was recorded with it stays (E8.9). Coach and club admin.
+  deletePlan,
+
   /// Crear, editar, archivar y borrar lo del club: ejercicios, categorías, temporizadores y equipo.
   editarCatalogoClub,
   seguirPlanPorDefecto,
@@ -40,10 +43,16 @@ const _coach = {
   Accion.verReportesPropios,
   Accion.editarReferencias,
   Accion.planificar,
+  Accion.deletePlan,
   Accion.verReportesDeTodos,
 };
 
-const _adminClub = {Accion.verCatalogoYPlanes, Accion.editarCatalogoClub, Accion.gestionarMiembros};
+const _adminClub = {
+  Accion.verCatalogoYPlanes,
+  Accion.editarCatalogoClub,
+  Accion.gestionarMiembros,
+  Accion.deletePlan,
+};
 
 const _personal = {
   Accion.verCatalogoYPlanes,

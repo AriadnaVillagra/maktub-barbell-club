@@ -159,6 +159,16 @@ class FakePlanRepository implements PlanRepository {
     return result;
   }
 
+  /// When set, [delete] throws it instead of deleting.
+  Object? deleteFailure;
+
+  @override
+  Future<void> delete(String clubId, String planId) async {
+    calls.add('delete:$clubId:$planId');
+    if (deleteFailure != null) throw deleteFailure!;
+    stored.remove(planId);
+  }
+
   @override
   Future<Plan> plan(String clubId, String planId) async {
     calls.add('plan:$clubId:$planId');

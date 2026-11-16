@@ -28,7 +28,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 6 / 6 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 27 / 27 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
-| E8 | [Migración](E8-migracion.md) | en curso | 7 / 8 (E8.1 a E8.5, E8.7 y E8.8 hechos; falta E8.6. Fuera de E8.5 quedan los 37 % de `plans.pctFills`, que completa Ari, y Levantamiento sin asignar) | — |
+| E8 | [Migración](E8-migracion.md) | en curso | 8 / 9 (E8.1 a E8.5, E8.7, E8.8 y E8.9 hechos; falta E8.6. Fuera de E8.5 quedan los 37 % de `plans.pctFills`, que completa Ari, y Levantamiento sin asignar) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
@@ -144,6 +144,7 @@ publicada**, nunca el borrador.
   - **Deploy:** desplegar el backend antes de correr el paso contra producción.
   - **`diseno.md`** no tiene `estimada`: avisar a su sesión.
 - **E8.8 (hecho, `788e3a5`, `d630ab2`, `b78e3a6` y `9bc9b15`):** una asignación es de un grupo o de un atleta (`grupoId` o `atletaId`), y el plan propio convive con el del grupo. D14 se aplica por dueño, con un índice único para cada tipo: `asegurarIndices` recrea `club_grupo_activa_unica` la primera vez que arranca. Si hay dos planes en el día, la sesión muestra uno por plan para elegir. Levantamiento se asigna a Ari, terminado: en la corrida de prueba entraron 10 series (no 14) y 3 tiempos. **Deploy:** primero el backend y después la PWA. **`diseno.md`** no tiene la asignación por atleta: avisar a su sesión.
+- **E8.9 (hecho, 2026-11-16, pedido por Ari):** "Eliminar plan" en el editor, para coach y `admin_club` (acción nueva `Accion.deletePlan`). Borra el plan y sus asignaciones; sesiones, series y tiempos de bloque quedan para los informes. Las lecturas de sesión ya devuelven 404 o vacío sin asignación. Volver a correr el importador recrea un plan importado que se haya eliminado. **Deploy:** primero el backend y después la PWA. **`diseno.md`** no dice que un plan se pueda eliminar: avisar a su sesión.
 - **Datos corporales del atleta** (altura, peso y su seguimiento, cargados por el atleta): van después de
   M1. No tienen diseño. Definir qué datos, si guardan historial, quién los ve y cómo se protegen.
 - **Marcas que no son en kilos** (repeticiones máximas en Dominadas; tiempo, velocidad y km máximos en

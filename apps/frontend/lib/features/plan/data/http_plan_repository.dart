@@ -66,6 +66,10 @@ class HttpPlanRepository implements PlanRepository {
     }
   }
 
+  @override
+  Future<void> delete(String clubId, String planId) =>
+      _client.delete('${_path(clubId)}/${Uri.encodeComponent(planId)}');
+
   /// Throws [PlanRejected] when [e] is a 422 with a list of problems this app understands.
   static void _rejectIfProblems(ErrorDeApi e) {
     final problems = e.estado == 422 ? _parseProblems(e.cuerpo) : null;
