@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:maktub_core/maktub_core.dart';
@@ -66,9 +67,45 @@ String urlMongoDesdeEntorno() =>
     Platform.environment['MONGO_URL'] ?? 'mongodb://localhost:27017/maktub';
 
 Future<Db> abrirMongo([String? url]) async {
-  final db = await Db.create(url ?? urlMongoDesdeEntorno());
+  final db = await Db.create(withSafeAtlas(url ?? urlMongoDesdeEntorno()));
   await db.open();
   return db;
+}
+
+/// Adds `safeAtlas=true` unless the URL already sets it. Without it, Atlas resets the socket when
+/// several queries are in flight at once (seen in production on 2026-11-15 with the week's
+/// `ubicacion` requests), and mongo_dart then fails every query until the process restarts.
+/// With it, mongo_dart sends one query at a time per connection.
+String withSafeAtlas(String url) {
+  final uri = Uri.parse(url);
+  if (uri.queryParameters.containsKey('safeAtlas')) return url;
+  return uri.replace(queryParameters: {...uri.queryParameters, 'safeAtlas': 'true'}).toString();
+}
+
+/// Keeps one open connection and opens a new one when the current one dropped, so a reset from
+/// the server costs the requests in flight, not every request until the instance restarts.
+class MongoConnection {
+  MongoConnection(this._db, {Future<Db> Function()? open}) : _open = open ?? abrirMongo;
+
+  Db _db;
+  final Future<Db> Function() _open;
+  Future<void>? _reopening;
+
+  /// The current connection. Read it per request, after [ensureOpen].
+  Db get db => _db;
+
+  /// Opens a new connection when the current one is down. Concurrent callers share one attempt;
+  /// when it fails they all get the error and the next call tries again.
+  Future<void> ensureOpen() {
+    if (_db.isConnected) return Future.value();
+    return _reopening ??= _reopen().whenComplete(() => _reopening = null);
+  }
+
+  Future<void> _reopen() async {
+    final old = _db;
+    _db = await _open();
+    unawaited(old.close().catchError((Object _) {}));
+  }
 }
 
 /// Índices que necesitan los features; idempotente, se corre al arrancar.
