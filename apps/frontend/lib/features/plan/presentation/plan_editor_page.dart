@@ -9,11 +9,13 @@ import '../../catalogo/presentation/catalog_admin_widgets.dart'
 import '../../catalogo/presentation/exercise_picker.dart';
 import '../../catalogo/presentation/catalog_admin_providers.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
+import '../domain/athlete_loads.dart';
 import '../domain/models_view.dart';
 import '../domain/plan_draft.dart';
 import '../domain/prescription_defaults.dart';
 import 'block_dialog.dart';
 import 'plan_dialogs.dart';
+import 'plan_athletes_providers.dart';
 import 'plan_labels.dart';
 import 'prescription_dialog.dart';
 import 'wod_picker.dart';
@@ -814,6 +816,21 @@ class _BlockTile extends ConsumerWidget {
     return name == null ? 'Del bloque (ninguno)' : 'Del bloque ($name)';
   }
 
+  /// Who the plan is for, with their RM and factor for [exercise], and the club's equipment: what the prescription
+  /// dialog converts % and kg with (E5.16). Empty when they cannot be read.
+  Future<({List<AthleteBasis> athletes, Equipo? equipo})> _loadBasis(WidgetRef ref, Exercise? exercise) async {
+    if (exercise == null) return (athletes: const <AthleteBasis>[], equipo: null);
+    try {
+      final athletes = await ref.read(planAthletesProvider(editor.planId).future);
+      final exercises = await ref.read(catalogExercisesProvider.future);
+      final rmId = rmExerciseIdFor(exercise, {for (final e in exercises) e.id: e});
+      final equipo = await ref.read(clubTeamProvider.future);
+      return (athletes: athleteBases(athletes, rmId, hoy()), equipo: equipo);
+    } catch (_) {
+      return (athletes: const <AthleteBasis>[], equipo: null);
+    }
+  }
+
   Future<void> _addExercise(BuildContext context, WidgetRef ref) async {
     final isWod = block.categoryId == wodCategoryId;
     final exercise = await showExercisePicker(
@@ -823,6 +840,7 @@ class _BlockTile extends ConsumerWidget {
     );
     if (exercise == null) return;
     final timers = await ref.read(clubTimersProvider.future);
+    final basis = await _loadBasis(ref, exercise);
     if (!context.mounted) return;
     // The sets are set right away (Ari: picking the exercise and then tapping it again was not
     // intuitive), starting from the defaults. Cancelling adds nothing.
@@ -838,6 +856,8 @@ class _BlockTile extends ConsumerWidget {
       ),
       exercise: exercise,
       inheritedTimerLabel: _inheritedTimerLabel,
+      athletes: basis.athletes,
+      equipo: basis.equipo,
     );
     if (prescription == null) return;
     editor.addPrescription(modelId, day, index, prescription);
@@ -867,15 +887,20 @@ class _BlockTile extends ConsumerWidget {
 
   Future<void> _editPrescription(
     BuildContext context,
+    WidgetRef ref,
     int p,
     Prescription prescription,
     Exercise? exercise,
   ) async {
+    final basis = await _loadBasis(ref, exercise);
+    if (!context.mounted) return;
     final edited = await askPrescription(
       context,
       initial: prescription,
       exercise: exercise,
       inheritedTimerLabel: _inheritedTimerLabel,
+      athletes: basis.athletes,
+      equipo: basis.equipo,
     );
     if (edited == null) return;
     editor.updatePrescription(modelId, day, index, p, edited);
@@ -885,6 +910,8 @@ class _BlockTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final exercises = ref.watch(catalogExercisesProvider).value ?? const [];
     final timers = ref.watch(clubTimersProvider).value ?? const [];
+    // Loaded ahead (and kept) for the prescription dialog's % and kg (E5.16).
+    ref.watch(planAthletesProvider(editor.planId));
     Exercise? exerciseOf(String? id) {
       for (final e in exercises) {
         if (e.id == id) return e;
@@ -1003,9 +1030,7 @@ class _BlockTile extends ConsumerWidget {
                     key: Key('prescription-$keyPrefix-$index-$p'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    onTap: () => _editPrescription(
-                      context,
-                      p,
+                    onTap: () => _editPrescription(context, ref, p,
                       prescription,
                       exerciseOf(prescription.exerciseId),
                     ),

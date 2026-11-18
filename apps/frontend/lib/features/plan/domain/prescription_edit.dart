@@ -22,6 +22,7 @@ PlanSet setWith(
   required int? reps,
   required double? pct,
   required double? kg,
+  Map<String, AthleteSetLoad>? byAthlete,
 }) => PlanSet(
   reps: reps,
   maxReps: set.maxReps,
@@ -35,6 +36,7 @@ PlanSet setWith(
   zone: set.zone,
   calories: set.calories,
   attempt: set.attempt,
+  byAthlete: byAthlete ?? set.byAthlete,
 );
 
 /// [sets] plus a copy of the last one (the reference does the same). An empty list gets an empty set.

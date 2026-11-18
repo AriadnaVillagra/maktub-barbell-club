@@ -80,6 +80,29 @@ Auditoria _auditoria(Object? v) =>
 /// One set with its targets. Each field is a target in one of the exercise's metrics (diseno, "Métricas de un
 /// ejercicio"); a set normally fills only the ones its exercise measures. Nothing here is a result: what the
 /// athlete did is recorded in the session.
+/// One athlete's load for a set, frozen when the coach planned it (E5.16): the % of their RM and the kilos, worked
+/// out from whichever the coach typed with the RM they had then.
+class AthleteSetLoad {
+  const AthleteSetLoad({this.pct, this.kg});
+
+  final double? pct;
+  final double? kg;
+
+  factory AthleteSetLoad.fromJson(Json j) =>
+      AthleteSetLoad(pct: numOpcional(j['pct']), kg: numOpcional(j['kilos']));
+
+  Json toJson() => sinNulos({'pct': pct, 'kilos': kg});
+
+  @override
+  bool operator ==(Object other) => other is AthleteSetLoad && other.pct == pct && other.kg == kg;
+
+  @override
+  int get hashCode => Object.hash(pct, kg);
+
+  @override
+  String toString() => 'AthleteSetLoad($pct %, $kg kg)';
+}
+
 class PlanSet {
   const PlanSet({
     this.reps,
@@ -94,6 +117,7 @@ class PlanSet {
     this.zone,
     this.calories,
     this.attempt,
+    this.byAthlete = const {},
   });
 
   /// Target repetitions.
@@ -131,6 +155,10 @@ class PlanSet {
   /// live, so [kg] stays null. Null for every other set.
   final int? attempt;
 
+  /// Each athlete's % and kilos, by athlete id, frozen when planned (E5.16). The session proposes these kilos to an
+  /// athlete who has them; the others go by [pct] and [kg]. Empty in sets planned before it existed.
+  final Map<String, AthleteSetLoad> byAthlete;
+
   factory PlanSet.fromJson(Json j) => PlanSet(
     reps: enteroOpcional(j['reps']),
     maxReps: j['repsMax'] == true,
@@ -144,6 +172,10 @@ class PlanSet {
     zone: enteroOpcional(j['zona']),
     calories: numOpcional(j['calorias']),
     attempt: enteroOpcional(j['intento']),
+    byAthlete: {
+      for (final e in ((j['porAtleta'] as Map?) ?? const {}).entries)
+        '${e.key}': AthleteSetLoad.fromJson((e.value as Map).cast<String, dynamic>()),
+    },
   );
 
   Json toJson() => sinNulos({
@@ -159,6 +191,7 @@ class PlanSet {
     'zona': zone,
     'calorias': calories,
     'intento': attempt,
+    'porAtleta': byAthlete.isEmpty ? null : {for (final e in byAthlete.entries) e.key: e.value.toJson()},
   });
 }
 

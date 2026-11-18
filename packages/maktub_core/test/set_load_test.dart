@@ -45,6 +45,7 @@ ProposedSetLoad _propose(
   int adjustment = Ajuste.neutro,
   double? fixedKg,
   double? barKg,
+  String? athleteId,
 }) => proposedSetLoad(
   basis: basis,
   target: target,
@@ -52,9 +53,44 @@ ProposedSetLoad _propose(
   athleteFixedKg: fixedKg,
   equipo: Equipo.estandarDe('c1'),
   barKg: barKg,
+  athleteId: athleteId,
 );
 
 void main() {
+  group('frozen per athlete (E5.16)', () {
+    const target = PlanSet(
+      reps: 5,
+      kg: 50,
+      byAthlete: {'ari': AthleteSetLoad(pct: 62.5, kg: 50)},
+    );
+
+    test('the athlete with frozen kilos gets them, whatever their RM is now', () {
+      final load = _propose(_basis(pct: null, references: [_rm(120)]), target: target, athleteId: 'ari');
+      expect(load.kg, 50);
+      expect(load.appliedPct, 62.5);
+    });
+
+    test('the day adjustment scales the frozen kilos to the nearest loadable', () {
+      final load = _propose(_basis(pct: null), target: target, athleteId: 'ari', adjustment: 90);
+      expect(load.kg, 45);
+      expect(load.appliedPct, closeTo(56.25, 0.01));
+    });
+
+    test('another athlete goes by what the coach typed', () {
+      final load = _propose(_basis(pct: null), target: target, athleteId: 'andi');
+      expect(load.kg, 50);
+      expect(load.appliedPct, isNull);
+    });
+
+    test('travels as porAtleta and is left out when empty', () {
+      expect(PlanSet.fromJson(target.toJson()).byAthlete, target.byAthlete);
+      expect(target.toJson()['porAtleta'], {
+        'ari': {'pct': 62.5, 'kilos': 50.0},
+      });
+      expect(const PlanSet(reps: 5).toJson().containsKey('porAtleta'), isFalse);
+    });
+  });
+
   group('setLoadBasis', () {
     test('is by RM only with a reference exercise and a positive percent', () {
       expect(_basis().byRm, isTrue);

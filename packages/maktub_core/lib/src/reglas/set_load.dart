@@ -103,9 +103,10 @@ class ProposedSetLoad {
   final RecordPcts? pcts;
 }
 
-/// Proposes the weight of [target] on [basis]: RM × work factor × % with [adjustment] when it is measured by RM,
-/// otherwise [athleteFixedKg] and then the plan's own kilos. Rounded on [barKg] (the prescription's bar, else the
-/// exercise's; null is the default bar).
+/// Proposes the weight of [target] on [basis]: the kilos frozen for [athleteId] in the plan (E5.16) with
+/// [adjustment], else RM × work factor × % with [adjustment] when it is measured by RM, otherwise [athleteFixedKg]
+/// and then the plan's own kilos. Rounded on [barKg] (the prescription's bar, else the exercise's; null is the
+/// default bar).
 ProposedSetLoad proposedSetLoad({
   required SetLoadBasis basis,
   required PlanSet target,
@@ -113,7 +114,19 @@ ProposedSetLoad proposedSetLoad({
   required double? athleteFixedKg,
   required Equipo equipo,
   double? barKg,
+  String? athleteId,
 }) {
+  if (target.byAthlete[athleteId]?.kg case final frozen? when frozen > 0) {
+    final own = target.byAthlete[athleteId]!.pct;
+    final applied = own == null ? null : pctEfectivo(own, adjustment);
+    return ProposedSetLoad(
+      kg: adjustment == 100 ? frozen : equipo.masCercano(frozen * adjustment / 100, barKg: barKg),
+      appliedPct: applied,
+      pcts: applied != null && basis.rmExerciseId != null
+          ? RecordPcts.fromPlan(applied, workFactor: basis.workFactor)
+          : null,
+    );
+  }
   final pct = target.pct;
   final applied = pct == null ? null : pctEfectivo(pct, adjustment);
   final kg = proposeLoad(
@@ -225,7 +238,7 @@ ProposedSet _proposedSet({
   final target = prescription.sets[position.set];
   final basis = setLoadBasis(
     rmExerciseId: rmExerciseIdFor(exercise, exercises),
-    pct: target.pct,
+    pct: target.pct ?? target.byAthlete[athleteId]?.pct,
     athleteId: athleteId,
     on: on,
     references: references,
@@ -238,6 +251,7 @@ ProposedSet _proposedSet({
     athleteFixedKg: fixedKg,
     equipo: equipo,
     barKg: prescription.barKg ?? exercise.barKg,
+    athleteId: athleteId,
   );
   return ProposedSet(
     blockIndex: position.block,

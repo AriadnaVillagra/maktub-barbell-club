@@ -60,6 +60,7 @@ Orden: después de la E2 (5.1 necesita 2.1; 5.4 necesita 2.6) y de la E1 (5.2 ne
 | E5.13 | [App: agregar un WoD de la biblioteca a un bloque](E5.13-app-agregar-wod-a-bloque.md) | E5.12 |
 | E5.14 | [Modelo y backend: publicar un plan](E5.14-publicar-plan-backend.md) | E5.3 |
 | E5.15 | [App: botón Publicar en el editor de plan](E5.15-publicar-plan-app.md) | E5.14, E5.9 |
+| E5.16 | [% y kg por atleta al planificar](E5.16-pct-y-kg-por-atleta.md) | E4.5, E5.8, E6.3, E7.14 |
 
 E5.10 a E5.13 se agregaron el 2026-11-08, tras la prueba del editor: el coach arma WoDs reutilizables en Preferencias. Van en orden.
 

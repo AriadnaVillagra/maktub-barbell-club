@@ -5,6 +5,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_providers.dart';
+import '../domain/athlete_loads.dart';
 import '../domain/prescription_edit.dart';
 import 'plan_labels.dart';
 
@@ -13,17 +14,25 @@ import 'plan_labels.dart';
 /// or null if cancelled. Nothing is validated here (E5.9 does it when saving). [inheritedTimerLabel] names
 /// what an empty timer means: the block's timer in a plan, the WoD's in the library. "Sin temporizador"
 /// ([noTimerId]) turns it off for this exercise only.
+///
+/// A set of an exercise loaded by % of RM is typed in % or in kg (E5.16): typing one clears the other, and each of
+/// [athletes] with an RM gets the other value worked out and frozen in the set, shown under it. Without [equipo] the
+/// standard one rounds the kilos.
 Future<Prescription?> askPrescription(
   BuildContext context, {
   required Prescription initial,
   required Exercise? exercise,
   String inheritedTimerLabel = 'El del bloque',
+  List<AthleteBasis> athletes = const [],
+  Equipo? equipo,
 }) => showDialog<Prescription>(
   context: context,
   builder: (_) => _PrescriptionDialog(
     initial: initial,
     exercise: exercise,
     inheritedTimerLabel: inheritedTimerLabel,
+    athletes: athletes,
+    equipo: equipo,
   ),
 );
 
@@ -42,11 +51,15 @@ class _PrescriptionDialog extends ConsumerStatefulWidget {
     required this.initial,
     required this.exercise,
     required this.inheritedTimerLabel,
+    required this.athletes,
+    required this.equipo,
   });
 
   final Prescription initial;
   final Exercise? exercise;
   final String inheritedTimerLabel;
+  final List<AthleteBasis> athletes;
+  final Equipo? equipo;
 
   @override
   ConsumerState<_PrescriptionDialog> createState() =>
@@ -65,6 +78,55 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
 
   /// Changes whenever rows are added or removed, so the fields are rebuilt with the new initial texts.
   int _generation = 0;
+
+  /// Per set, how many times typing the other field cleared its % or its kg field (rebuilt empty, not focused).
+  final _pctCleared = <int, int>{};
+  final _kgCleared = <int, int>{};
+
+  String _clearedSuffix(Map<int, int> cleared, int i) => (cleared[i] ?? 0) == 0 ? '' : '-${cleared[i]}';
+
+  /// The bar the kilos are rounded on: the one typed here, else the exercise's.
+  double? get _barKg => parseTypedNumber(_bar) ?? widget.exercise?.barKg;
+
+  Map<String, AthleteSetLoad> _loadsFor(double? pct, double? kg) => athleteLoads(
+    pct: pct,
+    kg: kg,
+    athletes: widget.athletes,
+    equipo: widget.equipo ?? Equipo.estandarDe(''),
+    barKg: _barKg,
+  );
+
+  /// Typed in % or in kg on a % exercise (E5.16): only one is kept, and each athlete's loads come from it.
+  void _typeLoad(int i, {double? pct, double? kg}) {
+    final s = _sets[i];
+    final clearsOther = pct != null ? s.kg != null : kg != null && s.pct != null;
+    setState(() {
+      if (clearsOther) {
+        final cleared = pct != null ? _kgCleared : _pctCleared;
+        cleared[i] = (cleared[i] ?? 0) + 1;
+      }
+      _sets = [
+        for (final (j, x) in _sets.indexed)
+          j == i
+              ? setWith(
+                  s,
+                  reps: s.reps,
+                  pct: pct,
+                  kg: pct != null ? null : kg,
+                  byAthlete: _loadsFor(pct, kg),
+                )
+              : x,
+      ];
+    });
+  }
+
+  /// A new bar rounds the kilos differently: the loads of every set worked out from a % are redone.
+  void _rebar() {
+    _sets = [
+      for (final s in _sets)
+        s.byAthlete.isEmpty || s.pct == null ? s : setWith(s, reps: s.reps, pct: s.pct, kg: s.kg, byAthlete: _loadsFor(s.pct, null)),
+    ];
+  }
 
   bool get _hasPct =>
       widget.exercise?.metrics.contains(Metric.loadPctRm) ??
@@ -138,7 +200,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final (i, set) in _sets.indexed)
+              for (final (i, set) in _sets.indexed) ...[
                 Row(
                   key: Key('set-row-$i'),
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -158,15 +220,21 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                     if (_hasPct) ...[
                       const SizedBox(width: Espacio.s),
                       _numberField(
-                        key: ValueKey('set-pct-$i-$_generation'),
+                        key: ValueKey('set-pct-$i-$_generation${_clearedSuffix(_pctCleared, i)}'),
                         label: '%',
                         initial: set.pct == null ? '' : formatNumber(set.pct!),
                         formatters: [_decimalFormatter],
-                        onChanged: (t) =>
-                            _changeSet(i, pct: (_) => parseTypedNumber(t)),
+                        onChanged: (t) => _typeLoad(i, pct: parseTypedNumber(t)),
                       ),
-                    ],
-                    if (_hasKg) ...[
+                      const SizedBox(width: Espacio.s),
+                      _numberField(
+                        key: ValueKey('set-kg-$i-$_generation${_clearedSuffix(_kgCleared, i)}'),
+                        label: 'kg',
+                        initial: set.kg == null ? '' : formatNumber(set.kg!),
+                        formatters: [_decimalFormatter],
+                        onChanged: (t) => _typeLoad(i, kg: parseTypedNumber(t)),
+                      ),
+                    ] else if (_hasKg) ...[
                       const SizedBox(width: Espacio.s),
                       _numberField(
                         key: ValueKey('set-kg-$i-$_generation'),
@@ -186,10 +254,23 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                           : () => setState(() {
                               _sets = removeSet(_sets, i);
                               _generation++;
+                              _pctCleared.clear();
+                              _kgCleared.clear();
                             }),
                     ),
                   ],
                 ),
+                if (athleteLoadsSummary(set.byAthlete, widget.athletes, formatNumber) case final line
+                    when line.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),
+                    child: Text(
+                      line,
+                      key: Key('set-athletes-$i'),
+                      style: context.textos.bodySmall?.copyWith(color: context.esquema.onSurfaceVariant),
+                    ),
+                  ),
+              ],
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
@@ -255,7 +336,10 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                       'Vacío: la del ejercicio (${formatNumber(kg)} kg)',
                   },
                 ),
-                onChanged: (t) => _bar = t,
+                onChanged: (t) => setState(() {
+                  _bar = t;
+                  _rebar();
+                }),
               ),
             ],
           ),
