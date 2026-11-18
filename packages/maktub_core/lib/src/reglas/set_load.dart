@@ -120,7 +120,7 @@ ProposedSetLoad proposedSetLoad({
     final own = target.byAthlete[athleteId]!.pct;
     final applied = own == null ? null : pctEfectivo(own, adjustment);
     return ProposedSetLoad(
-      kg: adjustment == 100 ? frozen : equipo.masCercano(frozen * adjustment / 100, barKg: barKg),
+      kg: adjustment == 100 ? frozen : equipo.cargableOExacto(frozen * adjustment / 100, barKg: barKg),
       appliedPct: applied,
       pcts: applied != null && basis.rmExerciseId != null
           ? RecordPcts.fromPlan(applied, workFactor: basis.workFactor)
