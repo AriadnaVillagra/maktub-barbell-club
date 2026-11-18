@@ -6,9 +6,10 @@ import 'package:mongo_dart/mongo_dart.dart';
 import 'listar_store.dart';
 
 /// `GET /clubes/{clubId}/asignaciones[?grupoId=...|?atletaId=...]` → the club's assignments, each as
-/// `Assignment.toJson()` (`id`, `clubId`, `planId`, `grupoId` or `atletaId`, `fechaInicio`, `estado`, `fechaFin`
-/// when ended, `auditoria`), the active ones and the ended ones, newest `fechaInicio` first (ties broken by id).
-/// With `grupoId`, only that group's; with `atletaId`, only that athlete's own (not their group's).
+/// `Assignment.toJson()` (`id`, `clubId`, `planId`, `atletas` with their dates, `grupoId` for those made before
+/// E6.7, `fechaInicio`, `estado`, `fechaFin` when ended, `auditoria`), the active ones and the ended ones, newest
+/// `fechaInicio` first (ties broken by id). With `grupoId`, only those made for that group; with `atletaId`, only
+/// those the athlete is or was in.
 /// Needs [Accion.verCatalogoYPlanes]: the coach and the athletes of the club. [store] is for tests.
 Future<Response> listAssignmentsEndpoint(
   RequestContext context, {

@@ -271,9 +271,11 @@ HistoryPlan planHistoryImport(
     final id = sources.athleteIdFor(sheetAthlete);
     if (id == null) throw _Skip('el atleta $shown no está vinculado a ningún atleta del club (paso atletas)');
     final a = s.assignment;
-    final athletes = a.athleteId != null ? [a.athleteId!] : state.groupMembers[a.groupId] ?? const <String>[];
+    // E6.7: the assignment lists its athletes; one written before that and not yet copied lists none, and
+    // falls back to its group's members.
+    final athletes = a.members.isNotEmpty ? a.athleteIds : state.groupMembers[a.groupId] ?? const <String>[];
     if (!athletes.contains(id)) {
-      throw _Skip('el atleta $shown no es ${a.isForAthlete ? 'el de la asignación' : 'del grupo de la asignación'}');
+      throw _Skip('el atleta $shown no está en la asignación');
     }
     return id;
   }

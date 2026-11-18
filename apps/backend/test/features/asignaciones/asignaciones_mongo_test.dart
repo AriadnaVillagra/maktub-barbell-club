@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:maktub_backend/features/asignaciones/crear/crear_store.dart';
 import 'package:maktub_backend/features/asignaciones/listar/listar_store.dart';
+import 'package:maktub_backend/features/asignaciones/set_athletes/set_athletes_store.dart';
 import 'package:maktub_backend/features/asignaciones/terminar/terminar_store.dart';
 import 'package:maktub_backend/features/asignaciones/ubicacion_atleta/ubicacion_atleta_store.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
@@ -44,218 +45,184 @@ void main() {
 
   var n = 0;
   Assignment assignment(
-    String clubId,
-    String groupId, {
+    String clubId, {
+    List<String> athletes = const ['ari', 'andi'],
     AssignmentStatus status = AssignmentStatus.active,
   }) => Assignment(
     id: 'a${n++}',
     clubId: clubId,
     planId: 'p1',
-    groupId: groupId,
+    members: [
+      for (final a in athletes)
+        AssignmentMember(athleteId: a, from: DateTime.utc(2026, 11, 9)),
+    ],
     startDate: DateTime.utc(2026, 11, 9),
     status: status,
     auditoria: Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 8)),
   );
 
-  mongoTest(
-    'the index is a unique partial index on active assignments',
-    () async {
-      final indexes = await db!
-          .collection(Colecciones.asignaciones)
-          .getIndexes();
-      final index = indexes.firstWhere(
-        (i) => i['name'] == 'club_grupo_activa_unica',
-      );
-      expect(index['unique'], isTrue);
-      expect(index['partialFilterExpression'], {
-        'estado': 'activa',
-        'grupoId': {r'$exists': true},
-      });
-      expect(index['key'], {'clubId': 1, 'grupoId': 1});
-      final athletes = indexes.firstWhere(
-        (i) => i['name'] == 'club_atleta_activa_unica',
-      );
-      expect(athletes['unique'], isTrue);
-      expect(athletes['key'], {'clubId': 1, 'atletaId': 1});
-    },
-  );
+  mongoTest('the D14 unique indexes are gone; the athlete index is there', () async {
+    final names = [
+      for (final i
+          in await db!.collection(Colecciones.asignaciones).getIndexes())
+        i['name'],
+    ];
+    expect(names, isNot(contains('club_grupo_activa_unica')));
+    expect(names, isNot(contains('club_atleta_activa_unica')));
+    expect(names, contains('club_atleta_estado'));
+  });
 
   mongoTest(
-    'the index from before E8.8 is replaced, and running it again changes nothing',
-    () async {
-      final collection = db!.collection(Colecciones.asignaciones);
-      await collection.dropIndexes('club_grupo_activa_unica');
-      await collection.createIndex(
-        keys: {'clubId': 1, 'grupoId': 1},
-        name: 'club_grupo_activa_unica',
-        unique: true,
-        partialFilterExpression: {'estado': 'activa'},
-      );
-
-      await asegurarIndices(db!);
-      await asegurarIndices(db!);
-
-      final index = (await collection.getIndexes()).firstWhere(
-        (i) => i['name'] == 'club_grupo_activa_unica',
-      );
-      expect(
-        (index['partialFilterExpression'] as Map).containsKey('grupoId'),
-        isTrue,
-      );
-    },
-  );
-
-  Assignment ofAthlete(String clubId, String athleteId) => Assignment(
-    id: 'a${n++}',
-    clubId: clubId,
-    planId: 'p1',
-    athleteId: athleteId,
-    startDate: DateTime.utc(2026, 11, 9),
-    auditoria: Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 8)),
-  );
-
-  mongoTest(
-    "one active per athlete, alongside the group's; athletes do not collide with each other",
+    'an athlete can be in several active assignments, even of the same plan',
     () async {
       final store = MongoCreateAssignmentStore(db!);
+      await store.insert(assignment('club-a'));
+      await store.insert(assignment('club-a'));
+      await store.insert(assignment('club-a', athletes: ['ari']));
 
-      expect(await store.insert(assignment('club-a', 'g1')), isTrue);
-      expect(await store.insert(ofAthlete('club-a', 'ari')), isTrue);
-      expect(await store.insert(ofAthlete('club-a', 'andi')), isTrue);
-      expect(await store.insert(ofAthlete('club-a', 'ari')), isFalse);
-      expect(await store.insert(assignment('club-a', 'g2')), isTrue);
-      expect(await db!.collection(Colecciones.asignaciones).count(), 4);
-
+      expect(await db!.collection(Colecciones.asignaciones).count(), 3);
       final list = MongoListAssignmentsStore(db!);
-      expect(
-        [for (final a in await list.assignments('club-a', athleteId: 'ari')) a.athleteId],
-        ['ari'],
-      );
-      expect(await list.assignments('club-a', groupId: 'g1'), hasLength(1));
+      expect(await list.assignments('club-a', athleteId: 'ari'), hasLength(3));
+      expect(await list.assignments('club-a', athleteId: 'andi'), hasLength(2));
     },
   );
 
   mongoTest(
-    "the athlete's location reads their groups' active assignments and their own, in the club",
+    'E6.7 migration: assignments without atletas get their group\'s or athlete\'s, once',
     () async {
       await db!.collection(Colecciones.grupos).remove({});
-      await db!.collection(Colecciones.grupos).insertMany([
+      await db!.collection(Colecciones.grupos).insertOne({
+        '_id': 'g1',
+        'clubId': 'club-a',
+        'miembros': ['ari', 'andi'],
+      });
+      final audit = Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 8));
+      final collection = db!.collection(Colecciones.asignaciones);
+      await collection.insertMany([
         {
-          '_id': 'g1',
+          '_id': 'old-group',
           'clubId': 'club-a',
-          'miembros': ['ari', 'andi'],
+          'planId': 'p1',
+          'grupoId': 'g1',
+          'fechaInicio': '2026-11-02',
+          'estado': 'activa',
+          'auditoria': audit.toJson(),
         },
         {
-          '_id': 'g2',
+          '_id': 'old-own',
           'clubId': 'club-a',
-          'miembros': ['andi'],
-        },
-        {
-          '_id': 'g3',
-          'clubId': 'club-b',
-          'miembros': ['ari'],
+          'planId': 'p2',
+          'atletaId': 'ari',
+          'fechaInicio': '2026-11-06',
+          'estado': 'terminada',
+          'fechaFin': '2026-11-07',
+          'auditoria': audit.toJson(),
         },
       ]);
+
+      await copyAssignmentAthletes(db!);
+      await copyAssignmentAthletes(db!);
+
+      final group = (await collection.findOne({'_id': 'old-group'}))!;
+      expect(group['atletas'], [
+        {'atletaId': 'ari', 'desde': '2026-11-02'},
+        {'atletaId': 'andi', 'desde': '2026-11-02'},
+      ]);
+      expect(group['grupoId'], 'g1');
+      final own = (await collection.findOne({'_id': 'old-own'}))!;
+      expect(own['atletas'], [
+        {'atletaId': 'ari', 'desde': '2026-11-06'},
+      ]);
+      expect(own.containsKey('atletaId'), isFalse);
+      final read = Assignment.fromJson(desdeDocumento(group));
+      expect(read.currentAthleteIds, ['ari', 'andi']);
+    },
+  );
+
+  mongoTest(
+    "the athlete's location reads the club's active assignments they are in",
+    () async {
       final create = MongoCreateAssignmentStore(db!);
-      final group = assignment('club-a', 'g1');
-      final own = ofAthlete('club-a', 'ari');
-      await create.insert(group);
+      final both = assignment('club-a');
+      final own = assignment('club-a', athletes: ['ari']);
+      await create.insert(both);
       await create.insert(own);
-      await create.insert(assignment('club-a', 'g2'));
-      await create.insert(ofAthlete('club-a', 'andi'));
-      await create.insert(assignment('club-b', 'g3'));
+      await create.insert(assignment('club-a', athletes: ['andi']));
+      await create.insert(assignment('club-b', athletes: ['ari']));
       await create.insert(
-        assignment('club-a', 'g1', status: AssignmentStatus.ended),
+        assignment('club-a', status: AssignmentStatus.ended),
       );
       final store = MongoAthleteLocationStore(db!);
 
-      final groups = await store.groupIdsOf('club-a', 'ari');
-      expect(groups, {'g1'});
-      final active = await store.activeAssignments(
-        'club-a',
-        groupIds: groups,
-        athleteId: 'ari',
-      );
-      expect({for (final a in active) a.id}, {group.id, own.id});
-      expect(
-        await store.activeAssignments('club-a', groupIds: {}, athleteId: 'x'),
-        isEmpty,
-      );
+      final active = await store.activeAssignments('club-a', 'ari');
+      expect({for (final a in active) a.id}, {both.id, own.id});
+      expect(await store.activeAssignments('club-a', 'x'), isEmpty);
     },
   );
 
   mongoTest('the athlete check only sees the club', () async {
     await db!.collection(Colecciones.atletas).remove({});
-    await db!.collection(Colecciones.atletas).insertOne({
-      '_id': 'ari',
-      'clubId': 'club-a',
-    });
+    await db!.collection(Colecciones.atletas).insertMany([
+      {'_id': 'ari', 'clubId': 'club-a', 'usuarioId': 'u-ari'},
+      {'_id': 'andi', 'clubId': 'club-a', 'usuarioId': 'u-andi'},
+    ]);
     final store = MongoCreateAssignmentStore(db!);
 
-    expect(await store.athleteExists('club-a', 'ari'), isTrue);
-    expect(await store.athleteExists('club-b', 'ari'), isFalse);
+    expect(await store.athletesExist('club-a', {'ari', 'andi'}), isTrue);
+    expect(await store.athletesExist('club-a', {'ari', 'x'}), isFalse);
+    expect(await store.athletesExist('club-b', {'ari'}), isFalse);
   });
 
   mongoTest(
-    'a second active assignment for the same group is refused',
+    'setting the athletes writes only if nobody changed them, never on an ended one',
     () async {
-      final store = MongoCreateAssignmentStore(db!);
+      final create = MongoCreateAssignmentStore(db!);
+      final set = MongoSetAssignmentAthletesStore(db!);
+      final first = assignment('club-a');
+      await create.insert(first);
+      final at = DateTime.utc(2026, 11, 18, 10);
+      final next = membersAfterChange(
+        first.members,
+        athleteIds: ['ari'],
+        date: DateTime.utc(2026, 11, 18),
+        startDate: first.startDate,
+      );
 
-      expect(await store.insert(assignment('club-a', 'g1')), isTrue);
-      expect(await store.insert(assignment('club-a', 'g1')), isFalse);
-      expect(await db!.collection(Colecciones.asignaciones).count(), 1);
+      expect(
+        await set.replaceMembers(first, next, userId: 'u2', at: at),
+        isTrue,
+      );
+      final stored = (await set.assignment('club-a', first.id))!;
+      expect(stored.currentAthleteIds, ['ari']);
+      expect(stored.members.last.to, DateTime.utc(2026, 11, 17));
+      expect(stored.auditoria.modificadoPor, 'u2');
+      // A second write based on the old members loses.
+      expect(
+        await set.replaceMembers(first, first.members, userId: 'u3', at: at),
+        isFalse,
+      );
+      expect(await set.assignment('club-b', first.id), isNull);
+
+      await MongoEndAssignmentStore(db!).end(
+        'club-a',
+        first.id,
+        endDate: DateTime.utc(2026, 11, 20),
+        userId: 'u',
+        at: at,
+      );
+      expect(
+        await set.replaceMembers(stored, first.members, userId: 'u', at: at),
+        isFalse,
+      );
     },
   );
 
   mongoTest(
-    'ended and paused ones do not count; other groups and clubs are free',
-    () async {
-      final store = MongoCreateAssignmentStore(db!);
-
-      expect(
-        await store.insert(
-          assignment('club-a', 'g1', status: AssignmentStatus.ended),
-        ),
-        isTrue,
-      );
-      expect(
-        await store.insert(
-          assignment('club-a', 'g1', status: AssignmentStatus.ended),
-        ),
-        isTrue,
-      );
-      expect(
-        await store.insert(
-          assignment('club-a', 'g1', status: AssignmentStatus.paused),
-        ),
-        isTrue,
-      );
-      expect(await store.insert(assignment('club-a', 'g1')), isTrue);
-      expect(await store.insert(assignment('club-a', 'g2')), isTrue);
-      expect(await store.insert(assignment('club-b', 'g1')), isTrue);
-      expect(await store.insert(assignment('club-a', 'g1')), isFalse);
-    },
-  );
-
-  mongoTest(
-    'two inserts at once for one group: exactly one succeeds',
-    () async {
-      final store = MongoCreateAssignmentStore(db!);
-      final results = await Future.wait([
-        for (var i = 0; i < 6; i++) store.insert(assignment('club-a', 'g1')),
-      ]);
-
-      expect(results.where((ok) => ok), hasLength(1));
-      expect(await db!.collection(Colecciones.asignaciones).count(), 1);
-    },
-  );
-
-  mongoTest(
-    'ending frees the group; ending twice or in another club writes nothing',
+    'ending it twice or in another club writes nothing',
     () async {
       final create = MongoCreateAssignmentStore(db!);
       final end = MongoEndAssignmentStore(db!);
-      final first = assignment('club-a', 'g1');
+      final first = assignment('club-a');
       await create.insert(first);
 
       final at = DateTime.utc(2026, 11, 20, 10);
@@ -288,6 +255,7 @@ void main() {
       expect(ended.status, AssignmentStatus.ended);
       expect(ended.endDate, DateTime.utc(2026, 11, 20));
       expect(ended.startDate, DateTime.utc(2026, 11, 9));
+      expect(ended.athleteIds, ['ari', 'andi']);
       expect(ended.auditoria.modificadoPor, 'u2');
       expect(ended.auditoria.creadoPor, 'coach');
       expect(
@@ -304,8 +272,6 @@ void main() {
         (await end.assignment('club-a', first.id))!.endDate,
         DateTime.utc(2026, 11, 20),
       );
-
-      expect(await create.insert(assignment('club-a', 'g1')), isTrue);
     },
   );
 
@@ -324,6 +290,7 @@ void main() {
     await db!.collection(Colecciones.grupos).insertOne({
       '_id': 'g1',
       'clubId': 'club-a',
+      'miembros': ['ari'],
     });
     final store = MongoCreateAssignmentStore(db!);
 
@@ -331,19 +298,19 @@ void main() {
     expect(await store.planIsPublished('club-a', 'draft'), isFalse);
     expect(await store.planIsPublished('club-b', 'pub'), isNull);
     expect(await store.planIsPublished('club-a', 'zz'), isNull);
-    expect(await store.groupExists('club-a', 'g1'), isTrue);
-    expect(await store.groupExists('club-b', 'g1'), isFalse);
+    expect(await store.groupMemberIds('club-a', 'g1'), ['ari']);
+    expect(await store.groupMemberIds('club-b', 'g1'), isNull);
   });
 
-  mongoTest('listing filters by club and optionally by group', () async {
+  mongoTest('listing filters by club and optionally by athlete', () async {
     final create = MongoCreateAssignmentStore(db!);
-    await create.insert(assignment('club-a', 'g1'));
-    await create.insert(assignment('club-a', 'g2'));
-    await create.insert(assignment('club-b', 'g1'));
+    await create.insert(assignment('club-a'));
+    await create.insert(assignment('club-a', athletes: ['andi']));
+    await create.insert(assignment('club-b'));
     final list = MongoListAssignmentsStore(db!);
 
     expect(await list.assignments('club-a'), hasLength(2));
-    expect(await list.assignments('club-a', groupId: 'g2'), hasLength(1));
+    expect(await list.assignments('club-a', athleteId: 'ari'), hasLength(1));
     expect(await list.assignments('club-c'), isEmpty);
   });
 }

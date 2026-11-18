@@ -30,15 +30,26 @@ class CachedAssignmentRepository implements AssignmentRepository {
   Future<Assignment> assign(
     String clubId, {
     required String planId,
-    String? groupId,
-    String? athleteId,
+    required List<String> athleteIds,
     required DateTime startDate,
   }) => _remote.assign(
     clubId,
     planId: planId,
-    groupId: groupId,
-    athleteId: athleteId,
+    athleteIds: athleteIds,
     startDate: startDate,
+  );
+
+  @override
+  Future<Assignment> setAthletes(
+    String clubId,
+    String assignmentId, {
+    required List<String> athleteIds,
+    required DateTime date,
+  }) => _remote.setAthletes(
+    clubId,
+    assignmentId,
+    athleteIds: athleteIds,
+    date: date,
   );
 
   @override

@@ -53,6 +53,7 @@ de club y dominio"); acá se fija lo que no dicen:
 | E6.4 | [Backend: ciclo y semana de una fecha en la asignación activa](E6.4-backend-ubicacion-por-fecha.md) | E6.3 |
 | E6.5 | [App: asignar un plan al grupo con fecha de inicio](E6.5-app-asignar-plan.md) | E6.2, E6.3, E5.2, E1.12, E1.14 |
 | E6.6 | [App: calendario que abre en la semana que toca](E6.6-app-calendario-hoy.md) | E6.4, E6.5, E1.12 |
+| E6.7 | [Sumar y sacar atletas de un plan en curso](E6.7-atletas-de-la-asignacion.md) | E6.3, E6.4, E6.5, E8.8 |
 
 **En paralelo:**
 - E6.4 (backend) y E6.5 (app) se pueden tomar a la vez una vez que existe E6.3.

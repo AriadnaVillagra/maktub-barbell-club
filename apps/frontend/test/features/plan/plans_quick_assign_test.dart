@@ -16,22 +16,19 @@ class _FakeAssignments implements AssignmentRepository {
   _FakeAssignments({this.withActive = false});
 
   final bool withActive;
-  final assigned = <(String, String?, DateTime)>[];
-  final athletes = <String?>[];
+  final assigned = <String>[];
 
   Assignment _active() => Assignment(
     id: 'a1',
     clubId: 'c1',
     planId: 'other',
-    groupId: 'g1',
+    members: [AssignmentMember(athleteId: 'ari', from: DateTime.utc(2026, 11, 2))],
     startDate: DateTime.utc(2026, 11, 2),
     auditoria: _audit,
   );
 
   @override
-  Future<List<AthleteGroup>> groups(String clubId) async => [
-    AthleteGroup(id: 'g1', clubId: clubId, name: 'Barra', auditoria: _audit),
-  ];
+  Future<List<AthleteGroup>> groups(String clubId) async => const [];
 
   @override
   Future<List<Assignment>> assignments(
@@ -43,14 +40,20 @@ class _FakeAssignments implements AssignmentRepository {
   Future<Assignment> assign(
     String clubId, {
     required String planId,
-    String? groupId,
-    String? athleteId,
+    required List<String> athleteIds,
     required DateTime startDate,
   }) async {
-    assigned.add((planId, groupId, startDate));
-    athletes.add(athleteId);
+    assigned.add('$planId:${athleteIds.join(',')}:${aIsoFecha(startDate)}');
     return _active();
   }
+
+  @override
+  Future<Assignment> setAthletes(
+    String clubId,
+    String assignmentId, {
+    required List<String> athleteIds,
+    required DateTime date,
+  }) => throw UnimplementedError();
 
   @override
   Future<Assignment> end(
@@ -59,6 +62,9 @@ class _FakeAssignments implements AssignmentRepository {
     DateTime? endDate,
   }) => throw UnimplementedError();
 }
+
+const _ari = AthleteSummary(id: 'ari', userId: 'u1', name: 'Ari');
+const _andi = AthleteSummary(id: 'andi', userId: 'u2', name: 'Andi');
 
 void main() {
   final today = DateTime.utc(2026, 11, 8);
@@ -111,50 +117,61 @@ void main() {
     expect(find.byIcon(Icons.chevron_right), findsNothing);
   });
 
-  testWidgets('assigns the plan to the group from the card', (tester) async {
-    final assignments = _FakeAssignments();
-    await open(tester, assignments);
-    await tester.tap(find.byKey(const Key('plan-assign-p1')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('assign-confirm')));
-    await tester.pumpAndSettle();
-
-    expect(assignments.assigned, [('p1', 'g1', today)]);
-    expect(find.text('"Listo" asignado a Barra.'), findsOneWidget);
-  });
-
-  testWidgets('with a plan in course it explains why and opens nothing', (
+  testWidgets('without athletes in the club it says so and opens nothing', (
     tester,
   ) async {
-    final assignments = _FakeAssignments(withActive: true);
+    final assignments = _FakeAssignments();
     await open(tester, assignments);
     await tester.tap(find.byKey(const Key('plan-assign-p1')));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('assign-confirm')), findsNothing);
-    expect(find.textContaining('ya tienen un plan en curso'), findsOneWidget);
-    expect(assignments.assigned, isEmpty);
+    expect(find.text('Todavía no hay atletas en el club.'), findsOneWidget);
+  });
+
+  testWidgets('assigns the plan to every athlete chosen, all at first', (
+    tester,
+  ) async {
+    final assignments = _FakeAssignments();
+    await open(tester, assignments, athletes: const [_ari, _andi]);
+    await tester.tap(find.byKey(const Key('plan-assign-p1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assign-confirm')));
+    await tester.pumpAndSettle();
+
+    expect(assignments.assigned, ['p1:ari,andi:2026-11-08']);
+    expect(find.text('"Listo" asignado a Ari, Andi.'), findsOneWidget);
   });
 
   testWidgets(
-    'with the group busy it still assigns to an athlete without a plan (E8.8)',
+    'an athlete with a plan in course can get another one (E6.7)',
     (tester) async {
       final assignments = _FakeAssignments(withActive: true);
-      await open(
-        tester,
-        assignments,
-        athletes: const [AthleteSummary(id: 'ari', userId: 'u1', name: 'Ari')],
-      );
+      await open(tester, assignments, athletes: const [_ari, _andi]);
       await tester.tap(find.byKey(const Key('plan-assign-p1')));
       await tester.pumpAndSettle();
-      // Only Ari is free: the group already has a plan in course.
-      expect(find.text('Grupo Barra'), findsNothing);
+      await tester.tap(find.byKey(const Key('assign-athlete-andi')));
+      await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('assign-confirm')));
       await tester.pumpAndSettle();
 
-      expect(assignments.assigned, [('p1', null, today)]);
-      expect(assignments.athletes, ['ari']);
+      expect(assignments.assigned, ['p1:ari:2026-11-08']);
       expect(find.text('"Listo" asignado a Ari.'), findsOneWidget);
     },
   );
+
+  testWidgets('with nobody chosen it cannot assign', (tester) async {
+    await open(tester, _FakeAssignments(), athletes: const [_ari]);
+    await tester.tap(find.byKey(const Key('plan-assign-p1')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('assign-athlete-ari')));
+    await tester.pumpAndSettle();
+
+    expect(
+      tester
+          .widget<FilledButton>(find.byKey(const Key('assign-confirm')))
+          .onPressed,
+      isNull,
+    );
+  });
 }

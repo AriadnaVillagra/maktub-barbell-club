@@ -98,6 +98,7 @@ Json locationToJson(CalendarLocation l) => {
   'semana': l.week,
   'grupoId': ?l.groupId,
   'atletaId': ?l.athleteId,
+  'atletas': ?l.athleteIds,
 };
 
 CalendarLocation locationFromJson(Json j) => CalendarLocation(
@@ -108,6 +109,7 @@ CalendarLocation locationFromJson(Json j) => CalendarLocation(
   week: (j['semana'] as num).toInt(),
   groupId: j['grupoId'] as String?,
   athleteId: j['atletaId'] as String?,
+  athleteIds: (j['atletas'] as List?)?.map((e) => '$e').toList(),
 );
 
 Json planToJson(PublishedPlanView p) => {

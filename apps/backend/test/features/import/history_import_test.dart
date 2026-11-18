@@ -16,6 +16,7 @@ import 'package:maktub_backend/features/sesion/record_block_time/record_block_ti
 import 'package:maktub_backend/features/sesion/record_set/record_set_store.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:test/test.dart';
+import '../../support/assignments.dart';
 
 const _club = 'club1';
 final _audit = Auditoria.nueva('coach', ahora: DateTime.utc(2026, 9, 1));
@@ -159,13 +160,14 @@ class _Sessions implements OpenSessionStore {
   final _Db db;
 
   @override
-  Future<Assignment?> assignment(String clubId, String assignmentId) async =>
-      db.assignments.where((a) => a.clubId == clubId && a.id == assignmentId).firstOrNull;
+  Future<Assignment?> assignment(String clubId, String assignmentId) async => withGroupMembers(
+    db.assignments.where((a) => a.clubId == clubId && a.id == assignmentId).firstOrNull,
+    (g) => groupMemberIds(clubId, g),
+  );
 
   @override
   Future<PublishedPlan?> publishedPlan(String clubId, String planId) async => db.plans[planId]?.published;
 
-  @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) async => db.groups[groupId] ?? const [];
 
   @override
@@ -532,7 +534,7 @@ void main() {
       id: group.id,
       clubId: _club,
       planId: group.planId,
-      athleteId: 'ari',
+      members: [AssignmentMember(athleteId: 'ari', from: group.startDate)],
       startDate: group.startDate,
       status: AssignmentStatus.ended,
       endDate: group.endDate,
@@ -543,7 +545,7 @@ void main() {
     expect(s.presentAthleteIds, ['ari']);
     expect(recordsOf(s, 'ari'), hasLength(4));
     expect(recordsOf(s, 'andi'), isEmpty);
-    expect(report.problems, contains(contains('no es el de la asignación')));
+    expect(report.problems, contains(contains('no está en la asignación')));
   });
 
   test('running twice writes nothing new: no duplicated sets, times or changes', () async {

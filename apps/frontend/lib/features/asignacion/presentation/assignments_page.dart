@@ -18,16 +18,15 @@ String _statusLabel(AssignmentStatus s) => switch (s) {
   AssignmentStatus.ended => 'Terminada',
 };
 
-/// The club's plan assignments, by owner: each group, and each athlete with a plan of their own (E8.8), with the
-/// active one and the way to end it, and the earlier ones. A new plan goes to a group or an athlete that has none
-/// active; an athlete's own plan lives alongside their group's. Coach only.
+/// The club's plan assignments (E6.7): the ones in course, each with who does it and the way to change that or to end
+/// it, and the ended ones. A plan goes to a list of athletes; an athlete can be in several at once. Coach only.
 class AssignmentsPage extends ConsumerWidget {
   const AssignmentsPage({super.key});
 
   Future<void> _assign(
     BuildContext context,
     WidgetRef ref,
-    List<AssignmentOwner> owners,
+    List<ClubAthlete> athletes,
   ) async {
     final plans = (await ref.read(plansProvider.future))
         // A history plan records what was done; it is never assigned again.
@@ -44,7 +43,7 @@ class AssignmentsPage extends ConsumerWidget {
     final choice = await askAssignment(
       context,
       plans: plans,
-      owners: owners,
+      athletes: athletes,
       today: ref.read(assignmentTodayProvider),
     );
     if (choice == null || !context.mounted) return;
@@ -52,9 +51,30 @@ class AssignmentsPage extends ConsumerWidget {
       await assignPlan(
         ref,
         planId: choice.planId,
-        owner: choice.owner,
+        athleteIds: choice.athleteIds,
         startDate: choice.startDate,
       );
+    } catch (e) {
+      if (context.mounted) showApiError(context, e);
+    }
+  }
+
+  Future<void> _changeAthletes(
+    BuildContext context,
+    WidgetRef ref,
+    ClubAssignments data,
+    Assignment assignment,
+    String planName,
+  ) async {
+    final chosen = await askAssignmentAthletes(
+      context,
+      planName: planName,
+      athletes: data.athletes,
+      current: assignment.currentAthleteIds,
+    );
+    if (chosen == null || !context.mounted) return;
+    try {
+      await setAssignmentAthletes(ref, assignment.id, chosen);
     } catch (e) {
       if (context.mounted) showApiError(context, e);
     }
@@ -64,15 +84,14 @@ class AssignmentsPage extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Assignment assignment,
-    AssignmentOwner owner,
     String planName,
   ) async {
     final ok = await confirmAction(
       context,
       title: 'Terminar la asignación',
       body:
-          '"$planName" deja de estar en curso para ${owner.isGroup ? 'el grupo' : owner.name} y su calendario se '
-          'corta hoy. Para volver a empezarlo hay que asignarlo de nuevo.',
+          '"$planName" deja de estar en curso para todos sus atletas y su calendario se corta hoy. '
+          'Para sacar solo a alguien, usá Atletas. Para volver a empezarlo hay que asignarlo de nuevo.',
       action: 'Terminar',
     );
     if (!ok || !context.mounted) return;
@@ -94,14 +113,14 @@ class AssignmentsPage extends ConsumerWidget {
       return 'Plan eliminado';
     }
 
-    final free = data.value?.free ?? const <AssignmentOwner>[];
+    final athletes = data.value?.athletes ?? const <ClubAthlete>[];
     return Scaffold(
       appBar: AppBar(title: const Text('Asignaciones')),
-      floatingActionButton: free.isNotEmpty
+      floatingActionButton: athletes.isNotEmpty
           ? FloatingActionButton(
               key: const Key('assignment-new'),
               tooltip: 'Asignar un plan',
-              onPressed: () => _assign(context, ref, free),
+              onPressed: () => _assign(context, ref, athletes),
               child: const Icon(Icons.add),
             )
           : null,
@@ -109,14 +128,16 @@ class AssignmentsPage extends ConsumerWidget {
         data,
         onRetry: () => ref.invalidate(clubAssignmentsProvider),
         builder: (data) {
-          if (!data.hasGroup && data.assignments.isEmpty) {
+          if (data.athletes.isEmpty && data.assignments.isEmpty) {
             return const Center(
               child: Text(
-                'Todavía no hay un grupo en el club.',
-                key: Key('assignments-no-group'),
+                'Todavía no hay atletas en el club.',
+                key: Key('assignments-no-athletes'),
               ),
             );
           }
+          final active = data.active;
+          final ended = data.ended;
           return ListView(
             padding: const EdgeInsets.only(
               right:
@@ -125,61 +146,93 @@ class AssignmentsPage extends ConsumerWidget {
                   Espacio.l,
             ),
             children: [
-              for (final owner in data.owners)
-                // An athlete shows up once they have a plan of their own; groups always do.
-                if (owner.isGroup || data.of(owner).isNotEmpty)
-                  ..._ownerSection(context, ref, data, owner, planName),
+              const SectionTitle('En curso'),
+              if (active.isEmpty)
+                const ListTile(
+                  key: Key('assignment-none-active'),
+                  title: Text('No hay planes en curso.'),
+                  subtitle: Text('Asigná uno publicado con el botón +.'),
+                ),
+              for (final a in active)
+                _ActiveTile(
+                  assignment: a,
+                  planName: planName(a.planId),
+                  names: data.namesOf(a.currentAthleteIds),
+                  onAthletes: () => _changeAthletes(
+                    context,
+                    ref,
+                    data,
+                    a,
+                    planName(a.planId),
+                  ),
+                  onEnd: () => _end(context, ref, a, planName(a.planId)),
+                ),
+              if (ended.isNotEmpty) const SectionTitle('Terminadas'),
+              for (final a in ended)
+                ListTile(
+                  key: Key('assignment-${a.id}'),
+                  leading: const Icon(Icons.history),
+                  title: Text(planName(a.planId)),
+                  subtitle: Text(
+                    '${data.namesOf(a.athleteIds)} · desde el ${_formatDate(a.startDate)}'
+                    '${a.endDate == null ? '' : ' hasta el ${_formatDate(a.endDate!)}'}',
+                  ),
+                ),
             ],
           );
         },
       ),
     );
   }
+}
 
-  List<Widget> _ownerSection(
-    BuildContext context,
-    WidgetRef ref,
-    ClubAssignments data,
-    AssignmentOwner owner,
-    String Function(String) planName,
-  ) {
-    final active = data.activeOf(owner);
-    final earlier = [
-      for (final a in data.of(owner))
-        if (a != active) a,
-    ];
-    return [
-      SectionTitle(owner.label),
-      if (active == null)
-        ListTile(
-          key: Key('assignment-none-active-${owner.key}'),
-          title: const Text('No hay un plan en curso.'),
-          subtitle: const Text('Asigná uno publicado con el botón +.'),
-        )
-      else
-        ListTile(
-          key: Key('assignment-active-${owner.key}'),
-          leading: const Icon(Icons.event_available_outlined),
-          title: Text(planName(active.planId)),
-          subtitle: Text('Activa desde el ${_formatDate(active.startDate)}'),
-          trailing: TextButton(
-            key: Key('assignment-end-${owner.key}'),
-            onPressed: () =>
-                _end(context, ref, active, owner, planName(active.planId)),
+class _ActiveTile extends StatelessWidget {
+  const _ActiveTile({
+    required this.assignment,
+    required this.planName,
+    required this.names,
+    required this.onAthletes,
+    required this.onEnd,
+  });
+
+  final Assignment assignment;
+  final String planName;
+  final String names;
+  final VoidCallback onAthletes;
+  final VoidCallback onEnd;
+
+  @override
+  Widget build(BuildContext context) {
+    final id = assignment.id;
+    final paused = assignment.status == AssignmentStatus.paused
+        ? '${_statusLabel(AssignmentStatus.paused)} · '
+        : '';
+    return ListTile(
+      key: Key('assignment-active-$id'),
+      leading: const Icon(Icons.event_available_outlined),
+      title: Text(planName),
+      subtitle: Text(
+        '$paused${names.isEmpty ? 'Sin atletas' : names}\n'
+        'Desde el ${_formatDate(assignment.startDate)}',
+      ),
+      isThreeLine: true,
+      trailing: PopupMenuButton<String>(
+        key: Key('assignment-menu-$id'),
+        tooltip: 'Opciones',
+        onSelected: (v) => v == 'athletes' ? onAthletes() : onEnd(),
+        itemBuilder: (_) => [
+          PopupMenuItem(
+            key: Key('assignment-athletes-$id'),
+            value: 'athletes',
+            child: const Text('Atletas'),
+          ),
+          PopupMenuItem(
+            key: Key('assignment-end-$id'),
+            value: 'end',
             child: const Text('Terminar'),
           ),
-        ),
-      if (earlier.isNotEmpty) const SectionTitle('Anteriores'),
-      for (final a in earlier)
-        ListTile(
-          key: Key('assignment-${a.id}'),
-          leading: const Icon(Icons.history),
-          title: Text(planName(a.planId)),
-          subtitle: Text(
-            '${_statusLabel(a.status)} · desde el ${_formatDate(a.startDate)}'
-            '${a.endDate == null ? '' : ' hasta el ${_formatDate(a.endDate!)}'}',
-          ),
-        ),
-    ];
+        ],
+      ),
+    );
   }
 }

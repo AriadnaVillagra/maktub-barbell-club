@@ -12,6 +12,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import '../../support/club_isolation.dart';
+import '../../support/assignments.dart';
 
 class _Context extends Mock implements RequestContext {}
 
@@ -30,7 +31,13 @@ class _FakeStore implements RequestLiveTicketStore {
   }
 
   @override
-  Future<Assignment?> assignment(String clubId, String assignmentId) async {
+  Future<Assignment?> assignment(String clubId, String assignmentId) async =>
+      withGroupMembers(
+        await _rawAssignment(clubId, assignmentId),
+        (g) => groupMemberIds(clubId, g),
+      );
+
+  Future<Assignment?> _rawAssignment(String clubId, String assignmentId) async {
     final owner = assignmentGroups['$clubId/$assignmentId'];
     if (owner == null) return null;
     return Assignment(
@@ -38,13 +45,12 @@ class _FakeStore implements RequestLiveTicketStore {
       clubId: clubId,
       planId: 'p1',
       groupId: owner.startsWith('athlete:') ? null : owner,
-      athleteId: owner.startsWith('athlete:') ? owner.substring(8) : null,
+      members: [if (owner.startsWith('athlete:') ? owner.substring(8) : null case final String id) AssignmentMember(athleteId: id, from: DateTime.utc(2026, 11, 8))],
       startDate: DateTime.utc(2026, 11, 8),
       auditoria: Auditoria.nueva('coach', ahora: _now),
     );
   }
 
-  @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) async =>
       groups['$clubId/$groupId'] ?? const [];
 

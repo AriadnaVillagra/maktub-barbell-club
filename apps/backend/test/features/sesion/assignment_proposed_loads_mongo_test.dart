@@ -53,6 +53,10 @@ void main() {
         id: '$clubId-a1',
         clubId: clubId,
         planId: '$clubId-p1',
+        members: [
+          for (final a in ['ari', 'andi'])
+            AssignmentMember(athleteId: a, from: DateTime.utc(2026, 11, 16)),
+        ],
         groupId: '$clubId-g1',
         startDate: DateTime.utc(2026, 11, 16),
         status: AssignmentStatus.active,
@@ -215,18 +219,13 @@ void main() {
       MongoAssignmentProposedLoadsStore(db!);
 
   mongoTest(
-    'reads only the club\'s assignment, group, athlete and plan',
+    'reads only the club\'s assignment, athlete and plan',
     () async {
       expect(
         (await store().assignment('club-a', 'club-a-a1'))?.groupId,
         'club-a-g1',
       );
       expect(await store().assignment('club-a', 'club-b-a1'), isNull);
-      expect(await store().groupMemberIds('club-a', 'club-a-g1'), [
-        'ari',
-        'andi',
-      ]);
-      expect(await store().groupMemberIds('club-a', 'club-b-g1'), isEmpty);
       expect(await store().athleteIdOfUser('club-b', 'user-ari'), 'club-b-ari');
       expect(await store().publishedPlan('club-a', 'club-a-p1'), isNotNull);
       expect(await store().publishedPlan('club-a', 'club-b-p1'), isNull);

@@ -88,9 +88,6 @@ class RequestLiveTicket {
       session.assignmentId,
     );
     if (assignment == null) return false;
-    final athletes = await assignment.athletes(
-      (groupId) => _store.groupMemberIds(club.clubId, groupId),
-    );
-    return athletes.contains(own);
+    return assignment.athleteIds.contains(own);
   }
 }

@@ -53,6 +53,7 @@ class HttpCalendarRepository implements CalendarRepository {
     week: (where['semana'] as num).toInt(),
     groupId: a['grupoId'] as String?,
     athleteId: a['atletaId'] as String?,
+    athleteIds: (a['atletas'] as List?)?.map((e) => '$e').toList(),
   );
 
   @override

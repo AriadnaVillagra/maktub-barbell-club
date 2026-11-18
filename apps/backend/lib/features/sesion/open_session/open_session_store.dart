@@ -11,9 +11,6 @@ abstract interface class OpenSessionStore {
   /// The published version of the plan [planId] of [clubId] (never the draft), or null if it has none.
   Future<PublishedPlan?> publishedPlan(String clubId, String planId);
 
-  /// The athlete ids of the group [groupId] of [clubId]; empty if the group is not in the club.
-  Future<List<String>> groupMemberIds(String clubId, String groupId);
-
   /// The athlete of [clubId] linked to the user [userId], or null if the user is not an athlete there.
   Future<String?> athleteIdOfUser(String clubId, String userId);
 
@@ -53,17 +50,6 @@ class MongoOpenSessionStore implements OpenSessionStore {
       'clubId': clubId,
     });
     return doc == null ? null : Plan.fromJson(desdeDocumento(doc)).published;
-  }
-
-  @override
-  Future<List<String>> groupMemberIds(String clubId, String groupId) async {
-    final doc = await _db.collection(Colecciones.grupos).findOne({
-      '_id': groupId,
-      'clubId': clubId,
-    });
-    return doc == null
-        ? const []
-        : AthleteGroup.fromJson(desdeDocumento(doc)).memberIds;
   }
 
   @override

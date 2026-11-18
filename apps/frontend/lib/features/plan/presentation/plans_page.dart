@@ -44,7 +44,7 @@ class _PlansPageState extends ConsumerState<PlansPage> {
     }
   }
 
-  /// Quick way to assign [plan] to a group or an athlete without an active plan, without going through Asignaciones.
+  /// Quick way to assign [plan] to some of the club's athletes, without going through Asignaciones.
   Future<void> _assign(
     BuildContext context,
     WidgetRef ref,
@@ -53,32 +53,28 @@ class _PlansPageState extends ConsumerState<PlansPage> {
     try {
       final data = await fetchClubAssignments(ref);
       if (!context.mounted) return;
-      if (data.owners.isEmpty) {
-        showNotice(context, 'Todavía no hay un grupo en el club.');
-        return;
-      }
-      if (data.free.isEmpty) {
-        showNotice(
-          context,
-          'Todos ya tienen un plan en curso. Terminá uno en Asignaciones para asignar otro.',
-        );
+      if (data.athletes.isEmpty) {
+        showNotice(context, 'Todavía no hay atletas en el club.');
         return;
       }
       final choice = await askAssignment(
         context,
         plans: [plan],
-        owners: data.free,
+        athletes: data.athletes,
         today: ref.read(assignmentTodayProvider),
       );
       if (choice == null || !context.mounted) return;
       await assignPlan(
         ref,
         planId: choice.planId,
-        owner: choice.owner,
+        athleteIds: choice.athleteIds,
         startDate: choice.startDate,
       );
       if (context.mounted) {
-        showNotice(context, '"${plan.name}" asignado a ${choice.owner.name}.');
+        showNotice(
+          context,
+          '"${plan.name}" asignado a ${data.namesOf(choice.athleteIds)}.',
+        );
       }
     } catch (e) {
       if (context.mounted) showApiError(context, e);

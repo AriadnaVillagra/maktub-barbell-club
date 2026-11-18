@@ -84,13 +84,7 @@ class EndAssignment {
         estado: HttpStatus.conflict,
       );
     }
-    return Assignment(
-      id: current.id,
-      clubId: current.clubId,
-      planId: current.planId,
-      groupId: current.groupId,
-      athleteId: current.athleteId,
-      startDate: current.startDate,
+    return current.copyWith(
       status: AssignmentStatus.ended,
       endDate: endDate,
       auditoria: current.auditoria.modificada(club.userId, ahora: at),

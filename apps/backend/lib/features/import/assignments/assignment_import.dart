@@ -112,7 +112,7 @@ String assignmentImportId(String clubId, AssignmentEntry entry) =>
     importedId(clubId, 'asignacion-${entry.plan}-${aIsoFecha(entry.from)}');
 
 /// Decides, entry by entry (pure, no I/O). Each entry becomes an **ended** assignment of the plan imported in E8.4
-/// (`from` to `to`), so D14 (one active assignment per owner) is never touched. Rules:
+/// (`from` to `to`). Rules:
 /// - The group is found by name in the club. An entry for one athlete (`athlete`, E8.8) becomes that athlete's own
 ///   assignment; the athlete is found by display name in the club.
 /// - The plan must be imported and published (E6 assigns only published plans); a draft is reported.
@@ -214,7 +214,7 @@ void _plan(AssignmentPlan out, AssignmentEntry e, _Owner owner, AssignmentState 
     report.created.add('$label: terminada.');
   } else if (stored.planId == planId &&
       stored.groupId == owner.groupId &&
-      stored.athleteId == owner.athleteId &&
+      (owner.athleteId == null || (stored.athleteIds.length == 1 && stored.athleteIds.single == owner.athleteId)) &&
       stored.startDate == e.from &&
       stored.endDate == e.to &&
       stored.status == AssignmentStatus.ended) {

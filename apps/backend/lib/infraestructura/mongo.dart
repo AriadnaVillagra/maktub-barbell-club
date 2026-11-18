@@ -174,36 +174,19 @@ Future<void> asegurarIndices(Db db) async {
   // Listing the groups of a club.
   await db.collection(Colecciones.grupos).createIndex(keys: {'clubId': 1}, name: 'club');
 
-  // Assignments (E6.3, E8.8): listing by club and owner, and the rule "an owner has at most one active
-  // assignment" (D14: one per group and one per athlete). Atomic writes touch one document and the driver has no
-  // transactions (D15), so the rule lives in the database: one unique partial index per kind of owner, covering
-  // only the active ones of that kind (ended and paused ones may repeat). Each index needs its owner field to
-  // exist: otherwise every athlete's assignment would count as group `null`, and the other way around.
+  // Assignments (E6.3, E6.7): listing by club, and the active ones an athlete is in. E6.7 drops D14 (an athlete
+  // may be in any number of active assignments), so the unique indexes that enforced it go, and the assignments
+  // written before E6.7 get their list of athletes (`atletas`) copied from their group or athlete.
   final assignments = db.collection(Colecciones.asignaciones);
   await assignments.createIndex(keys: {'clubId': 1}, name: 'club');
-  await _dropIndexUnlessFilterHas(
-    assignments,
-    'club_grupo_activa_unica',
-    'grupoId',
-  );
+  for (final name in ['club_grupo_activa_unica', 'club_atleta_activa_unica']) {
+    await _dropIndexIfExists(assignments, name);
+  }
   await assignments.createIndex(
-    keys: {'clubId': 1, 'grupoId': 1},
-    name: 'club_grupo_activa_unica',
-    unique: true,
-    partialFilterExpression: {
-      'estado': 'activa',
-      'grupoId': {r'$exists': true},
-    },
+    keys: {'clubId': 1, 'atletas.atletaId': 1, 'estado': 1},
+    name: 'club_atleta_estado',
   );
-  await assignments.createIndex(
-    keys: {'clubId': 1, 'atletaId': 1},
-    name: 'club_atleta_activa_unica',
-    unique: true,
-    partialFilterExpression: {
-      'estado': 'activa',
-      'atletaId': {r'$exists': true},
-    },
-  );
+  await copyAssignmentAthletes(db);
 
   // "In use" checks (E5.4): multikey indexes on the exercise and timer references inside plans.
   const blocks = 'modelosSemana.dias.bloques';
@@ -298,16 +281,53 @@ Map<String, dynamic> aDocumento(Json json, {String? id}) {
 /// Drops the index [name] of [collection] when its partial filter does not mention [field]: an index from before
 /// that filter existed, which `createIndex` cannot change in place (same name, other options). Nothing happens if
 /// there is no such index or it already has the field.
-Future<void> _dropIndexUnlessFilterHas(
-  DbCollection collection,
-  String name,
-  String field,
-) async {
+Future<void> _dropIndexIfExists(DbCollection collection, String name) async {
   for (final index in await collection.getIndexes()) {
-    if (index['name'] != name) continue;
-    final filter = index['partialFilterExpression'];
-    if (filter is Map && filter.containsKey(field)) return;
-    await collection.dropIndexes(name);
-    return;
+    if (index['name'] == name) {
+      await collection.dropIndexes(name);
+      return;
+    }
+  }
+}
+
+/// E6.7: gives every assignment written before E6.7 its list of athletes, from its owner then: an athlete's own
+/// (`atletaId`) is that athlete, a group's (`grupoId`) is the group's members now; each in from the start date.
+/// `atletaId` is removed and `grupoId` kept (it says which group the list came from). Idempotent: it only touches
+/// documents without `atletas`.
+Future<void> copyAssignmentAthletes(Db db) async {
+  final assignments = db.collection(Colecciones.asignaciones);
+  final legacy = await assignments.find({
+    'atletas': {r'$exists': false},
+  }).toList();
+  for (final doc in legacy) {
+    final start = '${doc['fechaInicio']}';
+    final List<String> athletes;
+    if (doc['atletaId'] != null) {
+      athletes = ['${doc['atletaId']}'];
+    } else if (doc['grupoId'] != null) {
+      final group = await db.collection(Colecciones.grupos).findOne({
+        '_id': doc['grupoId'],
+        'clubId': doc['clubId'],
+      });
+      athletes = [
+        for (final m in (group?['miembros'] as List? ?? const [])) '$m',
+      ];
+    } else {
+      athletes = const [];
+    }
+    await assignments.updateOne(
+      {
+        '_id': doc['_id'],
+        'atletas': {r'$exists': false},
+      },
+      {
+        r'$set': {
+          'atletas': [
+            for (final a in athletes) {'atletaId': a, 'desde': start},
+          ],
+        },
+        r'$unset': {'atletaId': ''},
+      },
+    );
   }
 }

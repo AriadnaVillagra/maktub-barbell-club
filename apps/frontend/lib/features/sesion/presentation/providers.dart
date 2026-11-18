@@ -193,10 +193,11 @@ class SessionDayData {
 
   final String clubId;
 
-  /// The athletes the assignment is for: its group's members, or its one athlete for an athlete's own plan.
+  /// The athletes in the assignment today (E6.7); for a location saved before E6.7, its group's members or its one
+  /// athlete.
   final List<String> memberIds;
 
-  /// Who the plan is for, to tell two plans of the same date apart: "Grupo Barra" or "Plan propio".
+  /// Who the plan is for, to tell two plans of the same date apart: "Plan propio", "Ari, Andi" or "2 atletas".
   final String ownerLabel;
   final CalendarLocation location;
   final PublishedPlanView plan;
@@ -345,20 +346,24 @@ Future<SessionDayData> _dayData(
       location.cycle,
     )).future,
   );
-  // A location saved before E8.8 does not say whose it is: it was the first group's.
-  final group = location.athleteId != null
+  // E6.7: the location lists who is in the plan today. One saved before that does not: it was its group's (or the
+  // first group's, before E8.8), or its one athlete's.
+  final group = location.athleteIds != null || location.athleteId != null
       ? null
       : groups.where((g) => g.id == location.groupId).firstOrNull ??
             (location.groupId == null ? groups.firstOrNull : null);
   final dayCount = plan.weekModelOf(location.week)?.days.length ?? 0;
+  final memberIds =
+      location.athleteIds ??
+      (location.athleteId != null
+          ? [location.athleteId!]
+          : group?.memberIds ?? const <String>[]);
   return SessionDayData(
     clubId: clubId,
-    memberIds: location.athleteId != null
-        ? [location.athleteId!]
-        : group?.memberIds ?? const [],
-    ownerLabel: location.athleteId != null
-        ? 'Plan propio'
-        : 'Grupo ${group?.name ?? ''}'.trim(),
+    memberIds: memberIds,
+    ownerLabel: location.athleteIds == null && group != null
+        ? 'Grupo ${group.name}'.trim()
+        : _ownerLabel(memberIds, athleteNames, ownAthleteId),
     location: location,
     plan: plan,
     exerciseNames: exerciseNames,
@@ -1388,3 +1393,16 @@ final proposedLoadsProvider = FutureProvider.autoDispose
           .watch(sessionRepositoryProvider)
           .proposedLoads(q.clubId, q.sessionId, q.athleteId, q.adjustments),
     );
+
+/// "Plan propio" when the plan is the user's alone, else the athletes' names when known, else how many they are.
+String _ownerLabel(
+  List<String> ids,
+  Map<String, String> names,
+  String? ownAthleteId,
+) {
+  if (ids.length == 1 && ids.single == ownAthleteId) return 'Plan propio';
+  if (ids.isNotEmpty && ids.every(names.containsKey)) {
+    return ids.map((id) => names[id]).join(', ');
+  }
+  return ids.length == 1 ? '1 atleta' : '${ids.length} atletas';
+}

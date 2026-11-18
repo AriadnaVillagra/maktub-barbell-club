@@ -29,61 +29,37 @@ final assignmentTodayProvider = Provider<DateTime>(
   (ref) => soloFecha(DateTime.now()),
 );
 
-/// Who an assignment is for, as the assignments screen offers them: a group or one athlete (E8.8).
-class AssignmentOwner {
-  AssignmentOwner.group(AthleteGroup group)
-    : groupId = group.id,
-      athleteId = null,
-      name = group.name;
+/// An athlete of the club, as the assignment screens offer them.
+typedef ClubAthlete = ({String id, String name});
 
-  const AssignmentOwner.athlete(String this.athleteId, this.name)
-    : groupId = null;
-
-  final String? groupId;
-  final String? athleteId;
-  final String name;
-
-  bool get isGroup => groupId != null;
-
-  /// "Grupo Barra" or the athlete's name.
-  String get label => isGroup ? 'Grupo $name' : name;
-
-  /// Stable across reloads: the kind of owner and its id.
-  String get key => isGroup ? 'grupo-$groupId' : 'atleta-$athleteId';
-
-  bool owns(Assignment a) =>
-      isGroup ? a.groupId == groupId : a.athleteId == athleteId;
-}
-
-/// What the assignments screen shows: who a plan can be assigned to (the club's groups, then its athletes) and every
-/// assignment of the club, newest first. An athlete's own plan lives alongside their group's (E8.8).
+/// What the assignments screen shows: the club's athletes (who a plan can be for) and every assignment of the club,
+/// newest first. An athlete can be in any number of active assignments (E6.7).
 class ClubAssignments {
-  const ClubAssignments({required this.owners, required this.assignments});
+  const ClubAssignments({required this.athletes, required this.assignments});
 
-  final List<AssignmentOwner> owners;
+  final List<ClubAthlete> athletes;
   final List<Assignment> assignments;
 
-  bool get hasGroup => owners.any((o) => o.isGroup);
-
-  /// The assignments of [owner], newest first.
-  List<Assignment> of(AssignmentOwner owner) => [
+  List<Assignment> get active => [
     for (final a in assignments)
-      if (owner.owns(a)) a,
+      if (a.status != AssignmentStatus.ended) a,
   ];
 
-  /// The active assignment of [owner]; null when it has none (D14: at most one).
-  Assignment? activeOf(AssignmentOwner owner) {
-    for (final a in of(owner)) {
-      if (a.status == AssignmentStatus.active) return a;
+  List<Assignment> get ended => [
+    for (final a in assignments)
+      if (a.status == AssignmentStatus.ended) a,
+  ];
+
+  /// The name of the athlete [id]; "Atleta" when they are no longer in the club.
+  String nameOf(String id) {
+    for (final a in athletes) {
+      if (a.id == id) return a.name;
     }
-    return null;
+    return 'Atleta';
   }
 
-  /// The owners a new plan can go to: those without an active assignment.
-  List<AssignmentOwner> get free => [
-    for (final o in owners)
-      if (activeOf(o) == null) o,
-  ];
+  /// "Ari, Andi": the names of [ids], in that order.
+  String namesOf(Iterable<String> ids) => ids.map(nameOf).join(', ');
 }
 
 Future<ClubAssignments> _loadClubAssignments(
@@ -92,15 +68,11 @@ Future<ClubAssignments> _loadClubAssignments(
   AthleteRepository athletes,
 ) async {
   if (clubId == null) {
-    return const ClubAssignments(owners: [], assignments: []);
+    return const ClubAssignments(athletes: [], assignments: []);
   }
-  final groups = await repo.groups(clubId);
   final people = await athletes.athletes(clubId);
   return ClubAssignments(
-    owners: [
-      for (final g in groups) AssignmentOwner.group(g),
-      for (final a in people) AssignmentOwner.athlete(a.id, a.name),
-    ],
+    athletes: [for (final a in people) (id: a.id, name: a.name)],
     assignments: await repo.assignments(clubId),
   );
 }
@@ -116,7 +88,7 @@ final clubAssignmentsProvider = FutureProvider.autoDispose<ClubAssignments>((
   );
 });
 
-/// The owners and assignments right now, for an action outside the assignments screen.
+/// The athletes and assignments right now, for an action outside the assignments screen.
 Future<ClubAssignments> fetchClubAssignments(WidgetRef ref) async {
   final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
   return _loadClubAssignments(
@@ -126,11 +98,11 @@ Future<ClubAssignments> fetchClubAssignments(WidgetRef ref) async {
   );
 }
 
-/// Assigns [planId] to [owner] in the active club and refreshes the screen. Errors propagate.
+/// Assigns [planId] to [athleteIds] in the active club and refreshes the screen. Errors propagate.
 Future<void> assignPlan(
   WidgetRef ref, {
   required String planId,
-  required AssignmentOwner owner,
+  required List<String> athleteIds,
   required DateTime startDate,
 }) async {
   final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
@@ -140,9 +112,27 @@ Future<void> assignPlan(
       .assign(
         clubId,
         planId: planId,
-        groupId: owner.groupId,
-        athleteId: owner.athleteId,
+        athleteIds: athleteIds,
         startDate: startDate,
+      );
+  ref.invalidate(clubAssignmentsProvider);
+}
+
+/// Sets who does [assignmentId] from today on (E6.7) and refreshes the screen. Errors propagate.
+Future<void> setAssignmentAthletes(
+  WidgetRef ref,
+  String assignmentId,
+  List<String> athleteIds,
+) async {
+  final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
+  if (clubId == null) return;
+  await ref
+      .read(assignmentRepositoryProvider)
+      .setAthletes(
+        clubId,
+        assignmentId,
+        athleteIds: athleteIds,
+        date: ref.read(assignmentTodayProvider),
       );
   ref.invalidate(clubAssignmentsProvider);
 }

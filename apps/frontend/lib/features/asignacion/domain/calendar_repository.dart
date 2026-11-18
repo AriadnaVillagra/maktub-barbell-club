@@ -11,6 +11,7 @@ class CalendarLocation {
     required this.week,
     this.groupId,
     this.athleteId,
+    this.athleteIds,
   });
 
   final String assignmentId;
@@ -20,8 +21,11 @@ class CalendarLocation {
   /// The group the assignment is for; null for an athlete's own plan, or when the answer did not say.
   final String? groupId;
 
-  /// The one athlete the assignment is for, when it is their own plan (E8.8).
+  /// The one athlete the assignment is for, when it is their own plan (E8.8). Only in answers from before E6.7.
   final String? athleteId;
+
+  /// The athletes in the assignment on the date asked about (E6.7); null in answers and copies from before it.
+  final List<String>? athleteIds;
 
   /// 1-based cycle number.
   final int cycle;

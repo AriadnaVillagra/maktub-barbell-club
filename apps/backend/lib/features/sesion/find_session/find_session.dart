@@ -67,9 +67,7 @@ class FindSession {
     final assignment = await _store.assignment(club.clubId, assignmentId);
     if (assignment == null) throw _assignmentNotFound;
     if (!club.can(Accion.planificar)) {
-      final members = await assignment.athletes(
-        (groupId) => _store.groupMemberIds(club.clubId, groupId),
-      );
+      final members = assignment.athleteIds;
       final own = await _store.athleteIdOfUser(club.clubId, club.userId);
       if (own == null || !members.contains(own)) throw _assignmentNotFound;
     }

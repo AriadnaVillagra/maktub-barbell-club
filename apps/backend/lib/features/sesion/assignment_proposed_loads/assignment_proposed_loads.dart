@@ -124,9 +124,7 @@ class AssignmentProposedLoads {
     final clubId = club.clubId;
     final assignment = await _store.assignment(clubId, assignmentId);
     if (assignment == null) throw _assignmentNotFound;
-    final members = await assignment.athletes(
-      (groupId) => _store.groupMemberIds(clubId, groupId),
-    );
+    final members = assignment.athleteIds;
     final athletes = await _athletes(club, members, athleteIds);
     final published = await _store.publishedPlan(clubId, assignment.planId);
     if (published == null) {

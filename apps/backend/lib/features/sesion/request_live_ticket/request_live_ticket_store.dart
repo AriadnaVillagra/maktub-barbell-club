@@ -11,9 +11,6 @@ abstract interface class RequestLiveTicketStore {
   /// The assignment [assignmentId] of [clubId] (a group's or one athlete's), or null if the club has none.
   Future<Assignment?> assignment(String clubId, String assignmentId);
 
-  /// The athlete ids of the group [groupId] of [clubId]; empty if the group is not in the club.
-  Future<List<String>> groupMemberIds(String clubId, String groupId);
-
   /// The athlete of [clubId] linked to the user [userId], or null if the user is not an athlete there.
   Future<String?> athleteIdOfUser(String clubId, String userId);
 
@@ -43,17 +40,6 @@ class MongoRequestLiveTicketStore implements RequestLiveTicketStore {
       'clubId': clubId,
     });
     return doc == null ? null : Assignment.fromJson(desdeDocumento(doc));
-  }
-
-  @override
-  Future<List<String>> groupMemberIds(String clubId, String groupId) async {
-    final doc = await _db.collection(Colecciones.grupos).findOne({
-      '_id': groupId,
-      'clubId': clubId,
-    });
-    return doc == null
-        ? const []
-        : AthleteGroup.fromJson(desdeDocumento(doc)).memberIds;
   }
 
   @override

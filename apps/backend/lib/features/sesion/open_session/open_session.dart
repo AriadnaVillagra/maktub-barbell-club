@@ -58,7 +58,7 @@ class OpenSession {
     DateTime Function()? now,
     this._history = false,
   }) : _newId = newId ?? (() => ObjectId().oid),
-      _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now;
 
   final OpenSessionStore _store;
   final LiveBroadcast _broadcast;
@@ -92,9 +92,7 @@ class OpenSession {
 
     final assignment = await _store.assignment(club.clubId, assignmentId);
     if (assignment == null) throw _assignmentNotFound;
-    final members = await assignment.athletes(
-      (groupId) => _store.groupMemberIds(club.clubId, groupId),
-    );
+    final members = assignment.athleteIds;
     if (!club.can(Accion.planificar)) {
       final own = await _store.athleteIdOfUser(club.clubId, club.userId);
       if (own == null || !members.contains(own)) throw _assignmentNotFound;
@@ -105,9 +103,10 @@ class OpenSession {
         estado: HttpStatus.conflict,
       );
     }
-    if (!present.every(members.contains)) {
+    // Present athletes must be in the plan on the session's date (E6.7: someone removed is not offered any more).
+    if (!present.every(assignment.athleteIdsOn(date).contains)) {
       throw const ErrorDeSolicitud(
-        'Hay atletas presentes que no son del grupo de la asignación.',
+        'Hay atletas presentes que no están en la asignación en esa fecha.',
         estado: HttpStatus.unprocessableEntity,
       );
     }

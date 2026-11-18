@@ -30,7 +30,8 @@ class _Db implements AssignmentImportStore, CreateAssignmentStore {
   Future<List<Atleta>> athletes(String clubId) async => athletes_.where((a) => a.clubId == clubId).toList();
 
   @override
-  Future<bool> athleteExists(String clubId, String athleteId) async => athletes_.any((a) => a.id == athleteId);
+  Future<bool> athletesExist(String clubId, Set<String> athleteIds) async =>
+      athleteIds.every((id) => athletes_.any((a) => a.id == id));
   final all = <Assignment>[];
 
   @override
@@ -53,21 +54,13 @@ class _Db implements AssignmentImportStore, CreateAssignmentStore {
   Future<bool?> planIsPublished(String clubId, String planId) async => plans[planId];
 
   @override
-  Future<bool> groupExists(String clubId, String groupId) async => groups_.any((g) => g.id == groupId);
+  Future<List<String>?> groupMemberIds(String clubId, String groupId) async =>
+      groups_.where((g) => g.id == groupId).firstOrNull?.memberIds;
 
   @override
-  Future<bool> insert(Assignment assignment) async {
+  Future<void> insert(Assignment assignment) async {
     if (all.any((a) => a.id == assignment.id)) throw StateError('duplicate _id');
-    final taken = all.any(
-      (a) =>
-          a.groupId == assignment.groupId &&
-          a.athleteId == assignment.athleteId &&
-          a.status == AssignmentStatus.active &&
-          assignment.status == AssignmentStatus.active,
-    );
-    if (taken) return false;
     all.add(assignment);
-    return true;
   }
 }
 
@@ -161,7 +154,7 @@ void main() {
     test("becomes that athlete's own ended assignment, next to the group's active one", () async {
       final report = await importer().run(run([lev]));
       final a = db.all.singleWhere((a) => a.planId == importedId(_club, 'plan_lev'));
-      expect(a.athleteId, 'ari');
+      expect(a.athleteIds, ['ari']);
       expect(a.groupId, isNull);
       expect((a.startDate, a.endDate, a.status), (
         DateTime.utc(2026, 11, 6),

@@ -9,16 +9,16 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'crear_store.dart';
 
-/// `POST /clubes/{clubId}/asignaciones` body `{planId, grupoId | atletaId, fechaInicio}` (`fechaInicio` as
-/// `yyyy-MM-dd`) → 201 with the assignment (`Assignment.toJson()`): active, with no end date. Needs
-/// [Accion.planificar] (the coach). The server sets `id`, `clubId`, `estado` and `auditoria`.
+/// `POST /clubes/{clubId}/asignaciones` body `{planId, atletas: [atletaId…], fechaInicio}` (`fechaInicio` as
+/// `yyyy-MM-dd`) → 201 with the assignment (`Assignment.toJson()`): active, with no end date, every athlete in from
+/// the start date. Needs [Accion.planificar] (the coach). The server sets `id`, `clubId`, `estado` and `auditoria`.
 ///
-/// The owner is a group (`grupoId`) or one athlete (`atletaId`, E8.8), exactly one of the two (400 otherwise). The
-/// plan must exist in the club **and have a published version** (the draft is not looked at): 404 if the plan, the
-/// group or the athlete is not in the club, 422 if the plan was never published. An owner has at most one active
-/// assignment (D14: one per group, one per athlete; an athlete's own plan lives alongside their group's): if it
-/// already has one this is 409 `{error}` and nothing is written; the coach ends it first (`.../terminar`) and then
-/// creates the new one. [store], [newId] and [now] are for tests.
+/// Who does the plan is a list of athletes (E6.7), at least one, each of the club (404 otherwise). The body may
+/// instead carry `grupoId` (the group's current members, and the group is kept on the assignment) or `atletaId`
+/// (one athlete), as the E8 importer sends; exactly one of the three (400 otherwise). The plan must exist in the
+/// club **and have a published version** (the draft is not looked at): 404 if not in the club, 422 if never
+/// published. An athlete may be in any number of active assignments (E6.7 drops D14). [store], [newId] and [now]
+/// are for tests.
 Future<Response> createAssignmentEndpoint(
   RequestContext context, {
   CreateAssignmentStore? store,
@@ -52,17 +52,17 @@ class CreateAssignment {
   final DateTime Function() _now;
 
   /// Loading history (the E8 importer): the body also takes `fechaFin` (not before `fechaInicio`) and the
-  /// assignment is created already ended. An ended assignment never counts for D14, so the group may have an
-  /// active one. The endpoint never sets it.
+  /// assignment is created already ended. The endpoint never sets it.
   final bool _history;
 
   Future<Assignment> call(ClubContext club, Json body) async {
     final planId = _requiredId(body['planId'], 'planId');
     final groupId = _optionalId(body['grupoId'], 'grupoId');
     final athleteId = _optionalId(body['atletaId'], 'atletaId');
-    if ((groupId == null) == (athleteId == null)) {
+    final listed = _ids(body['atletas']);
+    if ([groupId, athleteId, listed].where((o) => o != null).length != 1) {
       throw const ErrorDeSolicitud(
-        'La asignación es de un grupo ("grupoId") o de un atleta ("atletaId"): uno de los dos.',
+        'La asignación lleva "atletas" (o "grupoId" o "atletaId"): uno de los tres.',
       );
     }
     final startDate = fechaDeSolicitud(body['fechaInicio'], 'fechaInicio');
@@ -85,11 +85,20 @@ class CreateAssignment {
         estado: HttpStatus.unprocessableEntity,
       );
     }
-    if (groupId != null && !await _store.groupExists(club.clubId, groupId)) {
-      throw const ErrorDeSolicitud.noEncontrado('Grupo no encontrado.');
+    final List<String> athleteIds;
+    if (groupId != null) {
+      final members = await _store.groupMemberIds(club.clubId, groupId);
+      if (members == null) {
+        throw const ErrorDeSolicitud.noEncontrado('Grupo no encontrado.');
+      }
+      athleteIds = members;
+    } else {
+      athleteIds = listed ?? [athleteId!];
     }
-    if (athleteId != null &&
-        !await _store.athleteExists(club.clubId, athleteId)) {
+    if (athleteIds.isEmpty) {
+      throw const ErrorDeSolicitud('Elegí al menos un atleta.');
+    }
+    if (!await _store.athletesExist(club.clubId, athleteIds.toSet())) {
       throw const ErrorDeSolicitud.noEncontrado('Atleta no encontrado.');
     }
 
@@ -97,8 +106,11 @@ class CreateAssignment {
       id: _newId(),
       clubId: club.clubId,
       planId: planId,
+      members: [
+        for (final id in athleteIds)
+          AssignmentMember(athleteId: id, from: startDate),
+      ],
       groupId: groupId,
-      athleteId: athleteId,
       startDate: startDate,
       status: endDate == null
           ? AssignmentStatus.active
@@ -106,13 +118,7 @@ class CreateAssignment {
       endDate: endDate,
       auditoria: Auditoria.nueva(club.userId, ahora: _now()),
     );
-    if (!await _store.insert(assignment)) {
-      throw ErrorDeSolicitud(
-        '${athleteId == null ? 'El grupo' : 'El atleta'} ya tiene una asignación activa; '
-        'terminala antes de crear otra.',
-        estado: HttpStatus.conflict,
-      );
-    }
+    await _store.insert(assignment);
     return assignment;
   }
 }
@@ -121,6 +127,20 @@ String _requiredId(Object? value, String field) {
   final id = value is String ? value.trim() : '';
   if (id.isEmpty) throw ErrorDeSolicitud('"$field" es obligatorio.');
   return id;
+}
+
+/// The distinct ids in [value], a list of ids, in order; null when it is absent.
+List<String>? _ids(Object? value) {
+  if (value == null) return null;
+  const invalid = ErrorDeSolicitud('"atletas" debe ser una lista de ids.');
+  if (value is! List) throw invalid;
+  final ids = <String>{};
+  for (final v in value) {
+    final id = v is String ? v.trim() : '';
+    if (id.isEmpty) throw invalid;
+    ids.add(id);
+  }
+  return ids.toList();
 }
 
 /// The id in [value], or null when it is absent or blank.
