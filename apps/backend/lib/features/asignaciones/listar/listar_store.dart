@@ -4,7 +4,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 /// What the "list assignments" slice reads.
 abstract interface class ListAssignmentsStore {
-  /// The assignments of [clubId] and of no other club; only those of [groupId] or of [athleteId] when given.
+  /// The assignments of [clubId] and of no other club; only those made for [groupId], or those [athleteId] is or
+  /// was in, when given.
   Future<List<Assignment>> assignments(
     String clubId, {
     String? groupId,
@@ -26,7 +27,7 @@ class MongoListAssignmentsStore implements ListAssignmentsStore {
     final docs = await _db.collection(Colecciones.asignaciones).find({
       'clubId': clubId,
       'grupoId': ?groupId,
-      'atletaId': ?athleteId,
+      'atletas.atletaId': ?athleteId,
     }).toList();
     return [for (final d in docs) Assignment.fromJson(desdeDocumento(d))];
   }

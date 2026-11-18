@@ -55,6 +55,9 @@ Assignment _assignment(
   id: id,
   clubId: clubId,
   planId: planId,
+  members: [
+    AssignmentMember(athleteId: 'ari', from: start ?? DateTime.utc(2026, 11, 9)),
+  ],
   groupId: groupId,
   startDate: start ?? DateTime.utc(2026, 11, 9),
   status: status,
@@ -119,6 +122,8 @@ void main() {
           'id': 'a1',
           'planId': 'p1',
           'fechaInicio': '2026-11-09',
+          // Ari is in from the start: not on a date before it.
+          'atletas': date.compareTo('2026-11-09') >= 0 ? ['ari'] : <String>[],
         });
       });
     }

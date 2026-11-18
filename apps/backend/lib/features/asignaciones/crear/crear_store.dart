@@ -7,15 +7,14 @@ abstract interface class CreateAssignmentStore {
   /// Whether the plan [planId] of [clubId] has a published version: null if the club has no such plan.
   Future<bool?> planIsPublished(String clubId, String planId);
 
-  /// Whether the group [groupId] exists in [clubId].
-  Future<bool> groupExists(String clubId, String groupId);
+  /// The members of the group [groupId] of [clubId]; null if the club has no such group.
+  Future<List<String>?> groupMemberIds(String clubId, String groupId);
 
-  /// Whether the athlete [athleteId] exists in [clubId].
-  Future<bool> athleteExists(String clubId, String athleteId);
+  /// Whether every one of [athleteIds] is an athlete of [clubId].
+  Future<bool> athletesExist(String clubId, Set<String> athleteIds);
 
-  /// Inserts [assignment]. Returns false, and writes nothing, if its owner (group or athlete) already has an
-  /// active assignment: the store enforces "at most one active per owner" atomically, not the caller.
-  Future<bool> insert(Assignment assignment);
+  /// Inserts [assignment].
+  Future<void> insert(Assignment assignment);
 }
 
 class MongoCreateAssignmentStore implements CreateAssignmentStore {
@@ -33,33 +32,31 @@ class MongoCreateAssignmentStore implements CreateAssignmentStore {
   }
 
   @override
-  Future<bool> groupExists(String clubId, String groupId) async =>
-      await _db.collection(Colecciones.grupos).findOne({
-        '_id': groupId,
-        'clubId': clubId,
-      }) !=
-      null;
+  Future<List<String>?> groupMemberIds(String clubId, String groupId) async {
+    final doc = await _db.collection(Colecciones.grupos).findOne({
+      '_id': groupId,
+      'clubId': clubId,
+    });
+    if (doc == null) return null;
+    return [for (final m in (doc['miembros'] as List? ?? const [])) '$m'];
+  }
 
   @override
-  Future<bool> athleteExists(String clubId, String athleteId) async =>
-      await _db.collection(Colecciones.atletas).findOne({
-        '_id': athleteId,
-        'clubId': clubId,
-      }) !=
-      null;
+  Future<bool> athletesExist(String clubId, Set<String> athleteIds) async {
+    final found = await _db.collection(Colecciones.atletas).find({
+      'clubId': clubId,
+      '_id': {r'$in': athleteIds.toList()},
+    }).toList();
+    return found.length == athleteIds.length;
+  }
 
-  // Two concurrent requests for the same owner cannot both pass: the unique partial indexes
-  // `club_grupo_activa_unica` and `club_atleta_activa_unica` (see `asegurarIndices`) reject the second insert
-  // with a duplicate key error.
   @override
-  Future<bool> insert(Assignment assignment) async {
+  Future<void> insert(Assignment assignment) async {
     final result = await _db
         .collection(Colecciones.asignaciones)
         .insertOne(aDocumento(assignment.toJson()));
-    if (result.isSuccess) return true;
-    if (result.writeError?.code == _duplicateKey) return false;
-    throw StateError('Could not insert the assignment: ${result.writeError}');
+    if (!result.isSuccess) {
+      throw StateError('Could not insert the assignment: ${result.writeError}');
+    }
   }
 }
-
-const _duplicateKey = 11000;

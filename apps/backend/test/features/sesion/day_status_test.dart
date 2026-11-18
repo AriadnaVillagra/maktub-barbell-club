@@ -209,7 +209,7 @@ void main() {
           id: 'own',
           clubId: 'club-a',
           planId: 'p2',
-          athleteId: 'ari',
+          members: [AssignmentMember(athleteId: 'ari', from: DateTime.utc(2026, 11, 9))],
           startDate: DateTime.utc(2026, 11, 9),
           status: status,
           auditoria: Auditoria.nueva('coach-1', ahora: DateTime.utc(2026, 11, 8)),

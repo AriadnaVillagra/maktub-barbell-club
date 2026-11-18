@@ -23,9 +23,6 @@ class _FakeStore implements AthleteLocationStore {
   /// `clubId/userId` → athlete id.
   final users = <String, String>{};
 
-  /// `clubId/groupId` → member ids.
-  final groups = <String, List<String>>{};
-
   /// `clubId/planId` of the plans with a published version.
   final published = <String>{};
 
@@ -38,22 +35,14 @@ class _FakeStore implements AthleteLocationStore {
       users['$clubId/$userId'];
 
   @override
-  Future<Set<String>> groupIdsOf(String clubId, String athleteId) async => {
-    for (final MapEntry(:key, :value) in groups.entries)
-      if (key.startsWith('$clubId/') && value.contains(athleteId))
-        key.substring(clubId.length + 1),
-  };
-
-  @override
   Future<List<Assignment>> activeAssignments(
-    String clubId, {
-    required Set<String> groupIds,
-    required String athleteId,
-  }) async => [
+    String clubId,
+    String athleteId,
+  ) async => [
     for (final a in all)
       if (a.clubId == clubId &&
           a.status == AssignmentStatus.active &&
-          (groupIds.contains(a.groupId) || a.athleteId == athleteId))
+          a.athleteIds.contains(athleteId))
         a,
   ];
 
@@ -73,7 +62,8 @@ Assignment _assignment(
   String id,
   String clubId, {
   String? groupId,
-  String? athleteId,
+  List<AssignmentMember>? members,
+  List<String> athleteIds = const [],
   String planId = 'p1',
   DateTime? start,
   AssignmentStatus status = AssignmentStatus.active,
@@ -82,7 +72,15 @@ Assignment _assignment(
   clubId: clubId,
   planId: planId,
   groupId: groupId,
-  athleteId: athleteId,
+  members:
+      members ??
+      [
+        for (final a in athleteIds)
+          AssignmentMember(
+            athleteId: a,
+            from: start ?? DateTime.utc(2026, 11, 2),
+          ),
+      ],
   startDate: start ?? DateTime.utc(2026, 11, 2),
   status: status,
   auditoria: _audit,
@@ -118,20 +116,19 @@ void main() {
   _FakeStore store() => _FakeStore()
     ..athletes.addAll(['club-a/ari', 'club-a/andi'])
     ..users['club-a/u-ari'] = 'ari'
-    ..groups['club-a/g1'] = ['ari', 'andi']
     ..published.addAll(['club-a/p1', 'club-a/lev'])
     ..all.addAll([
-      _assignment('group', 'club-a', groupId: 'g1'),
+      _assignment('group', 'club-a', groupId: 'g1', athleteIds: ['ari', 'andi']),
       _assignment(
         'own',
         'club-a',
-        athleteId: 'ari',
+        athleteIds: ['ari'],
         planId: 'lev',
         start: DateTime.utc(2026, 11, 9),
       ),
     ]);
 
-  test("the group's plan and the athlete's own, group first, each placed by its own start", () async {
+  test('every plan the athlete is in, by start date, each placed by its own start', () async {
     final r = await _get(store(), '?fecha=2026-11-16');
 
     expect(r.statusCode, HttpStatus.ok);
@@ -144,6 +141,7 @@ void main() {
             'planId': 'p1',
             'fechaInicio': '2026-11-02',
             'grupoId': 'g1',
+            'atletas': ['ari', 'andi'],
           },
           'ciclo': 1,
           'semana': 3,
@@ -153,7 +151,7 @@ void main() {
             'id': 'own',
             'planId': 'lev',
             'fechaInicio': '2026-11-09',
-            'atletaId': 'ari',
+            'atletas': ['ari'],
           },
           'ciclo': 1,
           'semana': 2,
@@ -162,16 +160,14 @@ void main() {
     });
   });
 
-  test("another athlete's own plan, an ended one and another group's do not count", () async {
+  test("another athlete's plan and an ended one do not count", () async {
     final s = store()
-      ..groups['club-a/g2'] = ['andi']
       ..all.addAll([
-        _assignment('andi-own', 'club-a', athleteId: 'andi'),
-        _assignment('g2', 'club-a', groupId: 'g2'),
+        _assignment('andi-own', 'club-a', athleteIds: ['andi']),
         _assignment(
           'old',
           'club-a',
-          athleteId: 'ari',
+          athleteIds: ['ari'],
           status: AssignmentStatus.ended,
         ),
       ]);
@@ -181,6 +177,32 @@ void main() {
       [for (final u in json['ubicaciones'] as List) u['asignacion']['id']],
       ['group', 'own'],
     );
+  });
+
+  test('only on the dates the athlete is in the plan (E6.7)', () async {
+    final s = store()
+      ..all.add(
+        _assignment(
+          'left',
+          'club-a',
+          members: [
+            AssignmentMember(
+              athleteId: 'ari',
+              from: DateTime.utc(2026, 11, 2),
+              to: DateTime.utc(2026, 11, 10),
+            ),
+            AssignmentMember(athleteId: 'ari', from: DateTime.utc(2026, 11, 20)),
+          ],
+        ),
+      );
+    Future<List<Object?>> ids(String date) async => [
+      for (final u in (await _json(await _get(s, '?fecha=$date')))['ubicaciones'] as List)
+        u['asignacion']['id'],
+    ];
+
+    expect(await ids('2026-11-10'), contains('left'));
+    expect(await ids('2026-11-16'), isNot(contains('left')));
+    expect(await ids('2026-11-20'), contains('left'));
   });
 
   test('without active assignments the list is empty', () async {
@@ -236,7 +258,7 @@ void main() {
         s.athletes.add('$clubId/ari');
         s.published.add('$clubId/$marker');
         s.all.removeWhere((a) => a.clubId == clubId);
-        s.all.add(_assignment('own', clubId, athleteId: 'ari', planId: marker));
+        s.all.add(_assignment('own', clubId, athleteIds: ['ari'], planId: marker));
       },
     );
   });

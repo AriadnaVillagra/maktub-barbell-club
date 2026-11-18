@@ -58,7 +58,9 @@ void main() {
           id: 'a1',
           clubId: 'c1',
           planId: 'p1',
-          athleteId: 'ari',
+          members: [
+            AssignmentMember(athleteId: 'ari', from: DateTime.utc(2026, 11, 2)),
+          ],
           startDate: DateTime.utc(2026, 11, 2),
           auditoria: _audit,
         ),

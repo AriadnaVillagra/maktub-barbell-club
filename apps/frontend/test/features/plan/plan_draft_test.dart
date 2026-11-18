@@ -71,6 +71,26 @@ void main() {
     expect(d.weekModels[0].days, hasLength(6));
   });
 
+  test('copyModel appends a copy with all its days, unassigned', () {
+    final base = PlanDraft.from(
+      samplePlan(
+        models: [model('x', 'A', 2), model('m2', 'B', 1)],
+        assignment: ['x', 'm2', 'x', 'm2'],
+      ),
+    ).addBlock('x', 1, const PlanBlock(name: 'Principal', categoryId: 'c'));
+    final d = base.copyModel('x');
+
+    final copy = d.weekModels.last;
+    expect(d.weekModels, hasLength(3));
+    expect(copy.name, 'A (copia)');
+    expect(copy.id, isNot(anyOf('x', 'm2')));
+    expect([for (final day in copy.days) day.name], ['Dx1', 'Dx2']);
+    expect(copy.days[1].blocks.map((b) => b.name), ['Principal']);
+    expect(d.assignment, ['x', 'm2', 'x', 'm2']);
+    expect(d.isDirty, isTrue);
+    expect(identical(base.copyModel('nope'), base), isTrue);
+  });
+
   test(
     'copyDayTo appends the day to another model, never the same or a full one',
     () {

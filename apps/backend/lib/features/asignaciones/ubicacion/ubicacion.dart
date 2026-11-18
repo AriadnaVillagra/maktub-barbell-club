@@ -65,6 +65,7 @@ class GroupLocation {
         'id': assignment.id,
         'planId': assignment.planId,
         'fechaInicio': aIsoFecha(assignment.startDate),
+        'atletas': assignment.athleteIdsOn(date),
       },
       'ciclo': location.ciclo,
       'semana': location.semana,

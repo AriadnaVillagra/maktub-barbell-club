@@ -7,15 +7,22 @@ abstract interface class AssignmentRepository {
   /// The club's assignments, newest first; only [groupId]'s when given.
   Future<List<Assignment>> assignments(String clubId, {String? groupId});
 
-  /// Assigns the published version of [planId] from [startDate] to [groupId] or to the one athlete [athleteId]
-  /// (E8.8), exactly one of the two. Throws `ErrorDeApi` with the backend's message when it refuses (no published
-  /// version, the group or athlete already has an active one...).
+  /// Assigns the published version of [planId] from [startDate] to [athleteIds] (E6.7). Throws `ErrorDeApi` with
+  /// the backend's message when it refuses (no published version, an athlete not in the club...).
   Future<Assignment> assign(
     String clubId, {
     required String planId,
-    String? groupId,
-    String? athleteId,
+    required List<String> athleteIds,
     required DateTime startDate,
+  });
+
+  /// Sets who does [assignmentId] from [date] on to [athleteIds] (E6.7): those removed keep the days until the day
+  /// before, those added are in from [date]. The plan goes on. Throws `ErrorDeApi` when the backend refuses.
+  Future<Assignment> setAthletes(
+    String clubId,
+    String assignmentId, {
+    required List<String> athleteIds,
+    required DateTime date,
   });
 
   /// Ends an assignment (today unless [endDate] is given).

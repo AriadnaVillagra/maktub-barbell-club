@@ -11,6 +11,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import '../../support/club_isolation.dart';
+import '../../support/assignments.dart';
 
 class _Context extends Mock implements RequestContext {}
 
@@ -80,13 +81,19 @@ class _FakeStore implements SessionChangesStore {
 
   @override
   Future<Assignment?> assignment(String clubId, String assignmentId) async =>
+      withGroupMembers(
+        await _rawAssignment(clubId, assignmentId),
+        (g) => groupMemberIds(clubId, g),
+      );
+
+  Future<Assignment?> _rawAssignment(String clubId, String assignmentId) async =>
       sessions.containsKey('$clubId/s1')
       ? Assignment(
           id: assignmentId,
           clubId: clubId,
           planId: 'p1',
           groupId: ownAthleteAssignment ? null : 'g1',
-          athleteId: ownAthleteAssignment ? 'athlete-ari' : null,
+          members: [if (ownAthleteAssignment ? 'athlete-ari' : null case final String id) AssignmentMember(athleteId: id, from: DateTime.utc(2026, 11, 1))],
           startDate: DateTime.utc(2026, 11, 1),
           auditoria: Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 1)),
         )
@@ -95,7 +102,6 @@ class _FakeStore implements SessionChangesStore {
   /// Whether the session's assignment is the athlete `athlete-ari`'s own instead of group `g1`'s (E8.8).
   bool ownAthleteAssignment = false;
 
-  @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) async =>
       groups['$clubId/$groupId'] ?? const [];
 }

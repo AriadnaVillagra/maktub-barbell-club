@@ -10,15 +10,8 @@ abstract interface class AthleteLocationStore {
   /// The athlete of [clubId] linked to the user [userId], or null if the user is not an athlete there.
   Future<String?> athleteIdOfUser(String clubId, String userId);
 
-  /// The groups of [clubId] that [athleteId] is a member of.
-  Future<Set<String>> groupIdsOf(String clubId, String athleteId);
-
-  /// The active assignments of [clubId] of any of [groupIds] or of [athleteId] itself.
-  Future<List<Assignment>> activeAssignments(
-    String clubId, {
-    required Set<String> groupIds,
-    required String athleteId,
-  });
+  /// The active assignments of [clubId] that [athleteId] is or was in, on any date.
+  Future<List<Assignment>> activeAssignments(String clubId, String athleteId);
 
   /// The plans of [clubId] among [planIds] that have a published version.
   Future<Set<String>> publishedPlanIds(String clubId, Set<String> planIds);
@@ -47,30 +40,14 @@ class MongoAthleteLocationStore implements AthleteLocationStore {
   }
 
   @override
-  Future<Set<String>> groupIdsOf(String clubId, String athleteId) async => {
-    for (final d
-        in await _db.collection(Colecciones.grupos).find({
-          'clubId': clubId,
-          'miembros': athleteId,
-        }).toList())
-      '${d['_id']}',
-  };
-
-  @override
   Future<List<Assignment>> activeAssignments(
-    String clubId, {
-    required Set<String> groupIds,
-    required String athleteId,
-  }) async {
+    String clubId,
+    String athleteId,
+  ) async {
     final docs = await _db.collection(Colecciones.asignaciones).find({
       'clubId': clubId,
       'estado': AssignmentStatus.active.cable,
-      r'$or': [
-        {
-          'grupoId': {r'$in': groupIds.toList()},
-        },
-        {'atletaId': athleteId},
-      ],
+      'atletas.atletaId': athleteId,
     }).toList();
     return [for (final d in docs) Assignment.fromJson(desdeDocumento(d))];
   }
@@ -80,12 +57,11 @@ class MongoAthleteLocationStore implements AthleteLocationStore {
     String clubId,
     Set<String> planIds,
   ) async => {
-    for (final d
-        in await _db.collection(Colecciones.planes).find({
-          'clubId': clubId,
-          '_id': {r'$in': planIds.toList()},
-          'publicado': {r'$ne': null},
-        }).toList())
+    for (final d in await _db.collection(Colecciones.planes).find({
+      'clubId': clubId,
+      '_id': {r'$in': planIds.toList()},
+      'publicado': {r'$ne': null},
+    }).toList())
       '${d['_id']}',
   };
 }

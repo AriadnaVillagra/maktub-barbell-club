@@ -318,6 +318,9 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
     final plan = draft.base;
     final publishing = ref.watch(planPublishProvider(planId)).publishing;
     final publishable = ref.watch(planPublishableProvider(planId));
+    final block = ref.watch(planPublishBlockProvider(planId));
+    // Right after saving an unfinished plan, the save notice already lists what is missing.
+    final listedBySave = ref.watch(planSaveProvider(planId)).problems.isNotEmpty;
     final (label, detail) = switch (plan.published) {
       null => ('Borrador', 'Los atletas todavía no ven este plan.'),
       _ when plan.hasUnpublishedChanges => (
@@ -437,6 +440,30 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                   ),
                 ],
               ),
+              // Why Publicar is off, always in sight: what is missing (a long list folds), or what to do.
+              if (block != null &&
+                  !publishing &&
+                  !(listedBySave && block.problems.isNotEmpty)) ...[
+                const SizedBox(height: Espacio.m),
+                if (block.problems.isNotEmpty)
+                  ListaDeProblemas(
+                    key: const Key('plan-publish-blocked'),
+                    titulo: block.message,
+                    plegarDesde: 4,
+                    problemas: [
+                      for (final p in block.problems)
+                        ProblemaMaktub(p.message, ubicacion: p.location),
+                    ],
+                  )
+                else
+                  Text(
+                    block.message,
+                    key: const Key('plan-publish-hint'),
+                    style: context.textos.bodyMedium?.copyWith(
+                      color: context.esquema.onSurfaceVariant,
+                    ),
+                  ),
+              ],
               const Divider(height: Espacio.xl),
               Text(
                 '${planTypeLabel(plan.type)} · ciclo de $planCycleWeeks semanas',
@@ -582,24 +609,51 @@ class _ModelCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                IconButton(
-                  key: Key('model-rename-$id'),
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'Renombrar',
-                  onPressed: () async {
-                    final name = await askPlanName(
-                      context,
-                      title: 'Renombrar modelo',
-                      initial: model.name,
-                    );
-                    if (name != null) editor.renameModel(id, name);
+                // Rename, copy and remove in a menu, so the header fits on a phone.
+                PopupMenuButton<String>(
+                  key: Key('model-menu-$id'),
+                  tooltip: 'Opciones del modelo',
+                  onSelected: (action) async {
+                    switch (action) {
+                      case 'rename':
+                        final name = await askPlanName(
+                          context,
+                          title: 'Renombrar modelo',
+                          initial: model.name,
+                        );
+                        if (name != null) editor.renameModel(id, name);
+                      case 'copy':
+                        editor.copyModel(id);
+                      case 'remove':
+                        editor.removeModel(id);
+                    }
                   },
-                ),
-                IconButton(
-                  key: Key('model-remove-$id'),
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Quitar modelo',
-                  onPressed: () => editor.removeModel(id),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      key: Key('model-rename-$id'),
+                      value: 'rename',
+                      child: const ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Renombrar'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      key: Key('model-copy-$id'),
+                      value: 'copy',
+                      child: const ListTile(
+                        leading: Icon(Icons.copy_outlined),
+                        title: Text('Copiar modelo'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      key: Key('model-remove-$id'),
+                      value: 'remove',
+                      child: const ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Quitar modelo'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),

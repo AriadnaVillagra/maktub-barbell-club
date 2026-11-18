@@ -34,18 +34,29 @@ class HttpAssignmentRepository implements AssignmentRepository {
   Future<Assignment> assign(
     String clubId, {
     required String planId,
-    String? groupId,
-    String? athleteId,
+    required List<String> athleteIds,
     required DateTime startDate,
   }) async => Assignment.fromJson(
     await _client.post(
       '${_club(clubId)}/asignaciones',
       cuerpo: {
         'planId': planId,
-        'grupoId': ?groupId,
-        'atletaId': ?athleteId,
+        'atletas': athleteIds,
         'fechaInicio': aIsoFecha(startDate),
       },
+    ),
+  );
+
+  @override
+  Future<Assignment> setAthletes(
+    String clubId,
+    String assignmentId, {
+    required List<String> athleteIds,
+    required DateTime date,
+  }) async => Assignment.fromJson(
+    await _client.put(
+      '${_club(clubId)}/asignaciones/${Uri.encodeComponent(assignmentId)}/atletas',
+      {'atletas': athleteIds, 'fecha': aIsoFecha(date)},
     ),
   );
 

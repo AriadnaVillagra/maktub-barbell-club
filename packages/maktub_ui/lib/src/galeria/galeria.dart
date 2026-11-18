@@ -403,11 +403,25 @@ class _ListaDeProblemas extends StatelessWidget {
   const _ListaDeProblemas();
 
   @override
-  Widget build(BuildContext context) => const ListaDeProblemas(
-        titulo: 'El plan tiene 2 problemas; no se guardó.',
-        problemas: [
-          ProblemaMaktub('Falta el % de la serie.', ubicacion: 'Modelo A › Día 2 › Bloque 1 › Sentadilla › Serie 3'),
-          ProblemaMaktub('El plan no tiene nombre.'),
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const ListaDeProblemas(
+            titulo: 'El plan tiene 2 problemas; no se guardó.',
+            problemas: [
+              ProblemaMaktub('Falta el % de la serie.', ubicacion: 'Modelo A › Día 2 › Bloque 1 › Sentadilla › Serie 3'),
+              ProblemaMaktub('El plan no tiene nombre.'),
+            ],
+          ),
+          const SizedBox(height: Espacio.m),
+          ListaDeProblemas(
+            titulo: 'No se puede publicar: hay 6 cosas por completar.',
+            plegarDesde: 4,
+            problemas: [
+              for (var i = 1; i <= 6; i++)
+                ProblemaMaktub('Falta el % de la serie.', ubicacion: 'Modelo A › Día 1 › Bloque 1 › Arranque › Serie $i'),
+            ],
+          ),
         ],
       );
 }

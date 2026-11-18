@@ -13,6 +13,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import '../../support/club_isolation.dart';
+import '../../support/assignments.dart';
 
 class _Context extends Mock implements RequestContext {}
 
@@ -26,13 +27,18 @@ class _FakeStore implements OpenSessionStore {
 
   @override
   Future<Assignment?> assignment(String clubId, String assignmentId) async =>
+      withGroupMembers(
+        await _rawAssignment(clubId, assignmentId),
+        (g) => groupMemberIds(clubId, g),
+      );
+
+  Future<Assignment?> _rawAssignment(String clubId, String assignmentId) async =>
       assignments['$clubId/$assignmentId'];
 
   @override
   Future<PublishedPlan?> publishedPlan(String clubId, String planId) async =>
       plans['$clubId/$planId'];
 
-  @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) async =>
       groups['$clubId/$groupId'] ?? const [];
 
@@ -219,7 +225,7 @@ void main() {
         id: 'lev',
         clubId: 'club-a',
         planId: 'p1',
-        athleteId: 'ari',
+        members: [AssignmentMember(athleteId: 'ari', from: DateTime.utc(2026, 11, 16))],
         startDate: DateTime.utc(2026, 11, 16),
         auditoria: Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 8)),
       );

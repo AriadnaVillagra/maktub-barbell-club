@@ -7,6 +7,8 @@ import 'package:maktub_backend/features/asignaciones/crear/crear.dart';
 import 'package:maktub_backend/features/asignaciones/crear/crear_store.dart';
 import 'package:maktub_backend/features/asignaciones/listar/listar.dart';
 import 'package:maktub_backend/features/asignaciones/listar/listar_store.dart';
+import 'package:maktub_backend/features/asignaciones/set_athletes/set_athletes.dart';
+import 'package:maktub_backend/features/asignaciones/set_athletes/set_athletes_store.dart';
 import 'package:maktub_backend/features/asignaciones/terminar/terminar.dart';
 import 'package:maktub_backend/features/asignaciones/terminar/terminar_store.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
@@ -19,44 +21,59 @@ import '../../support/club_isolation.dart';
 class _Context extends Mock implements RequestContext {}
 
 /// One in-memory collection seen through each slice's own interface. Like Mongo, it only answers for the club
-/// it is asked about, and, like the unique partial index, it refuses a second active assignment per group.
+/// it is asked about.
 class _FakeStore
-    implements CreateAssignmentStore, EndAssignmentStore, ListAssignmentsStore {
+    implements
+        CreateAssignmentStore,
+        EndAssignmentStore,
+        ListAssignmentsStore,
+        SetAssignmentAthletesStore {
   final all = <Assignment>[];
 
   /// `clubId/planId` → published?
   final plans = <String, bool>{};
 
-  /// `clubId/groupId`
-  final groups = <String>{};
+  /// `clubId/groupId` → members
+  final groups = <String, List<String>>{};
 
   /// `clubId/athleteId`
   final athletes = <String>{};
-
-  @override
-  Future<bool> athleteExists(String clubId, String athleteId) async =>
-      athletes.contains('$clubId/$athleteId');
 
   @override
   Future<bool?> planIsPublished(String clubId, String planId) async =>
       plans['$clubId/$planId'];
 
   @override
-  Future<bool> groupExists(String clubId, String groupId) async =>
-      groups.contains('$clubId/$groupId');
+  Future<List<String>?> groupMemberIds(String clubId, String groupId) async =>
+      groups['$clubId/$groupId'];
 
   @override
-  Future<bool> insert(Assignment assignment) async {
-    final taken = all.any(
+  Future<bool> athletesExist(String clubId, Set<String> athleteIds) async =>
+      athleteIds.every((id) => athletes.contains('$clubId/$id'));
+
+  @override
+  Future<void> insert(Assignment assignment) async => all.add(assignment);
+
+  @override
+  Future<bool> replaceMembers(
+    Assignment current,
+    List<AssignmentMember> members, {
+    required String userId,
+    required DateTime at,
+  }) async {
+    final i = all.indexWhere(
       (a) =>
-          a.clubId == assignment.clubId &&
-          a.groupId == assignment.groupId &&
-          a.athleteId == assignment.athleteId &&
-          a.status == AssignmentStatus.active &&
-          assignment.status == AssignmentStatus.active,
+          a.clubId == current.clubId &&
+          a.id == current.id &&
+          a.status != AssignmentStatus.ended &&
+          jsonEncode(a.members.map((m) => m.toJson()).toList()) ==
+              jsonEncode(current.members.map((m) => m.toJson()).toList()),
     );
-    if (taken) return false;
-    all.add(assignment);
+    if (i < 0) return false;
+    all[i] = all[i].copyWith(
+      members: members,
+      auditoria: all[i].auditoria.modificada(userId, ahora: at),
+    );
     return true;
   }
 
@@ -84,13 +101,7 @@ class _FakeStore
     );
     if (i < 0) return false;
     final a = all[i];
-    all[i] = Assignment(
-      id: a.id,
-      clubId: a.clubId,
-      planId: a.planId,
-      groupId: a.groupId,
-      athleteId: a.athleteId,
-      startDate: a.startDate,
+    all[i] = a.copyWith(
       status: AssignmentStatus.ended,
       endDate: endDate,
       auditoria: a.auditoria.modificada(userId, ahora: at),
@@ -107,7 +118,7 @@ class _FakeStore
     for (final a in all)
       if (a.clubId == clubId &&
           (groupId == null || a.groupId == groupId) &&
-          (athleteId == null || a.athleteId == athleteId))
+          (athleteId == null || a.athleteIds.contains(athleteId)))
         a,
   ];
 }
@@ -117,8 +128,8 @@ final _t0 = DateTime.utc(2026, 11, 8, 10);
 Assignment _assignment(
   String id,
   String clubId, {
-  String? groupId = 'g1',
-  String? athleteId,
+  String? groupId,
+  List<String> athleteIds = const ['ari', 'andi'],
   String planId = 'p1',
   DateTime? start,
   AssignmentStatus status = AssignmentStatus.active,
@@ -127,8 +138,11 @@ Assignment _assignment(
   id: id,
   clubId: clubId,
   planId: planId,
-  groupId: athleteId == null ? groupId : null,
-  athleteId: athleteId,
+  members: [
+    for (final a in athleteIds)
+      AssignmentMember(athleteId: a, from: start ?? DateTime.utc(2026, 11, 9)),
+  ],
+  groupId: groupId,
   startDate: start ?? DateTime.utc(2026, 11, 9),
   status: status,
   endDate: end,
@@ -169,7 +183,11 @@ void main() {
     ..plans['club-a/p1'] = true
     ..plans['club-a/draft'] = false
     ..plans['club-b/p-b'] = true
-    ..groups.addAll(['club-a/g1', 'club-a/g2', 'club-b/g-b'])
+    ..groups.addAll({
+      'club-a/g1': ['ari', 'andi'],
+      'club-a/g2': ['andi'],
+      'club-b/g-b': ['x'],
+    })
     ..athletes.addAll(['club-a/ari', 'club-a/andi', 'club-b/x']);
 
   group('create', () {
@@ -193,9 +211,9 @@ void main() {
 
     Map<String, Object?> body({
       String planId = 'p1',
-      String groupId = 'g1',
+      Object? athletes = const ['ari', 'andi'],
       Object? start = '2026-11-09',
-    }) => {'planId': planId, 'grupoId': groupId, 'fechaInicio': start};
+    }) => {'planId': planId, 'atletas': athletes, 'fechaInicio': start};
 
     test('creates an active assignment: 201, UTC start date, audit', () async {
       final s = store();
@@ -208,13 +226,24 @@ void main() {
       expect(json.containsKey('fechaFin'), isFalse);
       expect(json['clubId'], 'club-a');
       expect(json['planId'], 'p1');
-      expect(json['grupoId'], 'g1');
+      expect(json['atletas'], [
+        {'atletaId': 'ari', 'desde': '2026-11-09'},
+        {'atletaId': 'andi', 'desde': '2026-11-09'},
+      ]);
+      expect(json.containsKey('grupoId'), isFalse);
       final stored = s.all.single;
       expect(stored.startDate, DateTime.utc(2026, 11, 9));
       expect(stored.startDate.isUtc, isTrue);
       expect(stored.status, AssignmentStatus.active);
       expect(stored.auditoria.creadoPor, 'coach-1');
       expect(stored.auditoria.creadoEn, _t0);
+    });
+
+    test('a repeated athlete is listed once', () async {
+      final s = store();
+      await create(_coachA, s, body(athletes: ['ari', 'ari']));
+
+      expect(s.all.single.athleteIds, ['ari']);
     });
 
     test('a clubId, estado or id sent by the client is ignored', () async {
@@ -253,36 +282,36 @@ void main() {
       expect(s.all, isEmpty);
     });
 
-    test('a plan or a group of another club, or unknown, is 404', () async {
+    test('a plan, a group or an athlete of another club, or unknown, is 404', () async {
       final s = store();
       for (final b in [
         body(planId: 'p-b'),
         body(planId: 'zz'),
-        body(groupId: 'g-b'),
-        body(groupId: 'zz'),
+        body(athletes: ['ari', 'x']),
+        body(athletes: ['nobody']),
+        {'planId': 'p1', 'grupoId': 'g-b', 'fechaInicio': '2026-11-09'},
+        {'planId': 'p1', 'grupoId': 'zz', 'fechaInicio': '2026-11-09'},
       ]) {
         final r = await create(_coachA, s, b);
-        expect(r.statusCode, HttpStatus.notFound);
+        expect(r.statusCode, HttpStatus.notFound, reason: '$b');
         expect((await _json(r))['error'], isA<String>());
       }
       expect(s.all, isEmpty);
     });
 
-    test(
-      'a second active assignment for the same group is 409 and writes nothing',
-      () async {
-        final s = store();
-        await create(_coachA, s, body());
-        final r = await create(_coachA, s, body(start: '2026-12-01'));
+    test('an athlete can be in several active assignments at once (no D14)', () async {
+      final s = store();
+      await create(_coachA, s, body());
+      final r = await create(_coachA, s, body(start: '2026-12-01'));
+      final alone = await create(_coachA, s, body(athletes: ['ari']));
 
-        expect(r.statusCode, HttpStatus.conflict);
-        expect((await _json(r))['error'], contains('activa'));
-        expect(s.all, hasLength(1));
-        expect(s.all.single.startDate, DateTime.utc(2026, 11, 9));
-      },
-    );
+      expect(r.statusCode, HttpStatus.created);
+      expect(alone.statusCode, HttpStatus.created);
+      expect(s.all.map((a) => a.status).toSet(), {AssignmentStatus.active});
+      expect(s.all, hasLength(3));
+    });
 
-    test('history: created already ended, next to the active one', () async {
+    test('history: created already ended', () async {
       final s = store();
       await create(_coachA, s, body());
       final club = ClubContext(
@@ -318,48 +347,7 @@ void main() {
       expect(s.all.single.endDate, isNull);
     });
 
-    test('another group can have its own active assignment', () async {
-      final s = store();
-      await create(_coachA, s, body());
-      final r = await create(_coachA, s, body(groupId: 'g2'));
-
-      expect(r.statusCode, HttpStatus.created);
-      expect(s.all, hasLength(2));
-    });
-
-    test('after ending the active one a new one can be created', () async {
-      final s = store();
-      await create(_coachA, s, body());
-      await _call(
-        _coachA,
-        (c) =>
-            endAssignmentEndpoint(c, s.all.single.id, store: s, now: () => _t0),
-        method: 'POST',
-      );
-      final r = await create(_coachA, s, body(start: '2026-12-01'));
-
-      expect(r.statusCode, HttpStatus.created);
-      expect(s.all.map((a) => a.status), [
-        AssignmentStatus.ended,
-        AssignmentStatus.active,
-      ]);
-    });
-
-    test('two requests at once for one group: exactly one wins', () async {
-      final s = store();
-      final results = await Future.wait([
-        create(_coachA, s, body()),
-        create(_coachA, s, body(start: '2026-12-01')),
-      ]);
-
-      expect(results.map((r) => r.statusCode).toList()..sort(), [
-        HttpStatus.created,
-        HttpStatus.conflict,
-      ]);
-      expect(s.all, hasLength(1));
-    });
-
-    test('bad input is 400: dates, missing ids, non-object body', () async {
+    test('bad input is 400: dates, missing or empty athletes, non-object body', () async {
       final s = store();
       for (final b in [
         body(start: null),
@@ -368,9 +356,13 @@ void main() {
         body(start: '2026-11-9'),
         body(start: 20261109),
         body(planId: ''),
-        body(groupId: '  '),
+        body(athletes: ['  ']),
+        body(athletes: <String>[]),
+        body(athletes: 'ari'),
         {'planId': 'p1', 'fechaInicio': '2026-11-09'},
-        {'grupoId': 'g1', 'fechaInicio': '2026-11-09'},
+        {'atletas': ['ari'], 'fechaInicio': '2026-11-09'},
+        {...body(), 'atletaId': 'ari'},
+        {...body(), 'grupoId': 'g1'},
       ]) {
         final r = await create(_coachA, s, b);
         expect(r.statusCode, HttpStatus.badRequest, reason: '$b');
@@ -380,68 +372,31 @@ void main() {
       expect(s.all, isEmpty);
     });
 
-    group("an athlete's own plan (E8.8)", () {
-      Map<String, Object?> forAthlete(String athleteId, {String? start}) => {
-        'planId': 'p1',
-        'atletaId': athleteId,
-        'fechaInicio': start ?? '2026-11-09',
-      };
-
-      test('is created with atletaId and no grupoId', () async {
+    group('the forms the importer sends', () {
+      test("grupoId copies the group's members and keeps the group", () async {
         final s = store();
-        final r = await create(_coachA, s, forAthlete('ari'));
+        final r = await create(_coachA, s, {
+          'planId': 'p1',
+          'grupoId': 'g1',
+          'fechaInicio': '2026-11-09',
+        });
 
         expect(r.statusCode, HttpStatus.created);
-        final json = await _json(r) as Map<String, dynamic>;
-        expect(json['atletaId'], 'ari');
-        expect(json.containsKey('grupoId'), isFalse);
-        expect(s.all.single.athleteId, 'ari');
+        expect((await _json(r))['grupoId'], 'g1');
+        expect(s.all.single.athleteIds, ['ari', 'andi']);
+      });
+
+      test('atletaId is that athlete alone', () async {
+        final s = store();
+        final r = await create(_coachA, s, {
+          'planId': 'p1',
+          'atletaId': 'ari',
+          'fechaInicio': '2026-11-09',
+        });
+
+        expect(r.statusCode, HttpStatus.created);
+        expect(s.all.single.athleteIds, ['ari']);
         expect(s.all.single.groupId, isNull);
-      });
-
-      test("lives alongside the group's active one; one active per athlete", () async {
-        final s = store();
-        expect((await create(_coachA, s, body())).statusCode, HttpStatus.created);
-        expect((await create(_coachA, s, forAthlete('ari'))).statusCode, HttpStatus.created);
-        expect((await create(_coachA, s, forAthlete('andi'))).statusCode, HttpStatus.created);
-
-        final again = await create(_coachA, s, forAthlete('ari', start: '2026-12-01'));
-        expect(again.statusCode, HttpStatus.conflict);
-        expect((await _json(again))['error'], contains('El atleta'));
-        expect(s.all, hasLength(3));
-      });
-
-      test('an athlete of another club, or unknown, is 404', () async {
-        final s = store();
-        for (final id in ['x', 'nobody']) {
-          final r = await create(_coachA, s, forAthlete(id));
-          expect(r.statusCode, HttpStatus.notFound, reason: id);
-          expect((await _json(r))['error'], 'Atleta no encontrado.');
-        }
-        expect(s.all, isEmpty);
-      });
-
-      test('a group and an athlete at once is 400', () async {
-        final s = store();
-        final r = await create(_coachA, s, {...body(), 'atletaId': 'ari'});
-
-        expect(r.statusCode, HttpStatus.badRequest);
-        expect(s.all, isEmpty);
-      });
-
-      test('ending it keeps its athlete', () async {
-        final s = store();
-        await create(_coachA, s, forAthlete('ari'));
-        final r = await _call(
-          _coachA,
-          (c) => endAssignmentEndpoint(c, s.all.single.id, store: s, now: () => _t0),
-          method: 'POST',
-        );
-
-        expect(r.statusCode, HttpStatus.ok);
-        expect((await _json(r))['atletaId'], 'ari');
-        expect(s.all.single.athleteId, 'ari');
-        expect(s.all.single.status, AssignmentStatus.ended);
       });
     });
 
@@ -452,6 +407,117 @@ void main() {
         expect(r.statusCode, HttpStatus.forbidden);
       }
       expect(s.all, isEmpty);
+    });
+  });
+
+  group('set athletes (E6.7)', () {
+    Future<Response> setAthletes(
+      ClubContext ctx,
+      _FakeStore s,
+      String id,
+      Object? body, {
+      DateTime? now,
+    }) => _call(
+      ctx,
+      (c) => setAssignmentAthletesEndpoint(
+        c,
+        id,
+        store: s,
+        now: () => now ?? DateTime.utc(2026, 11, 18, 22),
+      ),
+      body: jsonEncode(body),
+      method: 'PUT',
+    );
+
+    _FakeStore running() => store()
+      ..all.add(_assignment('a1', 'club-a', start: DateTime.utc(2026, 11, 2)));
+
+    test('removing someone keeps their days until yesterday', () async {
+      final s = running();
+      final r = await setAthletes(_coachA, s, 'a1', {
+        'atletas': ['ari'],
+      });
+
+      expect(r.statusCode, HttpStatus.ok);
+      final json = await _json(r) as Map<String, dynamic>;
+      expect(json['atletas'], [
+        {'atletaId': 'ari', 'desde': '2026-11-02'},
+        {'atletaId': 'andi', 'desde': '2026-11-02', 'hasta': '2026-11-17'},
+      ]);
+      expect(json['auditoria']['modificadoPor'], 'coach-1');
+      final stored = s.all.single;
+      expect(stored.status, AssignmentStatus.active);
+      expect(stored.currentAthleteIds, ['ari']);
+      expect(stored.athleteIdsOn(DateTime.utc(2026, 11, 17)), ['ari', 'andi']);
+    });
+
+    test('adding someone is from the given date, and the plan goes on', () async {
+      final s = store()
+        ..athletes.add('club-a/luz')
+        ..all.add(_assignment('a1', 'club-a', start: DateTime.utc(2026, 11, 2)));
+      final r = await setAthletes(_coachA, s, 'a1', {
+        'atletas': ['ari', 'andi', 'luz'],
+        'fecha': '2026-11-20',
+      });
+
+      expect(r.statusCode, HttpStatus.ok);
+      final stored = s.all.single;
+      expect(stored.currentAthleteIds, ['ari', 'andi', 'luz']);
+      expect(stored.hasAthleteOn('luz', DateTime.utc(2026, 11, 19)), isFalse);
+      expect(stored.hasAthleteOn('luz', DateTime.utc(2026, 11, 20)), isTrue);
+      expect(stored.startDate, DateTime.utc(2026, 11, 2));
+    });
+
+    test('an ended assignment is 409; an unknown one or athlete is 404', () async {
+      final s = store()
+        ..all.addAll([
+          _assignment(
+            'old',
+            'club-a',
+            status: AssignmentStatus.ended,
+            end: DateTime.utc(2026, 11, 1),
+          ),
+          _assignment('a1', 'club-a'),
+        ]);
+      final ended = await setAthletes(_coachA, s, 'old', {
+        'atletas': ['ari'],
+      });
+      final missing = await setAthletes(_coachA, s, 'zz', {
+        'atletas': ['ari'],
+      });
+      final stranger = await setAthletes(_coachA, s, 'a1', {
+        'atletas': ['ari', 'x'],
+      });
+
+      expect(ended.statusCode, HttpStatus.conflict);
+      expect(missing.statusCode, HttpStatus.notFound);
+      expect(stranger.statusCode, HttpStatus.notFound);
+      expect(s.all.last.currentAthleteIds, ['ari', 'andi']);
+    });
+
+    test('nobody, or not a list, is 400', () async {
+      final s = running();
+      for (final b in [
+        {'atletas': <String>[]},
+        {'atletas': 'ari'},
+        {'atletas': [' ']},
+        {'atletas': ['ari'], 'fecha': '18/11/2026'},
+        <String, Object?>{},
+      ]) {
+        final r = await setAthletes(_coachA, s, 'a1', b);
+        expect(r.statusCode, HttpStatus.badRequest, reason: '$b');
+      }
+      expect(s.all.single.currentAthleteIds, ['ari', 'andi']);
+    });
+
+    test('an athlete and an admin without coach role get 403', () async {
+      final s = running();
+      for (final ctx in [_athleteA, _adminOnlyA]) {
+        final r = await setAthletes(ctx, s, 'a1', {
+          'atletas': ['ari'],
+        });
+        expect(r.statusCode, HttpStatus.forbidden);
+      }
     });
   });
 
@@ -614,18 +680,17 @@ void main() {
       expect([for (final a in body) (a as Map)['id']], ['a2']);
     });
 
-    test("filters by athlete: only the athlete's own", () async {
+    test('filters by athlete: every assignment they are or were in', () async {
       final s = store()
         ..all.addAll([
-          _assignment('a1', 'club-a', groupId: 'g1'),
-          _assignment('a2', 'club-a', athleteId: 'ari'),
-          _assignment('a3', 'club-a', athleteId: 'andi'),
+          _assignment('a1', 'club-a', athleteIds: ['ari', 'andi']),
+          _assignment('a2', 'club-a', athleteIds: ['ari']),
+          _assignment('a3', 'club-a', athleteIds: ['andi']),
         ]);
       final body =
           await _json(await list(_coachA, s, query: '?atletaId=ari')) as List;
 
-      expect([for (final a in body) (a as Map)['id']], ['a2']);
-      expect((body.single as Map).containsKey('grupoId'), isFalse);
+      expect([for (final a in body) (a as Map)['id']], ['a1', 'a2']);
     });
 
     test(
@@ -660,7 +725,7 @@ void main() {
           c,
           store: store()
             ..plans['${c.read<ClubContext>().clubId}/p1'] = true
-            ..groups.add('${c.read<ClubContext>().clubId}/g1'),
+            ..athletes.add('${c.read<ClubContext>().clubId}/ari'),
           newId: () => pending[c.read<ClubContext>().clubId]!,
         );
         return r.statusCode == HttpStatus.created
@@ -670,8 +735,24 @@ void main() {
       path: '/clubes/{clubId}/asignaciones',
       action: Accion.planificar,
       method: 'POST',
-      body: '{"planId": "p1", "grupoId": "g1", "fechaInicio": "2026-11-09"}',
+      body: '{"planId": "p1", "atletas": ["ari"], "fechaInicio": "2026-11-09"}',
       seed: (clubId, marker) => pending[clubId] = marker,
+    );
+
+    // Both clubs hold an assignment with the same id: each club's route changes its own.
+    testClubIsolation(
+      'PUT /clubes/{clubId}/asignaciones/{asignacionId}/atletas',
+      endpoint: (c) =>
+          setAssignmentAthletesEndpoint(c, 'shared-set', store: s),
+      path: '/clubes/{clubId}/asignaciones/shared-set/atletas',
+      action: Accion.planificar,
+      method: 'PUT',
+      body: '{"atletas": ["ari"]}',
+      seed: (clubId, marker) {
+        s.athletes.add('$clubId/ari');
+        s.all.removeWhere((a) => a.id == 'shared-set' && a.clubId == clubId);
+        s.all.add(_assignment('shared-set', clubId, planId: marker));
+      },
     );
 
     // Both clubs hold an assignment with the same id: each club's route ends its own.

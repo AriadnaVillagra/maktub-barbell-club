@@ -19,14 +19,13 @@ class PlanAthletes {
   final bool assigned;
 }
 
-/// The athletes plan [planId] is for: the members of the group of its active assignments, or the athlete of an own one
-/// (E8.8), in that order and once each; without an active assignment, those of its latest one. A plan never assigned
+/// The athletes plan [planId] is for: those in its active assignments now (E6.7), once each; without an active
+/// assignment, everyone who was in its latest one. A plan never assigned
 /// gets every athlete of the club to choose from. Empty when they cannot be read (who cannot plan does not get here).
 final planAthletesProvider = FutureProvider.autoDispose.family<PlanAthletes, String>((ref, planId) async {
   final clubId = (await ref.watch(meProvider.future))?.activeClub?.club.id;
   if (clubId == null) return PlanAthletes.none;
   try {
-    final repo = ref.watch(assignmentRepositoryProvider);
     // Through the screen's provider, so assigning the plan from the editor refreshes this.
     final all = [
       for (final a in (await ref.watch(clubAssignmentsProvider.future)).assignments)
@@ -44,10 +43,9 @@ final planAthletesProvider = FutureProvider.autoDispose.family<PlanAthletes, Str
     if (chosen.isEmpty) {
       ids = [for (final a in people) a.id];
     } else {
-      final groups = {for (final g in await repo.groups(clubId)) g.id: g};
       ids = <String>{
-        for (final a in chosen) ...?(a.groupId == null ? null : groups[a.groupId]?.memberIds),
-        for (final a in chosen) ?a.athleteId,
+        for (final a in chosen)
+          ...(a.status == AssignmentStatus.ended ? a.athleteIds : a.currentAthleteIds),
       };
     }
     final athletes = await [

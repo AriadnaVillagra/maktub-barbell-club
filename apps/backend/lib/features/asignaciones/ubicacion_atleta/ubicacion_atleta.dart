@@ -10,13 +10,12 @@ import 'package:mongo_dart/mongo_dart.dart';
 import 'ubicacion_atleta_store.dart';
 
 /// `GET /clubes/{clubId}/atletas/{athleteId}/ubicacion?fecha=yyyy-MM-dd` → where [fecha] falls in **every** active
-/// assignment the athlete trains: those of their groups and their own (E8.8: an athlete's own plan lives alongside
-/// their group's, so a date can fall in two plans). Needs [Accion.verCatalogoYPlanes]; an athlete may only ask
+/// assignment the athlete is in on that date (E6.7: an athlete can be in any number of plans at once, and is in
+/// one only between the dates they were added and removed). Needs [Accion.verCatalogoYPlanes]; an athlete may only ask
 /// about themselves (404 for anyone else), a coach about any athlete of the club. Response (200):
 ///
-/// `{"fecha": "yyyy-MM-dd", "ubicaciones": [{"asignacion": {"id", "planId", "fechaInicio", "grupoId" | "atletaId"},
-/// "ciclo": 1.., "semana": 1..4}]}`, the groups' assignments first and then the athlete's own, each group by
-/// `fechaInicio`. Empty `ubicaciones` when there is none. A date before `fechaInicio` is cycle 1, week 1, as in the
+/// `{"fecha": "yyyy-MM-dd", "ubicaciones": [{"asignacion": {"id", "planId", "fechaInicio", "grupoId"?, "atletas"},
+/// "ciclo": 1.., "semana": 1..4}]}`, by `fechaInicio` (ties by id). `atletas` are the athletes in it on [fecha]. Empty `ubicaciones` when there is none. A date before `fechaInicio` is cycle 1, week 1, as in the
 /// group's location (E6.4); the day is not decided here (D13).
 ///
 /// 400 if `fecha` is missing or malformed, 404 if the athlete is not in the club, 422 if an active assignment's plan
@@ -50,14 +49,10 @@ class AthleteLocation {
       throw notFound;
     }
 
-    final groupIds = await _store.groupIdsOf(club.clubId, athleteId);
     final active = [
-      ...await _store.activeAssignments(
-        club.clubId,
-        groupIds: groupIds,
-        athleteId: athleteId,
-      ),
-    ]..sort(_groupsFirstThenByStart);
+      for (final a in await _store.activeAssignments(club.clubId, athleteId))
+        if (a.hasAthleteOn(athleteId, date)) a,
+    ]..sort(_byStart);
     final published = await _store.publishedPlanIds(club.clubId, {
       for (final a in active) a.planId,
     });
@@ -81,7 +76,7 @@ class AthleteLocation {
                 'planId': a.planId,
                 'fechaInicio': aIsoFecha(a.startDate),
                 'grupoId': ?a.groupId,
-                'atletaId': ?a.athleteId,
+                'atletas': a.athleteIdsOn(date),
               },
               'ciclo': l.ciclo,
               'semana': l.semana,
@@ -91,8 +86,7 @@ class AthleteLocation {
   }
 }
 
-int _groupsFirstThenByStart(Assignment a, Assignment b) {
-  if (a.isForAthlete != b.isForAthlete) return a.isForAthlete ? 1 : -1;
+int _byStart(Assignment a, Assignment b) {
   final byStart = a.startDate.compareTo(b.startDate);
   return byStart != 0 ? byStart : a.id.compareTo(b.id);
 }

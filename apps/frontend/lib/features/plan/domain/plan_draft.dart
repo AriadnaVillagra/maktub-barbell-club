@@ -100,18 +100,37 @@ class PlanDraft {
   }
 
   /// Adds a week model with one empty day (the minimum a model needs).
-  PlanDraft addModel(String name) {
+  PlanDraft addModel(String name) => _copy(
+    models: [
+      ...weekModels,
+      WeekModel(id: _freeModelId(), name: name.trim(), days: const [PlanDay()]),
+    ],
+  );
+
+  /// Appends a copy of model [id], with all its days, blocks, prescriptions and sets, named "Nombre (copia)".
+  /// No week is assigned to the copy. Plan values are immutable, so sharing the days is safe.
+  PlanDraft copyModel(String id) {
+    final source = modelById(id);
+    if (source == null) return this;
+    return _copy(
+      models: [
+        ...weekModels,
+        WeekModel(
+          id: _freeModelId(),
+          name: '${source.name} (copia)'.trim(),
+          days: source.days,
+        ),
+      ],
+    );
+  }
+
+  String _freeModelId() {
     final taken = {for (final m in weekModels) m.id};
     var n = weekModels.length + 1;
     while (taken.contains('m$n')) {
       n++;
     }
-    return _copy(
-      models: [
-        ...weekModels,
-        WeekModel(id: 'm$n', name: name.trim(), days: const [PlanDay()]),
-      ],
-    );
+    return 'm$n';
   }
 
   PlanDraft renameModel(String id, String name) => _mapModel(

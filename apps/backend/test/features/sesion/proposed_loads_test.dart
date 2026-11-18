@@ -14,6 +14,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import '../../support/club_isolation.dart';
+import '../../support/assignments.dart';
 
 class _Context extends Mock implements RequestContext {}
 
@@ -44,9 +45,14 @@ class _Store implements ProposedLoadsStore {
 
   @override
   Future<Assignment?> assignment(String clubId, String assignmentId) async =>
+      withGroupMembers(
+        await _rawAssignment(clubId, assignmentId),
+        (g) => groupMemberIds(clubId, g),
+      );
+
+  Future<Assignment?> _rawAssignment(String clubId, String assignmentId) async =>
       data.assignments['$clubId/$assignmentId'];
 
-  @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) async =>
       data.groups['$clubId/$groupId'] ?? const [];
 

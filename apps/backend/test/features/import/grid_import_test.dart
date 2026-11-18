@@ -240,16 +240,17 @@ class _Assignments implements CreateAssignmentStore {
       db.plans[planId] == null ? null : db.plans[planId]!.published != null;
 
   @override
-  Future<bool> groupExists(String clubId, String groupId) async => db.groups.any((g) => g.id == groupId);
+  Future<List<String>?> groupMemberIds(String clubId, String groupId) async =>
+      db.groups.where((g) => g.id == groupId).firstOrNull?.memberIds;
 
   @override
-  Future<bool> athleteExists(String clubId, String athleteId) async => db.athletes.containsKey(athleteId);
+  Future<bool> athletesExist(String clubId, Set<String> athleteIds) async =>
+      athleteIds.every(db.athletes.containsKey);
 
   @override
-  Future<bool> insert(Assignment assignment) async {
+  Future<void> insert(Assignment assignment) async {
     if (db.assignments.any((a) => a.id == assignment.id)) throw StateError('duplicate _id');
     db.assignments.add(assignment);
-    return true;
   }
 }
 
@@ -265,7 +266,6 @@ class _Sessions implements OpenSessionStore {
   @override
   Future<PublishedPlan?> publishedPlan(String clubId, String planId) async => db.plans[planId]?.published;
 
-  @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) async =>
       db.groups.firstWhere((g) => g.id == groupId).memberIds;
 

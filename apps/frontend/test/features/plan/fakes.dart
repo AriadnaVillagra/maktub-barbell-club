@@ -279,9 +279,16 @@ class FakeGroupAssignments implements AssignmentRepository {
   Future<Assignment> assign(
     String clubId, {
     required String planId,
-    String? groupId,
-    String? athleteId,
+    required List<String> athleteIds,
     required DateTime startDate,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<Assignment> setAthletes(
+    String clubId,
+    String assignmentId, {
+    required List<String> athleteIds,
+    required DateTime date,
   }) => throw UnimplementedError();
 
   @override

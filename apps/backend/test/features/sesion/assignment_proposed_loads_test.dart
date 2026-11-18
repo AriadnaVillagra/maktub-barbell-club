@@ -13,6 +13,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:test/test.dart';
 
 import '../../support/club_isolation.dart';
+import '../../support/assignments.dart';
 
 class _Context extends Mock implements RequestContext {}
 
@@ -40,9 +41,14 @@ class _Store implements AssignmentProposedLoadsStore {
 
   @override
   Future<Assignment?> assignment(String clubId, String assignmentId) async =>
+      withGroupMembers(
+        await _rawAssignment(clubId, assignmentId),
+        (g) => groupMemberIds(clubId, g),
+      );
+
+  Future<Assignment?> _rawAssignment(String clubId, String assignmentId) async =>
       data.assignments['$clubId/$assignmentId'];
 
-  @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) async =>
       data.groups['$clubId/$groupId'] ?? const [];
 
@@ -135,7 +141,6 @@ class _SessionStore implements ProposedLoadsStore {
   Future<Assignment?> assignment(String clubId, String assignmentId) =>
       _byDate.assignment(clubId, assignmentId);
 
-  @override
   Future<List<String>> groupMemberIds(String clubId, String groupId) =>
       _byDate.groupMemberIds(clubId, groupId);
 
@@ -578,7 +583,7 @@ void main() {
         id: 'a1',
         clubId: 'club-a',
         planId: 'p1',
-        athleteId: athleteId,
+        members: [if (athleteId case final String id) AssignmentMember(athleteId: id, from: DateTime.utc(2026, 11, 16))],
         startDate: DateTime.utc(2026, 11, 16),
         auditoria: _audit,
       );

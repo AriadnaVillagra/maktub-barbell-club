@@ -393,6 +393,8 @@ void main() {
         await open(tester);
         await tester.tap(find.text('Detalles'));
         await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('model-menu-a')));
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('model-rename-a')));
         await tester.pumpAndSettle();
         await tester.enterText(
@@ -403,6 +405,8 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('Fuerza'), findsWidgets);
 
+        await tester.tap(find.byKey(const Key('model-menu-a')));
+        await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('model-remove-a')));
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('model-a')), findsNothing);
@@ -645,6 +649,22 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('block-b-1-0')), findsOneWidget);
       expect(find.byKey(const Key('block-a-1-0')), findsNothing);
+    });
+
+    testWidgets('a whole model is copied with its days and blocks', (tester) async {
+      await open(
+        tester,
+        samplePlan(models: [model('a', 'A', 1)], assignment: ['a', 'a', 'a', 'a']),
+      );
+      await addBlock(tester, 'Uno', 'Calentamiento');
+      await tester.tap(find.byKey(const Key('model-menu-a')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('model-copy-a')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('A (copia)'), findsWidgets);
+      expect(find.byKey(const Key('block-m2-0-0')), findsOneWidget);
+      expect(find.byKey(const Key('block-a-0-0')), findsOneWidget);
     });
 
     testWidgets('with a single model there is nowhere to duplicate a day', (

@@ -10,9 +10,6 @@ abstract interface class ProposedLoadsStore {
   /// The assignment [assignmentId] of [clubId], or null.
   Future<Assignment?> assignment(String clubId, String assignmentId);
 
-  /// The athlete ids of the group [groupId] of [clubId]; empty if the group is not in the club.
-  Future<List<String>> groupMemberIds(String clubId, String groupId);
-
   /// The athlete of [clubId] linked to the user [userId], or null if the user is not an athlete there.
   Future<String?> athleteIdOfUser(String clubId, String userId);
 
@@ -71,17 +68,6 @@ class MongoProposedLoadsStore implements ProposedLoadsStore {
   }
 
   @override
-  Future<List<String>> groupMemberIds(String clubId, String groupId) async {
-    final doc = await _db.collection(Colecciones.grupos).findOne({
-      '_id': groupId,
-      'clubId': clubId,
-    });
-    return doc == null
-        ? const []
-        : AthleteGroup.fromJson(desdeDocumento(doc)).memberIds;
-  }
-
-  @override
   Future<String?> athleteIdOfUser(String clubId, String userId) async {
     final doc = await _db.collection(Colecciones.atletas).findOne({
       'clubId': clubId,
@@ -107,8 +93,7 @@ class MongoProposedLoadsStore implements ProposedLoadsStore {
       },
     }).toList();
     return {
-      for (final d in docs)
-        '${d['_id']}': Exercise.fromJson(desdeDocumento(d)),
+      for (final d in docs) '${d['_id']}': Exercise.fromJson(desdeDocumento(d)),
     };
   }
 
