@@ -50,7 +50,11 @@ void main() {
   });
 
   group('the prescription dialog (E5.16)', () {
-    Future<Future<Prescription?>> open(WidgetTester tester, {Prescription? initial}) async {
+    Future<Future<Prescription?>> open(
+      WidgetTester tester, {
+      Prescription? initial,
+      PrescriptionAthletes? athletes,
+    }) async {
       late Future<Prescription?> result;
       await tester.pumpWidget(
         ProviderScope(
@@ -63,8 +67,7 @@ void main() {
                   context,
                   initial: initial ?? const Prescription(exerciseId: 'sq', sets: [PlanSet(reps: 5)]),
                   exercise: ex('sq', 'Sentadilla'),
-                  athletes: const [_andi, _ari],
-                  equipo: _equipo,
+                  athletes: athletes ?? PrescriptionAthletes(athletes: const [_andi, _ari], equipo: _equipo),
                 ),
                 child: const Text('abrir'),
               ),
@@ -111,5 +114,39 @@ void main() {
       expect(set.kg, isNull);
       expect(set.byAthlete['andi'], AthleteSetLoad(pct: 70, kg: _equipo.masCercano(56)));
     });
+
+    testWidgets('an assigned plan offers no choice of athletes', (tester) async {
+      await open(tester);
+      expect(find.text('Calcular para'), findsNothing);
+    });
+
+    testWidgets('without an assignment the coach chooses who it is worked out for', (tester) async {
+      Set<String>? remembered;
+      final result = await open(
+        tester,
+        athletes: PrescriptionAthletes(
+          athletes: const [_andi, _ari, _noRm],
+          equipo: _equipo,
+          chosen: const {'andi', 'ari', 'nadie'},
+          onChosen: (ids) => remembered = ids,
+        ),
+      );
+      expect(find.text('Calcular para'), findsOneWidget);
+      expect(find.text('Nadie (sin RM)'), findsOneWidget);
+
+      await tester.enterText(find.byKey(const ValueKey('set-kg-0-0')), '50');
+      await tester.pump();
+      expect(find.text('Andi 50 kg 62,5 % · Ari 50 kg 69,44 %'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('prescription-athlete-andi')));
+      await tester.pump();
+      expect(remembered, {'ari', 'nadie'});
+      expect(find.text('Ari 50 kg 69,44 %'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('prescription-ok')));
+      await tester.pumpAndSettle();
+      expect((await result)!.sets.single.byAthlete.keys, ['ari']);
+    });
+
   });
 }

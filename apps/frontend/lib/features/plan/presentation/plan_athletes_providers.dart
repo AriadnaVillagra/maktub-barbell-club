@@ -6,16 +6,30 @@ import '../../asignacion/presentation/providers.dart';
 import '../../atletas/presentation/providers.dart';
 import '../domain/athlete_loads.dart';
 
-/// The athletes plan [planId] is for (E5.16): the members of the group of its active assignments, or the athlete of an
-/// own one (E8.8), in that order and once each. Without an active assignment, those of its latest one. Empty when it
-/// was never assigned, or when they cannot be read (who cannot plan does not get here).
-final planAthletesProvider = FutureProvider.autoDispose.family<List<PlanAthlete>, String>((ref, planId) async {
+/// Who a plan's % and kg are worked out for (E5.16).
+class PlanAthletes {
+  const PlanAthletes({required this.athletes, required this.assigned});
+
+  static const none = PlanAthletes(athletes: [], assigned: false);
+
+  final List<PlanAthlete> athletes;
+
+  /// True when [athletes] come from the plan's assignment. False when it has none: they are every athlete of the
+  /// club, and the coach chooses among them ([planAthleteChoiceProvider]).
+  final bool assigned;
+}
+
+/// The athletes plan [planId] is for: the members of the group of its active assignments, or the athlete of an own one
+/// (E8.8), in that order and once each; without an active assignment, those of its latest one. A plan never assigned
+/// gets every athlete of the club to choose from. Empty when they cannot be read (who cannot plan does not get here).
+final planAthletesProvider = FutureProvider.autoDispose.family<PlanAthletes, String>((ref, planId) async {
   final clubId = (await ref.watch(meProvider.future))?.activeClub?.club.id;
-  if (clubId == null) return const [];
+  if (clubId == null) return PlanAthletes.none;
   try {
     final repo = ref.watch(assignmentRepositoryProvider);
+    // Through the screen's provider, so assigning the plan from the editor refreshes this.
     final all = [
-      for (final a in await repo.assignments(clubId))
+      for (final a in (await ref.watch(clubAssignmentsProvider.future)).assignments)
         if (a.planId == planId) a,
     ];
     final active = [
@@ -23,15 +37,20 @@ final planAthletesProvider = FutureProvider.autoDispose.family<List<PlanAthlete>
         if (a.status == AssignmentStatus.active) a,
     ];
     final chosen = active.isNotEmpty ? active : all.take(1).toList();
-    if (chosen.isEmpty) return const [];
 
-    final groups = {for (final g in await repo.groups(clubId)) g.id: g};
-    final ids = <String>{
-      for (final a in chosen) ...?(a.groupId == null ? null : groups[a.groupId]?.memberIds),
-      for (final a in chosen) ?a.athleteId,
-    };
-    final names = {for (final a in await ref.watch(athletesProvider.future)) a.id: a.name};
-    return await [
+    final people = await ref.watch(athletesProvider.future);
+    final names = {for (final a in people) a.id: a.name};
+    final Iterable<String> ids;
+    if (chosen.isEmpty) {
+      ids = [for (final a in people) a.id];
+    } else {
+      final groups = {for (final g in await repo.groups(clubId)) g.id: g};
+      ids = <String>{
+        for (final a in chosen) ...?(a.groupId == null ? null : groups[a.groupId]?.memberIds),
+        for (final a in chosen) ?a.athleteId,
+      };
+    }
+    final athletes = await [
       for (final id in ids)
         () async {
           final sheet = await ref.watch(athleteSheetProvider(id).future);
@@ -43,8 +62,26 @@ final planAthletesProvider = FutureProvider.autoDispose.family<List<PlanAthlete>
           );
         }(),
     ].wait;
+    return PlanAthletes(athletes: athletes, assigned: chosen.isNotEmpty);
   } catch (_) {
     // Without them the editor converts nothing; the plan is still edited as before.
-    return const [];
+    return PlanAthletes.none;
   }
 });
+
+/// For a plan without an assignment, the athletes the coach chose to work out % and kg for, by id; null is all of
+/// them. Kept while the app is open.
+final planAthleteChoiceProvider = NotifierProvider.family<PlanAthleteChoice, Set<String>?, String>(
+  PlanAthleteChoice.new,
+);
+
+class PlanAthleteChoice extends Notifier<Set<String>?> {
+  PlanAthleteChoice(this.planId);
+
+  final String planId;
+
+  @override
+  Set<String>? build() => null;
+
+  void choose(Set<String> ids) => state = ids;
+}

@@ -817,17 +817,26 @@ class _BlockTile extends ConsumerWidget {
   }
 
   /// Who the plan is for, with their RM and factor for [exercise], and the club's equipment: what the prescription
-  /// dialog converts % and kg with (E5.16). Empty when they cannot be read.
-  Future<({List<AthleteBasis> athletes, Equipo? equipo})> _loadBasis(WidgetRef ref, Exercise? exercise) async {
-    if (exercise == null) return (athletes: const <AthleteBasis>[], equipo: null);
+  /// dialog converts % and kg with (E5.16). A plan without an assignment offers every athlete of the club to choose
+  /// from ([chooseFrom]), and [chosen] are those the coach picked (null: all). Empty when they cannot be read.
+  Future<PrescriptionAthletes> _loadBasis(WidgetRef ref, Exercise? exercise) async {
+    if (exercise == null) return const PrescriptionAthletes();
     try {
-      final athletes = await ref.read(planAthletesProvider(editor.planId).future);
+      final plan = await ref.read(planAthletesProvider(editor.planId).future);
       final exercises = await ref.read(catalogExercisesProvider.future);
       final rmId = rmExerciseIdFor(exercise, {for (final e in exercises) e.id: e});
       final equipo = await ref.read(clubTeamProvider.future);
-      return (athletes: athleteBases(athletes, rmId, hoy()), equipo: equipo);
+      final bases = athleteBases(plan.athletes, rmId, hoy());
+      if (plan.assigned) return PrescriptionAthletes(athletes: bases, equipo: equipo);
+      final choice = ref.read(planAthleteChoiceProvider(editor.planId).notifier);
+      return PrescriptionAthletes(
+        athletes: bases,
+        equipo: equipo,
+        chosen: ref.read(planAthleteChoiceProvider(editor.planId)) ?? {for (final a in bases) a.id},
+        onChosen: choice.choose,
+      );
     } catch (_) {
-      return (athletes: const <AthleteBasis>[], equipo: null);
+      return const PrescriptionAthletes();
     }
   }
 
@@ -856,8 +865,7 @@ class _BlockTile extends ConsumerWidget {
       ),
       exercise: exercise,
       inheritedTimerLabel: _inheritedTimerLabel,
-      athletes: basis.athletes,
-      equipo: basis.equipo,
+      athletes: basis,
     );
     if (prescription == null) return;
     editor.addPrescription(modelId, day, index, prescription);
@@ -899,8 +907,7 @@ class _BlockTile extends ConsumerWidget {
       initial: prescription,
       exercise: exercise,
       inheritedTimerLabel: _inheritedTimerLabel,
-      athletes: basis.athletes,
-      equipo: basis.equipo,
+      athletes: basis,
     );
     if (edited == null) return;
     editor.updatePrescription(modelId, day, index, p, edited);

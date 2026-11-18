@@ -16,15 +16,13 @@ import 'plan_labels.dart';
 /// ([noTimerId]) turns it off for this exercise only.
 ///
 /// A set of an exercise loaded by % of RM is typed in % or in kg (E5.16): typing one clears the other, and each of
-/// [athletes] with an RM gets the other value worked out and frozen in the set, shown under it. Without [equipo] the
-/// standard one rounds the kilos.
+/// [athletes] with an RM gets the other value worked out and frozen in the set, shown under it.
 Future<Prescription?> askPrescription(
   BuildContext context, {
   required Prescription initial,
   required Exercise? exercise,
   String inheritedTimerLabel = 'El del bloque',
-  List<AthleteBasis> athletes = const [],
-  Equipo? equipo,
+  PrescriptionAthletes athletes = const PrescriptionAthletes(),
 }) => showDialog<Prescription>(
   context: context,
   builder: (_) => _PrescriptionDialog(
@@ -32,9 +30,20 @@ Future<Prescription?> askPrescription(
     exercise: exercise,
     inheritedTimerLabel: inheritedTimerLabel,
     athletes: athletes,
-    equipo: equipo,
   ),
 );
+
+/// Who a prescription's % and kg are worked out for (E5.16), with their RM and factor for its exercise, and the
+/// equipment that rounds the kilos (the standard one when null). When [onChosen] is set the plan has no assignment:
+/// [athletes] are every athlete of the club, the dialog lets the coach pick among them, and only [chosen] count.
+class PrescriptionAthletes {
+  const PrescriptionAthletes({this.athletes = const [], this.equipo, this.chosen, this.onChosen});
+
+  final List<AthleteBasis> athletes;
+  final Equipo? equipo;
+  final Set<String>? chosen;
+  final ValueChanged<Set<String>>? onChosen;
+}
 
 final _decimalText = RegExp(r'^\d*[.,]?\d*$');
 
@@ -52,14 +61,12 @@ class _PrescriptionDialog extends ConsumerStatefulWidget {
     required this.exercise,
     required this.inheritedTimerLabel,
     required this.athletes,
-    required this.equipo,
   });
 
   final Prescription initial;
   final Exercise? exercise;
   final String inheritedTimerLabel;
-  final List<AthleteBasis> athletes;
-  final Equipo? equipo;
+  final PrescriptionAthletes athletes;
 
   @override
   ConsumerState<_PrescriptionDialog> createState() =>
@@ -88,13 +95,30 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   /// The bar the kilos are rounded on: the one typed here, else the exercise's.
   double? get _barKg => parseTypedNumber(_bar) ?? widget.exercise?.barKg;
 
+  late Set<String>? _chosen = widget.athletes.chosen;
+
+  /// Those the loads are worked out for: all of them in an assigned plan, the chosen ones otherwise.
+  List<AthleteBasis> get _athletes => [
+    for (final a in widget.athletes.athletes)
+      if (_chosen?.contains(a.id) ?? true) a,
+  ];
+
   Map<String, AthleteSetLoad> _loadsFor(double? pct, double? kg) => athleteLoads(
     pct: pct,
     kg: kg,
-    athletes: widget.athletes,
-    equipo: widget.equipo ?? Equipo.estandarDe(''),
+    athletes: _athletes,
+    equipo: widget.athletes.equipo ?? Equipo.estandarDe(''),
     barKg: _barKg,
   );
+
+  /// Another choice of athletes: every set typed so far is worked out again for them.
+  void _choose(String id, bool on) => setState(() {
+    _chosen = {...?_chosen, if (on) id}..removeWhere((x) => !on && x == id);
+    widget.athletes.onChosen?.call(_chosen!);
+    _sets = [
+      for (final s in _sets) setWith(s, reps: s.reps, pct: s.pct, kg: s.kg, byAthlete: _loadsFor(s.pct, s.kg)),
+    ];
+  });
 
   /// Typed in % or in kg on a % exercise (E5.16): only one is kept, and each athlete's loads come from it.
   void _typeLoad(int i, {double? pct, double? kg}) {
@@ -200,6 +224,23 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              if (widget.athletes.onChosen != null && _hasPct && widget.athletes.athletes.isNotEmpty) ...[
+                Text('Calcular para', style: context.textos.labelLarge),
+                const SizedBox(height: Espacio.xs),
+                Wrap(
+                  spacing: Espacio.s,
+                  children: [
+                    for (final a in widget.athletes.athletes)
+                      FilterChip(
+                        key: Key('prescription-athlete-${a.id}'),
+                        label: Text(a.rm == null ? '${a.name} (sin RM)' : a.name),
+                        selected: _chosen?.contains(a.id) ?? true,
+                        onSelected: (on) => _choose(a.id, on),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: Espacio.m),
+              ],
               for (final (i, set) in _sets.indexed) ...[
                 Row(
                   key: Key('set-row-$i'),
@@ -260,7 +301,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                     ),
                   ],
                 ),
-                if (athleteLoadsSummary(set.byAthlete, widget.athletes, formatNumber) case final line
+                if (athleteLoadsSummary(set.byAthlete, _athletes, formatNumber) case final line
                     when line.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),
