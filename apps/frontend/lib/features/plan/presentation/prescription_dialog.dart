@@ -34,15 +34,13 @@ Future<Prescription?> askPrescription(
 );
 
 /// Who a prescription's % and kg are worked out for (E5.16), with their RM and factor for its exercise, and the
-/// equipment that rounds the kilos (the standard one when null). When [onChosen] is set the plan has no assignment:
-/// [athletes] are every athlete of the club, the dialog lets the coach pick among them, and only [chosen] count.
+/// equipment that rounds the kilos (the standard one when null). The plan's assignment, or the athletes chosen in
+/// the editor's Detalles card when it has none.
 class PrescriptionAthletes {
-  const PrescriptionAthletes({this.athletes = const [], this.equipo, this.chosen, this.onChosen});
+  const PrescriptionAthletes({this.athletes = const [], this.equipo});
 
   final List<AthleteBasis> athletes;
   final Equipo? equipo;
-  final Set<String>? chosen;
-  final ValueChanged<Set<String>>? onChosen;
 }
 
 final _decimalText = RegExp(r'^\d*[.,]?\d*$');
@@ -95,13 +93,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   /// The bar the kilos are rounded on: the one typed here, else the exercise's.
   double? get _barKg => parseTypedNumber(_bar) ?? widget.exercise?.barKg;
 
-  late Set<String>? _chosen = widget.athletes.chosen;
-
-  /// Those the loads are worked out for: all of them in an assigned plan, the chosen ones otherwise.
-  List<AthleteBasis> get _athletes => [
-    for (final a in widget.athletes.athletes)
-      if (_chosen?.contains(a.id) ?? true) a,
-  ];
+  List<AthleteBasis> get _athletes => widget.athletes.athletes;
 
   Map<String, AthleteSetLoad> _loadsFor(double? pct, double? kg) => athleteLoads(
     pct: pct,
@@ -111,46 +103,61 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
     barKg: _barKg,
   );
 
-  /// Another choice of athletes: every set typed so far is worked out again for them.
-  void _choose(String id, bool on) => setState(() {
-    _chosen = {...?_chosen, if (on) id}..removeWhere((x) => !on && x == id);
-    widget.athletes.onChosen?.call(_chosen!);
-    _sets = [
-      for (final s in _sets) setWith(s, reps: s.reps, pct: s.pct, kg: s.kg, byAthlete: _loadsFor(s.pct, s.kg)),
-    ];
-  });
 
-  /// Typed in % or in kg on a % exercise (E5.16): only one is kept, and each athlete's loads come from it.
-  void _typeLoad(int i, {double? pct, double? kg}) {
-    final s = _sets[i];
-    final clearsOther = pct != null ? s.kg != null : kg != null && s.pct != null;
+  /// The one athlete the loads are for, when there is exactly one and they have an RM: their % and kg then go in the
+  /// set's own fields instead of a line under it.
+  AthleteBasis? get _single {
+    final athletes = _athletes;
+    return athletes.length == 1 && (athletes.single.rm ?? 0) > 0 ? athletes.single : null;
+  }
+
+  /// [s] worked out again from its % ([fromPct]) or from its kg (E5.16): each athlete's loads, and with a single
+  /// athlete the other field too. With several, only what was typed is kept.
+  PlanSet _workedOut(PlanSet s, {required bool fromPct}) {
+    final pct = fromPct ? s.pct : null;
+    final kg = fromPct ? null : s.kg;
+    final loads = _loadsFor(pct, kg);
+    final own = _single == null ? null : loads[_single!.id];
+    return setWith(
+      s,
+      reps: s.reps,
+      pct: fromPct ? pct : own?.pct,
+      kg: fromPct ? own?.kg : kg,
+      byAthlete: loads,
+    );
+  }
+
+  /// Rebuilds the fields of set [i] whose value [after] changed from [before], without touching the one being typed.
+  void _refreshFields(int i, PlanSet before, PlanSet after, {bool? typedPct}) {
+    if (typedPct != true && before.pct != after.pct) _pctCleared[i] = (_pctCleared[i] ?? 0) + 1;
+    if (typedPct != false && before.kg != after.kg) _kgCleared[i] = (_kgCleared[i] ?? 0) + 1;
+  }
+
+  /// Typed in % or in kg on a % exercise (E5.16).
+  void _typeLoad(int i, {required bool inPct, required double? value}) {
+    final before = _sets[i];
+    final typed = setWith(
+      before,
+      reps: before.reps,
+      pct: inPct ? value : before.pct,
+      kg: inPct ? before.kg : value,
+    );
+    final after = _workedOut(typed, fromPct: inPct);
     setState(() {
-      if (clearsOther) {
-        final cleared = pct != null ? _kgCleared : _pctCleared;
-        cleared[i] = (cleared[i] ?? 0) + 1;
-      }
-      _sets = [
-        for (final (j, x) in _sets.indexed)
-          j == i
-              ? setWith(
-                  s,
-                  reps: s.reps,
-                  pct: pct,
-                  kg: pct != null ? null : kg,
-                  byAthlete: _loadsFor(pct, kg),
-                )
-              : x,
-      ];
+      _refreshFields(i, before, after, typedPct: inPct);
+      _sets = [for (final (j, x) in _sets.indexed) j == i ? after : x];
     });
   }
 
-  /// A new bar rounds the kilos differently: the loads of every set worked out from a % are redone.
+  /// A new bar rounds the kilos differently: the sets typed in % for several athletes are worked out again. With a
+  /// single athlete both fields are filled and it is not known which was typed, so they stay.
   void _rebar() {
     _sets = [
       for (final s in _sets)
-        s.byAthlete.isEmpty || s.pct == null ? s : setWith(s, reps: s.reps, pct: s.pct, kg: s.kg, byAthlete: _loadsFor(s.pct, null)),
+        s.byAthlete.isEmpty || s.pct == null || s.kg != null ? s : _workedOut(s, fromPct: true),
     ];
   }
+
 
   bool get _hasPct =>
       widget.exercise?.metrics.contains(Metric.loadPctRm) ??
@@ -224,23 +231,6 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              if (widget.athletes.onChosen != null && _hasPct && widget.athletes.athletes.isNotEmpty) ...[
-                Text('Calcular para', style: context.textos.labelLarge),
-                const SizedBox(height: Espacio.xs),
-                Wrap(
-                  spacing: Espacio.s,
-                  children: [
-                    for (final a in widget.athletes.athletes)
-                      FilterChip(
-                        key: Key('prescription-athlete-${a.id}'),
-                        label: Text(a.rm == null ? '${a.name} (sin RM)' : a.name),
-                        selected: _chosen?.contains(a.id) ?? true,
-                        onSelected: (on) => _choose(a.id, on),
-                      ),
-                  ],
-                ),
-                const SizedBox(height: Espacio.m),
-              ],
               for (final (i, set) in _sets.indexed) ...[
                 Row(
                   key: Key('set-row-$i'),
@@ -265,7 +255,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                         label: '%',
                         initial: set.pct == null ? '' : formatNumber(set.pct!),
                         formatters: [_decimalFormatter],
-                        onChanged: (t) => _typeLoad(i, pct: parseTypedNumber(t)),
+                        onChanged: (t) => _typeLoad(i, inPct: true, value: parseTypedNumber(t)),
                       ),
                       const SizedBox(width: Espacio.s),
                       _numberField(
@@ -273,7 +263,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                         label: 'kg',
                         initial: set.kg == null ? '' : formatNumber(set.kg!),
                         formatters: [_decimalFormatter],
-                        onChanged: (t) => _typeLoad(i, kg: parseTypedNumber(t)),
+                        onChanged: (t) => _typeLoad(i, inPct: false, value: parseTypedNumber(t)),
                       ),
                     ] else if (_hasKg) ...[
                       const SizedBox(width: Espacio.s),
@@ -301,7 +291,9 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                     ),
                   ],
                 ),
-                if (athleteLoadsSummary(set.byAthlete, _athletes, formatNumber) case final line
+                if (_single == null
+                    ? athleteLoadsSummary(set.byAthlete, _athletes, formatNumber)
+                    : '' case final line
                     when line.isNotEmpty)
                   Padding(
                     padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),

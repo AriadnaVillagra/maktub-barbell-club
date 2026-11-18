@@ -327,6 +327,15 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
       _ => ('Publicado', 'Los atletas ven la versión guardada.'),
     };
     final editor = ref.read(planEditorProvider(planId).notifier);
+    // Who the % and kg are worked out for (E5.16): the assignment's athletes, or those chosen here without one.
+    final forWhom = plan.type == PlanType.history
+        ? null
+        : ref.watch(planAthletesProvider(planId)).value;
+    final chosen = ref.watch(planAthleteChoiceProvider(planId));
+    final calculated = [
+      for (final a in forWhom?.athletes ?? const <PlanAthlete>[])
+        if (forWhom!.assigned || (chosen?.contains(a.id) ?? true)) a,
+    ];
     // The details at a glance while closed: type, Activo / Pasado and the model of each week.
     final summary = Wrap(
       key: const Key('plan-details-summary'),
@@ -349,6 +358,12 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
           draft.past
               ? InsigniaMaktub('Pasado', context.colores.insigniaBase)
               : InsigniaMaktub('Activo', context.colores.exitoContenedor),
+        if (calculated.isNotEmpty)
+          InsigniaMaktub(
+            'Para ${calculated.map((a) => a.name).join(', ')}',
+            context.colores.insigniaBase,
+            key: const Key('plan-for-whom-summary'),
+          ),
         for (final (w, id) in draft.assignment.indexed)
           switch (draft.modelById(id)) {
             null => InsigniaMaktub(
@@ -440,6 +455,36 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                   selected: {draft.past},
                   onSelectionChanged: (s) => editor.setPast(s.first),
                 ),
+              ],
+              if (forWhom != null && forWhom.athletes.isNotEmpty) ...[
+                const SizedBox(height: Espacio.l),
+                Text('Calcular % y kg para', style: context.textos.titleMedium),
+                const SizedBox(height: Espacio.xs),
+                if (forWhom.assigned)
+                  Text(
+                    '${calculated.map((a) => a.name).join(', ')}, por la asignación del plan.',
+                    key: const Key('plan-for-whom-assigned'),
+                    style: context.textos.bodyMedium,
+                  )
+                else
+                  Wrap(
+                    spacing: Espacio.s,
+                    runSpacing: Espacio.xs,
+                    children: [
+                      for (final a in forWhom.athletes)
+                        FilterChip(
+                          key: Key('plan-for-whom-${a.id}'),
+                          label: Text(a.name),
+                          selected: chosen?.contains(a.id) ?? true,
+                          onSelected: (on) => ref
+                              .read(planAthleteChoiceProvider(planId).notifier)
+                              .choose({
+                                for (final x in forWhom.athletes)
+                                  if (x.id == a.id ? on : (chosen?.contains(x.id) ?? true)) x.id,
+                              }),
+                        ),
+                    ],
+                  ),
               ],
               const SizedBox(height: Espacio.l),
               Text('Asignación', style: context.textos.titleMedium),
@@ -817,8 +862,8 @@ class _BlockTile extends ConsumerWidget {
   }
 
   /// Who the plan is for, with their RM and factor for [exercise], and the club's equipment: what the prescription
-  /// dialog converts % and kg with (E5.16). A plan without an assignment offers every athlete of the club to choose
-  /// from ([chooseFrom]), and [chosen] are those the coach picked (null: all). Empty when they cannot be read.
+  /// dialog converts % and kg with (E5.16). Without an assignment, those chosen in the Detalles card. Empty when they
+  /// cannot be read.
   Future<PrescriptionAthletes> _loadBasis(WidgetRef ref, Exercise? exercise) async {
     if (exercise == null) return const PrescriptionAthletes();
     try {
@@ -828,12 +873,13 @@ class _BlockTile extends ConsumerWidget {
       final equipo = await ref.read(clubTeamProvider.future);
       final bases = athleteBases(plan.athletes, rmId, hoy());
       if (plan.assigned) return PrescriptionAthletes(athletes: bases, equipo: equipo);
-      final choice = ref.read(planAthleteChoiceProvider(editor.planId).notifier);
+      final chosen = ref.read(planAthleteChoiceProvider(editor.planId));
       return PrescriptionAthletes(
-        athletes: bases,
+        athletes: [
+          for (final a in bases)
+            if (chosen?.contains(a.id) ?? true) a,
+        ],
         equipo: equipo,
-        chosen: ref.read(planAthleteChoiceProvider(editor.planId)) ?? {for (final a in bases) a.id},
-        onChosen: choice.choose,
       );
     } catch (_) {
       return const PrescriptionAthletes();

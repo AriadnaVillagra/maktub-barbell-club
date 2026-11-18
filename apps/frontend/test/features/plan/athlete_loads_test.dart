@@ -115,38 +115,34 @@ void main() {
       expect(set.byAthlete['andi'], AthleteSetLoad(pct: 70, kg: _equipo.masCercano(56)));
     });
 
-    testWidgets('an assigned plan offers no choice of athletes', (tester) async {
-      await open(tester);
-      expect(find.text('Calcular para'), findsNothing);
-    });
+    String fieldText(WidgetTester tester, String key) => tester
+        .widget<TextField>(find.descendant(of: find.byKey(ValueKey(key)), matching: find.byType(TextField)))
+        .controller!
+        .text;
 
-    testWidgets('without an assignment the coach chooses who it is worked out for', (tester) async {
-      Set<String>? remembered;
-      final result = await open(
-        tester,
-        athletes: PrescriptionAthletes(
-          athletes: const [_andi, _ari, _noRm],
-          equipo: _equipo,
-          chosen: const {'andi', 'ari', 'nadie'},
-          onChosen: (ids) => remembered = ids,
-        ),
-      );
-      expect(find.text('Calcular para'), findsOneWidget);
-      expect(find.text('Nadie (sin RM)'), findsOneWidget);
-
-      await tester.enterText(find.byKey(const ValueKey('set-kg-0-0')), '50');
+    testWidgets('for a single athlete typing % fills their kg in the kg field, with no line under it', (tester) async {
+      final result = await open(tester, athletes: PrescriptionAthletes(athletes: const [_andi], equipo: _equipo));
+      await tester.enterText(find.byKey(const ValueKey('set-pct-0-0')), '50');
       await tester.pump();
-      expect(find.text('Andi 50 kg 62,5 % · Ari 50 kg 69,44 %'), findsOneWidget);
-
-      await tester.tap(find.byKey(const Key('prescription-athlete-andi')));
-      await tester.pump();
-      expect(remembered, {'ari', 'nadie'});
-      expect(find.text('Ari 50 kg 69,44 %'), findsOneWidget);
+      expect(fieldText(tester, 'set-kg-0-0-1'), '40');
+      expect(find.byKey(const Key('set-athletes-0')), findsNothing);
 
       await tester.tap(find.byKey(const Key('prescription-ok')));
       await tester.pumpAndSettle();
-      expect((await result)!.sets.single.byAthlete.keys, ['ari']);
+      final set = (await result)!.sets.single;
+      expect([set.pct, set.kg], [50, 40]);
+      expect(set.byAthlete['andi'], const AthleteSetLoad(pct: 50, kg: 40));
     });
 
+    testWidgets('for a single athlete typing kg fills their %', (tester) async {
+      final result = await open(tester, athletes: PrescriptionAthletes(athletes: const [_andi], equipo: _equipo));
+      await tester.enterText(find.byKey(const ValueKey('set-kg-0-0')), '60');
+      await tester.pump();
+      expect(fieldText(tester, 'set-pct-0-0-1'), '75');
+
+      await tester.tap(find.byKey(const Key('prescription-ok')));
+      await tester.pumpAndSettle();
+      expect((await result)!.sets.single.pct, 75);
+    });
   });
 }

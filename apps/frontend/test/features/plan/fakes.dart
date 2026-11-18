@@ -190,11 +190,12 @@ List<Override> planOverrides(
   FakeWodRepository? wods,
   AssignmentRepository? assignments,
   List<AthleteSummary> athletes = const [],
+  Map<String, AthleteSheet> sheets = const {},
 }) => [
   assignmentRepositoryProvider.overrideWithValue(
     assignments ?? FakeGroupAssignments(),
   ),
-  athleteRepositoryProvider.overrideWithValue(FakeAthleteList(athletes)),
+  athleteRepositoryProvider.overrideWithValue(FakeAthleteList(athletes, sheets)),
   catalogRepositoryProvider.overrideWithValue(
     catalog ?? FakeCatalogAdminRepository(),
   ),
@@ -230,12 +231,19 @@ Future<void> pumpPlanPage(
 
 /// The club's athletes, for whom a plan can be assigned (E8.8); nothing else is read.
 class FakeAthleteList implements AthleteRepository {
-  FakeAthleteList([this.list = const []]);
+  FakeAthleteList([this.list = const [], this.sheets = const {}]);
 
   final List<AthleteSummary> list;
 
+  /// Each athlete's sheet (their RMs), for the % and kg of the editor (E5.16).
+  final Map<String, AthleteSheet> sheets;
+
   @override
   Future<List<AthleteSummary>> athletes(String clubId) async => list;
+
+  @override
+  Future<AthleteSheet> sheet(String clubId, String athleteId) async =>
+      sheets[athleteId] ?? AthleteSheet(athleteId: athleteId);
 
   @override
   dynamic noSuchMethod(Invocation invocation) =>
