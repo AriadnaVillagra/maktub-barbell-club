@@ -367,6 +367,52 @@ class PlanSave extends Notifier<PlanSaveState> {
   }
 }
 
+/// Why "Publicar" is off: [message] says it, and [problems] lists what the plan still lacks, when that is the
+/// reason.
+class PlanPublishBlock {
+  const PlanPublishBlock(this.message, {this.problems = const []});
+
+  final String message;
+  final List<PlanProblemLine> problems;
+}
+
+/// Why "Publicar" is off for [planId], so the editor can say it; null when it can be published or while the draft or
+/// the exercises are loading. What the plan lacks comes first, since it is what to fix; then unsaved edits; then
+/// nothing new to publish.
+final planPublishBlockProvider = Provider.autoDispose
+    .family<PlanPublishBlock?, String>((ref, planId) {
+      final draft = ref.watch(planEditorProvider(planId)).value;
+      final exercises = ref.watch(catalogExercisesProvider).value;
+      if (draft == null || exercises == null) return null;
+      final byId = {for (final e in exercises) e.id: e};
+      final plan = draft.toPlan();
+      final problems = validatePlan(plan, exerciseById: (id) => byId[id]);
+      if (problems.isNotEmpty) {
+        return PlanPublishBlock(
+          problems.length == 1
+              ? 'No se puede publicar: falta completar una cosa.'
+              : 'No se puede publicar: faltan completar ${problems.length} cosas.',
+          problems: [
+            for (final p in problems)
+              describePlanProblem(
+                p,
+                plan,
+                exerciseName: (id) => byId[id]?.name,
+              ),
+          ],
+        );
+      }
+      if (draft.isDirty) {
+        return const PlanPublishBlock('Guardá los cambios para poder publicar.');
+      }
+      if (!draft.base.hasUnpublishedChanges) {
+        return const PlanPublishBlock(
+          'No hay cambios para publicar: los atletas ya ven esta versión.',
+        );
+      }
+      return null;
+    });
+
 /// Whether "Publicar" is offered: the plan is saved (no unsaved edits), `validatePlan` finds nothing to fix
 /// and there is something to publish (never published, or the saved content differs from the published copy,
 /// compared through its JSON form). False while the draft or the exercises are loading.
@@ -374,12 +420,10 @@ final planPublishableProvider = Provider.autoDispose.family<bool, String>((
   ref,
   planId,
 ) {
-  final draft = ref.watch(planEditorProvider(planId)).value;
-  final exercises = ref.watch(catalogExercisesProvider).value;
-  if (draft == null || exercises == null) return false;
-  if (draft.isDirty || !draft.base.hasUnpublishedChanges) return false;
-  final byId = {for (final e in exercises) e.id: e};
-  return validatePlan(draft.toPlan(), exerciseById: (id) => byId[id]).isEmpty;
+  final loaded =
+      ref.watch(planEditorProvider(planId)).hasValue &&
+      ref.watch(catalogExercisesProvider).hasValue;
+  return loaded && ref.watch(planPublishBlockProvider(planId)) == null;
 });
 
 /// Where publishing the plan stands: in flight, refused with a list of problems, failed, or done.

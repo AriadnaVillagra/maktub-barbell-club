@@ -14,15 +14,38 @@ class ProblemaMaktub {
 
 /// Error notice with a title and the complete list of what went wrong, for forms that refuse to
 /// save (every problem at once, not just the first). Announced to screen readers when it appears.
-class ListaDeProblemas extends StatelessWidget {
-  const ListaDeProblemas({super.key, required this.titulo, this.problemas = const []});
+///
+/// With [plegarDesde], a list of that many problems or more starts closed: the title and a "Ver detalle"
+/// button that opens it, so a long list does not push the screen down. Shorter lists always show.
+class ListaDeProblemas extends StatefulWidget {
+  const ListaDeProblemas({
+    super.key,
+    required this.titulo,
+    this.problemas = const [],
+    this.plegarDesde,
+  });
 
   final String titulo;
   final List<ProblemaMaktub> problemas;
 
+  /// How many problems make the list start closed; null shows them always.
+  final int? plegarDesde;
+
+  @override
+  State<ListaDeProblemas> createState() => _ListaDeProblemasState();
+}
+
+class _ListaDeProblemasState extends State<ListaDeProblemas> {
+  bool _abierta = false;
+
+  bool get _plegable =>
+      widget.plegarDesde != null &&
+      widget.problemas.length >= widget.plegarDesde!;
+
   @override
   Widget build(BuildContext context) {
     final color = context.esquema.onErrorContainer;
+    final visibles = !_plegable || _abierta;
     return Semantics(
       liveRegion: true,
       container: true,
@@ -41,17 +64,48 @@ class ListaDeProblemas extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(titulo, style: context.textos.titleSmall?.copyWith(color: color)),
-                  for (final p in problemas)
-                    Padding(
-                      padding: const EdgeInsets.only(top: Espacio.s),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          if (p.ubicacion != null)
-                            Text(p.ubicacion!, style: context.textos.labelMedium?.copyWith(color: color)),
-                          Text(p.mensaje, style: context.textos.bodyMedium?.copyWith(color: color)),
-                        ],
+                  Text(
+                    widget.titulo,
+                    style: context.textos.titleSmall?.copyWith(color: color),
+                  ),
+                  if (visibles)
+                    for (final p in widget.problemas)
+                      Padding(
+                        padding: const EdgeInsets.only(top: Espacio.s),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (p.ubicacion != null)
+                              Text(
+                                p.ubicacion!,
+                                style: context.textos.labelMedium?.copyWith(
+                                  color: color,
+                                ),
+                              ),
+                            Text(
+                              p.mensaje,
+                              style: context.textos.bodyMedium?.copyWith(
+                                color: color,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  if (_plegable)
+                    TextButton.icon(
+                      key: const Key('lista-de-problemas-detalle'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: color,
+                        padding: EdgeInsets.zero,
+                      ),
+                      onPressed: () => setState(() => _abierta = !_abierta),
+                      icon: Icon(
+                        _abierta ? Icons.expand_less : Icons.expand_more,
+                      ),
+                      label: Text(
+                        _abierta
+                            ? 'Ocultar detalle'
+                            : 'Ver detalle (${widget.problemas.length})',
                       ),
                     ),
                 ],

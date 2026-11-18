@@ -96,6 +96,53 @@ void main() {
       expect(canPublish(tester), isFalse);
     });
 
+    testWidgets('says why it cannot be published; a long list starts folded', (
+      tester,
+    ) async {
+      await open(
+        tester,
+        samplePlan(
+          models: [
+            completeModel('a', sets: [for (var i = 0; i < 5; i++) const PlanSet(reps: 5)]),
+          ],
+          assignment: ['a', 'a', 'a', 'a'],
+        ),
+      );
+
+      expect(canPublish(tester), isFalse);
+      final notice = find.byKey(const Key('plan-publish-blocked'));
+      expect(notice, findsOneWidget);
+      expect(
+        find.descendant(of: notice, matching: find.textContaining('No se puede publicar')),
+        findsOneWidget,
+      );
+      expect(find.text('Ver detalle (5)'), findsOneWidget);
+      await tester.tap(find.text('Ver detalle (5)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ocultar detalle'), findsOneWidget);
+    });
+
+    testWidgets('says to save first, or that there is nothing new to publish', (
+      tester,
+    ) async {
+      final c = await open(tester, publishedPlan());
+      expect(
+        find.text('No hay cambios para publicar: los atletas ya ven esta versión.'),
+        findsOneWidget,
+      );
+
+      editor(c).assign(1, 'b');
+      await tester.pumpAndSettle();
+      expect(find.text('Guardá los cambios para poder publicar.'), findsOneWidget);
+    });
+
+    testWidgets('a publishable plan shows no notice', (tester) async {
+      await open(tester, validPlan());
+
+      expect(find.byKey(const Key('plan-publish-blocked')), findsNothing);
+      expect(find.byKey(const Key('plan-publish-hint')), findsNothing);
+    });
+
     testWidgets('a saved history plan without % or reps can be published', (
       tester,
     ) async {

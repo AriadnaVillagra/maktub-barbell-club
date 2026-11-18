@@ -318,6 +318,9 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
     final plan = draft.base;
     final publishing = ref.watch(planPublishProvider(planId)).publishing;
     final publishable = ref.watch(planPublishableProvider(planId));
+    final block = ref.watch(planPublishBlockProvider(planId));
+    // Right after saving an unfinished plan, the save notice already lists what is missing.
+    final listedBySave = ref.watch(planSaveProvider(planId)).problems.isNotEmpty;
     final (label, detail) = switch (plan.published) {
       null => ('Borrador', 'Los atletas todavía no ven este plan.'),
       _ when plan.hasUnpublishedChanges => (
@@ -437,6 +440,30 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                   ),
                 ],
               ),
+              // Why Publicar is off, always in sight: what is missing (a long list folds), or what to do.
+              if (block != null &&
+                  !publishing &&
+                  !(listedBySave && block.problems.isNotEmpty)) ...[
+                const SizedBox(height: Espacio.m),
+                if (block.problems.isNotEmpty)
+                  ListaDeProblemas(
+                    key: const Key('plan-publish-blocked'),
+                    titulo: block.message,
+                    plegarDesde: 4,
+                    problemas: [
+                      for (final p in block.problems)
+                        ProblemaMaktub(p.message, ubicacion: p.location),
+                    ],
+                  )
+                else
+                  Text(
+                    block.message,
+                    key: const Key('plan-publish-hint'),
+                    style: context.textos.bodyMedium?.copyWith(
+                      color: context.esquema.onSurfaceVariant,
+                    ),
+                  ),
+              ],
               const Divider(height: Espacio.xl),
               Text(
                 '${planTypeLabel(plan.type)} · ciclo de $planCycleWeeks semanas',
