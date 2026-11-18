@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
@@ -7,6 +8,8 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/app/app.dart';
 import 'package:maktub_frontend/app/router.dart';
+import 'package:maktub_frontend/features/access/domain/me.dart';
+import 'package:maktub_frontend/features/access/domain/me_repository.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
 import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
 import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
@@ -23,12 +26,28 @@ import '../features/session/fakes.dart';
 
 final _gym = club('c1', 'Gimnasio', TipoClub.club);
 
+/// Answers who the user is only when [answer] completes.
+class _SlowMe implements MeRepository {
+  _SlowMe(this.me);
+
+  final Me me;
+  final answer = Completer<void>();
+
+  @override
+  Future<Me> fetch() async {
+    await answer.future;
+    return me;
+  }
+}
+
 Future<void> _montar(
   WidgetTester tester,
   Size tamano, {
   Set<Rol> roles = const {Rol.coach},
   String? ruta,
   Map<String, String> athleteIds = const {},
+  MeRepository? meRepository,
+  bool settle = true,
 }) async {
   tester.view.physicalSize = tamano;
   tester.view.devicePixelRatio = 1;
@@ -38,7 +57,9 @@ Future<void> _montar(
     overrides: [
       tokenStoreProvider.overrideWithValue(FakeTokenStore(issued(1))),
       authApiProvider.overrideWithValue(FakeAuthApi()),
-      meRepositoryProvider.overrideWithValue(FakeMeRepository(meWith([(_gym, roles)], athleteIds: athleteIds))),
+      meRepositoryProvider.overrideWithValue(
+        meRepository ?? FakeMeRepository(meWith([(_gym, roles)], athleteIds: athleteIds)),
+      ),
       catalogRepositoryProvider.overrideWithValue(FakeCatalog([])),
       catalogAdminRepositoryProvider.overrideWithValue(
         FakeCatalogAdminRepository(timersList: [timer('rest', 'Descanso 90', clubId: clubPlataforma)]),
@@ -50,6 +71,7 @@ Future<void> _montar(
     ],
     child: const MaktubApp(),
   ));
+  if (!settle) return;
   await tester.pumpAndSettle();
   if (ruta != null) {
     GoRouter.of(tester.element(find.byType(Scaffold).first)).go(ruta);
@@ -71,6 +93,18 @@ void main() {
     GoRouter.of(tester.element(find.byType(Scaffold).first)).go(Rutas.sesion);
     await tester.pumpAndSettle();
     expect(tester.widget<SessionPage>(find.byType(SessionPage)).initialView, SessionView.day);
+  });
+
+  testWidgets('no bar until the permissions are known, then the full one', (tester) async {
+    final me = _SlowMe(meWith([(_gym, const {Rol.coach})]));
+    await _montar(tester, const Size(400, 800), meRepository: me, settle: false);
+    await tester.pump();
+    expect(find.byType(NavigationBar), findsNothing);
+
+    me.answer.complete();
+    await tester.pumpAndSettle();
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.text('Planificación'), findsOneWidget);
   });
 
   testWidgets('arranca en Entrenamiento y navega a Planificación (celular)', (tester) async {
