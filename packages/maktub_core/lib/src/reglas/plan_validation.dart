@@ -218,7 +218,9 @@ void _validateDay(
         if (usesReps && !set.maxReps && !((set.reps ?? 0) > 0)) {
           out.add(at(PlanProblemCode.setWithoutReps, p: p, s: s));
         }
-        if (usesPct && !((set.pct ?? 0) > 0)) {
+        // Typed in kilos (E5.16): the % is each athlete's, or comes from the kilos.
+        final hasLoad = (set.pct ?? 0) > 0 || (set.kg ?? 0) > 0 || set.byAthlete.isNotEmpty;
+        if (usesPct && !hasLoad) {
           out.add(at(PlanProblemCode.setWithoutPct, p: p, s: s));
         }
       }

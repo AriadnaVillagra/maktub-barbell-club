@@ -17,6 +17,7 @@ class _Harness {
       ) {
     control = container.read(cronoControllerProvider.notifier)
       ..ahora = () => clock;
+    platform.clock = () => clock;
   }
 
   final WidgetTester tester;
@@ -68,15 +69,15 @@ void main() {
 
       await h.advance(7);
       expect(h.view!.segundos, 3);
-      expect(platform.beeps, [_tick]);
+      expect(platform.heard, [_tick]);
 
       await h.advance(2);
-      expect(platform.beeps, [_tick, _tick, _tick]);
+      expect(platform.heard, [_tick, _tick, _tick]);
       expect(h.view, isNotNull);
 
       await h.advance(1);
       expect(h.view, isNull);
-      expect(platform.beeps.last, _end);
+      expect(platform.heard.last, _end);
       expect(platform.vibrations.last, [200, 100, 200]);
       expect(platform.stops, 1);
     },
@@ -101,7 +102,7 @@ void main() {
       await h.advance(10);
       expect(h.view!.crono.fase.etiqueta, 'Minuto 2');
       expect(h.view!.segundos, 10);
-      expect(platform.beeps.where((b) => b == _phase), hasLength(1));
+      expect(platform.heard.where((b) => b == _phase), hasLength(1));
 
       await h.advance(10);
       expect(h.view!.crono.fase.etiqueta, 'Minuto 3');
@@ -109,8 +110,8 @@ void main() {
 
       await h.advance(10);
       expect(h.view, isNull);
-      expect(platform.beeps.where((b) => b == _phase), hasLength(2));
-      expect(platform.beeps.last, _end);
+      expect(platform.heard.where((b) => b == _phase), hasLength(2));
+      expect(platform.heard.last, _end);
     },
   );
 
@@ -171,7 +172,7 @@ void main() {
         expect(h.view, isNull);
         expect(tester.takeException(), isNull);
         expect(broken.calls, contains('start'));
-        expect(broken.calls, contains('beep'));
+        expect(broken.calls, contains('schedule'));
         expect(broken.calls, contains('vibrate'));
         expect(broken.calls, contains('stop'));
       }
@@ -193,7 +194,7 @@ void main() {
       expect(h.view!.segundos, 95);
       expect(h.view!.crono.abierta, isTrue);
       expect(
-        platform.beeps,
+        platform.heard,
         isEmpty,
         reason: 'no hay cuenta regresiva que avisar',
       );
@@ -203,7 +204,7 @@ void main() {
       expect(result.timerId, 'ft');
       expect(result.label, 'For Time');
       expect(h.view, isNull);
-      expect(platform.beeps.last, _end);
+      expect(platform.heard.last, _end);
       expect(h.container.read(cronoResultsProvider).single.seconds, 95);
 
       // A new timer clears the last result.
@@ -226,11 +227,11 @@ void main() {
 
     h.control.iniciar(forTime);
     await h.advance(29);
-    expect(platform.beeps, isEmpty);
+    expect(platform.heard, isEmpty);
     await h.advance(1);
-    expect(platform.beeps, [_phase]);
+    expect(platform.heard, [_phase]);
     await h.advance(60);
-    expect(platform.beeps, [_phase, _phase, _phase]);
+    expect(platform.heard, [_phase, _phase, _phase]);
     h.control.detener();
   });
 
@@ -274,6 +275,80 @@ void main() {
     await h.advance(5);
     expect(h.view!.segundos, 15);
     h.control.detener();
+  });
+
+  group('en segundo plano (sin tics)', () {
+    const tabata = Temporizador(
+      id: 't',
+      nombre: 'Tabata',
+      tipo: TipoTemporizador.tabata,
+      trabajoSeg: 4,
+      descansoSeg: 2,
+      rondas: 2,
+    );
+
+    testWidgets('al iniciar quedan agendados todos los sonidos hasta el final', (
+      tester,
+    ) async {
+      final h = await harness(tester);
+      h.control.iniciar(tabata);
+      final start = h.clock;
+      expect(
+        [
+          for (final t in platform.scheduled)
+            (t.at.difference(start).inSeconds, t.hz),
+        ],
+        [
+          (1, _tick), (2, _tick), (3, _tick), (4, _phase), // work
+          (5, _tick), (6, _phase), // rest
+          (7, _tick), (8, _tick), (9, _tick), (10, _end), // work
+        ],
+      );
+      h.control.detener();
+    });
+
+    testWidgets('suenan sin tics, y al volver se pasan las fases vencidas sin '
+        'repetir sonidos ni correr el reloj', (tester) async {
+      final h = await harness(tester);
+      h.control.iniciar(tabata);
+      final agendas = platform.schedules;
+
+      // 5 s sin tics: la pantalla se apagó.
+      h.clock = h.clock.add(const Duration(seconds: 5));
+      expect(platform.heard, [_tick, _tick, _tick, _phase, _tick]);
+
+      await h.advance(1);
+      expect(h.view!.crono.fase.etiqueta, 'Trabajo');
+      expect(h.view!.crono.fase.ronda, 2);
+      expect(h.view!.segundos, 4, reason: 'el reloj sigue al de los sonidos');
+      expect(platform.schedules, agendas, reason: 'no se reagenda al pasar de fase');
+      expect(platform.heard, [_tick, _tick, _tick, _phase, _tick, _phase]);
+
+      await h.advance(4);
+      expect(h.view, isNull);
+      expect(platform.heard.where((b) => b == _end), hasLength(1));
+    });
+
+    testWidgets('pausar cancela lo agendado y seguir lo vuelve a agendar', (
+      tester,
+    ) async {
+      final h = await harness(tester);
+      h.control.iniciar(tabata);
+      await h.advance(1);
+      h.control.alternarPausa();
+      expect(platform.scheduled, isEmpty);
+      h.control.alternarPausa();
+      expect(platform.scheduled.last.hz, _end);
+      h.control.detener();
+    });
+
+    testWidgets('cerrar el temporizador cancela lo agendado', (tester) async {
+      final h = await harness(tester);
+      h.control.iniciar(tabata);
+      h.control.detener();
+      h.clock = h.clock.add(const Duration(seconds: 20));
+      expect(platform.heard, isEmpty);
+    });
   });
 
   testWidgets(

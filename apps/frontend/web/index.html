@@ -46,11 +46,51 @@
   <!--
     Own app-shell service worker (see maktub_sw.js). The relative URL resolves
     against <base href>, so its scope is the deployment base path.
+
+    Updates: the worker of a new deploy downloads in the background and waits.
+    - If one is already waiting when the app opens (downloaded on an earlier
+      visit), it is activated and the page reloads into it before anything is in use.
+    - If one finishes downloading while the app is open, window.maktubUpdate says
+      so and fires 'maktub-update'; the app offers "Actualizar", which calls
+      maktubUpdate.apply(): the worker activates and the page reloads.
+    Each time the app comes back to the foreground it checks for a new deploy.
   -->
   <script>
+    window.maktubUpdate = { ready: false, worker: null, apply: function () {
+      if (this.worker) this.worker.postMessage('skipWaiting');
+    } };
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function () {
-        navigator.serviceWorker.register('maktub_sw.js').catch(function (e) {
+        // The first install also takes control (clients.claim); that one is not an update.
+        var hadController = !!navigator.serviceWorker.controller;
+        var reloading = false;
+        navigator.serviceWorker.addEventListener('controllerchange', function () {
+          if (!hadController || reloading) return;
+          reloading = true;
+          window.location.reload();
+        });
+        navigator.serviceWorker.register('maktub_sw.js').then(function (reg) {
+          if (reg.waiting && hadController) {
+            reg.waiting.postMessage('skipWaiting');
+            return;
+          }
+          function announce(worker) {
+            window.maktubUpdate.ready = true;
+            window.maktubUpdate.worker = worker;
+            window.dispatchEvent(new Event('maktub-update'));
+          }
+          if (reg.waiting) announce(reg.waiting);
+          reg.addEventListener('updatefound', function () {
+            var worker = reg.installing;
+            if (!worker) return;
+            worker.addEventListener('statechange', function () {
+              if (worker.state === 'installed' && navigator.serviceWorker.controller) announce(worker);
+            });
+          });
+          document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') reg.update().catch(function () {});
+          });
+        }).catch(function (e) {
           console.warn('Service worker registration failed:', e);
         });
       });

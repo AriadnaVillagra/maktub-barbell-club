@@ -235,7 +235,7 @@ void main() {
       // Sets of the first exercise, edited with the plan's prescription dialog.
       await tester.tap(find.byKey(const Key('wod-prescription-0')));
       await tester.pumpAndSettle();
-      expect(find.text('El del WoD'), findsOneWidget);
+      expect(find.text('Del WoD'), findsOneWidget);
       await tester.enterText(find.byKey(const ValueKey('set-reps-0-0')), '10');
       await tester.tap(find.byKey(const Key('set-add')));
       await tester.pumpAndSettle();

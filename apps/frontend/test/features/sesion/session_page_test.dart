@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/material.dart';
@@ -295,6 +297,9 @@ class _FakeSessions implements SessionRepository {
   /// Without signal every write fails as the API client reports it.
   bool offline = false;
 
+  /// While set, each write waits for it: a slow server.
+  Completer<void>? slow;
+
   /// Stores like the server: one record per set, computed kilos unless typed, and a missing note keeps the old one.
   @override
   Future<SetRecord> recordSet(
@@ -302,6 +307,7 @@ class _FakeSessions implements SessionRepository {
     String sessionId,
     SetWrite write,
   ) async {
+    await slow?.future;
     if (refuseWith case final message?) throw ErrorDeApi(message, estado: 422);
     if (offline) throw const ErrorDeApi('No se pudo conectar con el servidor.');
     writes.add(write);
@@ -1179,7 +1185,7 @@ void main() {
       },
     );
 
-    testWidgets('marking the same set twice at once leaves one marked record', (
+    testWidgets('two quick taps mark and unmark, in one record', (
       tester,
     ) async {
       final sessions = _FakeSessions();
@@ -1189,9 +1195,45 @@ void main() {
       await tester.tap(find.byKey(check('0-0-0')));
       await tester.pumpAndSettle();
 
-      expect(sessions.writes.map((w) => w.done), [true, true]);
+      expect(sessions.writes.map((w) => w.done), [true, false]);
       expect(sessions.stored, hasLength(1));
+      expect(marked('0-0-0'), findsNothing);
+    });
+
+    testWidgets('the mark shows at the tap, before the server answers', (
+      tester,
+    ) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      sessions.slow = Completer<void>();
+
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pump();
       expect(marked('0-0-0'), findsOneWidget);
+
+      sessions.slow!.complete();
+      await tester.pumpAndSettle();
+      expect(marked('0-0-0'), findsOneWidget);
+      expect(sessions.writes.single.done, isTrue);
+    });
+
+    testWidgets('a refused mark goes back once the server answers', (
+      tester,
+    ) async {
+      final sessions = _FakeSessions();
+      await _pump(tester, sessions);
+      sessions
+        ..slow = Completer<void>()
+        ..refuseWith = 'Ese atleta no está.';
+
+      await tester.tap(find.byKey(check('0-0-0')));
+      await tester.pump();
+      expect(marked('0-0-0'), findsOneWidget);
+
+      sessions.slow!.complete();
+      await tester.pumpAndSettle();
+      expect(find.text('Ese atleta no está.'), findsOneWidget);
+      expect(marked('0-0-0'), findsNothing);
     });
 
     testWidgets('tapping a marked set unmarks it', (tester) async {

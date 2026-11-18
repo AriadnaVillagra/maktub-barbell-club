@@ -998,12 +998,12 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('percent exercise shows reps and %, and edits each set', (
+    testWidgets('percent exercise shows reps, % and kg (E5.16), and edits each set', (
       tester,
     ) async {
       await openFirst(tester);
       expect(find.byKey(const Key('set-row-1')), findsOneWidget);
-      expect(find.byKey(const Key('set-kg-0-0')), findsNothing);
+      expect(find.byKey(const Key('set-kg-0-0')), findsOneWidget);
       await tester.enterText(find.byKey(const ValueKey('set-reps-0-0')), '6');
       await tester.enterText(find.byKey(const ValueKey('set-pct-1-0')), '75,5');
       await accept(tester);
@@ -1089,11 +1089,24 @@ void main() {
           findsOneWidget,
         );
 
+        // "Sin temporizador" turns it off for this exercise, whatever the block has.
         await tester.tap(find.byKey(const Key('prescription-a-0-0-0')));
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('prescription-timer-field')));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('El del bloque').last);
+        await tester.tap(find.text('Sin temporizador').last);
+        await tester.pumpAndSettle();
+        await accept(tester);
+        expect(
+          find.text('Temporizador: ninguno · Barra: 15,5 kg · RPE 8'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const Key('prescription-a-0-0-0')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('prescription-timer-field')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.textContaining('Del bloque').last);
         await tester.pumpAndSettle();
         await tester.enterText(
           find.byKey(const Key('prescription-bar-field')),

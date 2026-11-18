@@ -572,6 +572,23 @@ void main() {
       },
     );
 
+    test('a percentage set typed in kilos, or with per-athlete loads, has its load (E5.16)', () {
+      const block = PlanBlock(
+        name: 'Strength',
+        categoryId: 'strength',
+        prescriptions: [
+          Prescription(
+            exerciseId: 'squat',
+            sets: [
+              PlanSet(reps: 5, kg: 50),
+              PlanSet(reps: 5, byAthlete: {'ari': AthleteSetLoad(pct: 62.5, kg: 50)}),
+            ],
+          ),
+        ],
+      );
+      expect(_validate(_withBlock(block)), isEmpty);
+    });
+
     test('max reps counts as reps, and a fixed-load exercise needs no %', () {
       const block = PlanBlock(
         name: 'Accessory',

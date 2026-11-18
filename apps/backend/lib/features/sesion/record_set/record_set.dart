@@ -224,7 +224,7 @@ class RecordSet {
         : await _store.workFactors(clubId, input.athleteId, rmExerciseId);
     final basis = setLoadBasis(
       rmExerciseId: rmExerciseId,
-      pct: target.pct,
+      pct: target.pct ?? target.byAthlete[input.athleteId]?.pct,
       athleteId: input.athleteId,
       on: session.date,
       references: references,
@@ -252,6 +252,7 @@ class RecordSet {
       athleteFixedKg: fixed?.kg,
       equipo: await _store.equipment(clubId) ?? Equipo.estandarDe(clubId),
       barKg: prescription.barKg ?? exercise.barKg,
+      athleteId: input.athleteId,
     );
     return _Load.of(
       proposal.kg,

@@ -96,6 +96,11 @@ class SetWrite {
   SetWrite toggled() =>
       _copy(done: !done, manualKg: manualKg, reps: reps, note: note);
 
+  /// Marked or unmarked as [done] says, whatever it was: what the screen shows after a tap that may not have been
+  /// written yet.
+  SetWrite withDone(bool done) =>
+      _copy(done: done, manualKg: manualKg, reps: reps, note: note);
+
   /// Marked as done whatever it was, as the guided mode finishes a set.
   SetWrite markedDone() =>
       _copy(done: true, manualKg: manualKg, reps: reps, note: note);

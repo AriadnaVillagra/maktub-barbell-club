@@ -60,15 +60,18 @@ class Crono {
     return ms <= 0 ? 0 : (ms / 1000).ceil();
   }
 
-  /// La fase siguiente, o nulo si terminó.
+  /// La fase siguiente, o nulo si terminó. Empieza cuando terminó esta, aunque se note tarde (la app estuvo en segundo
+  /// plano): así el reloj no se corre y coincide con los avisos agendados. Si esta terminó antes (el atleta tocó
+  /// "Terminar", o estaba en pausa o abierta), empieza ahora.
   Crono? avanzar(DateTime ahora) {
     if (esUltimaFase) return null;
     final siguiente = indice + 1;
+    final desde = fase.abierta || enPausa || ahora.isBefore(fin) ? ahora : fin;
     return Crono._(
       temporizador: temporizador,
       fases: fases,
       indice: siguiente,
-      fin: _finDe(fases[siguiente], ahora),
+      fin: _finDe(fases[siguiente], desde),
     );
   }
 

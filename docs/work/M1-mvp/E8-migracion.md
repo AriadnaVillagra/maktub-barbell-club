@@ -65,8 +65,10 @@ cubre, la migración queda incompleta y 8.2, 8.3 y el criterio 10 no se pueden d
 | E8.7 | [Abril a julio 2026: plan de abril y series estimadas](E8.7-abril-julio-estimado.md) | E8.3, E8.5 |
 | E8.8 | [Asignaciones por atleta](E8.8-asignacion-por-atleta.md) | E6.3, E8.5 |
 | E8.6 | [Verificación de la migración](E8.6-verificacion-migracion.md) | E8.2, E8.3, E8.4, E8.5, E8.7, E8.8 |
+| E8.9 | [Eliminar un plan](E8.9-eliminar-plan.md) | E5.3, E6.3, E7.3, E8.8 |
 
 **En paralelo:**
 - E8.1 es manual, va adelantado (D12) y no depende de nada.
 - E8.3 y E8.4 se pueden tomar a la vez después de E8.2.
 - E8.5 espera a los dos. E8.7 y E8.8 (sumadas el 2026-11-15) van después de E8.5 y se pueden tomar a la vez. E8.6 cierra la épica.
+- E8.9 (sumada el 2026-11-16, pedido de Ari) no depende de la migración y se puede tomar ya, en paralelo con E8.6.

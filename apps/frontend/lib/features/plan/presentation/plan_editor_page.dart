@@ -5,15 +5,17 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show asyncView, showApiError;
+    show asyncView, confirmAction, showApiError;
 import '../../catalogo/presentation/exercise_picker.dart';
 import '../../catalogo/presentation/catalog_admin_providers.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
+import '../domain/athlete_loads.dart';
 import '../domain/models_view.dart';
 import '../domain/plan_draft.dart';
 import '../domain/prescription_defaults.dart';
 import 'block_dialog.dart';
 import 'plan_dialogs.dart';
+import 'plan_athletes_providers.dart';
 import 'plan_labels.dart';
 import 'prescription_dialog.dart';
 import 'wod_picker.dart';
@@ -52,6 +54,26 @@ class PlanEditorPage extends ConsumerWidget {
       if (copy != null && context.mounted) {
         context.go('$listPath/${Uri.encodeComponent(copy.id)}');
       }
+    } catch (e) {
+      if (context.mounted) showApiError(context, e);
+    }
+  }
+
+  /// Deletes the plan after confirming and goes back to the list (E8.9). What was recorded with it stays.
+  Future<void> _delete(BuildContext context, WidgetRef ref, Plan plan) async {
+    final ok = await confirmAction(
+      context,
+      title: 'Eliminar plan',
+      body:
+          'Se elimina "${plan.name}" con sus asignaciones y deja de verse en el calendario. '
+          'Las series que ya se registraron con este plan se conservan para los informes. '
+          'No se puede deshacer.',
+      action: 'Eliminar',
+    );
+    if (!ok || !context.mounted) return;
+    try {
+      await deletePlan(ref, plan);
+      if (context.mounted) context.go(listPath);
     } catch (e) {
       if (context.mounted) showApiError(context, e);
     }
@@ -98,6 +120,13 @@ class PlanEditorPage extends ConsumerWidget {
                 onPressed: dirty || saving
                     ? null
                     : () => _copyAsNew(context, ref, value.requireValue.base),
+              ),
+            if (value.hasValue)
+              IconButton(
+                key: const Key('plan-delete'),
+                icon: Icon(Icons.delete_outline, color: saving ? null : context.esquema.error),
+                tooltip: 'Eliminar plan',
+                onPressed: saving ? null : () => _delete(context, ref, value.requireValue.base),
               ),
             if (value.hasValue)
               Padding(
@@ -298,6 +327,15 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
       _ => ('Publicado', 'Los atletas ven la versión guardada.'),
     };
     final editor = ref.read(planEditorProvider(planId).notifier);
+    // Who the % and kg are worked out for (E5.16): the assignment's athletes, or those chosen here without one.
+    final forWhom = plan.type == PlanType.history
+        ? null
+        : ref.watch(planAthletesProvider(planId)).value;
+    final chosen = ref.watch(planAthleteChoiceProvider(planId));
+    final calculated = [
+      for (final a in forWhom?.athletes ?? const <PlanAthlete>[])
+        if (forWhom!.assigned || (chosen?.contains(a.id) ?? true)) a,
+    ];
     // The details at a glance while closed: type, Activo / Pasado and the model of each week.
     final summary = Wrap(
       key: const Key('plan-details-summary'),
@@ -320,6 +358,12 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
           draft.past
               ? InsigniaMaktub('Pasado', context.colores.insigniaBase)
               : InsigniaMaktub('Activo', context.colores.exitoContenedor),
+        if (calculated.isNotEmpty)
+          InsigniaMaktub(
+            'Para ${calculated.map((a) => a.name).join(', ')}',
+            context.colores.insigniaBase,
+            key: const Key('plan-for-whom-summary'),
+          ),
         for (final (w, id) in draft.assignment.indexed)
           switch (draft.modelById(id)) {
             null => InsigniaMaktub(
@@ -411,6 +455,36 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                   selected: {draft.past},
                   onSelectionChanged: (s) => editor.setPast(s.first),
                 ),
+              ],
+              if (forWhom != null && forWhom.athletes.isNotEmpty) ...[
+                const SizedBox(height: Espacio.l),
+                Text('Calcular % y kg para', style: context.textos.titleMedium),
+                const SizedBox(height: Espacio.xs),
+                if (forWhom.assigned)
+                  Text(
+                    '${calculated.map((a) => a.name).join(', ')}, por la asignación del plan.',
+                    key: const Key('plan-for-whom-assigned'),
+                    style: context.textos.bodyMedium,
+                  )
+                else
+                  Wrap(
+                    spacing: Espacio.s,
+                    runSpacing: Espacio.xs,
+                    children: [
+                      for (final a in forWhom.athletes)
+                        FilterChip(
+                          key: Key('plan-for-whom-${a.id}'),
+                          label: Text(a.name),
+                          selected: chosen?.contains(a.id) ?? true,
+                          onSelected: (on) => ref
+                              .read(planAthleteChoiceProvider(planId).notifier)
+                              .choose({
+                                for (final x in forWhom.athletes)
+                                  if (x.id == a.id ? on : (chosen?.contains(x.id) ?? true)) x.id,
+                              }),
+                        ),
+                    ],
+                  ),
               ],
               const SizedBox(height: Espacio.l),
               Text('Asignación', style: context.textos.titleMedium),
@@ -777,6 +851,41 @@ class _BlockTile extends ConsumerWidget {
   final String? timerName;
   final PlanEditor editor;
 
+  /// What "inherit" means for a prescription of this block, as [timerForSet] resolves it: a timed block's timer and
+  /// a WoD's are the block's own, never a rest after a set.
+  String get _inheritedTimerLabel {
+    final inherits =
+        block.executionMode != ExecutionMode.timed &&
+        block.categoryId != wodCategoryId;
+    final name = inherits && block.timerId != null ? timerName : null;
+    return name == null ? 'Del bloque (ninguno)' : 'Del bloque ($name)';
+  }
+
+  /// Who the plan is for, with their RM and factor for [exercise], and the club's equipment: what the prescription
+  /// dialog converts % and kg with (E5.16). Without an assignment, those chosen in the Detalles card. Empty when they
+  /// cannot be read.
+  Future<PrescriptionAthletes> _loadBasis(WidgetRef ref, Exercise? exercise) async {
+    if (exercise == null) return const PrescriptionAthletes();
+    try {
+      final plan = await ref.read(planAthletesProvider(editor.planId).future);
+      final exercises = await ref.read(catalogExercisesProvider.future);
+      final rmId = rmExerciseIdFor(exercise, {for (final e in exercises) e.id: e});
+      final equipo = await ref.read(clubTeamProvider.future);
+      final bases = athleteBases(plan.athletes, rmId, hoy());
+      if (plan.assigned) return PrescriptionAthletes(athletes: bases, equipo: equipo);
+      final chosen = ref.read(planAthleteChoiceProvider(editor.planId));
+      return PrescriptionAthletes(
+        athletes: [
+          for (final a in bases)
+            if (chosen?.contains(a.id) ?? true) a,
+        ],
+        equipo: equipo,
+      );
+    } catch (_) {
+      return const PrescriptionAthletes();
+    }
+  }
+
   Future<void> _addExercise(BuildContext context, WidgetRef ref) async {
     final isWod = block.categoryId == wodCategoryId;
     final exercise = await showExercisePicker(
@@ -786,6 +895,7 @@ class _BlockTile extends ConsumerWidget {
     );
     if (exercise == null) return;
     final timers = await ref.read(clubTimersProvider.future);
+    final basis = await _loadBasis(ref, exercise);
     if (!context.mounted) return;
     // The sets are set right away (Ari: picking the exercise and then tapping it again was not
     // intuitive), starting from the defaults. Cancelling adds nothing.
@@ -800,6 +910,8 @@ class _BlockTile extends ConsumerWidget {
         ],
       ),
       exercise: exercise,
+      inheritedTimerLabel: _inheritedTimerLabel,
+      athletes: basis,
     );
     if (prescription == null) return;
     editor.addPrescription(modelId, day, index, prescription);
@@ -829,14 +941,19 @@ class _BlockTile extends ConsumerWidget {
 
   Future<void> _editPrescription(
     BuildContext context,
+    WidgetRef ref,
     int p,
     Prescription prescription,
     Exercise? exercise,
   ) async {
+    final basis = await _loadBasis(ref, exercise);
+    if (!context.mounted) return;
     final edited = await askPrescription(
       context,
       initial: prescription,
       exercise: exercise,
+      inheritedTimerLabel: _inheritedTimerLabel,
+      athletes: basis,
     );
     if (edited == null) return;
     editor.updatePrescription(modelId, day, index, p, edited);
@@ -846,6 +963,8 @@ class _BlockTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final exercises = ref.watch(catalogExercisesProvider).value ?? const [];
     final timers = ref.watch(clubTimersProvider).value ?? const [];
+    // Loaded ahead (and kept) for the prescription dialog's % and kg (E5.16).
+    ref.watch(planAthletesProvider(editor.planId));
     Exercise? exerciseOf(String? id) {
       for (final e in exercises) {
         if (e.id == id) return e;
@@ -857,6 +976,7 @@ class _BlockTile extends ConsumerWidget {
         exerciseOf(id)?.name ?? id ?? 'Sin ejercicio';
 
     String timerLabel(String id) {
+      if (id == noTimerId) return 'ninguno';
       for (final t in timers) {
         if (t.id == id) return t.nombre;
       }
@@ -963,9 +1083,7 @@ class _BlockTile extends ConsumerWidget {
                     key: Key('prescription-$keyPrefix-$index-$p'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    onTap: () => _editPrescription(
-                      context,
-                      p,
+                    onTap: () => _editPrescription(context, ref, p,
                       prescription,
                       exerciseOf(prescription.exerciseId),
                     ),

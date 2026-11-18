@@ -251,18 +251,24 @@ class _Blocks extends ConsumerWidget {
                       proposed: sets[(b, p, s)],
                       record: records[(b, p, s)],
                       keyId: '$b-$p-$s',
-                      onToggle: () async {
-                        final start = records[(b, p, s)]?.done ?? false
-                            ? null
-                            : timers.starterFor(
+                      onToggle: (done) async {
+                        // The rest starts with the tap, not when the server answers, and stops if it refuses.
+                        final start = done
+                            ? timers.starterFor(
                                 day.blocks[b],
                                 day.blocks[b].prescriptions[p],
-                              );
-                        await notifier.writeSet(
-                          clubId,
-                          writeOf(b, p, s, exerciseId).toggled(),
-                        );
+                              )
+                            : null;
                         start?.call();
+                        try {
+                          await notifier.writeSet(
+                            clubId,
+                            writeOf(b, p, s, exerciseId).withDone(done),
+                          );
+                        } catch (_) {
+                          if (start != null) timers.stop();
+                          rethrow;
+                        }
                       },
                       onEdit: (kg, reps) => notifier.writeSet(
                         clubId,
@@ -312,7 +318,7 @@ class _Blocks extends ConsumerWidget {
   ];
 }
 
-class _SetRow extends StatelessWidget {
+class _SetRow extends StatefulWidget {
   const _SetRow({
     required this.index,
     required this.target,
@@ -328,10 +334,38 @@ class _SetRow extends StatelessWidget {
   final ProposedSet? proposed;
   final SetRecord? record;
   final String keyId;
-  final Future<void> Function() onToggle;
+
+  /// Writes the set as marked ([done] true) or unmarked.
+  final Future<void> Function(bool done) onToggle;
 
   /// A null [kg] lets the server compute them; a null [reps] takes the plan's.
   final Future<void> Function(double? kg, int? reps) onEdit;
+
+  @override
+  State<_SetRow> createState() => _SetRowState();
+}
+
+/// The check answers the tap at once: what was tapped shows until the write ends, and goes back if it fails.
+class _SetRowState extends State<_SetRow> {
+  /// The last tap's value while its write has not ended.
+  bool? _tapped;
+  int _taps = 0;
+
+  int get index => widget.index;
+  PlanSet get target => widget.target;
+  ProposedSet? get proposed => widget.proposed;
+  SetRecord? get record => widget.record;
+  String get keyId => widget.keyId;
+
+  /// Flips what is shown now, which may be a tap still being written (or one not even painted yet).
+  Future<void> _toggle() async {
+    final done = !(_tapped ?? record?.done ?? false);
+    final tap = ++_taps;
+    setState(() => _tapped = done);
+    await _guarded(context, () => widget.onToggle(done));
+    // A later tap owns what is shown until its own write ends.
+    if (mounted && tap == _taps) setState(() => _tapped = null);
+  }
 
   Future<void> _edit(BuildContext context, double? kg, int? reps) async {
     final values = await showSetValuesDialog(
@@ -345,7 +379,7 @@ class _SetRow extends StatelessWidget {
     final typed = values.kg != kg || (record?.manualKg ?? false);
     await _guarded(
       context,
-      () => onEdit(typed ? values.kg : null, values.reps),
+      () => widget.onEdit(typed ? values.kg : null, values.reps),
     );
   }
 
@@ -353,7 +387,7 @@ class _SetRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final kg = shownKg(record, proposed);
     final reps = record?.reps ?? target.reps;
-    final done = record?.done ?? false;
+    final done = _tapped ?? record?.done ?? false;
     final factor = proposed?.workFactor;
     final fromRecord = record != null && (record!.manualKg || done);
     final pct = fromRecord ? record!.pctPlan : proposed?.appliedPct;
@@ -378,7 +412,7 @@ class _SetRow extends StatelessWidget {
               color: done ? context.esquema.primary : null,
             ),
             tooltip: done ? 'Desmarcar la serie' : 'Marcar la serie',
-            onPressed: () => _guarded(context, onToggle),
+            onPressed: _toggle,
           ),
           Expanded(
             child: Column(

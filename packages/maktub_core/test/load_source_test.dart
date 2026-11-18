@@ -37,6 +37,7 @@ void main() {
         barKg: barKg,
       );
 
+      // 16 kg is less than 5 kg under the 20 kg bar: the bar. On the 15 kg bar, the nearest loadable.
       expect(propose().weightKg, 20);
       expect(propose(barKg: 15).weightKg, 15);
     });

@@ -197,6 +197,20 @@ class Equipo implements DelClub {
 
   /// El peso cargable más cercano con la barra [barKg] (la por defecto si es nula o no está en el
   /// inventario). Ante un empate gana el menor.
+  /// Hasta cuánto por debajo de la barra vacía se propone la barra: la serie de barra vacía de una rampa (E4.4) da
+  /// un poco menos que la barra al atleta de RM más bajo, y se hace con la barra.
+  static const margenBarraVacia = 5.0;
+
+  /// Lo que se propone cargar para [kg]: el total cargable más cercano ([masCercano]), salvo que [kg] quede más de
+  /// [margenBarraVacia] por debajo de la barra vacía. Entonces no se hace en esa barra (barra técnica, PVC,
+  /// mancuernas) y va el número exacto con un decimal: 40 % de un RM de 30 kg son 12 kg, no la barra de 20
+  /// (decidido por Ari el 2026-11-18).
+  double cargableOExacto(double kg, {double? barKg}) {
+    final barra = barKg == null ? barraKg : barraPara(barKg);
+    if (barra > 0 && kg < barra - margenBarraVacia) return (kg * 10).round() / 10;
+    return masCercano(kg, barKg: barKg);
+  }
+
   double masCercano(double kg, {double? barKg}) {
     final opciones = barKg == null ? cargables : cargablesCon(barraPara(barKg));
     var mejor = opciones.first;

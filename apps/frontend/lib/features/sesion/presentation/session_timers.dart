@@ -48,6 +48,9 @@ class SessionTimers {
     final crono = _ref.read(cronoControllerProvider.notifier);
     return () => crono.iniciar(timer);
   }
+
+  /// Stops the running timer, as when the write that started it was refused.
+  void stop() => _ref.read(cronoControllerProvider.notifier).detener();
 }
 
 /// Opens the timer picker and starts what the user chooses, for a rest or a WoD the plan does not tie to a set.

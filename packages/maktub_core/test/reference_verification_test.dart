@@ -386,7 +386,11 @@ void main() {
     for (final (rm, planPct, adjustment, kg) in _referenceKilos) {
       test('rm $rm, plan $planPct %, adjustment $adjustment % -> $kg kg', () {
         final applied = pctEfectivo(planPct, adjustment);
-        expect(pesoPorPorcentaje(rm: rm, pct: applied, equipo: equipo), kg);
+        // Well below the empty bar the reference gave the bar; since 2026-11-18 it is the exact weight, one decimal
+        // (Ari: 40 % of a 30 kg RM is 12 kg, not 20). Up to 5 kg under the bar, and above it, the reference holds.
+        final exact = rm * applied / 100;
+        final expected = exact < equipo.barraKg - Equipo.margenBarraVacia ? (exact * 10).round() / 10 : kg;
+        expect(pesoPorPorcentaje(rm: rm, pct: applied, equipo: equipo), expected);
         // The same result through the set recalculation (untouched set).
         final set = recalculateSet(
           planPct: planPct,
@@ -395,10 +399,18 @@ void main() {
           equipo: equipo,
           touched: false,
         );
-        expect(set.weightKg, kg);
+        expect(set.weightKg, expected);
         expect(set.appliedPct, applied);
       });
     }
+
+    test('well below the empty bar the weight is exact, not the bar (2026-11-18)', () {
+      expect(pesoPorPorcentaje(rm: 30, pct: 40, equipo: equipo), 12);
+      expect(pesoPorPorcentaje(rm: 30, pct: 37, equipo: equipo), 11.1);
+      // Less than 5 kg under the bar is the bar: the empty-bar set of a ramp.
+      expect(pesoPorPorcentaje(rm: 70, pct: 25, equipo: equipo), 20);
+      expect(pesoPorPorcentaje(rm: 30, pct: 70, equipo: equipo), equipo.masCercano(21));
+    });
 
     test('80 % of an 80 kg RM is 63 kg, the nearest loadable that wins the tie downwards', () {
       // reference/DISENO.md: the 63 kg written in the sheet is the nearest loadable to 64 kg.

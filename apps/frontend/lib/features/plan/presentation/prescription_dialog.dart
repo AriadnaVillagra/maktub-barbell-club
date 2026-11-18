@@ -5,26 +5,43 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_providers.dart';
+import '../domain/athlete_loads.dart';
 import '../domain/prescription_edit.dart';
 import 'plan_labels.dart';
 
 /// Edits a prescription: its sets one by one (reps always; `%` if the exercise is loaded by % of RM; kg
 /// if it has a fixed load), the note, its own timer and the bar override. Returns the edited prescription,
 /// or null if cancelled. Nothing is validated here (E5.9 does it when saving). [inheritedTimerLabel] names
-/// what an empty timer means: the block's timer in a plan, the WoD's in the library.
+/// what an empty timer means: the block's timer in a plan, the WoD's in the library. "Sin temporizador"
+/// ([noTimerId]) turns it off for this exercise only.
+///
+/// A set of an exercise loaded by % of RM is typed in % or in kg (E5.16): typing one clears the other, and each of
+/// [athletes] with an RM gets the other value worked out and frozen in the set, shown under it.
 Future<Prescription?> askPrescription(
   BuildContext context, {
   required Prescription initial,
   required Exercise? exercise,
   String inheritedTimerLabel = 'El del bloque',
+  PrescriptionAthletes athletes = const PrescriptionAthletes(),
 }) => showDialog<Prescription>(
   context: context,
   builder: (_) => _PrescriptionDialog(
     initial: initial,
     exercise: exercise,
     inheritedTimerLabel: inheritedTimerLabel,
+    athletes: athletes,
   ),
 );
+
+/// Who a prescription's % and kg are worked out for (E5.16), with their RM and factor for its exercise, and the
+/// equipment that rounds the kilos (the standard one when null). The plan's assignment, or the athletes chosen in
+/// the editor's Detalles card when it has none.
+class PrescriptionAthletes {
+  const PrescriptionAthletes({this.athletes = const [], this.equipo});
+
+  final List<AthleteBasis> athletes;
+  final Equipo? equipo;
+}
 
 final _decimalText = RegExp(r'^\d*[.,]?\d*$');
 
@@ -41,11 +58,13 @@ class _PrescriptionDialog extends ConsumerStatefulWidget {
     required this.initial,
     required this.exercise,
     required this.inheritedTimerLabel,
+    required this.athletes,
   });
 
   final Prescription initial;
   final Exercise? exercise;
   final String inheritedTimerLabel;
+  final PrescriptionAthletes athletes;
 
   @override
   ConsumerState<_PrescriptionDialog> createState() =>
@@ -64,6 +83,81 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
 
   /// Changes whenever rows are added or removed, so the fields are rebuilt with the new initial texts.
   int _generation = 0;
+
+  /// Per set, how many times typing the other field cleared its % or its kg field (rebuilt empty, not focused).
+  final _pctCleared = <int, int>{};
+  final _kgCleared = <int, int>{};
+
+  String _clearedSuffix(Map<int, int> cleared, int i) => (cleared[i] ?? 0) == 0 ? '' : '-${cleared[i]}';
+
+  /// The bar the kilos are rounded on: the one typed here, else the exercise's.
+  double? get _barKg => parseTypedNumber(_bar) ?? widget.exercise?.barKg;
+
+  List<AthleteBasis> get _athletes => widget.athletes.athletes;
+
+  Map<String, AthleteSetLoad> _loadsFor(double? pct, double? kg) => athleteLoads(
+    pct: pct,
+    kg: kg,
+    athletes: _athletes,
+    equipo: widget.athletes.equipo ?? Equipo.estandarDe(''),
+    barKg: _barKg,
+  );
+
+
+  /// The one athlete the loads are for, when there is exactly one and they have an RM: their % and kg then go in the
+  /// set's own fields instead of a line under it.
+  AthleteBasis? get _single {
+    final athletes = _athletes;
+    return athletes.length == 1 && (athletes.single.rm ?? 0) > 0 ? athletes.single : null;
+  }
+
+  /// [s] worked out again from its % ([fromPct]) or from its kg (E5.16): each athlete's loads, and with a single
+  /// athlete the other field too. With several, only what was typed is kept.
+  PlanSet _workedOut(PlanSet s, {required bool fromPct}) {
+    final pct = fromPct ? s.pct : null;
+    final kg = fromPct ? null : s.kg;
+    final loads = _loadsFor(pct, kg);
+    final own = _single == null ? null : loads[_single!.id];
+    return setWith(
+      s,
+      reps: s.reps,
+      pct: fromPct ? pct : own?.pct,
+      kg: fromPct ? own?.kg : kg,
+      byAthlete: loads,
+    );
+  }
+
+  /// Rebuilds the fields of set [i] whose value [after] changed from [before], without touching the one being typed.
+  void _refreshFields(int i, PlanSet before, PlanSet after, {bool? typedPct}) {
+    if (typedPct != true && before.pct != after.pct) _pctCleared[i] = (_pctCleared[i] ?? 0) + 1;
+    if (typedPct != false && before.kg != after.kg) _kgCleared[i] = (_kgCleared[i] ?? 0) + 1;
+  }
+
+  /// Typed in % or in kg on a % exercise (E5.16).
+  void _typeLoad(int i, {required bool inPct, required double? value}) {
+    final before = _sets[i];
+    final typed = setWith(
+      before,
+      reps: before.reps,
+      pct: inPct ? value : before.pct,
+      kg: inPct ? before.kg : value,
+    );
+    final after = _workedOut(typed, fromPct: inPct);
+    setState(() {
+      _refreshFields(i, before, after, typedPct: inPct);
+      _sets = [for (final (j, x) in _sets.indexed) j == i ? after : x];
+    });
+  }
+
+  /// A new bar rounds the kilos differently: the sets typed in % for several athletes are worked out again. With a
+  /// single athlete both fields are filled and it is not known which was typed, so they stay.
+  void _rebar() {
+    _sets = [
+      for (final s in _sets)
+        s.byAthlete.isEmpty || s.pct == null || s.kg != null ? s : _workedOut(s, fromPct: true),
+    ];
+  }
+
 
   bool get _hasPct =>
       widget.exercise?.metrics.contains(Metric.loadPctRm) ??
@@ -137,7 +231,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final (i, set) in _sets.indexed)
+              for (final (i, set) in _sets.indexed) ...[
                 Row(
                   key: Key('set-row-$i'),
                   crossAxisAlignment: CrossAxisAlignment.center,
@@ -157,15 +251,21 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                     if (_hasPct) ...[
                       const SizedBox(width: Espacio.s),
                       _numberField(
-                        key: ValueKey('set-pct-$i-$_generation'),
+                        key: ValueKey('set-pct-$i-$_generation${_clearedSuffix(_pctCleared, i)}'),
                         label: '%',
                         initial: set.pct == null ? '' : formatNumber(set.pct!),
                         formatters: [_decimalFormatter],
-                        onChanged: (t) =>
-                            _changeSet(i, pct: (_) => parseTypedNumber(t)),
+                        onChanged: (t) => _typeLoad(i, inPct: true, value: parseTypedNumber(t)),
                       ),
-                    ],
-                    if (_hasKg) ...[
+                      const SizedBox(width: Espacio.s),
+                      _numberField(
+                        key: ValueKey('set-kg-$i-$_generation${_clearedSuffix(_kgCleared, i)}'),
+                        label: 'kg',
+                        initial: set.kg == null ? '' : formatNumber(set.kg!),
+                        formatters: [_decimalFormatter],
+                        onChanged: (t) => _typeLoad(i, inPct: false, value: parseTypedNumber(t)),
+                      ),
+                    ] else if (_hasKg) ...[
                       const SizedBox(width: Espacio.s),
                       _numberField(
                         key: ValueKey('set-kg-$i-$_generation'),
@@ -185,10 +285,25 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                           : () => setState(() {
                               _sets = removeSet(_sets, i);
                               _generation++;
+                              _pctCleared.clear();
+                              _kgCleared.clear();
                             }),
                     ),
                   ],
                 ),
+                if (_single == null
+                    ? athleteLoadsSummary(set.byAthlete, _athletes, formatNumber)
+                    : '' case final line
+                    when line.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),
+                    child: Text(
+                      line,
+                      key: Key('set-athletes-$i'),
+                      style: context.textos.bodySmall?.copyWith(color: context.esquema.onSurfaceVariant),
+                    ),
+                  ),
+              ],
               Align(
                 alignment: Alignment.centerLeft,
                 child: TextButton.icon(
@@ -213,7 +328,9 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
               const SizedBox(height: Espacio.l),
               DropdownButtonFormField<String?>(
                 key: const Key('prescription-timer-field'),
-                initialValue: timerItems.any((t) => t.id == _timerId)
+                initialValue:
+                    _timerId == noTimerId ||
+                        timerItems.any((t) => t.id == _timerId)
                     ? _timerId
                     : null,
                 isExpanded: true,
@@ -222,6 +339,10 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                   DropdownMenuItem<String?>(
                     value: null,
                     child: Text(widget.inheritedTimerLabel),
+                  ),
+                  const DropdownMenuItem<String?>(
+                    value: noTimerId,
+                    child: Text('Sin temporizador'),
                   ),
                   for (final t in timerItems)
                     DropdownMenuItem<String?>(
@@ -248,7 +369,10 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                       'Vacío: la del ejercicio (${formatNumber(kg)} kg)',
                   },
                 ),
-                onChanged: (t) => _bar = t,
+                onChanged: (t) => setState(() {
+                  _bar = t;
+                  _rebar();
+                }),
               ),
             ],
           ),

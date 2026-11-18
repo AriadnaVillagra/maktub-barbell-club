@@ -15,6 +15,10 @@ class _DeviceTimerPlatform implements TimerPlatform {
   @override
   Future<void> beep({required double hz, required Duration duration}) => SystemSound.play(SystemSoundType.alert);
 
+  /// Only the PWA ships, so outside the web (tests, a native run) the scheduled tones are not played.
+  @override
+  Future<void> schedule(List<ScheduledTone> tones) async {}
+
   @override
   Future<void> vibrate(List<int> pattern) => HapticFeedback.heavyImpact();
 }

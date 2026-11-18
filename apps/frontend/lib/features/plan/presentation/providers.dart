@@ -42,6 +42,12 @@ Future<Plan?> createPlan(
   return plan;
 }
 
+/// Deletes [plan] with its assignments and refreshes the list (E8.9). Errors propagate.
+Future<void> deletePlan(WidgetRef ref, Plan plan) async {
+  await ref.read(planRepositoryProvider).delete(plan.clubId, plan.id);
+  ref.invalidate(plansProvider);
+}
+
 /// Creates a new plan named [name] with the week models and cycle assignment of [source], saved as a draft
 /// and active, so it can be completed and published on its own. A history plan's copy is a regular plan.
 /// Returns null without an active club. Errors propagate.

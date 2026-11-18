@@ -42,21 +42,23 @@ class ShellPrincipal extends ConsumerWidget {
       [0, if (canPlan) 1, if (canConfigure) 2, if (hasProfile) 3];
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => TemaDeModo(
-        modo: _modos[navegacion.currentIndex],
-        preferencia: ref.watch(preferenciaTemaProvider),
-        child: Builder(
-          builder: (context) => _construir(
-            context,
-            ref,
-            _visibles(
-              ref.watch(canPlanProvider) ?? false,
-              ref.watch(canConfigureProvider) ?? false,
-              ref.watch(hasAthleteProfileProvider) ?? false,
-            ),
-          ),
-        ),
-      );
+  Widget build(BuildContext context, WidgetRef ref) {
+    final canPlan = ref.watch(canPlanProvider);
+    final canConfigure = ref.watch(canConfigureProvider);
+    final hasProfile = ref.watch(hasAthleteProfileProvider);
+    // Until the permissions are known there is no bar: a short one that grows a moment later looks like an old
+    // version of the app.
+    final known = canPlan != null && canConfigure != null && hasProfile != null;
+    return TemaDeModo(
+      modo: _modos[navegacion.currentIndex],
+      preferencia: ref.watch(preferenciaTemaProvider),
+      child: Builder(
+        builder: (context) => known
+            ? _construir(context, ref, _visibles(canPlan, canConfigure, hasProfile))
+            : Scaffold(body: _contenido(context, const [0])),
+      ),
+    );
+  }
 
   /// A horizontal swipe moves to the next or previous tab. Only from a tab's landing page: inside a
   /// screen (a plan, a form) the same gesture must not throw the user out of it.
@@ -68,20 +70,22 @@ class ShellPrincipal extends ConsumerWidget {
     if (next >= 0 && next < visibles.length) _ir(visibles[next]);
   }
 
-  Widget _construir(BuildContext context, WidgetRef ref, List<int> visibles) {
-    final contenido = Column(
-      children: [
-        Expanded(
-          child: GestureDetector(
-            behavior: HitTestBehavior.translucent,
-            supportedDevices: const {PointerDeviceKind.touch, PointerDeviceKind.mouse},
-            onHorizontalDragEnd: (d) => _swipe(context, d, visibles),
-            child: navegacion,
+  Widget _contenido(BuildContext context, List<int> visibles) => Column(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              supportedDevices: const {PointerDeviceKind.touch, PointerDeviceKind.mouse},
+              onHorizontalDragEnd: (d) => _swipe(context, d, visibles),
+              child: navegacion,
+            ),
           ),
-        ),
-        const BarraCrono(),
-      ],
-    );
+          const BarraCrono(),
+        ],
+      );
+
+  Widget _construir(BuildContext context, WidgetRef ref, List<int> visibles) {
+    final contenido = _contenido(context, visibles);
 
     if (context.tamanoPantalla != TamanoPantalla.compacto) {
       return Scaffold(
