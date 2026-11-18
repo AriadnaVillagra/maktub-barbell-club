@@ -609,24 +609,51 @@ class _ModelCard extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                IconButton(
-                  key: Key('model-rename-$id'),
-                  icon: const Icon(Icons.edit_outlined),
-                  tooltip: 'Renombrar',
-                  onPressed: () async {
-                    final name = await askPlanName(
-                      context,
-                      title: 'Renombrar modelo',
-                      initial: model.name,
-                    );
-                    if (name != null) editor.renameModel(id, name);
+                // Rename, copy and remove in a menu, so the header fits on a phone.
+                PopupMenuButton<String>(
+                  key: Key('model-menu-$id'),
+                  tooltip: 'Opciones del modelo',
+                  onSelected: (action) async {
+                    switch (action) {
+                      case 'rename':
+                        final name = await askPlanName(
+                          context,
+                          title: 'Renombrar modelo',
+                          initial: model.name,
+                        );
+                        if (name != null) editor.renameModel(id, name);
+                      case 'copy':
+                        editor.copyModel(id);
+                      case 'remove':
+                        editor.removeModel(id);
+                    }
                   },
-                ),
-                IconButton(
-                  key: Key('model-remove-$id'),
-                  icon: const Icon(Icons.delete_outline),
-                  tooltip: 'Quitar modelo',
-                  onPressed: () => editor.removeModel(id),
+                  itemBuilder: (_) => [
+                    PopupMenuItem(
+                      key: Key('model-rename-$id'),
+                      value: 'rename',
+                      child: const ListTile(
+                        leading: Icon(Icons.edit_outlined),
+                        title: Text('Renombrar'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      key: Key('model-copy-$id'),
+                      value: 'copy',
+                      child: const ListTile(
+                        leading: Icon(Icons.copy_outlined),
+                        title: Text('Copiar modelo'),
+                      ),
+                    ),
+                    PopupMenuItem(
+                      key: Key('model-remove-$id'),
+                      value: 'remove',
+                      child: const ListTile(
+                        leading: Icon(Icons.delete_outline),
+                        title: Text('Quitar modelo'),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
