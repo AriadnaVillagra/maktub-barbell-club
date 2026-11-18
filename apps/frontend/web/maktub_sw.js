@@ -22,9 +22,15 @@ const INDEX_URL = new URL('./', self.registration.scope).href;
 // An unstamped copy (flutter run, plain build) must not cache anything.
 const stamped = BUILD_ID !== '__BUILD_ID__';
 
+// The page asks for it (see index.html) when the user accepts the update, or
+// when the app opens with a new version already waiting; then it reloads.
+self.addEventListener('message', (event) => {
+  if (event.data === 'skipWaiting') self.skipWaiting();
+});
+
 self.addEventListener('install', (event) => {
   if (!stamped) return;
-  // No skipWaiting: an update waits until every tab/PWA window is closed, so a
+  // No skipWaiting here: an update waits until the page asks for it, so a
   // running page never mixes files of two builds.
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) =>
