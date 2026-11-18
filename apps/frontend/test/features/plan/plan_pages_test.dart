@@ -1089,11 +1089,24 @@ void main() {
           findsOneWidget,
         );
 
+        // "Sin temporizador" turns it off for this exercise, whatever the block has.
         await tester.tap(find.byKey(const Key('prescription-a-0-0-0')));
         await tester.pumpAndSettle();
         await tester.tap(find.byKey(const Key('prescription-timer-field')));
         await tester.pumpAndSettle();
-        await tester.tap(find.text('El del bloque').last);
+        await tester.tap(find.text('Sin temporizador').last);
+        await tester.pumpAndSettle();
+        await accept(tester);
+        expect(
+          find.text('Temporizador: ninguno · Barra: 15,5 kg · RPE 8'),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const Key('prescription-a-0-0-0')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('prescription-timer-field')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.textContaining('Del bloque').last);
         await tester.pumpAndSettle();
         await tester.enterText(
           find.byKey(const Key('prescription-bar-field')),

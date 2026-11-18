@@ -162,6 +162,10 @@ class PlanSet {
   });
 }
 
+/// [Prescription.timerId] that turns the timer off for that exercise, instead of inheriting the block's (or the
+/// WoD's). Not a timer of the catalog: nothing resolves it, so marking a set starts nothing.
+const noTimerId = 'ninguno';
+
 /// An exercise with its sets, one by one (a ramp is just sets that differ).
 class Prescription {
   const Prescription({
@@ -179,7 +183,7 @@ class Prescription {
   /// Free text (note / RPE); never interpreted.
   final String? note;
 
-  /// Own timer; replaces the block's default rest timer.
+  /// Own timer; replaces the block's default rest timer. Null inherits the block's; [noTimerId] means none.
   final String? timerId;
 
   /// Bar for this prescription, in kg. Replaces the exercise's `barKg` when present; null means use the

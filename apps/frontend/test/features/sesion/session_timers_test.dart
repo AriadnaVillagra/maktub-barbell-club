@@ -281,6 +281,11 @@ void main() {
       expect(timerForSet(block[5], own, _timers)?.id, 'rest90');
     });
 
+    test('"Sin temporizador" on the prescription turns the block\'s rest off', () {
+      final none = _prescription(timerId: noTimerId);
+      expect(timerForSet(block[1], none, _timers), isNull);
+    });
+
     test('no timer, or one that is not in the catalog, starts nothing', () {
       expect(timerForSet(block[3], block[3].prescriptions[0], _timers), isNull);
       expect(

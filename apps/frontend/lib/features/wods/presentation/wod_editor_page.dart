@@ -111,7 +111,7 @@ class _WodFormState extends ConsumerState<_WodForm> {
       context,
       initial: _draft.prescriptions[i],
       exercise: exercise,
-      inheritedTimerLabel: 'El del WoD',
+      inheritedTimerLabel: 'Del WoD',
     );
     if (edited != null) {
       setState(() => _draft = _draft.updatePrescription(i, edited));
@@ -180,6 +180,7 @@ class _WodFormState extends ConsumerState<_WodForm> {
     }
 
     String timerLabel(String id) {
+      if (id == noTimerId) return 'ninguno';
       for (final t in timers) {
         if (t.id == id) return t.nombre;
       }

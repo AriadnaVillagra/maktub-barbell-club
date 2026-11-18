@@ -804,6 +804,16 @@ class _BlockTile extends ConsumerWidget {
   final String? timerName;
   final PlanEditor editor;
 
+  /// What "inherit" means for a prescription of this block, as [timerForSet] resolves it: a timed block's timer and
+  /// a WoD's are the block's own, never a rest after a set.
+  String get _inheritedTimerLabel {
+    final inherits =
+        block.executionMode != ExecutionMode.timed &&
+        block.categoryId != wodCategoryId;
+    final name = inherits && block.timerId != null ? timerName : null;
+    return name == null ? 'Del bloque (ninguno)' : 'Del bloque ($name)';
+  }
+
   Future<void> _addExercise(BuildContext context, WidgetRef ref) async {
     final isWod = block.categoryId == wodCategoryId;
     final exercise = await showExercisePicker(
@@ -827,6 +837,7 @@ class _BlockTile extends ConsumerWidget {
         ],
       ),
       exercise: exercise,
+      inheritedTimerLabel: _inheritedTimerLabel,
     );
     if (prescription == null) return;
     editor.addPrescription(modelId, day, index, prescription);
@@ -864,6 +875,7 @@ class _BlockTile extends ConsumerWidget {
       context,
       initial: prescription,
       exercise: exercise,
+      inheritedTimerLabel: _inheritedTimerLabel,
     );
     if (edited == null) return;
     editor.updatePrescription(modelId, day, index, p, edited);
@@ -884,6 +896,7 @@ class _BlockTile extends ConsumerWidget {
         exerciseOf(id)?.name ?? id ?? 'Sin ejercicio';
 
     String timerLabel(String id) {
+      if (id == noTimerId) return 'ninguno';
       for (final t in timers) {
         if (t.id == id) return t.nombre;
       }

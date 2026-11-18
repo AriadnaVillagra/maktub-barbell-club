@@ -11,7 +11,8 @@ import 'plan_labels.dart';
 /// Edits a prescription: its sets one by one (reps always; `%` if the exercise is loaded by % of RM; kg
 /// if it has a fixed load), the note, its own timer and the bar override. Returns the edited prescription,
 /// or null if cancelled. Nothing is validated here (E5.9 does it when saving). [inheritedTimerLabel] names
-/// what an empty timer means: the block's timer in a plan, the WoD's in the library.
+/// what an empty timer means: the block's timer in a plan, the WoD's in the library. "Sin temporizador"
+/// ([noTimerId]) turns it off for this exercise only.
 Future<Prescription?> askPrescription(
   BuildContext context, {
   required Prescription initial,
@@ -213,7 +214,9 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
               const SizedBox(height: Espacio.l),
               DropdownButtonFormField<String?>(
                 key: const Key('prescription-timer-field'),
-                initialValue: timerItems.any((t) => t.id == _timerId)
+                initialValue:
+                    _timerId == noTimerId ||
+                        timerItems.any((t) => t.id == _timerId)
                     ? _timerId
                     : null,
                 isExpanded: true,
@@ -222,6 +225,10 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                   DropdownMenuItem<String?>(
                     value: null,
                     child: Text(widget.inheritedTimerLabel),
+                  ),
+                  const DropdownMenuItem<String?>(
+                    value: noTimerId,
+                    child: Text('Sin temporizador'),
                   ),
                   for (final t in timerItems)
                     DropdownMenuItem<String?>(
