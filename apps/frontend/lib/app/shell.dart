@@ -10,6 +10,7 @@ import '../features/temporizador/presentation/widgets/barra_crono.dart';
 import '../features/temporizador/presentation/widgets/crono_con_atras.dart';
 import '../features/temporizador/presentation/widgets/iniciar_temporizador.dart';
 import 'preferencias.dart';
+import 'router.dart';
 
 /// Marco común: navegación entre modos (barra inferior en celular, riel lateral desde tablet),
 /// el tema de cada modo (entrenamiento oscuro y grande), el temporizador en marcha y el acceso a los
@@ -97,7 +98,7 @@ class ShellPrincipal extends ConsumerWidget {
             NavigationRail(
               selectedIndex: visibles.indexOf(navegacion.currentIndex).clamp(0, visibles.length - 1),
               onDestinationSelected: (i) =>
-                  i == visibles.length ? pickAndStartTimer(context, ref) : _ir(visibles[i]),
+                  i == visibles.length ? pickAndStartTimer(context, ref, configurePath: Rutas.temporizadores) : _ir(visibles[i]),
               labelType: NavigationRailLabelType.all,
               destinations: [
                 for (final d in [for (final i in visibles) _destinos[i]])
@@ -128,7 +129,7 @@ class ShellPrincipal extends ConsumerWidget {
         labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         selectedIndex: visibles.indexOf(navegacion.currentIndex).clamp(0, visibles.length - 1),
         onDestinationSelected: (i) =>
-            i == visibles.length ? pickAndStartTimer(context, ref) : _ir(visibles[i]),
+            i == visibles.length ? pickAndStartTimer(context, ref, configurePath: Rutas.temporizadores) : _ir(visibles[i]),
         destinations: [
           for (final d in [for (final i in visibles) _destinos[i]])
             NavigationDestination(icon: Icon(d.icono), selectedIcon: Icon(d.seleccionado), label: d.etiqueta),

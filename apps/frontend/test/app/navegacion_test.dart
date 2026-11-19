@@ -4,6 +4,7 @@ import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:maktub_frontend/features/temporizador/presentation/quick_timers_providers.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/app/app.dart';
@@ -24,6 +25,7 @@ import '../features/atletas/fakes.dart';
 import '../features/catalogo/catalog_admin_fakes.dart';
 import '../features/catalogo/catalog_fakes.dart';
 import '../features/session/fakes.dart';
+import '../features/temporizador/timer_fakes.dart';
 
 final _gym = club('c1', 'Gimnasio', TipoClub.club);
 
@@ -67,6 +69,7 @@ Future<void> _montar(
   MeRepository? meRepository,
   AppUpdate? update,
   bool settle = true,
+  FakeQuickTimers? quick,
 }) async {
   tester.view.physicalSize = tamano;
   tester.view.devicePixelRatio = 1;
@@ -74,6 +77,7 @@ Future<void> _montar(
   // Signed in: without a session the router would stop at the sign-in screen.
   await tester.pumpWidget(ProviderScope(
     overrides: [
+      quickTimersRepositoryProvider.overrideWithValue(quick ?? FakeQuickTimers(['rest'])),
       tokenStoreProvider.overrideWithValue(FakeTokenStore(issued(1))),
       appUpdateProvider.overrideWithValue(update ?? _FakeUpdate()),
       authApiProvider.overrideWithValue(FakeAuthApi()),
@@ -82,7 +86,12 @@ Future<void> _montar(
       ),
       catalogRepositoryProvider.overrideWithValue(FakeCatalog([])),
       catalogAdminRepositoryProvider.overrideWithValue(
-        FakeCatalogAdminRepository(timersList: [timer('rest', 'Descanso 90', clubId: clubPlataforma)]),
+        FakeCatalogAdminRepository(
+          timersList: [
+            timer('rest', 'Descanso 90', clubId: clubPlataforma),
+            timer('emom', 'EMOM 10', clubId: clubPlataforma),
+          ],
+        ),
       ),
       athleteRepositoryProvider.overrideWithValue(FakeAthleteRepository(
         athletesList: const [AthleteSummary(id: 'a1', userId: 'u2', name: 'Andi')],
@@ -361,6 +370,37 @@ void main() {
 
       expect(tester.widget<NavigationBar>(find.byType(NavigationBar)).selectedIndex, before);
       expect(GoRouter.of(tester.element(find.byType(NavigationBar))).state.uri.path, Rutas.planificacion);
+    });
+
+    testWidgets('the picker offers only the timers at hand (Ari, 2026-11-19)', (tester) async {
+      await _montar(tester, const Size(400, 800));
+
+      await tester.tap(_tab('Temporizador'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Descanso 90'), findsOneWidget);
+      expect(find.text('EMOM 10'), findsNothing);
+    });
+
+    testWidgets('with none at hand the picker says where to choose them, and takes you there', (tester) async {
+      final quick = FakeQuickTimers();
+      await _montar(tester, const Size(400, 800), quick: quick);
+
+      await tester.tap(_tab('Temporizador'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('timer-picker-empty')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('timer-picker-configure')));
+      await tester.pumpAndSettle();
+      expect(GoRouter.of(tester.element(find.byType(NavigationBar))).state.uri.path, Rutas.temporizadores);
+
+      // The checkbox of a timer puts it at hand.
+      await tester.tap(find.byKey(const Key('timer-quick-emom')));
+      await tester.pumpAndSettle();
+      expect(quick.ids_, ['emom']);
+      await tester.tap(_tab('Temporizador'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('timer-pick-emom')), findsOneWidget);
     });
 
     testWidgets('the rail has the same item on wide screens', (tester) async {
