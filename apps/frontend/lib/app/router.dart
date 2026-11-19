@@ -186,7 +186,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ],
                 ),
                 GoRoute(path: 'equipo', builder: (_, _) => const TeamPage()),
-                GoRoute(path: 'miembros', builder: (_, _) => const MembersPage()),
+                GoRoute(path: 'miembros', builder: (_, _) => const MembersPage(exitPath: Rutas.preferencias)),
               ],
             ),
           ]),

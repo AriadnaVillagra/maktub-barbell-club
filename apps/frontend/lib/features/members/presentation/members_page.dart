@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../../core/red/api_providers.dart';
+import '../../access/presentation/providers.dart' show meProvider;
 import '../../access/presentation/role_labels.dart';
 import '../../catalogo/presentation/catalog_admin_widgets.dart';
 import '../../catalogo/presentation/providers.dart';
@@ -22,7 +24,11 @@ final clubMembersProvider = FutureProvider<List<ClubMember>>((ref) async {
 
 /// The club's members: a club admin registers people and changes their roles.
 class MembersPage extends ConsumerWidget {
-  const MembersPage({super.key});
+  const MembersPage({super.key, required this.exitPath});
+
+  /// Where the page goes when the user takes away their own club admin role: without it they cannot see
+  /// the members any more.
+  final String exitPath;
 
   Future<void> _edit(BuildContext context, WidgetRef ref, ClubMember? member) async {
     final clubId = ref.read(catalogClubIdProvider);
@@ -33,7 +39,20 @@ class MembersPage extends ConsumerWidget {
     );
     if (result == null || clubId == null || !context.mounted) return;
     try {
-      await repo.register(clubId, email: result.email, name: result.name, roles: result.roles);
+      final saved = await repo.register(clubId, email: result.email, name: result.name, roles: result.roles);
+      final me = ref.read(meProvider).value;
+      final clubType = me?.activeClub?.club.tipo ?? TipoClub.club;
+      if (saved.userId == me?.user.id && !puede(saved.roles, Accion.gestionarMiembros, clubType)) {
+        // Their roles changed: fetched again so the app stops offering what they can no longer do.
+        ref.invalidate(meProvider);
+        if (!context.mounted) return;
+        final messenger = ScaffoldMessenger.of(context);
+        context.go(exitPath);
+        messenger.showSnackBar(
+          const SnackBar(content: Text('Ya no administrás el club, así que no ves los miembros.')),
+        );
+        return;
+      }
       ref.invalidate(clubMembersProvider);
     } catch (e) {
       if (context.mounted) showApiError(context, e);
