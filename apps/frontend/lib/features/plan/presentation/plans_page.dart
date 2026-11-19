@@ -121,14 +121,13 @@ class _PlansPageState extends ConsumerState<PlansPage> {
                   ),
                 )
               : ListView(
-                  // Keeps the cards out of the add button's column, so it never covers them.
+                  // The cards use the whole width (Ari, 2026-11-19); room below the last one lets it scroll clear of the
+                  // add button.
                   padding: const EdgeInsets.fromLTRB(
                     Espacio.m,
                     Espacio.m,
-                    kFloatingActionButtonMargin +
-                        kMinInteractiveDimension +
-                        Espacio.l,
                     Espacio.m,
+                    kFloatingActionButtonMargin * 2 + kMinInteractiveDimension + Espacio.l,
                   ),
                   children: [
                     filter,
