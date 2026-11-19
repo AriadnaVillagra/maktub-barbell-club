@@ -28,7 +28,7 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 7 / 7 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13; E6.7 en `m1-mvp`) | — |
 | E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 27 / 27 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
-| E8 | [Migración](E8-migracion.md) | lista para merge | 10 / 10 (todos hechos; E8.6 verificada en producción el 2026-11-19. Octubre 2026 y Levantamiento están en borrador en producción: Ari completa sus % en la app y los publica, y después se corre el importador para sus asignaciones y series, ver E8.6) | — |
+| E8 | [Migración](E8-migracion.md) | lista para merge | 10 / 10 (todos hechos; migración cerrada el 2026-11-19. Lo que falta de Octubre 2026 y Levantamiento lo hace Ari a mano en la app, ver E8.6) | — |
 | E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
