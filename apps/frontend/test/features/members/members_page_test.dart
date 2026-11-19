@@ -100,4 +100,30 @@ void main() {
     expect(members.listCalls, 1, reason: 'the list is not asked for again');
     expect(me.fetches, 2, reason: 'the roles are fetched again');
   });
+
+  testWidgets('roles changed from another session show up when the app comes back to the front', (tester) async {
+    final me = _MutableMe({Rol.coach, Rol.atleta, Rol.adminClub});
+    final members = _FakeMembers(me);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          sessionControllerProvider.overrideWith(_SignedIn.new),
+          meRepositoryProvider.overrideWithValue(me),
+          membersRepositoryProvider.overrideWithValue(members),
+        ],
+        child: MaterialApp(theme: TemaMaktub.claro(), home: const MembersPage(exitPath: '/')),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Admin del club'), findsOneWidget);
+
+    // Another session takes the role away; this one is in the background meanwhile.
+    me.roles = {Rol.coach, Rol.atleta};
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pumpAndSettle();
+
+    expect(members.listCalls, 2);
+    expect(find.textContaining('Admin del club'), findsNothing);
+  });
 }

@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart' show PlanType, PlanVisibility;
 import 'package:maktub_ui/maktub_ui.dart';
 
+import '../../../core/refresh/refresh_on_return.dart';
 import '../../asignacion/presentation/assign_plan_dialog.dart';
 import '../../asignacion/presentation/providers.dart'
     show assignPlan, assignmentTodayProvider, fetchClubAssignments;
@@ -28,28 +29,6 @@ class PlansPage extends ConsumerStatefulWidget {
 
 class _PlansPageState extends ConsumerState<PlansPage> {
   bool _showPast = false;
-
-  /// Another coach may have shared, hidden, created or deleted plans meanwhile (E8.10); nothing pushes those
-  /// changes, so the list is asked for again on coming back to it and when the app returns to the front. What
-  /// is already shown stays on screen while it loads.
-  late final AppLifecycleListener _lifecycle;
-
-  @override
-  void initState() {
-    super.initState();
-    _lifecycle = AppLifecycleListener(onResume: _refresh);
-    if (ref.read(plansProvider).hasValue) Future.microtask(_refresh);
-  }
-
-  @override
-  void dispose() {
-    _lifecycle.dispose();
-    super.dispose();
-  }
-
-  void _refresh() {
-    if (mounted) ref.invalidate(plansProvider);
-  }
 
   String get basePath => widget.basePath;
 
@@ -105,7 +84,10 @@ class _PlansPageState extends ConsumerState<PlansPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // Another coach may have shared, hidden, created or deleted plans meanwhile (E8.10).
+    return RefreshOnReturn(
+      providers: [plansProvider],
+      child: Scaffold(
       appBar: AppBar(title: const Text('Planes')),
       floatingActionButton: FloatingActionButton(
         key: const Key('plan-new'),
@@ -231,6 +213,7 @@ class _PlansPageState extends ConsumerState<PlansPage> {
                 );
         },
       ),
+    ),
     );
   }
 }

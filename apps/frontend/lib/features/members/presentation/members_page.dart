@@ -5,6 +5,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../../core/red/api_providers.dart';
+import '../../../core/refresh/refresh_on_return.dart';
 import '../../access/presentation/providers.dart' show meProvider;
 import '../../access/presentation/role_labels.dart';
 import '../../catalogo/presentation/catalog_admin_widgets.dart';
@@ -60,7 +61,10 @@ class MembersPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Scaffold(
+  // Another admin, or the member themselves, may have changed roles from another session.
+  Widget build(BuildContext context, WidgetRef ref) => RefreshOnReturn(
+    providers: [clubMembersProvider],
+    child: Scaffold(
     appBar: AppBar(title: const Text('Miembros')),
     floatingActionButton: FloatingActionButton.extended(
       key: const Key('member-add'),
@@ -85,6 +89,7 @@ class MembersPage extends ConsumerWidget {
             ),
         ],
       ),
+    ),
     ),
   );
 }
