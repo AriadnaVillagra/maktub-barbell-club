@@ -29,16 +29,19 @@ Plan samplePlan({
   List<String> assignment = const [],
   PublishedPlan? published,
   bool past = false,
+  String createdBy = 'u1',
+  PlanVisibility visibility = PlanVisibility.private,
 }) => Plan(
   id: id,
   clubId: 'c1',
   name: name,
   type: type,
   past: past,
+  visibility: visibility,
   weekModels: models,
   weekAssignment: assignment,
   published: published,
-  auditoria: Auditoria(creadoPor: 'u1', creadoEn: DateTime.utc(2026, 11, 1)),
+  auditoria: Auditoria(creadoPor: createdBy, creadoEn: DateTime.utc(2026, 11, 1)),
 );
 
 /// A published copy of [plan]'s saved content.
@@ -123,6 +126,7 @@ class FakePlanRepository implements PlanRepository {
       name: plan.name,
       type: plan.type,
       past: plan.past,
+      visibility: plan.visibility,
       weekModels: plan.weekModels,
       weekAssignment: plan.weekAssignment,
       // The server keeps its own published copy, whatever the client sends.

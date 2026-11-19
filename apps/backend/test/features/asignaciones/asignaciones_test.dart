@@ -39,9 +39,25 @@ class _FakeStore
   /// `clubId/athleteId`
   final athletes = <String>{};
 
+  /// `clubId/planId` → (creator, visibility); a plan not listed here is coach-1's, shared read-only.
+  final planOwners = <String, (String, PlanVisibility)>{};
+
   @override
-  Future<bool?> planIsPublished(String clubId, String planId) async =>
-      plans['$clubId/$planId'];
+  Future<Plan?> plan(String clubId, String planId) async {
+    final published = plans['$clubId/$planId'];
+    if (published == null) return null;
+    final (creator, visibility) = planOwners['$clubId/$planId'] ?? ('coach-1', PlanVisibility.sharedReadOnly);
+    return Plan(
+      id: planId,
+      clubId: clubId,
+      name: 'P',
+      visibility: visibility,
+      published: published
+          ? PublishedPlan(weekModels: const [], weekAssignment: const [], publishedAt: DateTime.utc(2026), publishedBy: creator)
+          : null,
+      auditoria: Auditoria(creadoPor: creator, creadoEn: DateTime.utc(2026)),
+    );
+  }
 
   @override
   Future<List<String>?> groupMemberIds(String clubId, String groupId) async =>
@@ -297,6 +313,19 @@ void main() {
         expect((await _json(r))['error'], isA<String>());
       }
       expect(s.all, isEmpty);
+    });
+
+    test("another coach's private plan is 404; one shared read-only with the caller can be assigned", () async {
+      final s = store()
+        ..plans['club-a/mine'] = true
+        ..planOwners['club-a/mine'] = ('coach-3', PlanVisibility.private);
+
+      final private = await create(_coachA, s, body(planId: 'mine'));
+      final shared = await create(_coachA, s, body());
+
+      expect(private.statusCode, HttpStatus.notFound);
+      expect(shared.statusCode, HttpStatus.created);
+      expect(s.all.map((a) => a.planId), ['p1']);
     });
 
     test('an athlete can be in several active assignments at once (no D14)', () async {

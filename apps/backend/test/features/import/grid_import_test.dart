@@ -236,8 +236,7 @@ class _Assignments implements CreateAssignmentStore {
   final _Db db;
 
   @override
-  Future<bool?> planIsPublished(String clubId, String planId) async =>
-      db.plans[planId] == null ? null : db.plans[planId]!.published != null;
+  Future<Plan?> plan(String clubId, String planId) async => db.plans[planId];
 
   @override
   Future<List<String>?> groupMemberIds(String clubId, String groupId) async =>

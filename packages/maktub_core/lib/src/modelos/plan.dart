@@ -39,6 +39,26 @@ enum PlanType implements ConCable {
   static PlanType deCable(Object? v) => desdeCable(values, v, 'Tipo de plan');
 }
 
+/// Who else, among the club's coaches, reaches a plan (pedido de Ari, 2026-11-19). The one who created it
+/// (`auditoria.creadoPor`) and the club admins always reach it whole; the rule is `planAccess`.
+enum PlanVisibility implements ConCable {
+  /// Only its creator and the club admins see it. The default, also for plans saved before the field existed.
+  private('privado'),
+
+  /// Every coach of the club sees it and can copy or assign it, but only its creator and the admins change it.
+  sharedReadOnly('compartido_lectura'),
+
+  /// Every coach of the club sees it and changes it. Deleting it and changing who sees it stay with its creator
+  /// and the admins.
+  sharedEditable('compartido_edicion');
+
+  const PlanVisibility(this.cable);
+  @override
+  final String cable;
+
+  static PlanVisibility deCable(Object? v) => desdeCable(values, v, 'Visibilidad del plan');
+}
+
 /// How a block is walked (diseno, "Cómo se recorre un bloque"). M1 only runs [sequential].
 enum ExecutionMode implements ConCable {
   /// All the sets of exercise 1, then all of exercise 2...
@@ -398,6 +418,7 @@ class Plan implements DelClub {
     this.weekAssignment = const [],
     this.published,
     this.past = false,
+    this.visibility = PlanVisibility.private,
     required this.auditoria,
   });
 
@@ -413,6 +434,9 @@ class Plan implements DelClub {
 
   /// Whether the plans list shows this plan under "Pasados".
   bool get isPast => past || type == PlanType.history;
+
+  /// Which other coaches of the club reach this plan ([PlanVisibility]). Not a content change.
+  final PlanVisibility visibility;
 
   final List<WeekModel> weekModels;
 
@@ -453,6 +477,9 @@ class Plan implements DelClub {
     name: '${j['nombre'] ?? ''}',
     type: j['tipo'] == null ? PlanType.regular : PlanType.deCable(j['tipo']),
     past: j['pasado'] == true,
+    visibility: j['visibilidad'] == null
+        ? PlanVisibility.private
+        : PlanVisibility.deCable(j['visibilidad']),
     weekModels: [
       for (final m in listaJson(j['modelosSemana'])) WeekModel.fromJson(m),
     ],
@@ -471,6 +498,7 @@ class Plan implements DelClub {
     'nombre': name,
     'tipo': type.cable,
     if (past) 'pasado': true,
+    'visibilidad': visibility.cable,
     'modelosSemana': [for (final m in weekModels) m.toJson()],
     'asignacion': weekAssignment,
     if (published != null) 'publicado': published!.toJson(),

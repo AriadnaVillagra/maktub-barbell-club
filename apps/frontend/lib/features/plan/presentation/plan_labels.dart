@@ -6,6 +6,22 @@ String planTypeLabel(PlanType type) => switch (type) {
   PlanType.history => 'Histórico',
 };
 
+String planVisibilityLabel(PlanVisibility v) => switch (v) {
+  PlanVisibility.private => 'Privado',
+  PlanVisibility.sharedReadOnly => 'Compartido para ver',
+  PlanVisibility.sharedEditable => 'Compartido para editar',
+};
+
+/// What each visibility means for the other coaches of the club.
+String planVisibilityDetail(PlanVisibility v) => switch (v) {
+  PlanVisibility.private => 'Solo quien lo creó y los administradores del club lo ven.',
+  PlanVisibility.sharedReadOnly =>
+    'Los otros coaches lo ven, lo copian y lo asignan, pero no lo cambian.',
+  PlanVisibility.sharedEditable =>
+    'Los otros coaches también lo editan y lo publican. Eliminarlo y cambiar quién lo ve queda para quien lo '
+    'creó y los administradores.',
+};
+
 String formatNumber(double v) =>
     v == v.roundToDouble() ? '${v.toInt()}' : '$v'.replaceAll('.', ',');
 

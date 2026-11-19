@@ -75,11 +75,12 @@ class CreateAssignment {
       );
     }
 
-    final published = await _store.planIsPublished(club.clubId, planId);
-    if (published == null) {
+    // A plan the caller cannot see does not exist for them; one shared read-only can be assigned.
+    final plan = await _store.plan(club.clubId, planId);
+    if (plan == null || !PlanAccess.of(plan, userId: club.userId, roles: club.roles).see) {
       throw const ErrorDeSolicitud.noEncontrado('Plan no encontrado.');
     }
-    if (!published) {
+    if (plan.published == null) {
       throw const ErrorDeSolicitud(
         'El plan no tiene una versión publicada; publicalo antes de asignarlo.',
         estado: HttpStatus.unprocessableEntity,

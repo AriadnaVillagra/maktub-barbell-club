@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
+import '../../access/presentation/providers.dart' show planAccessProvider;
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
     show asyncView, confirmAction, showApiError;
 import '../../catalogo/presentation/exercise_picker.dart';
@@ -85,6 +86,7 @@ class PlanEditorPage extends ConsumerWidget {
     final value = ref.watch(editor);
     final dirty = value.value?.isDirty ?? false;
     final saving = ref.watch(planSaveProvider(planId)).saving;
+    final access = value.hasValue ? ref.watch(planAccessProvider)(value.requireValue.base) : null;
     return PopScope(
       canPop: !dirty,
       onPopInvokedWithResult: (didPop, _) async {
@@ -121,14 +123,15 @@ class PlanEditorPage extends ConsumerWidget {
                     ? null
                     : () => _copyAsNew(context, ref, value.requireValue.base),
               ),
-            if (value.hasValue)
+            // Only its creator and the club admins delete it.
+            if (access?.manage ?? false)
               IconButton(
                 key: const Key('plan-delete'),
                 icon: Icon(Icons.delete_outline, color: saving ? null : context.esquema.error),
                 tooltip: 'Eliminar plan',
                 onPressed: saving ? null : () => _delete(context, ref, value.requireValue.base),
               ),
-            if (value.hasValue)
+            if (access?.edit ?? false)
               Padding(
                 padding: const EdgeInsets.only(right: Espacio.s),
                 child: FilledButton.icon(
@@ -170,9 +173,22 @@ class _Editor extends ConsumerWidget {
     final publish = ref.watch(planPublishProvider(planId));
     final modelsView = ref.watch(modelsViewProvider);
     final phone = MediaQuery.sizeOf(context).width < 600;
+    // A plan shared read-only by another coach: shown as it is, with nothing to change.
+    final readOnly = !ref.watch(planAccessProvider)(draft.base).edit;
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
+        if (readOnly) ...[
+          Text(
+            'Este plan es de otro coach y está compartido solo para ver. Podés asignarlo, o copiarlo como plan '
+            'nuevo para cambiarlo.',
+            key: const Key('plan-read-only'),
+            style: context.textos.bodyMedium?.copyWith(
+              color: context.esquema.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: Espacio.l),
+        ],
         _PublishStatus(planId: planId, draft: draft),
         const SizedBox(height: Espacio.l),
         if (publish.problems.isNotEmpty) ...[
@@ -263,16 +279,20 @@ class _Editor extends ConsumerWidget {
         for (final model in draft.weekModels)
           RevealOnAdd(
             target: 'model-${model.id}',
-            child: _ModelCard(
-              key: Key('model-${model.id}'),
-              model: model,
-              draft: draft,
-              editor: editor,
-              compact: modelsView == ModelsView.compact,
+            child: IgnorePointer(
+              ignoring: readOnly,
+              child: _ModelCard(
+                key: Key('model-${model.id}'),
+                model: model,
+                draft: draft,
+                editor: editor,
+                compact: modelsView == ModelsView.compact,
+              ),
             ),
           ),
         const SizedBox(height: Espacio.s),
-        Align(
+        if (!readOnly)
+          Align(
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(
             key: const Key('model-add'),
@@ -330,6 +350,7 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
       _ => ('Publicado', 'Los atletas ven la versión guardada.'),
     };
     final editor = ref.read(planEditorProvider(planId).notifier);
+    final access = ref.watch(planAccessProvider)(plan);
     // Who the % and kg are worked out for (E5.16): the assignment's athletes, or those chosen here without one.
     final forWhom = plan.type == PlanType.history
         ? null
@@ -432,7 +453,7 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                           )
                         : const Icon(Icons.publish_outlined),
                     label: const Text('Publicar'),
-                    onPressed: publishable && !publishing
+                    onPressed: access.edit && publishable && !publishing
                         ? () => ref
                               .read(planPublishProvider(planId).notifier)
                               .publish()
@@ -480,9 +501,38 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                     ButtonSegment(value: true, label: Text('Pasado')),
                   ],
                   selected: {draft.past},
-                  onSelectionChanged: (s) => editor.setPast(s.first),
+                  onSelectionChanged: access.edit ? (s) => editor.setPast(s.first) : null,
                 ),
               ],
+              // Who else among the club's coaches reaches it. Only its creator and the club admins choose.
+              const SizedBox(height: Espacio.l),
+              Text('Quién lo ve', style: context.textos.titleMedium),
+              const SizedBox(height: Espacio.xs),
+              if (access.manage)
+                SegmentedButton<PlanVisibility>(
+                  key: const Key('plan-visibility'),
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: PlanVisibility.private, label: Text('Privado')),
+                    ButtonSegment(value: PlanVisibility.sharedReadOnly, label: Text('Para ver')),
+                    ButtonSegment(value: PlanVisibility.sharedEditable, label: Text('Para editar')),
+                  ],
+                  selected: {draft.visibility},
+                  onSelectionChanged: (s) => editor.setVisibility(s.first),
+                )
+              else
+                Text(
+                  planVisibilityLabel(draft.visibility),
+                  key: const Key('plan-visibility-label'),
+                  style: context.textos.bodyLarge,
+                ),
+              const SizedBox(height: Espacio.xs),
+              Text(
+                planVisibilityDetail(draft.visibility),
+                style: context.textos.bodyMedium?.copyWith(
+                  color: context.esquema.onSurfaceVariant,
+                ),
+              ),
               if (forWhom != null && forWhom.athletes.isNotEmpty) ...[
                 const SizedBox(height: Espacio.l),
                 Text('Calcular % y kg para', style: context.textos.titleMedium),

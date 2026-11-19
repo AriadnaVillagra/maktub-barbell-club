@@ -90,6 +90,10 @@ class Me {
   /// The user's athlete id in the active club, or null when they are not an athlete there.
   String? get athleteId => activeClub?.athleteId;
 
+  /// What the user can do with [plan] of the active club ([PlanAccess]). Without an active club, nothing.
+  PlanAccess planAccess(Plan plan) =>
+      PlanAccess.of(plan, userId: user.id, roles: activeClub?.roles ?? const {});
+
   bool get canManageMembers => activeClub?.can(Accion.gestionarMiembros) ?? false;
 
   /// Whether the Preferences tab (catalog, timers, equipment, members) is available.

@@ -67,6 +67,13 @@ final canEditReferencesProvider = Provider<bool>((ref) => ref.watch(meProvider).
 
 final canManageMembersProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canManageMembers ?? false);
 
+/// What the user can do with a given plan ([Me.planAccess]). While `GET /me` is not known, full access: the API
+/// enforces the rule anyway, and a coach's own plans are the common case.
+final planAccessProvider = Provider<PlanAccess Function(Plan)>((ref) {
+  final me = ref.watch(meProvider).value;
+  return (plan) => me?.planAccess(plan) ?? PlanAccess.of(plan, userId: plan.auditoria.creadoPor, roles: const {});
+});
+
 /// Whether the user can change a given catalog item (see [Me.canWriteCatalog]).
 final canWriteCatalogProvider = Provider<bool Function(DelClub)>((ref) {
   final me = ref.watch(meProvider).value;

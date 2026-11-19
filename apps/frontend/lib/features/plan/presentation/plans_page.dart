@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:maktub_core/maktub_core.dart' show PlanType;
+import 'package:maktub_core/maktub_core.dart' show PlanType, PlanVisibility;
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../asignacion/presentation/assign_plan_dialog.dart';
@@ -158,6 +158,18 @@ class _PlansPageState extends ConsumerState<PlansPage> {
                                       : '${p.modelCount} modelos',
                                   context.colores.insigniaBase,
                                 ),
+                                if (p.visibility != PlanVisibility.private)
+                                  InsigniaMaktub(
+                                    planVisibilityLabel(p.visibility),
+                                    context.colores.insigniaBase,
+                                    key: Key('plan-visibility-${p.id}'),
+                                  ),
+                                if (!p.own)
+                                  InsigniaMaktub(
+                                    'De otro coach',
+                                    context.colores.insigniaBase,
+                                    key: Key('plan-not-own-${p.id}'),
+                                  ),
                                 switch ((
                                   p.published,
                                   p.hasUnpublishedChanges,
