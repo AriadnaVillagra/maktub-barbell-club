@@ -120,9 +120,12 @@ class ShellPrincipal extends ConsumerWidget {
     }
 
     // The last item is not a destination: it opens the timer picker and the selection stays put.
+    // Only icons: the labels did not fit (Ari, 2026-11-19). Each one keeps its label as a tooltip and for screen
+    // readers.
     return Scaffold(
       body: contenido,
       bottomNavigationBar: NavigationBar(
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         selectedIndex: visibles.indexOf(navegacion.currentIndex).clamp(0, visibles.length - 1),
         onDestinationSelected: (i) =>
             i == visibles.length ? pickAndStartTimer(context, ref) : _ir(visibles[i]),
