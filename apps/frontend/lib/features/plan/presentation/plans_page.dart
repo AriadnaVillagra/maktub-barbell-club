@@ -29,6 +29,28 @@ class PlansPage extends ConsumerStatefulWidget {
 class _PlansPageState extends ConsumerState<PlansPage> {
   bool _showPast = false;
 
+  /// Another coach may have shared, hidden, created or deleted plans meanwhile (E8.10); nothing pushes those
+  /// changes, so the list is asked for again on coming back to it and when the app returns to the front. What
+  /// is already shown stays on screen while it loads.
+  late final AppLifecycleListener _lifecycle;
+
+  @override
+  void initState() {
+    super.initState();
+    _lifecycle = AppLifecycleListener(onResume: _refresh);
+    if (ref.read(plansProvider).hasValue) Future.microtask(_refresh);
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
+  }
+
+  void _refresh() {
+    if (mounted) ref.invalidate(plansProvider);
+  }
+
   String get basePath => widget.basePath;
 
   Future<void> _create(BuildContext context, WidgetRef ref) async {
