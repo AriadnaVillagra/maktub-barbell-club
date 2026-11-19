@@ -7,6 +7,7 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../features/access/presentation/providers.dart';
 import '../features/temporizador/presentation/widgets/barra_crono.dart';
+import '../features/temporizador/presentation/widgets/crono_con_atras.dart';
 import '../features/temporizador/presentation/widgets/iniciar_temporizador.dart';
 import 'preferencias.dart';
 
@@ -70,7 +71,8 @@ class ShellPrincipal extends ConsumerWidget {
     if (next >= 0 && next < visibles.length) _ir(visibles[next]);
   }
 
-  Widget _contenido(BuildContext context, List<int> visibles) => Column(
+  Widget _contenido(BuildContext context, List<int> visibles) => CronoConAtras(
+        child: Column(
         children: [
           Expanded(
             child: GestureDetector(
@@ -82,6 +84,7 @@ class ShellPrincipal extends ConsumerWidget {
           ),
           const BarraCrono(),
         ],
+      ),
       );
 
   Widget _construir(BuildContext context, WidgetRef ref, List<int> visibles) {

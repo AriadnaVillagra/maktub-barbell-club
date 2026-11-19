@@ -178,3 +178,6 @@ publicada**, nunca el borrador.
 - **Ver lo que se hizo en un día pasado** (salió de la revisión de E8.6, 2026-11-19). Hoy el calendario muestra
   solo el ciclo del plan activo, y el editor de un plan histórico muestra lo planificado, sin kilos. Estado:
   `sin refinar`, fuera de M1.
+- **Insignias de las tarjetas en la sesión del día** (pedido por Ari el 2026-11-19). Una tarjeta dice "Hecho"
+  apenas se tilda un ejercicio, aunque falte el resto del día. Tiene que reflejar cuánto se hizo de verdad.
+  Estado: `sin refinar`.
