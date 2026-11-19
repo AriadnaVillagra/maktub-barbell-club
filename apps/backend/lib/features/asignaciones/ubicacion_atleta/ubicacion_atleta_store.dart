@@ -4,11 +4,9 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 /// What the "athlete's location by date" slice reads. Every method carries the club id.
 abstract interface class AthleteLocationStore {
-  /// Whether the athlete [athleteId] exists in [clubId].
-  Future<bool> athleteExists(String clubId, String athleteId);
-
-  /// The athlete of [clubId] linked to the user [userId], or null if the user is not an athlete there.
-  Future<String?> athleteIdOfUser(String clubId, String userId);
+  /// The athlete [athleteId] of [clubId] with the user linked to it (null if none), or null if there is no such
+  /// athlete. One read answers both whether it exists and whether it is the caller.
+  Future<({String? userId})?> athlete(String clubId, String athleteId);
 
   /// The active assignments of [clubId] that [athleteId] is or was in, on any date.
   Future<List<Assignment>> activeAssignments(String clubId, String athleteId);
@@ -23,20 +21,13 @@ class MongoAthleteLocationStore implements AthleteLocationStore {
   final Db _db;
 
   @override
-  Future<bool> athleteExists(String clubId, String athleteId) async =>
-      await _db.collection(Colecciones.atletas).findOne({
-        '_id': athleteId,
-        'clubId': clubId,
-      }) !=
-      null;
-
-  @override
-  Future<String?> athleteIdOfUser(String clubId, String userId) async {
-    final doc = await _db.collection(Colecciones.atletas).findOne({
-      'clubId': clubId,
-      'usuarioId': userId,
-    });
-    return doc == null ? null : '${doc['_id']}';
+  Future<({String? userId})?> athlete(String clubId, String athleteId) async {
+    final doc = await _db
+        .collection(Colecciones.atletas)
+        .findOne(where.eq('_id', athleteId).eq('clubId', clubId).fields(['usuarioId']));
+    if (doc == null) return null;
+    final user = doc['usuarioId'];
+    return (userId: user == null ? null : '$user');
   }
 
   @override
