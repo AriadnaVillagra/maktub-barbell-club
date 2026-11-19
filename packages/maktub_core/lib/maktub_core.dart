@@ -31,6 +31,7 @@ export 'src/reglas/guided_pass_rules.dart';
 export 'src/reglas/guided_steps.dart';
 export 'src/reglas/load_source.dart';
 export 'src/reglas/permisos.dart';
+export 'src/reglas/plan_access.dart';
 export 'src/reglas/plan_validation.dart';
 export 'src/reglas/ramp.dart';
 export 'src/reglas/set_load.dart';

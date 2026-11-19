@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:maktub_core/maktub_core.dart' show PlanType;
+import 'package:maktub_core/maktub_core.dart' show PlanType, PlanVisibility;
 import 'package:maktub_ui/maktub_ui.dart';
 
+import '../../../core/refresh/refresh_on_return.dart';
 import '../../asignacion/presentation/assign_plan_dialog.dart';
 import '../../asignacion/presentation/providers.dart'
     show assignPlan, assignmentTodayProvider, fetchClubAssignments;
@@ -83,7 +84,10 @@ class _PlansPageState extends ConsumerState<PlansPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    // Another coach may have shared, hidden, created or deleted plans meanwhile (E8.10).
+    return RefreshOnReturn(
+      providers: [plansProvider],
+      child: Scaffold(
       appBar: AppBar(title: const Text('Planes')),
       floatingActionButton: FloatingActionButton(
         key: const Key('plan-new'),
@@ -117,14 +121,13 @@ class _PlansPageState extends ConsumerState<PlansPage> {
                   ),
                 )
               : ListView(
-                  // Keeps the cards out of the add button's column, so it never covers them.
+                  // The cards use the whole width (Ari, 2026-11-19); room below the last one lets it scroll clear of the
+                  // add button.
                   padding: const EdgeInsets.fromLTRB(
                     Espacio.m,
                     Espacio.m,
-                    kFloatingActionButtonMargin +
-                        kMinInteractiveDimension +
-                        Espacio.l,
                     Espacio.m,
+                    kFloatingActionButtonMargin * 2 + kMinInteractiveDimension + Espacio.l,
                   ),
                   children: [
                     filter,
@@ -158,6 +161,18 @@ class _PlansPageState extends ConsumerState<PlansPage> {
                                       : '${p.modelCount} modelos',
                                   context.colores.insigniaBase,
                                 ),
+                                if (p.visibility != PlanVisibility.private)
+                                  InsigniaMaktub(
+                                    planVisibilityLabel(p.visibility),
+                                    context.colores.insigniaBase,
+                                    key: Key('plan-visibility-${p.id}'),
+                                  ),
+                                if (!p.own)
+                                  InsigniaMaktub(
+                                    'De otro coach',
+                                    context.colores.insigniaBase,
+                                    key: Key('plan-not-own-${p.id}'),
+                                  ),
                                 switch ((
                                   p.published,
                                   p.hasUnpublishedChanges,
@@ -197,6 +212,7 @@ class _PlansPageState extends ConsumerState<PlansPage> {
                 );
         },
       ),
+    ),
     );
   }
 }

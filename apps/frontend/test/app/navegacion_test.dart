@@ -4,6 +4,7 @@ import 'dart:ui' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:maktub_frontend/features/temporizador/presentation/quick_timers_providers.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/app/app.dart';
@@ -24,6 +25,7 @@ import '../features/atletas/fakes.dart';
 import '../features/catalogo/catalog_admin_fakes.dart';
 import '../features/catalogo/catalog_fakes.dart';
 import '../features/session/fakes.dart';
+import '../features/temporizador/timer_fakes.dart';
 
 final _gym = club('c1', 'Gimnasio', TipoClub.club);
 
@@ -67,6 +69,7 @@ Future<void> _montar(
   MeRepository? meRepository,
   AppUpdate? update,
   bool settle = true,
+  FakeQuickTimers? quick,
 }) async {
   tester.view.physicalSize = tamano;
   tester.view.devicePixelRatio = 1;
@@ -74,6 +77,7 @@ Future<void> _montar(
   // Signed in: without a session the router would stop at the sign-in screen.
   await tester.pumpWidget(ProviderScope(
     overrides: [
+      quickTimersRepositoryProvider.overrideWithValue(quick ?? FakeQuickTimers(['rest'])),
       tokenStoreProvider.overrideWithValue(FakeTokenStore(issued(1))),
       appUpdateProvider.overrideWithValue(update ?? _FakeUpdate()),
       authApiProvider.overrideWithValue(FakeAuthApi()),
@@ -82,7 +86,12 @@ Future<void> _montar(
       ),
       catalogRepositoryProvider.overrideWithValue(FakeCatalog([])),
       catalogAdminRepositoryProvider.overrideWithValue(
-        FakeCatalogAdminRepository(timersList: [timer('rest', 'Descanso 90', clubId: clubPlataforma)]),
+        FakeCatalogAdminRepository(
+          timersList: [
+            timer('rest', 'Descanso 90', clubId: clubPlataforma),
+            timer('emom', 'EMOM 10', clubId: clubPlataforma),
+          ],
+        ),
       ),
       athleteRepositoryProvider.overrideWithValue(FakeAthleteRepository(
         athletesList: const [AthleteSummary(id: 'a1', userId: 'u2', name: 'Andi')],
@@ -146,7 +155,7 @@ void main() {
     me.answer.complete();
     await tester.pumpAndSettle();
     expect(find.byType(NavigationBar), findsOneWidget);
-    expect(find.text('Planificación'), findsOneWidget);
+    expect(_tab('Planificación'), findsOneWidget);
   });
 
   testWidgets('arranca en Entrenamiento y navega a Planificación (celular)', (tester) async {
@@ -155,7 +164,7 @@ void main() {
     expect(find.byType(NavigationBar), findsOneWidget);
     expect(find.text('Sesión del día'), findsOneWidget);
 
-    await tester.tap(find.text('Planificación'));
+    await tester.tap(_tab('Planificación'));
     await tester.pumpAndSettle();
 
     expect(find.text('Atletas y referencias'), findsOneWidget);
@@ -168,7 +177,7 @@ void main() {
 
     expect(brillo(), Brightness.dark);
 
-    await tester.tap(find.text('Planificación'));
+    await tester.tap(_tab('Planificación'));
     await tester.pumpAndSettle();
 
     expect(brillo(), Brightness.light);
@@ -237,7 +246,7 @@ void main() {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta});
 
       expect(find.text('Sesión del día'), findsOneWidget);
-      expect(find.text('Planificación'), findsNothing);
+      expect(_tab('Planificación'), findsNothing);
       expect(find.byType(NavigationDestination), findsNWidgets(2));
       expect(find.byKey(const Key('shell-timer')), findsOneWidget);
     });
@@ -253,15 +262,15 @@ void main() {
       await _montar(tester, const Size(1200, 800), roles: {Rol.atleta});
 
       expect(find.byType(NavigationRail), findsOneWidget);
-      expect(find.text('Planificación'), findsNothing);
-      expect(find.text('Temporizador'), findsOneWidget);
+      expect(_tab('Planificación'), findsNothing);
+      expect(_tab('Temporizador'), findsOneWidget);
     });
 
     testWidgets('a coach sees planning and can open it by URL', (tester) async {
       await _montar(tester, const Size(400, 800), ruta: Rutas.planificacion);
 
       expect(find.text('Atletas y referencias'), findsOneWidget);
-      expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Planificación')), findsOneWidget);
+      expect(_tab('Planificación'), findsOneWidget);
     });
 
     testWidgets('a coach reaches the athlete sheet from the planning landing page', (tester) async {
@@ -288,16 +297,16 @@ void main() {
 
       expect(find.text('Sesión del día'), findsOneWidget);
       expect(find.byKey(const Key('sheet-empty')), findsNothing);
-      expect(find.descendant(of: find.byType(NavigationBar), matching: find.text('Perfil')), findsNothing);
+      expect(_tab('Perfil'), findsNothing);
     });
 
     for (final (name, size) in const [('phone', Size(400, 800)), ('tablet', Size(1200, 800))]) {
       testWidgets('a user with athlete id sees Perfil last on $name, read-only', (tester) async {
         await _montar(tester, size, athleteIds: {'c1': 'a1'});
         final bar = size.width < 600 ? find.byType(NavigationBar) : find.byType(NavigationRail);
-        expect(find.descendant(of: bar, matching: find.text('Perfil')), findsOneWidget);
+        expect(_tab('Perfil'), findsOneWidget);
 
-        await tester.tap(find.descendant(of: bar, matching: find.text('Perfil')));
+        await tester.tap(_tab('Perfil'));
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('sheet-empty')), findsOneWidget);
         expect(find.byKey(const Key('edit-rm')), findsNothing);
@@ -309,11 +318,11 @@ void main() {
     testWidgets('hiding Perfil does not shift the other tabs; an athlete-only user keeps Perfil', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, athleteIds: {'c1': 'a1'});
       expect(find.text('Sesión del día'), findsOneWidget);
-      expect(find.text('Planificación'), findsNothing);
-      expect(find.text('Perfil'), findsOneWidget);
+      expect(_tab('Planificación'), findsNothing);
+      expect(_tab('Perfil'), findsOneWidget);
 
       await _montar(tester, const Size(400, 800), ruta: Rutas.preferencias);
-      await tester.tap(find.text('Planificación'));
+      await tester.tap(_tab('Planificación'));
       await tester.pumpAndSettle();
       expect(find.text('Atletas y referencias'), findsOneWidget);
     });
@@ -322,7 +331,7 @@ void main() {
       await _montar(tester, const Size(400, 800));
       expect(find.text('Catálogo'), findsNothing);
 
-      await tester.tap(find.text('Preferencias'));
+      await tester.tap(_tab('Preferencias'));
       await tester.pumpAndSettle();
 
       expect(find.text('Ejercicios'), findsOneWidget);
@@ -343,7 +352,7 @@ void main() {
 
   group('timers from any screen', () {
     Future<void> startFromShell(WidgetTester tester) async {
-      await tester.tap(find.text('Temporizador'));
+      await tester.tap(_tab('Temporizador'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Descanso 90'));
       await tester.pump();
@@ -363,6 +372,37 @@ void main() {
       expect(GoRouter.of(tester.element(find.byType(NavigationBar))).state.uri.path, Rutas.planificacion);
     });
 
+    testWidgets('the picker offers only the timers at hand (Ari, 2026-11-19)', (tester) async {
+      await _montar(tester, const Size(400, 800));
+
+      await tester.tap(_tab('Temporizador'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Descanso 90'), findsOneWidget);
+      expect(find.text('EMOM 10'), findsNothing);
+    });
+
+    testWidgets('with none at hand the picker says where to choose them, and takes you there', (tester) async {
+      final quick = FakeQuickTimers();
+      await _montar(tester, const Size(400, 800), quick: quick);
+
+      await tester.tap(_tab('Temporizador'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('timer-picker-empty')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('timer-picker-configure')));
+      await tester.pumpAndSettle();
+      expect(GoRouter.of(tester.element(find.byType(NavigationBar))).state.uri.path, Rutas.temporizadores);
+
+      // The checkbox of a timer puts it at hand.
+      await tester.tap(find.byKey(const Key('timer-quick-emom')));
+      await tester.pumpAndSettle();
+      expect(quick.ids_, ['emom']);
+      await tester.tap(_tab('Temporizador'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('timer-pick-emom')), findsOneWidget);
+    });
+
     testWidgets('the rail has the same item on wide screens', (tester) async {
       await _montar(tester, const Size(1200, 800));
 
@@ -371,4 +411,13 @@ void main() {
       expect(tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex, 0);
     });
   });
+}
+
+/// A tab of the shell: an icon with its label as tooltip in the phone's bar (labels hidden, Ari 2026-11-19), the
+/// labelled item in the rail.
+Finder _tab(String label) {
+  final inBar = find.descendant(of: find.byType(NavigationBar), matching: find.byTooltip(label));
+  return inBar.evaluate().isNotEmpty
+      ? inBar
+      : find.descendant(of: find.byType(NavigationRail), matching: find.text(label));
 }

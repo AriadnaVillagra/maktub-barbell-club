@@ -7,8 +7,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 import 'leer_store.dart';
 
 /// `GET /clubes/{clubId}/planes/{planId}` → the whole plan (week models, assignment, days, blocks,
-/// prescriptions and sets). Needs [Accion.planificar] (the coach). A plan of another club, or one that does
-/// not exist, is 404. [store] is for tests.
+/// prescriptions and sets). Needs [Accion.planificar] (the coach). A plan of another club, one that does
+/// not exist, or one the caller cannot see ([PlanAccess]) is 404. [store] is for tests.
 Future<Response> readPlanEndpoint(
   RequestContext context,
   String planId, {
@@ -29,7 +29,7 @@ class ReadPlan {
 
   Future<Plan> call(ClubContext club, String planId) async {
     final plan = await _store.plan(club.clubId, planId);
-    if (plan == null) {
+    if (plan == null || !PlanAccess.of(plan, userId: club.userId, roles: club.roles).see) {
       throw const ErrorDeSolicitud.noEncontrado('Plan no encontrado.');
     }
     return plan;

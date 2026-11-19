@@ -58,6 +58,7 @@ class _FakeStore implements PublishPlanStore, SavePlanStore, ListPlansStore {
       type: plan.type,
       weekModels: plan.weekModels,
       weekAssignment: plan.weekAssignment,
+      visibility: plan.visibility,
       published: stored[i].published,
       auditoria: plan.auditoria,
     );
@@ -142,6 +143,8 @@ Plan _plan(
   weekModels: models ?? _models(),
   weekAssignment: const ['A', 'A', 'A', 'A'],
   published: published,
+  // Shared editable: these tests are about publishing, and coach-2 publishes coach-1's plan.
+  visibility: PlanVisibility.sharedEditable,
   auditoria: Auditoria.nueva(createdBy, ahora: _t0),
 );
 
@@ -291,6 +294,7 @@ void main() {
           id: 'p1',
           clubId: 'club-a',
           name: 'Vacío',
+          visibility: PlanVisibility.sharedEditable,
           auditoria: Auditoria.nueva('coach-1', ahora: _t0),
         ),
       );
@@ -373,6 +377,7 @@ void main() {
           id: 'p1',
           clubId: 'club-a',
           name: 'Vacío',
+          visibility: PlanVisibility.sharedEditable,
           auditoria: Auditoria.nueva('coach-1', ahora: _t0),
         ),
       );

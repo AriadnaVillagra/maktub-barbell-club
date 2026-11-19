@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:maktub_frontend/features/temporizador/presentation/quick_timers_providers.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/app/router.dart' show Rutas;
@@ -433,6 +434,7 @@ Future<_Harness> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        quickTimersRepositoryProvider.overrideWithValue(FakeQuickTimers(['rest90'])),
         meProvider.overrideWith((ref) async => me),
         catalogRepositoryProvider.overrideWithValue(catalog),
         catalogAdminRepositoryProvider.overrideWithValue(catalog),

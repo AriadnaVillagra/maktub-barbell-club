@@ -51,7 +51,17 @@ class _Db implements AssignmentImportStore, CreateAssignmentStore {
   };
 
   @override
-  Future<bool?> planIsPublished(String clubId, String planId) async => plans[planId];
+  Future<Plan?> plan(String clubId, String planId) async => plans[planId] == null
+      ? null
+      : Plan(
+          id: planId,
+          clubId: clubId,
+          name: planId,
+          published: plans[planId]!
+              ? PublishedPlan(publishedAt: DateTime.utc(2026), publishedBy: importAuthor)
+              : null,
+          auditoria: Auditoria(creadoPor: importAuthor, creadoEn: DateTime.utc(2026)),
+        );
 
   @override
   Future<List<String>?> groupMemberIds(String clubId, String groupId) async =>

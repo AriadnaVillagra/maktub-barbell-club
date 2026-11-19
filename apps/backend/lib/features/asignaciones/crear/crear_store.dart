@@ -4,8 +4,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 /// What the "create assignment" slice reads and writes.
 abstract interface class CreateAssignmentStore {
-  /// Whether the plan [planId] of [clubId] has a published version: null if the club has no such plan.
-  Future<bool?> planIsPublished(String clubId, String planId);
+  /// The plan [planId] of [clubId]; null if the club has no such plan.
+  Future<Plan?> plan(String clubId, String planId);
 
   /// The members of the group [groupId] of [clubId]; null if the club has no such group.
   Future<List<String>?> groupMemberIds(String clubId, String groupId);
@@ -23,12 +23,12 @@ class MongoCreateAssignmentStore implements CreateAssignmentStore {
   final Db _db;
 
   @override
-  Future<bool?> planIsPublished(String clubId, String planId) async {
+  Future<Plan?> plan(String clubId, String planId) async {
     final doc = await _db.collection(Colecciones.planes).findOne({
       '_id': planId,
       'clubId': clubId,
     });
-    return doc == null ? null : doc['publicado'] != null;
+    return doc == null ? null : Plan.fromJson(desdeDocumento(doc));
   }
 
   @override

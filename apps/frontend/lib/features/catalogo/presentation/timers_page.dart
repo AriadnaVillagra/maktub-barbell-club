@@ -5,6 +5,7 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../access/presentation/providers.dart';
 import '../../temporizador/presentation/controllers/crono_controller.dart';
+import '../../temporizador/presentation/quick_timers_providers.dart';
 import '../domain/catalog_admin_repository.dart';
 import '../domain/catalog_filters.dart';
 import 'catalog_admin_providers.dart';
@@ -57,6 +58,13 @@ class _TimersPageState extends ConsumerState<TimersPage> {
                 onShowArchived: (v) => setState(() => _showArchived = v),
                 archivedLabel: 'Solo archivados',
               ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Espacio.l, Espacio.s, Espacio.l, 0),
+                child: Text(
+                  'Marcá los que querés tener a mano: son los que aparecen en el botón de temporizador.',
+                  style: context.textos.bodyMedium?.copyWith(color: context.esquema.onSurfaceVariant),
+                ),
+              ),
               Expanded(
                 child: shown.isEmpty
                     ? const Center(child: Text('No hay temporizadores.'))
@@ -102,9 +110,26 @@ class _TimerTile extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final archived = timer.estado == CatalogStatus.archived;
     final canWrite = ref.watch(canWriteCatalogProvider)(timer);
+    final atHand = ref.watch(quickTimerIdsProvider).value?.contains(timer.id);
     return ListTile(
       key: Key('timer-${timer.id}'),
-      leading: const Icon(Icons.timer_outlined),
+      // At hand: in the timer button's list. Each user chooses their own; an archived timer is never offered.
+      leading: archived
+          ? const Icon(Icons.timer_off_outlined)
+          : Checkbox(
+              key: Key('timer-quick-${timer.id}'),
+              value: atHand ?? false,
+              semanticLabel: 'A mano',
+              onChanged: atHand == null
+                  ? null
+                  : (on) async {
+                      try {
+                        await setQuickTimer(ref, timer.id, atHand: on ?? false);
+                      } catch (e) {
+                        if (context.mounted) showApiError(context, e);
+                      }
+                    },
+            ),
       title: Text(timer.nombre),
       subtitle: Text(archived ? '${describirTemporizador(timer)} · Archivado' : describirTemporizador(timer)),
       onTap: canWrite ? onEdit : null,

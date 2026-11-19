@@ -177,3 +177,24 @@ class Temporizador implements DelClub {
     'auditoria': auditoria?.toJson(),
   });
 }
+
+/// The timers a user keeps at hand in a club: the only ones the shell's timer button offers (Ari, 2026-11-19). One
+/// per club and user; each person chooses their own, in Preferencias → Temporizadores.
+class QuickTimers implements DelClub {
+  const QuickTimers({required this.clubId, required this.userId, this.timerIds = const []});
+
+  @override
+  final String clubId;
+  final String userId;
+
+  /// In the order they were chosen.
+  final List<String> timerIds;
+
+  factory QuickTimers.fromJson(Json j) => QuickTimers(
+    clubId: '${j['clubId']}',
+    userId: '${j['usuarioId']}',
+    timerIds: [for (final id in (j['temporizadorIds'] as List? ?? const [])) '$id'],
+  );
+
+  Json toJson() => {'clubId': clubId, 'usuarioId': userId, 'temporizadorIds': timerIds};
+}

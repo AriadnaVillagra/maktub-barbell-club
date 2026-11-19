@@ -26,6 +26,9 @@ abstract final class Colecciones {
   static const ejercicios = 'ejercicios';
   static const categorias = 'categorias';
   static const temporizadores = 'temporizadores';
+
+  /// The timers each user keeps at hand in a club (QuickTimers): `_id` is `<clubId>:<usuarioId>`.
+  static const temporizadoresAMano = 'temporizadores_a_mano';
   static const gruposMusculares = 'grupos_musculares';
   static const patrones = 'patrones_movimiento';
 

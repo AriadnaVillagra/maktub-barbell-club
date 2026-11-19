@@ -15,9 +15,25 @@ class _Context extends Mock implements RequestContext {}
 
 /// Plans by (club, id); like Mongo, it answers only for the club it is asked about.
 class _FakeStore implements DeletePlanStore {
-  _FakeStore(Iterable<(String, String)> plans) : plans = {...plans};
+  _FakeStore(Iterable<(String, String)> plans, {this.creator = 'u-1', this.visibility = PlanVisibility.private})
+    : plans = {...plans};
 
   final Set<(String, String)> plans;
+
+  /// Who created every plan, and its visibility.
+  final String creator;
+  final PlanVisibility visibility;
+
+  @override
+  Future<Plan?> plan(String clubId, String planId) async => plans.contains((clubId, planId))
+      ? Plan(
+          id: planId,
+          clubId: clubId,
+          name: 'P',
+          visibility: visibility,
+          auditoria: Auditoria(creadoPor: creator, creadoEn: DateTime.utc(2026, 11, 19)),
+        )
+      : null;
 
   @override
   Future<bool> deletePlan(String clubId, String planId) async => plans.remove((clubId, planId));
@@ -44,8 +60,26 @@ void main() {
       expect(store.plans, isEmpty);
     });
 
-    test('a club admin who is not a coach can delete it too', () async {
-      final store = _FakeStore([('club-a', 'p1')]);
+    test('another coach cannot delete a plan shared with them, even editable: 403 and it stays', () async {
+      final store = _FakeStore([('club-a', 'p1')], creator: 'u-2', visibility: PlanVisibility.sharedEditable);
+
+      final r = await _delete(_ctx('club-a', {Rol.coach}), store, 'p1');
+
+      expect(r.statusCode, HttpStatus.forbidden);
+      expect(store.plans, {('club-a', 'p1')});
+    });
+
+    test("another coach's private plan does not exist for them: 404 and it stays", () async {
+      final store = _FakeStore([('club-a', 'p1')], creator: 'u-2');
+
+      final r = await _delete(_ctx('club-a', {Rol.coach}), store, 'p1');
+
+      expect(r.statusCode, HttpStatus.notFound);
+      expect(store.plans, {('club-a', 'p1')});
+    });
+
+    test("a club admin who is not a coach can delete it too, even another coach's private plan", () async {
+      final store = _FakeStore([('club-a', 'p1')], creator: 'u-2');
 
       final r = await _delete(_ctx('club-a', {Rol.adminClub}), store, 'p1');
 

@@ -1,6 +1,7 @@
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
 import 'package:maktub_backend/features/plan/plan_problem_json.dart';
+import 'package:maktub_backend/features/plan/read_only_plan.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -10,7 +11,8 @@ import 'publicar_store.dart';
 /// `POST /clubes/{clubId}/planes/{planId}/publicar` (no body) → 200 with the plan, whose `publicado` is now a
 /// copy of the saved week models and assignment with `publicadoEn` (UTC instant) and `publicadoPor` (the caller).
 /// Athletes only ever see that copy; saving a plan never changes it. Publishing twice in a row just refreshes
-/// the date. Needs [Accion.planificar] (the coach). 404 if the plan does not exist in the club.
+/// the date. Needs [Accion.planificar] (the coach). 404 if the plan does not exist in the club or the caller
+/// cannot see it; 403 if they see it but cannot change it ([PlanAccess.edit]).
 ///
 /// The saved plan must have no problem at all (`validatePlan`, not only the ones that block saving; a
 /// [PlanType.history] plan is not asked for % or reps, [historyPlanAccepts]): otherwise
@@ -50,9 +52,11 @@ class PublishPlan {
 
   Future<Plan> call(ClubContext club, String planId) async {
     final plan = await _store.plan(club.clubId, planId);
-    if (plan == null) {
+    final access = plan == null ? null : PlanAccess.of(plan, userId: club.userId, roles: club.roles);
+    if (plan == null || !access!.see) {
       throw const ErrorDeSolicitud.noEncontrado('Plan no encontrado.');
     }
+    if (!access.edit) throw readOnlyPlan;
 
     final exercises = await _store.exercises(club.clubId);
     final problems = [
@@ -93,6 +97,7 @@ class PublishPlan {
       name: plan.name,
       type: plan.type,
       past: plan.past,
+      visibility: plan.visibility,
       weekModels: plan.weekModels,
       weekAssignment: plan.weekAssignment,
       published: copy,

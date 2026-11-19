@@ -8,7 +8,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'crear_store.dart';
 
-/// `POST /clubes/{clubId}/planes` body `{nombre, tipo?}` (`tipo` is `regular` or `test`, default `regular`;
+/// `POST /clubes/{clubId}/planes` body `{nombre, tipo?, visibilidad?}` (`visibilidad` defaults to `privado`, see
+/// [PlanVisibility]; `tipo` is `regular` or `test`, default `regular`;
 /// `historico` is only for the E8 importer, which builds those plans from the old record)
 /// → 201 with the created plan: no week models and no assignment yet (they are saved whole in E5.3).
 /// Needs [Accion.planificar] (the coach). The server sets `id`, `clubId` and `auditoria`.
@@ -61,6 +62,14 @@ class CreatePlan {
         'El tipo de plan debe ser "regular" o "test".',
       );
     }
+    final PlanVisibility visibility;
+    try {
+      visibility = body['visibilidad'] == null
+          ? PlanVisibility.private
+          : PlanVisibility.deCable(body['visibilidad']);
+    } on FormatException {
+      throw const ErrorDeSolicitud('La visibilidad del plan no es válida.');
+    }
     if (type == PlanType.history && !_allowHistory) {
       throw const ErrorDeSolicitud(
         'El tipo de plan debe ser "regular" o "test".',
@@ -71,6 +80,7 @@ class CreatePlan {
       clubId: club.clubId,
       name: name,
       type: type,
+      visibility: visibility,
       auditoria: Auditoria.nueva(club.userId, ahora: _now()),
     );
     await _store.insert(plan);

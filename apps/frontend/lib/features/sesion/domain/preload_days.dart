@@ -28,6 +28,10 @@ const preloadDaysAhead = 7;
 ///
 /// Best effort: a read that fails does not stop the others. Without signal the reads answer from the copy, which
 /// changes nothing.
+///
+/// One read at a time: the server asks the database one query at a time, so reads sent together queue there, and
+/// the screen's own reads waited behind them (the session of the day took ~5 s to open, 2026-11-19). This runs in
+/// the background; taking longer costs nothing.
 class PreloadDays {
   PreloadDays({
     required this.me,
@@ -51,18 +55,10 @@ class PreloadDays {
     final access = (await _try(me.fetch))?.activeClub;
     if (access == null) return;
     final clubId = access.club.id;
-    final pending = <Future<void>>[
-      _try(() => catalog.exercises(clubId)),
-      _try(() => catalogAdmin.timers(clubId)),
-      _try(() => catalogAdmin.team(clubId)),
-      if (access.can(Accion.verReportesDeTodos))
-        _try(() => athletes.athletes(clubId)),
-    ];
     final groups = await _try(() => assignments.groups(clubId));
     final athleteId = access.athleteId;
     if (athleteId != null || (groups != null && groups.isNotEmpty)) {
-      pending.add(
-        _preloadDays(
+      await _preloadDays(
           clubId,
           soloFecha(today),
           // The same read the session screen does: the athlete's plans (their groups' and their own, E8.8), or the
@@ -70,10 +66,12 @@ class PreloadDays {
           (d) async => athleteId != null
               ? await calendar.locateAthlete(clubId, athleteId, d)
               : [?await calendar.locate(clubId, groups!.first.id, d)],
-        ),
       );
     }
-    await Future.wait(pending);
+    await _try(() => catalog.exercises(clubId));
+    await _try(() => catalogAdmin.timers(clubId));
+    await _try(() => catalogAdmin.team(clubId));
+    if (access.can(Accion.verReportesDeTodos)) await _try(() => athletes.athletes(clubId));
   }
 
   Future<void> _preloadDays(
@@ -84,9 +82,7 @@ class PreloadDays {
     final dates = [
       for (var i = 0; i <= preloadDaysAhead; i++) today.add(Duration(days: i)),
     ];
-    final located = await Future.wait([
-      for (final d in dates) _try(() => locate(d)),
-    ]);
+    final located = [for (final d in dates) await _try(() => locate(d))];
     final plans = <String>{};
     final cycles = <(String, DateTime, int)>{};
     final byAssignment = <String, List<DateTime>>{};
@@ -97,23 +93,16 @@ class PreloadDays {
         (byAssignment[l.assignmentId] ??= []).add(dates[i]);
       }
     }
-    await Future.wait([
-      for (final p in plans) _try(() => calendar.publishedPlan(clubId, p)),
-      for (final (assignmentId, start, cycle) in cycles)
-        _try(() {
-          final (from, to) = cycleDates(start, cycle);
-          return calendar.dayStates(clubId, assignmentId, from, to);
-        }),
-      for (final e in byAssignment.entries)
-        _try(
-          () => proposedDays.proposedDays(
-            clubId,
-            e.key,
-            e.value.first,
-            e.value.last,
-          ),
-        ),
-    ]);
+    for (final p in plans) {
+      await _try(() => calendar.publishedPlan(clubId, p));
+    }
+    for (final (assignmentId, start, cycle) in cycles) {
+      final (from, to) = cycleDates(start, cycle);
+      await _try(() => calendar.dayStates(clubId, assignmentId, from, to));
+    }
+    for (final e in byAssignment.entries) {
+      await _try(() => proposedDays.proposedDays(clubId, e.key, e.value.first, e.value.last));
+    }
   }
 
   static Future<T?> _try<T>(Future<T> Function() read) async {

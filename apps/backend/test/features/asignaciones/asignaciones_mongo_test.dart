@@ -278,14 +278,18 @@ void main() {
   mongoTest('publication and group checks only see the club', () async {
     final planes = db!.collection(Colecciones.planes);
     await planes.remove({});
-    await planes.insertMany([
-      {
-        '_id': 'pub',
-        'clubId': 'club-a',
-        'publicado': {'asignacion': []},
-      },
-      {'_id': 'draft', 'clubId': 'club-a'},
-    ]);
+    Map<String, dynamic> plan(String id, {bool published = false}) => aDocumento(
+      Plan(
+        id: id,
+        clubId: 'club-a',
+        name: id,
+        published: published
+            ? PublishedPlan(publishedAt: DateTime.utc(2026, 11), publishedBy: 'coach-1')
+            : null,
+        auditoria: Auditoria(creadoPor: 'coach-1', creadoEn: DateTime.utc(2026, 11)),
+      ).toJson(),
+    );
+    await planes.insertMany([plan('pub', published: true), plan('draft')]);
     await db!.collection(Colecciones.grupos).remove({});
     await db!.collection(Colecciones.grupos).insertOne({
       '_id': 'g1',
@@ -294,10 +298,11 @@ void main() {
     });
     final store = MongoCreateAssignmentStore(db!);
 
-    expect(await store.planIsPublished('club-a', 'pub'), isTrue);
-    expect(await store.planIsPublished('club-a', 'draft'), isFalse);
-    expect(await store.planIsPublished('club-b', 'pub'), isNull);
-    expect(await store.planIsPublished('club-a', 'zz'), isNull);
+    expect((await store.plan('club-a', 'pub'))?.published, isNotNull);
+    expect((await store.plan('club-a', 'draft'))?.published, isNull);
+    expect(await store.plan('club-a', 'draft'), isNotNull);
+    expect(await store.plan('club-b', 'pub'), isNull);
+    expect(await store.plan('club-a', 'zz'), isNull);
     expect(await store.groupMemberIds('club-a', 'g1'), ['ari']);
     expect(await store.groupMemberIds('club-b', 'g1'), isNull);
   });

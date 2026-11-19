@@ -310,6 +310,7 @@ Plan _withType(Plan p, PlanType type) => Plan(
   name: p.name,
   type: type,
   past: p.past,
+  visibility: p.visibility,
   weekModels: p.weekModels,
   weekAssignment: p.weekAssignment,
   published: p.published,

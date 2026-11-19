@@ -1,8 +1,12 @@
 import 'package:maktub_backend/infraestructura/mongo.dart';
+import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 
 /// What the "delete plan" slice reads and writes. Sessions, set records and block times are never touched.
 abstract interface class DeletePlanStore {
+  /// The plan [planId] of [clubId], or null if it does not exist in that club.
+  Future<Plan?> plan(String clubId, String planId);
+
   /// Deletes the plan [planId] of [clubId] and every assignment of it, active or ended, of a group or of an
   /// athlete. Returns false, deleting nothing, when the plan does not exist in that club.
   Future<bool> deletePlan(String clubId, String planId);
@@ -12,6 +16,12 @@ class MongoDeletePlanStore implements DeletePlanStore {
   MongoDeletePlanStore(this._db);
 
   final Db _db;
+
+  @override
+  Future<Plan?> plan(String clubId, String planId) async {
+    final doc = await _db.collection(Colecciones.planes).findOne({'_id': planId, 'clubId': clubId});
+    return doc == null ? null : Plan.fromJson(desdeDocumento(doc));
+  }
 
   @override
   Future<bool> deletePlan(String clubId, String planId) async {

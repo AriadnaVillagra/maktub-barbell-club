@@ -2,7 +2,7 @@ name: maktub_frontend
 description: App de seguimiento y diseño de planes de powerlifting de Maktub Barbell Club.
 publish_to: none
 resolution: workspace
-version: 1.5.0+6
+version: 1.6.0+7
 
 environment:
   sdk: ^3.13.3

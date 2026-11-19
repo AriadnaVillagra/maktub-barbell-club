@@ -7,8 +7,10 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../features/access/presentation/providers.dart';
 import '../features/temporizador/presentation/widgets/barra_crono.dart';
+import '../features/temporizador/presentation/widgets/crono_con_atras.dart';
 import '../features/temporizador/presentation/widgets/iniciar_temporizador.dart';
 import 'preferencias.dart';
+import 'router.dart';
 
 /// Marco común: navegación entre modos (barra inferior en celular, riel lateral desde tablet),
 /// el tema de cada modo (entrenamiento oscuro y grande), el temporizador en marcha y el acceso a los
@@ -70,7 +72,8 @@ class ShellPrincipal extends ConsumerWidget {
     if (next >= 0 && next < visibles.length) _ir(visibles[next]);
   }
 
-  Widget _contenido(BuildContext context, List<int> visibles) => Column(
+  Widget _contenido(BuildContext context, List<int> visibles) => CronoConAtras(
+        child: Column(
         children: [
           Expanded(
             child: GestureDetector(
@@ -82,6 +85,7 @@ class ShellPrincipal extends ConsumerWidget {
           ),
           const BarraCrono(),
         ],
+      ),
       );
 
   Widget _construir(BuildContext context, WidgetRef ref, List<int> visibles) {
@@ -94,7 +98,7 @@ class ShellPrincipal extends ConsumerWidget {
             NavigationRail(
               selectedIndex: visibles.indexOf(navegacion.currentIndex).clamp(0, visibles.length - 1),
               onDestinationSelected: (i) =>
-                  i == visibles.length ? pickAndStartTimer(context, ref) : _ir(visibles[i]),
+                  i == visibles.length ? pickAndStartTimer(context, ref, configurePath: Rutas.temporizadores) : _ir(visibles[i]),
               labelType: NavigationRailLabelType.all,
               destinations: [
                 for (final d in [for (final i in visibles) _destinos[i]])
@@ -117,12 +121,15 @@ class ShellPrincipal extends ConsumerWidget {
     }
 
     // The last item is not a destination: it opens the timer picker and the selection stays put.
+    // Only icons: the labels did not fit (Ari, 2026-11-19). Each one keeps its label as a tooltip and for screen
+    // readers.
     return Scaffold(
       body: contenido,
       bottomNavigationBar: NavigationBar(
+        labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
         selectedIndex: visibles.indexOf(navegacion.currentIndex).clamp(0, visibles.length - 1),
         onDestinationSelected: (i) =>
-            i == visibles.length ? pickAndStartTimer(context, ref) : _ir(visibles[i]),
+            i == visibles.length ? pickAndStartTimer(context, ref, configurePath: Rutas.temporizadores) : _ir(visibles[i]),
         destinations: [
           for (final d in [for (final i in visibles) _destinos[i]])
             NavigationDestination(icon: Icon(d.icono), selectedIcon: Icon(d.seleccionado), label: d.etiqueta),

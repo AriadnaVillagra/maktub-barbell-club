@@ -12,7 +12,9 @@ class PlanDraft {
     required this.weekModels,
     required this.assignment,
     bool? past,
-  }) : past = past ?? base.past;
+    PlanVisibility? visibility,
+  }) : past = past ?? base.past,
+       visibility = visibility ?? base.visibility;
 
   /// Starts editing [plan]. A missing or short assignment is padded with unassigned weeks; an id that
   /// points to no model is cleared.
@@ -39,6 +41,9 @@ class PlanDraft {
   /// Whether the coach marked the plan as no longer in use ([Plan.past]).
   final bool past;
 
+  /// Which other coaches reach the plan ([Plan.visibility]). Only its creator and the club admins change it.
+  final PlanVisibility visibility;
+
   /// Marks the plan as past or active. A history plan is always past, so it ignores this.
   PlanDraft setPast(bool value) =>
       base.type == PlanType.history || value == past
@@ -48,12 +53,24 @@ class PlanDraft {
           weekModels: weekModels,
           assignment: assignment,
           past: value,
+          visibility: visibility,
+        );
+
+  PlanDraft setVisibility(PlanVisibility value) => value == visibility
+      ? this
+      : PlanDraft(
+          base: base,
+          weekModels: weekModels,
+          assignment: assignment,
+          past: past,
+          visibility: value,
         );
 
   /// Whether the structure differs from the plan it came from.
   bool get isDirty {
     final original = PlanDraft.from(base);
     return past != base.past ||
+        visibility != base.visibility ||
         !_sameModels(original.weekModels, weekModels) ||
         !_sameList(original.assignment, assignment);
   }
@@ -66,6 +83,7 @@ class PlanDraft {
     name: base.name,
     type: base.type,
     past: past,
+    visibility: visibility,
     weekModels: weekModels,
     weekAssignment: [for (final a in assignment) a ?? ''],
     // Never lost: the published copy only changes by publishing.
@@ -80,6 +98,7 @@ class PlanDraft {
     weekModels: weekModels,
     assignment: assignment,
     past: past,
+    visibility: visibility,
   );
 
   WeekModel? modelById(String? id) {
@@ -362,6 +381,7 @@ class PlanDraft {
         weekModels: models ?? weekModels,
         assignment: assignment ?? this.assignment,
         past: past,
+        visibility: visibility,
       );
 }
 

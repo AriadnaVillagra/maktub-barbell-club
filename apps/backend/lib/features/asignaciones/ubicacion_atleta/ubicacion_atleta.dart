@@ -43,11 +43,9 @@ class AthleteLocation {
 
   Future<Json> call(ClubContext club, String athleteId, DateTime date) async {
     const notFound = ErrorDeSolicitud.noEncontrado('Atleta no encontrado.');
-    if (!await _store.athleteExists(club.clubId, athleteId)) throw notFound;
-    if (!club.can(Accion.planificar) &&
-        await _store.athleteIdOfUser(club.clubId, club.userId) != athleteId) {
-      throw notFound;
-    }
+    final athlete = await _store.athlete(club.clubId, athleteId);
+    if (athlete == null) throw notFound;
+    if (!club.can(Accion.planificar) && athlete.userId != club.userId) throw notFound;
 
     final active = [
       for (final a in await _store.activeAssignments(club.clubId, athleteId))

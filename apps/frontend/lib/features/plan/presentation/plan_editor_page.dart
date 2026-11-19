@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
+import '../../access/presentation/providers.dart' show planAccessProvider;
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
     show asyncView, confirmAction, showApiError;
 import '../../catalogo/presentation/exercise_picker.dart';
@@ -85,6 +86,7 @@ class PlanEditorPage extends ConsumerWidget {
     final value = ref.watch(editor);
     final dirty = value.value?.isDirty ?? false;
     final saving = ref.watch(planSaveProvider(planId)).saving;
+    final access = value.hasValue ? ref.watch(planAccessProvider)(value.requireValue.base) : null;
     return PopScope(
       canPop: !dirty,
       onPopInvokedWithResult: (didPop, _) async {
@@ -121,14 +123,15 @@ class PlanEditorPage extends ConsumerWidget {
                     ? null
                     : () => _copyAsNew(context, ref, value.requireValue.base),
               ),
-            if (value.hasValue)
+            // Only its creator and the club admins delete it.
+            if (access?.manage ?? false)
               IconButton(
                 key: const Key('plan-delete'),
                 icon: Icon(Icons.delete_outline, color: saving ? null : context.esquema.error),
                 tooltip: 'Eliminar plan',
                 onPressed: saving ? null : () => _delete(context, ref, value.requireValue.base),
               ),
-            if (value.hasValue)
+            if (access?.edit ?? false)
               Padding(
                 padding: const EdgeInsets.only(right: Espacio.s),
                 child: FilledButton.icon(
@@ -170,9 +173,24 @@ class _Editor extends ConsumerWidget {
     final publish = ref.watch(planPublishProvider(planId));
     final modelsView = ref.watch(modelsViewProvider);
     final phone = MediaQuery.sizeOf(context).width < 600;
-    return ListView(
+    // A plan shared read-only by another coach: shown as it is, with nothing to change.
+    final readOnly = !ref.watch(planAccessProvider)(draft.base).edit;
+    return _ReadOnlyScope(
+      readOnly: readOnly,
+      child: ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
+        if (readOnly) ...[
+          Text(
+            'Este plan es de otro coach y está compartido solo para ver. Podés asignarlo, o copiarlo como plan '
+            'nuevo para cambiarlo.',
+            key: const Key('plan-read-only'),
+            style: context.textos.bodyMedium?.copyWith(
+              color: context.esquema.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: Espacio.l),
+        ],
         _PublishStatus(planId: planId, draft: draft),
         const SizedBox(height: Espacio.l),
         if (publish.problems.isNotEmpty) ...[
@@ -272,7 +290,8 @@ class _Editor extends ConsumerWidget {
             ),
           ),
         const SizedBox(height: Espacio.s),
-        Align(
+        if (!readOnly)
+          Align(
           alignment: Alignment.centerLeft,
           child: OutlinedButton.icon(
             key: const Key('model-add'),
@@ -289,6 +308,7 @@ class _Editor extends ConsumerWidget {
           ),
         ),
       ],
+      ),
     );
   }
 }
@@ -330,6 +350,7 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
       _ => ('Publicado', 'Los atletas ven la versión guardada.'),
     };
     final editor = ref.read(planEditorProvider(planId).notifier);
+    final access = ref.watch(planAccessProvider)(plan);
     // Who the % and kg are worked out for (E5.16): the assignment's athletes, or those chosen here without one.
     final forWhom = plan.type == PlanType.history
         ? null
@@ -422,6 +443,7 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                       ],
                     ),
                   ),
+                  if (access.edit) ...[
                   const SizedBox(width: Espacio.m),
                   FilledButton.icon(
                     key: const Key('plan-publish'),
@@ -438,10 +460,12 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                               .publish()
                         : null,
                   ),
+                  ],
                 ],
               ),
               // Why Publicar is off, always in sight: what is missing (a long list folds), or what to do.
-              if (block != null &&
+              if (access.edit &&
+                  block != null &&
                   !publishing &&
                   !(listedBySave && block.problems.isNotEmpty)) ...[
                 const SizedBox(height: Espacio.m),
@@ -470,7 +494,10 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                 style: context.textos.bodyLarge,
               ),
               // Where the plans list shows it. A history plan is always past, so it has no choice.
-              if (plan.type != PlanType.history) ...[
+              if (plan.type != PlanType.history && !access.edit) ...[
+                const SizedBox(height: Espacio.xs),
+                Text(draft.past ? 'Pasado' : 'Activo', style: context.textos.bodyLarge),
+              ] else if (plan.type != PlanType.history) ...[
                 const SizedBox(height: Espacio.m),
                 SegmentedButton<bool>(
                   key: const Key('plan-past'),
@@ -483,6 +510,35 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                   onSelectionChanged: (s) => editor.setPast(s.first),
                 ),
               ],
+              // Who else among the club's coaches reaches it. Only its creator and the club admins choose.
+              const SizedBox(height: Espacio.l),
+              Text('Quién lo ve', style: context.textos.titleMedium),
+              const SizedBox(height: Espacio.xs),
+              if (access.manage)
+                SegmentedButton<PlanVisibility>(
+                  key: const Key('plan-visibility'),
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: PlanVisibility.private, label: Text('Privado')),
+                    ButtonSegment(value: PlanVisibility.sharedReadOnly, label: Text('Para ver')),
+                    ButtonSegment(value: PlanVisibility.sharedEditable, label: Text('Para editar')),
+                  ],
+                  selected: {draft.visibility},
+                  onSelectionChanged: (s) => editor.setVisibility(s.first),
+                )
+              else
+                Text(
+                  planVisibilityLabel(draft.visibility),
+                  key: const Key('plan-visibility-label'),
+                  style: context.textos.bodyLarge,
+                ),
+              const SizedBox(height: Espacio.xs),
+              Text(
+                planVisibilityDetail(draft.visibility),
+                style: context.textos.bodyMedium?.copyWith(
+                  color: context.esquema.onSurfaceVariant,
+                ),
+              ),
               if (forWhom != null && forWhom.athletes.isNotEmpty) ...[
                 const SizedBox(height: Espacio.l),
                 Text('Calcular % y kg para', style: context.textos.titleMedium),
@@ -539,6 +595,12 @@ class _Assignment extends StatelessWidget {
           Row(
             children: [
               Expanded(child: Text('Semana ${w + 1}')),
+              if (_ReadOnlyScope.of(context))
+                Text(
+                  draft.modelById(draft.assignment[w])?.name ?? 'Sin modelo',
+                  key: Key('assign-$w'),
+                )
+              else
               DropdownButton<String?>(
                 key: Key('assign-$w'),
                 value: draft.assignment[w],
@@ -578,6 +640,7 @@ class _ModelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final id = model.id;
+    final readOnly = _ReadOnlyScope.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(Espacio.m),
@@ -592,6 +655,7 @@ class _ModelCard extends StatelessWidget {
                     style: context.textos.titleSmall,
                   ),
                 ),
+                if (!readOnly) ...[
                 const SizedBox(width: Espacio.s),
                 Flexible(
                   child: TextButton.icon(
@@ -655,6 +719,7 @@ class _ModelCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                ],
               ],
             ),
             for (final (i, _) in model.days.indexed) ...[
@@ -717,6 +782,7 @@ class _DayTileState extends ConsumerState<_DayTile> {
   @override
   Widget build(BuildContext context) {
     final collapsed = widget.compact && !_open;
+    final readOnly = _ReadOnlyScope.of(context);
     final categories = ref.watch(catalogCategoriesProvider).value ?? const [];
     final timers = ref.watch(clubTimersProvider).value ?? const [];
     String? categoryName(String? id) {
@@ -765,7 +831,7 @@ class _DayTileState extends ConsumerState<_DayTile> {
                         ),
                 )
               : null,
-          trailing: Row(
+          trailing: readOnly ? null : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
@@ -851,6 +917,7 @@ class _DayTileState extends ConsumerState<_DayTile> {
                       ),
                   ],
                 ),
+                if (!readOnly)
                 TextButton.icon(
                   key: Key('block-add-$modelId-$index'),
                   icon: const Icon(Icons.add),
@@ -1040,12 +1107,13 @@ class _BlockTile extends ConsumerWidget {
     // The category is not repeated under the name (Ari: it usually is the name); only the timer and
     // the note, when there are.
     final narrow = MediaQuery.sizeOf(context).width < 600;
+    final readOnly = _ReadOnlyScope.of(context);
     final details = block.timerId == null
         ? null
         : 'Temporizador: ${timerName ?? block.timerId}';
     final tile = ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: ReorderableDragStartListener(
+      leading: readOnly ? null : ReorderableDragStartListener(
         key: Key('block-drag-$keyPrefix-$index'),
         index: index,
         child: const Tooltip(
@@ -1064,7 +1132,7 @@ class _BlockTile extends ConsumerWidget {
                   Text(block.note!, key: Key('block-note-$keyPrefix-$index')),
               ],
             ),
-      onTap: () async {
+      onTap: readOnly ? null : () async {
         final fields = await askBlock(context, initial: block);
         if (fields == null) return;
         editor.updateBlock(
@@ -1082,7 +1150,15 @@ class _BlockTile extends ConsumerWidget {
           ),
         );
       },
-      trailing: Row(
+      trailing: readOnly
+          ? (block.categoryId == wodCategoryId
+                ? null
+                : Text(
+                    _executionLabel(block.executionMode),
+                    key: Key('block-execution-label-$keyPrefix-$index'),
+                    style: context.textos.labelLarge,
+                  ))
+          : Row(
         mainAxisSize: MainAxisSize.min,
         spacing: Espacio.s,
         children: [
@@ -1137,7 +1213,7 @@ class _BlockTile extends ConsumerWidget {
                     key: Key('prescription-$keyPrefix-$index-$p'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    onTap: () => _editPrescription(context, ref, p,
+                    onTap: readOnly ? null : () => _editPrescription(context, ref, p,
                       prescription,
                       exerciseOf(prescription.exerciseId),
                     ),
@@ -1160,7 +1236,7 @@ class _BlockTile extends ConsumerWidget {
                         if (prescription.note != null) prescription.note!,
                       ].join(' · '),
                     ),
-                    trailing: IconButton(
+                    trailing: readOnly ? null : IconButton(
                       key: Key('prescription-remove-$keyPrefix-$index-$p'),
                       icon: const Icon(Icons.delete_outline),
                       tooltip: 'Quitar ejercicio',
@@ -1170,13 +1246,14 @@ class _BlockTile extends ConsumerWidget {
                   ),
                 ),
               ],
+              if (!readOnly)
               TextButton.icon(
                 key: Key('prescription-add-$keyPrefix-$index'),
                 icon: const Icon(Icons.add),
                 label: const Text('Agregar ejercicio'),
                 onPressed: () => _addExercise(context, ref),
               ),
-              if (block.categoryId == wodCategoryId)
+              if (block.categoryId == wodCategoryId && !readOnly)
                 TextButton.icon(
                   key: Key('wod-add-$keyPrefix-$index'),
                   icon: const Icon(Icons.local_fire_department_outlined),
@@ -1190,3 +1267,23 @@ class _BlockTile extends ConsumerWidget {
     );
   }
 }
+
+/// Whether the plan on screen is one the user can only look at (shared read-only by another coach, E8.10).
+/// Every edit control below it disappears instead of being disabled.
+class _ReadOnlyScope extends InheritedWidget {
+  const _ReadOnlyScope({required this.readOnly, required super.child});
+
+  final bool readOnly;
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_ReadOnlyScope>()?.readOnly ?? false;
+
+  @override
+  bool updateShouldNotify(_ReadOnlyScope old) => old.readOnly != readOnly;
+}
+
+String _executionLabel(ExecutionMode m) => switch (m) {
+  ExecutionMode.sequential => 'Secuencial',
+  ExecutionMode.circuit => 'Circuito',
+  ExecutionMode.timed => 'Con temporizador',
+};

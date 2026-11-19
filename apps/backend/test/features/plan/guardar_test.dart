@@ -57,11 +57,18 @@ Exercise _exercise(String id, {List<String> categories = const ['cat-1']}) =>
       auditoria: Auditoria.nueva('sys', ahora: _t0),
     );
 
-Plan _stored(String clubId, {String id = 'p1', String createdBy = 'coach-1'}) =>
+Plan _stored(
+  String clubId, {
+  String id = 'p1',
+  String createdBy = 'coach-1',
+  // Shared editable by default: most tests are about saving, and coach-2 saves coach-1's plan.
+  PlanVisibility visibility = PlanVisibility.sharedEditable,
+}) =>
     Plan(
       id: id,
       clubId: clubId,
       name: 'Old',
+      visibility: visibility,
       auditoria: Auditoria.nueva(createdBy, ahora: _t0),
     );
 
@@ -129,6 +136,55 @@ void main() {
   _FakeStore storeWithPlan() => _FakeStore()
     ..plans.add(_stored('club-a'))
     ..catalog['ex-1'] = _exercise('ex-1');
+
+  group('visibility', () {
+    _FakeStore storeWith(PlanVisibility v) => _FakeStore()
+      ..plans.add(_stored('club-a', visibility: v))
+      ..catalog['ex-1'] = _exercise('ex-1');
+
+    test('a plan shared read-only is 403 for another coach and stays as it was', () async {
+      final store = storeWith(PlanVisibility.sharedReadOnly);
+      final r = await _save(coachA, store, _validBody());
+
+      expect(r.statusCode, HttpStatus.forbidden);
+      expect(store.plans.single.name, 'Old');
+    });
+
+    test("another coach's private plan is 404", () async {
+      final r = await _save(coachA, storeWith(PlanVisibility.private), _validBody());
+
+      expect(r.statusCode, HttpStatus.notFound);
+    });
+
+    test('another coach saves a shared editable plan but cannot change who sees it', () async {
+      final store = storeWith(PlanVisibility.sharedEditable);
+      final r = await _save(coachA, store, {..._validBody(), 'visibilidad': 'privado'});
+
+      expect(r.statusCode, HttpStatus.ok);
+      expect(store.plans.single.name, 'Octubre');
+      expect(store.plans.single.visibility, PlanVisibility.sharedEditable);
+    });
+
+    test('its creator, or a club admin, changes who sees it', () async {
+      final mine = storeWith(PlanVisibility.private);
+      final byOwner = await _save(
+        _ctx('club-a', {Rol.coach}, userId: 'coach-1'),
+        mine,
+        {..._validBody(), 'visibilidad': 'compartido_lectura'},
+      );
+      final other = storeWith(PlanVisibility.sharedEditable);
+      final byAdmin = await _save(
+        _ctx('club-a', {Rol.coach, Rol.adminClub}),
+        other,
+        {..._validBody(), 'visibilidad': 'privado'},
+      );
+
+      expect(byOwner.statusCode, HttpStatus.ok);
+      expect(mine.plans.single.visibility, PlanVisibility.sharedReadOnly);
+      expect(byAdmin.statusCode, HttpStatus.ok);
+      expect(other.plans.single.visibility, PlanVisibility.private);
+    });
+  });
 
   test(
     'replaces the whole plan and records who modified it and when',

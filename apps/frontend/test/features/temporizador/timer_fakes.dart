@@ -1,3 +1,4 @@
+import 'package:maktub_frontend/features/temporizador/domain/quick_timers_repository.dart';
 import 'package:maktub_frontend/features/temporizador/domain/timer_platform.dart';
 
 /// Records what the timer asks of the device. [fail] makes every call throw, and [failAsync] makes it return a
@@ -80,4 +81,17 @@ class FakeTimerPlatform implements TimerPlatform {
     vibrations.add(pattern);
     return _attempt('vibrate');
   }
+}
+
+/// The timers the user keeps at hand, in memory.
+class FakeQuickTimers implements QuickTimersRepository {
+  FakeQuickTimers([List<String> ids = const []]) : ids_ = [...ids];
+
+  List<String> ids_;
+
+  @override
+  Future<List<String>> ids(String clubId) async => ids_;
+
+  @override
+  Future<List<String>> save(String clubId, List<String> ids) async => ids_ = [...ids];
 }

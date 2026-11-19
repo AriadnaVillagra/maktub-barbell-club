@@ -83,7 +83,9 @@ Future<bool> _counts(List<ImportStep> steps, ImportRun run) async {
     stdout.writeln('${left == 0 ? '✓' : '✗'} ${report.summary(dryRun: true)}');
     for (final (title, lines) in [
       ('Falta cargar', [...report.created, ...report.updated]),
-      ('Difiere de la planilla', report.differing),
+      // What was changed in the app wins over the sheet and is never overwritten (Ari, 2026-11-19): listed, not a
+      // failure.
+      ('Difiere de la planilla; queda lo de la app', report.differing),
       ('Filas no importadas', report.problems),
       ('Avisos', report.notes),
     ]) {

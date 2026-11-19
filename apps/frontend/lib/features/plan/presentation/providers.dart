@@ -181,6 +181,7 @@ class PlanEditor extends AsyncNotifier<PlanDraft> {
   void copyModel(String id) =>
       _add((d) => d.copyModel(id), (d) => 'model-${d.weekModels.last.id}');
   void setPast(bool value) => _edit((d) => d.setPast(value));
+  void setVisibility(PlanVisibility value) => _edit((d) => d.setVisibility(value));
   void renameModel(String id, String name) =>
       _edit((d) => d.renameModel(id, name));
   void removeModel(String id) => _edit((d) => d.removeModel(id));

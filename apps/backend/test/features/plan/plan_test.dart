@@ -50,11 +50,13 @@ Plan _plan(
   PlanType type = PlanType.regular,
   List<WeekModel> models = const [],
   Auditoria? audit,
+  PlanVisibility visibility = PlanVisibility.private,
 }) => Plan(
   id: id,
   clubId: clubId,
   name: name,
   type: type,
+  visibility: visibility,
   weekModels: models,
   weekAssignment: models.isEmpty ? const [] : ['A', 'A', 'A', 'A'],
   auditoria: audit ?? Auditoria.nueva('coach-1', ahora: _t0),
@@ -256,6 +258,17 @@ void main() {
       },
     );
 
+    test("another coach's private plan is 404 for a coach, and readable for a club admin", () async {
+      final store = _FakeStore()
+        ..all.add(_plan('p9', 'club-a', 'Ajeno', audit: Auditoria.nueva('coach-9', ahora: _t0)));
+      final coach = await read(_coachA, store, 'p9');
+      final admin = await read(_ctx('club-a', {Rol.coach, Rol.adminClub}), store, 'p9');
+
+      expect(coach.statusCode, HttpStatus.notFound);
+      expect(await coach.body(), isNot(contains('Ajeno')));
+      expect(admin.statusCode, HttpStatus.ok);
+    });
+
     test('an athlete gets 403 without the content', () async {
       final r = await read(_athleteA, _FakeStore()..all.add(fullPlan), 'p1');
 
@@ -294,11 +307,39 @@ void main() {
           'cantidadModelos': 0,
           'publicado': false,
           'cambiosSinPublicar': true,
+          'visibilidad': 'privado',
+          'propio': true,
+          'puedeEditar': true,
+          'puedeGestionar': true,
           'actualizadoEn': _t0.toIso8601String(),
         });
         expect((body[1] as Map)['cantidadModelos'], 1);
       },
     );
+
+    test("hides another coach's private plans and says what the caller can do with each shared one", () async {
+      Auditoria by(String user) => Auditoria.nueva(user, ahora: _t0);
+      final store = _FakeStore()
+        ..all.addAll([
+          _plan('a', 'club-a', 'A privado', audit: by('coach-9')),
+          _plan('b', 'club-a', 'B lectura', audit: by('coach-9'), visibility: PlanVisibility.sharedReadOnly),
+          _plan('c', 'club-a', 'C edición', audit: by('coach-9'), visibility: PlanVisibility.sharedEditable),
+        ]);
+
+      final coach = jsonDecode(await (await list(_coachA, store)).body()) as List;
+      final admin = jsonDecode(
+        await (await list(_ctx('club-a', {Rol.coach, Rol.adminClub}), store)).body(),
+      ) as List;
+
+      expect([
+        for (final p in coach.cast<Map<String, dynamic>>())
+          (p['nombre'], p['visibilidad'], p['propio'], p['puedeEditar'], p['puedeGestionar']),
+      ], [
+        ('B lectura', 'compartido_lectura', false, false, false),
+        ('C edición', 'compartido_edicion', false, true, false),
+      ]);
+      expect([for (final p in admin) (p as Map)['puedeGestionar']], [true, true, true]);
+    });
 
     test(
       'actualizadoEn is the modification instant when there is one',
@@ -358,7 +399,7 @@ void main() {
       path: '/clubes/{clubId}/planes',
       action: Accion.planificar,
       seed: (clubId, marker) =>
-          store.all.add(_plan('id-$marker', clubId, marker)),
+          store.all.add(_plan('id-$marker', clubId, marker, visibility: PlanVisibility.sharedReadOnly)),
     );
 
     // Both clubs hold a plan with the same id: each club's route must return its own.
@@ -369,7 +410,7 @@ void main() {
       action: Accion.planificar,
       seed: (clubId, marker) {
         store.all.removeWhere((p) => p.id == 'shared-id' && p.clubId == clubId);
-        store.all.add(_plan('shared-id', clubId, marker));
+        store.all.add(_plan('shared-id', clubId, marker, visibility: PlanVisibility.sharedReadOnly));
       },
     );
 

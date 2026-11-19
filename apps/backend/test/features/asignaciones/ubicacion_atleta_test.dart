@@ -27,12 +27,11 @@ class _FakeStore implements AthleteLocationStore {
   final published = <String>{};
 
   @override
-  Future<bool> athleteExists(String clubId, String athleteId) async =>
-      athletes.contains('$clubId/$athleteId');
-
-  @override
-  Future<String?> athleteIdOfUser(String clubId, String userId) async =>
-      users['$clubId/$userId'];
+  Future<({String? userId})?> athlete(String clubId, String athleteId) async {
+    if (!athletes.contains('$clubId/$athleteId')) return null;
+    final user = users.entries.where((e) => e.key.startsWith('$clubId/') && e.value == athleteId).firstOrNull;
+    return (userId: user?.key.substring(clubId.length + 1));
+  }
 
   @override
   Future<List<Assignment>> activeAssignments(

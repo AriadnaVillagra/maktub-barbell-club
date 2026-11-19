@@ -1,6 +1,7 @@
 import 'package:dart_frog/dart_frog.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
 import 'package:maktub_backend/features/plan/plan_problem_json.dart';
+import 'package:maktub_backend/features/plan/read_only_plan.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -13,8 +14,10 @@ import 'guardar_store.dart';
 ///
 /// The server sets `id` (the one in the URL), `clubId` (the club's), `publicado` (kept from the stored plan; the
 /// published version only changes in `/publicar`) and the audit (creation is kept from the
-/// stored plan; modification is the caller and now): whatever the body says for them is ignored.
-/// 404 if the plan does not exist in the club (create it first with `POST`). Needs [Accion.planificar].
+/// stored plan; modification is the caller and now): whatever the body says for them is ignored. `visibilidad`
+/// is taken from the body only from its creator or a club admin ([PlanAccess.manage]); anyone else keeps the
+/// stored one. 404 if the plan does not exist in the club or the caller cannot see it (create it first with
+/// `POST`); 403 if they see it but cannot change it. Needs [Accion.planificar].
 ///
 /// An unfinished plan is saved as it is, so a coach can continue later. Only a problem that
 /// [PlanProblem.blocksSaving] (no name, repeated week model ids) is 422 and writes nothing, with each one and where it is:
@@ -46,9 +49,11 @@ class SavePlan {
 
   Future<Plan> call(ClubContext club, String planId, Json body) async {
     final stored = await _store.plan(club.clubId, planId);
-    if (stored == null) {
+    final access = stored == null ? null : PlanAccess.of(stored, userId: club.userId, roles: club.roles);
+    if (stored == null || !access!.see) {
       throw const ErrorDeSolicitud.noEncontrado('Plan no encontrado.');
     }
+    if (!access.edit) throw readOnlyPlan;
 
     final Plan plan;
     try {
@@ -61,6 +66,7 @@ class SavePlan {
             .toJson(),
         // The published copy is never the client's: it only changes by publishing.
         'publicado': stored.published?.toJson(),
+        if (!access.manage) 'visibilidad': stored.visibility.cable,
       });
     } on FormatException {
       throw const ErrorDeSolicitud('El plan tiene un formato inválido.');
@@ -89,3 +95,4 @@ class SavePlan {
     return plan;
   }
 }
+

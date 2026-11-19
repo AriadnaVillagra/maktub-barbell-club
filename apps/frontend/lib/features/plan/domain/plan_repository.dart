@@ -11,6 +11,10 @@ class PlanSummary {
     this.hasUnpublishedChanges = true,
     this.past = false,
     this.updatedAt,
+    this.visibility = PlanVisibility.private,
+    this.own = true,
+    this.canEdit = true,
+    this.canManage = true,
   });
 
   final String id;
@@ -28,6 +32,16 @@ class PlanSummary {
   final bool past;
   final DateTime? updatedAt;
 
+  /// Which other coaches reach it, and what the user can do with it ([PlanAccess], worked out by the server).
+  final PlanVisibility visibility;
+
+  /// Whether the user created it.
+  final bool own;
+  final bool canEdit;
+
+  /// Delete it and change its [visibility].
+  final bool canManage;
+
   factory PlanSummary.fromJson(Json j) => PlanSummary(
     id: '${j['id']}',
     name: '${j['nombre'] ?? ''}',
@@ -39,6 +53,12 @@ class PlanSummary {
     updatedAt: j['actualizadoEn'] == null
         ? null
         : DateTime.parse('${j['actualizadoEn']}'),
+    visibility: j['visibilidad'] == null
+        ? PlanVisibility.private
+        : PlanVisibility.deCable(j['visibilidad']),
+    own: j['propio'] != false,
+    canEdit: j['puedeEditar'] != false,
+    canManage: j['puedeGestionar'] != false,
   );
 }
 

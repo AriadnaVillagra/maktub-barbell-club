@@ -4,7 +4,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
+import '../core/refresh/refresh_on_return.dart';
 import '../features/access/presentation/providers.dart';
+import '../features/asignacion/presentation/providers.dart' show clubAssignmentsProvider;
+import '../features/atletas/presentation/providers.dart' show athletesProvider;
+import '../features/catalogo/presentation/catalog_admin_providers.dart'
+    show clubCategoriesProvider, clubTeamProvider, clubTimersProvider;
+import '../features/plan/presentation/providers.dart' show plansProvider;
+import '../features/wods/presentation/providers.dart' show wodsProvider;
 import '../features/asignacion/presentation/assignments_page.dart';
 import '../features/atletas/presentation/athlete_sheet_page.dart';
 import '../features/atletas/presentation/athletes_page.dart';
@@ -141,7 +148,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               routes: [
                 GoRoute(
                   path: 'atletas',
-                  builder: (_, _) => const AthletesPage(basePath: Rutas.atletas),
+                  builder: (_, _) => RefreshOnReturn(
+                    providers: [athletesProvider],
+                    child: const AthletesPage(basePath: Rutas.atletas),
+                  ),
                   routes: [
                     GoRoute(
                       path: ':id',
@@ -149,7 +159,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                     ),
                   ],
                 ),
-                GoRoute(path: 'asignaciones', builder: (_, _) => const AssignmentsPage()),
+                GoRoute(
+                  path: 'asignaciones',
+                  builder: (_, _) => RefreshOnReturn(
+                    providers: [clubAssignmentsProvider, plansProvider],
+                    child: const AssignmentsPage(),
+                  ),
+                ),
                 GoRoute(
                   path: 'planes',
                   builder: (_, _) => const PlansPage(basePath: Rutas.planes),
@@ -170,11 +186,20 @@ final routerProvider = Provider<GoRouter>((ref) {
               builder: (_, _) => const PaginaPreferencias(),
               routes: [
                 exerciseCatalogRoute(),
-                GoRoute(path: 'categorias', builder: (_, _) => const CategoriesPage()),
-                GoRoute(path: 'temporizadores', builder: (_, _) => const TimersPage()),
+                GoRoute(
+                  path: 'categorias',
+                  builder: (_, _) => RefreshOnReturn(providers: [clubCategoriesProvider], child: const CategoriesPage()),
+                ),
+                GoRoute(
+                  path: 'temporizadores',
+                  builder: (_, _) => RefreshOnReturn(providers: [clubTimersProvider], child: const TimersPage()),
+                ),
                 GoRoute(
                   path: 'wods',
-                  builder: (_, _) => const WodsPage(basePath: Rutas.wods),
+                  builder: (_, _) => RefreshOnReturn(
+                    providers: [wodsProvider],
+                    child: const WodsPage(basePath: Rutas.wods),
+                  ),
                   routes: [
                     // Declared before ':id' so "nuevo" is not read as an id.
                     GoRoute(path: 'nuevo', builder: (_, _) => const WodEditorPage(listPath: Rutas.wods)),
@@ -185,8 +210,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                     ),
                   ],
                 ),
-                GoRoute(path: 'equipo', builder: (_, _) => const TeamPage()),
-                GoRoute(path: 'miembros', builder: (_, _) => const MembersPage()),
+                GoRoute(
+                  path: 'equipo',
+                  builder: (_, _) => RefreshOnReturn(providers: [clubTeamProvider], child: const TeamPage()),
+                ),
+                GoRoute(path: 'miembros', builder: (_, _) => const MembersPage(exitPath: Rutas.preferencias)),
               ],
             ),
           ]),

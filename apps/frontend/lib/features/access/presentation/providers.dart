@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
@@ -30,6 +32,23 @@ final meProvider = FutureProvider<Me?>((ref) async {
   }
   return ref.watch(meRepositoryProvider).fetch();
 });
+
+/// Asks `GET /me` again, because an admin may have changed the user's roles from another session, and replaces
+/// [meProvider] only when something changed: everything that depends on who the user is (menus, routes, lists)
+/// then updates, and nothing reloads when the answer is the same. Without signal the device's copy answers, which
+/// changes nothing. Called when the app comes back to the front.
+Future<void> refreshMe(WidgetRef ref) async {
+  final current = ref.read(meProvider).value;
+  if (current == null) return;
+  try {
+    final fresh = await ref.read(meRepositoryProvider).fetch();
+    if (jsonEncode(fresh.toJson()) != jsonEncode(current.toJson())) {
+      ref.invalidate(meProvider);
+    }
+  } on Object {
+    // The next return to the front tries again.
+  }
+}
 
 /// Whether the user can plan in the active club: null while it is not known yet. When `GET /me`
 /// fails the answer is false (the API enforces the rule anyway); a retry comes with the next session.
@@ -66,6 +85,13 @@ final canEditClubCatalogProvider = Provider<bool>((ref) => ref.watch(meProvider)
 final canEditReferencesProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canEditReferences ?? false);
 
 final canManageMembersProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canManageMembers ?? false);
+
+/// What the user can do with a given plan ([Me.planAccess]). While `GET /me` is not known, full access: the API
+/// enforces the rule anyway, and a coach's own plans are the common case.
+final planAccessProvider = Provider<PlanAccess Function(Plan)>((ref) {
+  final me = ref.watch(meProvider).value;
+  return (plan) => me?.planAccess(plan) ?? PlanAccess.of(plan, userId: plan.auditoria.creadoPor, roles: const {});
+});
 
 /// Whether the user can change a given catalog item (see [Me.canWriteCatalog]).
 final canWriteCatalogProvider = Provider<bool Function(DelClub)>((ref) {
