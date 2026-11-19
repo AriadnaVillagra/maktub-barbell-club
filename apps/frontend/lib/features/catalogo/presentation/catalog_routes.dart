@@ -1,14 +1,20 @@
 import 'package:go_router/go_router.dart';
 
+import '../../../core/refresh/refresh_on_return.dart';
+
 import 'exercise_detail_page.dart';
 import 'exercise_form_page.dart';
+import 'exercise_catalog_providers.dart';
 import 'exercise_list_page.dart';
 
 /// Exercise catalog routes, relative to a mode: `<mode>/catalogo`, `.../ejercicios/nuevo`,
 /// `.../ejercicios/:id` and `.../ejercicios/:id/editar`. Lives under the Preferences tab.
 GoRoute exerciseCatalogRoute() => GoRoute(
   path: 'catalogo',
-  builder: (_, state) => ExerciseListPage(basePath: state.matchedLocation),
+  builder: (_, state) => RefreshOnReturn(
+    providers: [catalogExercisesProvider, catalogCategoriesProvider],
+    child: ExerciseListPage(basePath: state.matchedLocation),
+  ),
   routes: [
     GoRoute(
       path: 'ejercicios/nuevo',
