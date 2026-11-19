@@ -175,7 +175,9 @@ class _Editor extends ConsumerWidget {
     final phone = MediaQuery.sizeOf(context).width < 600;
     // A plan shared read-only by another coach: shown as it is, with nothing to change.
     final readOnly = !ref.watch(planAccessProvider)(draft.base).edit;
-    return ListView(
+    return _ReadOnlyScope(
+      readOnly: readOnly,
+      child: ListView(
       padding: const EdgeInsets.all(Espacio.l),
       children: [
         if (readOnly) ...[
@@ -279,15 +281,12 @@ class _Editor extends ConsumerWidget {
         for (final model in draft.weekModels)
           RevealOnAdd(
             target: 'model-${model.id}',
-            child: IgnorePointer(
-              ignoring: readOnly,
-              child: _ModelCard(
-                key: Key('model-${model.id}'),
-                model: model,
-                draft: draft,
-                editor: editor,
-                compact: modelsView == ModelsView.compact,
-              ),
+            child: _ModelCard(
+              key: Key('model-${model.id}'),
+              model: model,
+              draft: draft,
+              editor: editor,
+              compact: modelsView == ModelsView.compact,
             ),
           ),
         const SizedBox(height: Espacio.s),
@@ -309,6 +308,7 @@ class _Editor extends ConsumerWidget {
           ),
         ),
       ],
+      ),
     );
   }
 }
@@ -443,6 +443,7 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                       ],
                     ),
                   ),
+                  if (access.edit) ...[
                   const SizedBox(width: Espacio.m),
                   FilledButton.icon(
                     key: const Key('plan-publish'),
@@ -453,16 +454,18 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                           )
                         : const Icon(Icons.publish_outlined),
                     label: const Text('Publicar'),
-                    onPressed: access.edit && publishable && !publishing
+                    onPressed: publishable && !publishing
                         ? () => ref
                               .read(planPublishProvider(planId).notifier)
                               .publish()
                         : null,
                   ),
+                  ],
                 ],
               ),
               // Why Publicar is off, always in sight: what is missing (a long list folds), or what to do.
-              if (block != null &&
+              if (access.edit &&
+                  block != null &&
                   !publishing &&
                   !(listedBySave && block.problems.isNotEmpty)) ...[
                 const SizedBox(height: Espacio.m),
@@ -491,7 +494,10 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                 style: context.textos.bodyLarge,
               ),
               // Where the plans list shows it. A history plan is always past, so it has no choice.
-              if (plan.type != PlanType.history) ...[
+              if (plan.type != PlanType.history && !access.edit) ...[
+                const SizedBox(height: Espacio.xs),
+                Text(draft.past ? 'Pasado' : 'Activo', style: context.textos.bodyLarge),
+              ] else if (plan.type != PlanType.history) ...[
                 const SizedBox(height: Espacio.m),
                 SegmentedButton<bool>(
                   key: const Key('plan-past'),
@@ -501,7 +507,7 @@ class _PublishStatusState extends ConsumerState<_PublishStatus> {
                     ButtonSegment(value: true, label: Text('Pasado')),
                   ],
                   selected: {draft.past},
-                  onSelectionChanged: access.edit ? (s) => editor.setPast(s.first) : null,
+                  onSelectionChanged: (s) => editor.setPast(s.first),
                 ),
               ],
               // Who else among the club's coaches reaches it. Only its creator and the club admins choose.
@@ -589,6 +595,12 @@ class _Assignment extends StatelessWidget {
           Row(
             children: [
               Expanded(child: Text('Semana ${w + 1}')),
+              if (_ReadOnlyScope.of(context))
+                Text(
+                  draft.modelById(draft.assignment[w])?.name ?? 'Sin modelo',
+                  key: Key('assign-$w'),
+                )
+              else
               DropdownButton<String?>(
                 key: Key('assign-$w'),
                 value: draft.assignment[w],
@@ -628,6 +640,7 @@ class _ModelCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final id = model.id;
+    final readOnly = _ReadOnlyScope.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(Espacio.m),
@@ -642,6 +655,7 @@ class _ModelCard extends StatelessWidget {
                     style: context.textos.titleSmall,
                   ),
                 ),
+                if (!readOnly) ...[
                 const SizedBox(width: Espacio.s),
                 Flexible(
                   child: TextButton.icon(
@@ -705,6 +719,7 @@ class _ModelCard extends StatelessWidget {
                     ),
                   ],
                 ),
+                ],
               ],
             ),
             for (final (i, _) in model.days.indexed) ...[
@@ -767,6 +782,7 @@ class _DayTileState extends ConsumerState<_DayTile> {
   @override
   Widget build(BuildContext context) {
     final collapsed = widget.compact && !_open;
+    final readOnly = _ReadOnlyScope.of(context);
     final categories = ref.watch(catalogCategoriesProvider).value ?? const [];
     final timers = ref.watch(clubTimersProvider).value ?? const [];
     String? categoryName(String? id) {
@@ -815,7 +831,7 @@ class _DayTileState extends ConsumerState<_DayTile> {
                         ),
                 )
               : null,
-          trailing: Row(
+          trailing: readOnly ? null : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               IconButton(
@@ -901,6 +917,7 @@ class _DayTileState extends ConsumerState<_DayTile> {
                       ),
                   ],
                 ),
+                if (!readOnly)
                 TextButton.icon(
                   key: Key('block-add-$modelId-$index'),
                   icon: const Icon(Icons.add),
@@ -1090,12 +1107,13 @@ class _BlockTile extends ConsumerWidget {
     // The category is not repeated under the name (Ari: it usually is the name); only the timer and
     // the note, when there are.
     final narrow = MediaQuery.sizeOf(context).width < 600;
+    final readOnly = _ReadOnlyScope.of(context);
     final details = block.timerId == null
         ? null
         : 'Temporizador: ${timerName ?? block.timerId}';
     final tile = ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: ReorderableDragStartListener(
+      leading: readOnly ? null : ReorderableDragStartListener(
         key: Key('block-drag-$keyPrefix-$index'),
         index: index,
         child: const Tooltip(
@@ -1114,7 +1132,7 @@ class _BlockTile extends ConsumerWidget {
                   Text(block.note!, key: Key('block-note-$keyPrefix-$index')),
               ],
             ),
-      onTap: () async {
+      onTap: readOnly ? null : () async {
         final fields = await askBlock(context, initial: block);
         if (fields == null) return;
         editor.updateBlock(
@@ -1132,7 +1150,15 @@ class _BlockTile extends ConsumerWidget {
           ),
         );
       },
-      trailing: Row(
+      trailing: readOnly
+          ? (block.categoryId == wodCategoryId
+                ? null
+                : Text(
+                    _executionLabel(block.executionMode),
+                    key: Key('block-execution-label-$keyPrefix-$index'),
+                    style: context.textos.labelLarge,
+                  ))
+          : Row(
         mainAxisSize: MainAxisSize.min,
         spacing: Espacio.s,
         children: [
@@ -1187,7 +1213,7 @@ class _BlockTile extends ConsumerWidget {
                     key: Key('prescription-$keyPrefix-$index-$p'),
                     dense: true,
                     contentPadding: EdgeInsets.zero,
-                    onTap: () => _editPrescription(context, ref, p,
+                    onTap: readOnly ? null : () => _editPrescription(context, ref, p,
                       prescription,
                       exerciseOf(prescription.exerciseId),
                     ),
@@ -1210,7 +1236,7 @@ class _BlockTile extends ConsumerWidget {
                         if (prescription.note != null) prescription.note!,
                       ].join(' · '),
                     ),
-                    trailing: IconButton(
+                    trailing: readOnly ? null : IconButton(
                       key: Key('prescription-remove-$keyPrefix-$index-$p'),
                       icon: const Icon(Icons.delete_outline),
                       tooltip: 'Quitar ejercicio',
@@ -1220,13 +1246,14 @@ class _BlockTile extends ConsumerWidget {
                   ),
                 ),
               ],
+              if (!readOnly)
               TextButton.icon(
                 key: Key('prescription-add-$keyPrefix-$index'),
                 icon: const Icon(Icons.add),
                 label: const Text('Agregar ejercicio'),
                 onPressed: () => _addExercise(context, ref),
               ),
-              if (block.categoryId == wodCategoryId)
+              if (block.categoryId == wodCategoryId && !readOnly)
                 TextButton.icon(
                   key: Key('wod-add-$keyPrefix-$index'),
                   icon: const Icon(Icons.local_fire_department_outlined),
@@ -1240,3 +1267,23 @@ class _BlockTile extends ConsumerWidget {
     );
   }
 }
+
+/// Whether the plan on screen is one the user can only look at (shared read-only by another coach, E8.10).
+/// Every edit control below it disappears instead of being disabled.
+class _ReadOnlyScope extends InheritedWidget {
+  const _ReadOnlyScope({required this.readOnly, required super.child});
+
+  final bool readOnly;
+
+  static bool of(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_ReadOnlyScope>()?.readOnly ?? false;
+
+  @override
+  bool updateShouldNotify(_ReadOnlyScope old) => old.readOnly != readOnly;
+}
+
+String _executionLabel(ExecutionMode m) => switch (m) {
+  ExecutionMode.sequential => 'Secuencial',
+  ExecutionMode.circuit => 'Circuito',
+  ExecutionMode.timed => 'Con temporizador',
+};
