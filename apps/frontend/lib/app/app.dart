@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../core/pwa/app_update.dart';
+import '../features/access/presentation/providers.dart' show refreshMe;
 import '../features/sesion/presentation/providers.dart' show preloadDaysProvider;
 import 'preferencias.dart';
 import 'router.dart';
@@ -16,6 +17,9 @@ class MaktubApp extends ConsumerStatefulWidget {
 
 class _MaktubAppState extends ConsumerState<MaktubApp> {
   final _messenger = GlobalKey<ScaffoldMessengerState>();
+
+  /// Roles changed from another session (an admin's) show up when the app comes back to the front, without F5.
+  late final _lifecycle = AppLifecycleListener(onResume: () => refreshMe(ref));
 
   /// A new version already downloaded: it stays offered until it is applied, since applying reloads the page and
   /// that is the user's call (they may be in the middle of a set).
@@ -37,7 +41,14 @@ class _MaktubAppState extends ConsumerState<MaktubApp> {
   @override
   void initState() {
     super.initState();
+    _lifecycle;
     if (ref.read(appUpdateReadyProvider)) _offerUpdate();
+  }
+
+  @override
+  void dispose() {
+    _lifecycle.dispose();
+    super.dispose();
   }
 
   @override
