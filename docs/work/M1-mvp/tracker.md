@@ -208,7 +208,9 @@ publicada**, nunca el borrador.
   izquierda; también en el formulario de temporizadores).
 - **Peso en cualquier ejercicio al planificar** (Ari, 2026-11-21). Un ejercicio dado de alta sin "con peso" igual
   ofrece kilos o % al planificar. En blanco es sin peso; si se carga, el ejercicio queda guardado con peso.
-  Estado: `en curso`.
+  Estado: `hecho` (`42a933b`). Al guardar el plan: un % suma "Carga (% del RM)" (y RM propio si mide reps), solo
+  kilos suma "Carga fija". Solo lo ve quien puede escribir ese ejercicio: `admin_club` en los del club, admin de
+  plataforma en los base. Un coach sin `admin_club` no lo ve.
 - **Kilos por atleta al planificar** (Ari, 2026-11-21). En un plan con dos atletas, una serie en kilos (por ejemplo
   press con mancuerna) tiene que poder llevar un peso distinto para cada atleta. E5.16 ya lo hace para series por %
   (`PlanSet.porAtleta`). Va después de "Peso en cualquier ejercicio", que toca el mismo editor. Decidido por Ari
