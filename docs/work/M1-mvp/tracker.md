@@ -181,8 +181,8 @@ publicada**, nunca el borrador.
   terminados e históricos), y al tocar una se ve el detalle con kilos y reps. Estado: `hecho` (commits "Historial por
   atleta (API)" y "(app)"). Entradas: Perfil → Historial (atleta) y ficha del atleta → Historial (coach). Una sesión es
   del atleta si figura en presentes; el detalle usa la versión publicada actual del plan, y un plan eliminado muestra
-  solo lo registrado. Índice nuevo `club_presentes_fecha`. **Para revisar con Ari:** un usuario solo `admin_club` no ve
-  el historial (igual que la ficha). **Deploy:** primero el backend y después la PWA.
+  solo lo registrado. Índice nuevo `club_presentes_fecha`. Decidido por Ari el 2026-11-21: `admin_club` también ve la
+  ficha y el historial de los atletas del club (`en curso`). **Deploy:** primero el backend y después la PWA.
 - **Insignias de las tarjetas en la sesión del día** (pedido por Ari el 2026-11-19). Una tarjeta dice "Hecho"
   apenas se tilda un ejercicio, aunque falte el resto del día. Tiene que reflejar cuánto se hizo de verdad.
   Estado: `hecho` (`777cff5`, `7905917`). Decidido por Ari el 2026-11-21, reemplaza D13: el estado es por atleta,
@@ -218,13 +218,17 @@ publicada**, nunca el borrador.
 - **El coach crea y edita ejercicios** (Ari, 2026-11-21). Hoy solo `admin_club` escribe el catálogo del club. El coach
   tiene que poder crear y editar ejercicios del club, y marcar "con peso" desde el plan. Los ejercicios base siguen
   siendo solo del admin de plataforma. Estado: `hecho` (`cb1c96c`): acción nueva `editarEjerciciosClub` para coach y
-  `admin_club`; archivar y eliminar ejercicios, categorías, temporizadores y equipo siguen con `admin_club`. **Para
-  revisar con Ari:** si el coach también archiva. **Deploy:** primero el backend y después la PWA.
+  `admin_club`; archivar y eliminar ejercicios, categorías, temporizadores y equipo siguen con `admin_club`. Decidido por Ari el
+  2026-11-21: el coach también archiva y elimina ejercicios (`en curso`). **Deploy:** primero el backend y después la PWA.
 - **Kilos por atleta al planificar** (Ari, 2026-11-21). En un plan con dos atletas, una serie en kilos (por ejemplo
   press con mancuerna) tiene que poder llevar un peso distinto para cada atleta. E5.16 ya lo hace para series por %
   (`PlanSet.porAtleta`). Va después de "Peso en cualquier ejercicio", que toca el mismo editor. Decidido por Ari
   el 2026-11-21: en planes con varios atletas, la serie en kilos pide un peso por atleta, sin valor general; las reps
-  son las mismas para todos. Estado: `pendiente`.
+  son las mismas para todos. Estado: `hecho` (`8b08f57`, `dd95d27`, `3bc446b`). Se reusa `PlanSet.porAtleta` con solo
+  `kilos`; los planes viejos con peso general siguen valiendo para todos. Publicar exige los kilos de cada atleta
+  (`setWithoutAthleteKg`). La sesión propone esos kilos tal cual, sin ajuste del día. Un plan sin asignación usa un solo
+  peso. Un atleta sumado después recibe su kilaje fijo de la ficha o nada, y republicar pide cargar el suyo. El
+  importador no los pide. **Deploy:** primero el backend y después la PWA.
 - **Métrica objetivo según los chips** (Ari, 2026-11-21). El desplegable "métrica objetivo" no se llena con las
   métricas elegidas en los chips de arriba. Estado: `hecho` (`cee2fa0`).
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
@@ -234,6 +238,6 @@ publicada**, nunca el borrador.
   quien lo pidió queda `admin_club`, coach y atleta. Los demás miembros se siguen sumando por alta de email.
   Estado: `hecho` (commits "Alta de club con aprobación (API)" y "(app)"). `POST /auth/pedidos-club` con el ID token de
   Google; `/plataforma/pedidos-club` para listar, aprobar y rechazar (solo admin de plataforma, en Preferencias →
-  Pedidos de clubes). Quien fue rechazado puede pedir de nuevo. **No se copia la semilla:** el catálogo base vive en
+  Pedidos de clubes). Quien fue rechazado puede pedir de nuevo. **No se copia la semilla** (aprobado por Ari): el catálogo base vive en
   `plataforma` y todos los clubes ya lo ven (C1); copiarlo duplicaría todo. Índices nuevos en `pedidos_club`.
   **Deploy:** primero el backend y después la PWA. **`diseno.md`** no tiene el flujo de pedido y aprobación.
