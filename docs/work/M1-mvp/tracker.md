@@ -253,6 +253,16 @@ publicada**, nunca el borrador.
     jerarquía" y "Elegir club"; A12 en `diseno.md`). El admin de plataforma elige el club activo en Preferencias →
     Club activo (`GET /plataforma/clubes`). **Deploy:** primero el backend.
     La matriz de `docs/features/F1-clubes-usuarios-acceso.md` quedó al día.
+- **Prueba en dev de Ari (2026-11-21, tercera tanda):** retomar el modo guiado ok; el resto ok salvo:
+  - **Tiempo infinito en el modo guiado:** la cabecera mostraba 289:55 y el bloque 289:48. El tiempo tiene que
+    empezar recién con "Comenzar". `en curso`.
+  - **"Atrás" con el flujo normal:** en un paso ya hecho, primero "Iniciar serie" y después "Terminar serie", en vez
+    de "Terminar serie de nuevo". `en curso`.
+  - **La ✕ del modo guiado** ofrece terminar el modo guiado y pregunta si dejar guardado hasta dónde se llegó.
+    `en curso`.
+  - **Al recargar, la sesión del día dice "No hay un día de plan cargado"**, aunque el modo guiado retoma bien. `en curso`.
+  - **Diálogo de kilos por atleta:** con atletas en el plan, sin el campo kg general, cada atleta con su campo y la
+    sugerencia debajo, sin "(sugerido)". Con un solo atleta o sin atletas, el campo kg general como antes. `en curso`.
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
   `admin_club` da de alta miembros en un club existente. Refinado con Ari el 2026-11-21: quien entra con Google sin
   cuenta puede pedir un club; queda pendiente hasta que un admin de plataforma lo aprueba desde la app, y mientras
