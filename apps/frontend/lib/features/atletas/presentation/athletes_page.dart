@@ -43,7 +43,12 @@ class AthletesPage extends ConsumerWidget {
                           onPressed: () => context.go('$basePath/${Uri.encodeComponent(a.id)}/historial'),
                         ),
                         const SizedBox(width: Espacio.xl),
-                        const Icon(Icons.chevron_right),
+                        IconButton(
+                          key: Key('athlete-sheet-${a.id}'),
+                          icon: const Icon(Icons.assignment_ind_outlined),
+                          tooltip: 'Ficha',
+                          onPressed: () => context.go('$basePath/${Uri.encodeComponent(a.id)}'),
+                        ),
                       ],
                     ),
                     onTap: () =>
