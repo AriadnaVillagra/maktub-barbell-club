@@ -245,10 +245,12 @@ void main() {
       expect(set.byAthlete, isEmpty);
     });
 
-    testWidgets('an exercise by % keeps its % and kg fields', (tester) async {
+    testWidgets('an exercise by % keeps its % and kg fields, and offers each athlete\'s kilos by hand', (tester) async {
       await open(tester, exercise: ex('sq', 'Sentadilla'), sets: const [PlanSet(reps: 5)]);
       expect(find.byKey(const ValueKey('set-pct-0-0')), findsOneWidget);
-      expect(find.text('Andi (kg)'), findsNothing);
+      expect(find.byKey(const ValueKey('set-kg-0-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('set-kg-0-andi-0')), findsNothing);
+      expect(find.byKey(const ValueKey('set-manual-kg-0-andi-0')), findsOneWidget);
     });
 
     testWidgets('kilos typed on an exercise without weight go to each athlete', (tester) async {

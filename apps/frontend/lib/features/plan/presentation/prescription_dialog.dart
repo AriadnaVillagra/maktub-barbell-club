@@ -26,6 +26,11 @@ import 'plan_labels.dart';
 /// exercise in kilos asks for each athlete's kilos and has no general weight; the reps are the same for all. A set that
 /// had one weight opens with it for each athlete. With one athlete, or before the plan is assigned, it keeps one
 /// weight. Kilos without % given to an exercise without weight go to each athlete too.
+///
+/// Kilos per athlete in a set by % (Ari, 2026-11-21): in that same plan for several athletes, a set of an exercise
+/// loaded by % of RM shows under it one line per athlete with what their RM suggests ("Ari · RM 80 kg × 65 % = 52
+/// kg") and a field for the kilos the coach types by hand. Left blank, the athlete keeps the suggestion (the field
+/// says so: "52 (sugerido)").
 Future<Prescription?> askPrescription(
   BuildContext context, {
   required Prescription initial,
@@ -57,7 +62,8 @@ class PrescriptionAthletes {
   /// one's kilos.
   final bool assigned;
 
-  /// The athletes a set in kilos asks kilos for, one by one; empty when it keeps one weight.
+  /// The athletes a set in kilos asks kilos for, one by one, and a set by % offers kilos by hand to; empty when it
+  /// keeps one weight.
   List<AthleteBasis> get kgAthletes {
     final ids = [for (final a in athletes) a.id];
     return assigned && asksKgPerAthlete(ids) ? athletes : const [];
@@ -125,6 +131,10 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   bool get _kgPerAthlete =>
       _kgAthletes.isNotEmpty && widget.exercise != null && isKgExercise(widget.exercise!);
 
+  /// Whether this exercise is by % of RM and its sets offer each athlete's kilos by hand, under the suggestion.
+  bool get _pctPerAthlete =>
+      _kgAthletes.isNotEmpty && (widget.exercise?.metrics.contains(Metric.loadPctRm) ?? false);
+
   /// The plan's only athlete, when it is assigned to one: the single weight shown is the one proposed to them.
   String? get _onlyAssignedId =>
       widget.athletes.assigned && _athletes.length == 1 ? _athletes.single.id : null;
@@ -146,7 +156,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   }
 
   /// [s] worked out again from its % ([fromPct]) or from its kg (E5.16): each athlete's loads, and with a single
-  /// athlete the other field too. With several, only what was typed is kept.
+  /// athlete the other field too. With several, only what was typed is kept, and so are the kilos typed by hand.
   PlanSet _workedOut(PlanSet s, {required bool fromPct}) {
     final pct = fromPct ? s.pct : null;
     final kg = fromPct ? null : s.kg;
@@ -157,7 +167,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
       reps: s.reps,
       pct: fromPct ? pct : own?.pct,
       kg: fromPct ? own?.kg : kg,
-      byAthlete: loads,
+      byAthlete: {...loads, if (_pctPerAthlete) ...manualLoads(s.byAthlete)},
     );
   }
 
@@ -265,6 +275,56 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
     );
   }
 
+  /// Under set [i] of an exercise by %, one line per athlete: what their RM suggests, and their kilos by hand. The
+  /// field shows the suggestion as its hint, since a blank one keeps it.
+  Widget _athleteManualKgFields(int i, PlanSet set) {
+    final suggestions = _loadsFor(set.pct, set.kg);
+    Widget line(AthleteBasis a) {
+      final suggested = suggestions[a.id];
+      final entry = set.byAthlete[a.id];
+      return Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              athleteSuggestion(a, setPct: set.pct, suggested: suggested, number: formatNumber),
+              key: Key('set-suggestion-$i-${a.id}'),
+              style: context.textos.bodySmall?.copyWith(color: context.esquema.onSurfaceVariant),
+            ),
+          ),
+          const SizedBox(width: Espacio.s),
+          _numberField(
+            key: ValueKey('set-manual-kg-$i-${a.id}-$_generation'),
+            label: '${a.name} (kg)',
+            hint: suggested?.kg == null ? null : '${formatNumber(suggested!.kg!)} (sugerido)',
+            initial: entry != null && entry.manualKg && entry.kg != null ? formatNumber(entry.kg!) : '',
+            formatters: [_decimalFormatter],
+            onChanged: (t) => _setSet(i, (s) => _withManualKg(s, a, parseTypedNumber(t))),
+          ),
+        ],
+      );
+    }
+
+    return Padding(
+      key: Key('set-athlete-manual-$i'),
+      padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final a in _athletes)
+            Padding(padding: const EdgeInsets.only(top: Espacio.xs), child: line(a)),
+        ],
+      ),
+    );
+  }
+
+  /// [s] with [a]'s kilos typed by hand as [kg]; blank (or not positive) gives them back the suggestion.
+  PlanSet _withManualKg(PlanSet s, AthleteBasis a, double? kg) => setWithAthleteLoad(
+    s,
+    a.id,
+    kg != null && kg > 0 ? manualAthleteLoad(kg, a) : _loadsFor(s.pct, s.kg)[a.id],
+  );
+
   void _submit() => Navigator.pop(
     context,
     prescriptionWith(
@@ -282,13 +342,18 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
     required String initial,
     required List<TextInputFormatter> formatters,
     required ValueChanged<String> onChanged,
+    String? hint,
   }) => Expanded(
     child: TextFormField(
       key: key,
       initialValue: initial,
       keyboardType: const TextInputType.numberWithOptions(decimal: true),
       inputFormatters: formatters,
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        labelText: label,
+        hintText: hint,
+        floatingLabelBehavior: hint == null ? null : FloatingLabelBehavior.always,
+      ),
       onChanged: onChanged,
     ),
   );
@@ -373,7 +438,8 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                   ],
                 ),
                 if (_hasKg && _kgPerAthlete) _athleteKgFields(i, set),
-                if (_single == null && !_kgPerAthlete
+                if (_pctPerAthlete) _athleteManualKgFields(i, set),
+                if (_single == null && !_kgPerAthlete && !_pctPerAthlete
                     ? athleteLoadsSummary(set.byAthlete, _athletes, formatNumber)
                     : '' case final line
                     when line.isNotEmpty)

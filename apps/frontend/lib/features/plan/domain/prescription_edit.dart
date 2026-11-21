@@ -126,3 +126,16 @@ double? singleKgOf(PlanSet s, String? athleteId) => athleteId == null ? s.kg : p
 /// Unchanged when any set has a %, which makes it loaded by %.
 List<PlanSet> kgToEachAthlete(List<PlanSet> sets, List<String> athleteIds) =>
     sets.any((s) => (s.pct ?? 0) > 0) ? sets : withKgPerAthlete(sets, athleteIds);
+
+/// [s] with [athleteId]'s entry replaced by [load] (null removes it); its %, kilos and the other athletes' stay.
+PlanSet setWithAthleteLoad(PlanSet s, String athleteId, AthleteSetLoad? load) => setWith(
+  s,
+  reps: s.reps,
+  pct: s.pct,
+  kg: s.kg,
+  byAthlete: {
+    for (final e in s.byAthlete.entries)
+      if (e.key != athleteId) e.key: e.value,
+    athleteId: ?load,
+  },
+);

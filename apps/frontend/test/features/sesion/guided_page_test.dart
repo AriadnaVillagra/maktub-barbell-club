@@ -860,6 +860,53 @@ void main() {
     });
   });
 
+  group('kilos typed by hand per athlete in a set by % (Ari, 2026-11-21)', () {
+    // Ari's kilos were typed by hand; Andi was left blank and keeps the suggestion frozen when planning.
+    final squatDay = _planOf(const [
+      PlanBlock(
+        name: 'Principal',
+        categoryId: 'primario',
+        prescriptions: [
+          Prescription(
+            exerciseId: 'sq',
+            sets: [
+              PlanSet(
+                reps: 5,
+                pct: 65,
+                byAthlete: {
+                  'ari': AthleteSetLoad(pct: 60, kg: 60, manualKg: true),
+                  'andi': AthleteSetLoad(pct: 65, kg: 52.5),
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    ]);
+
+    List<ProposedSet> proposed(String athleteId) => proposedDaySets(
+      blocks: squatDay.weekModels.single.days.single.blocks,
+      exercises: {'sq': ex('sq', 'Sentadilla')},
+      athleteId: athleteId,
+      on: _today,
+      references: const [],
+      factors: const [],
+      fixedKg: const {},
+      equipo: Equipo.estandarDe('c1'),
+    );
+
+    testWidgets('the session proposes the kilos typed by hand, and the suggestion to whoever was left blank', (
+      tester,
+    ) async {
+      _served = squatDay;
+      await _pump(tester, sessions: _Sessions()..proposals = proposed);
+      await _toBlock(tester, 0);
+
+      expect(_text(tester, 'guided-preview-0-ari'), endsWith('60 kg'));
+      expect(_text(tester, 'guided-preview-0-andi'), endsWith('52.5 kg'));
+    });
+  });
+
   group('preview', () {
     testWidgets('shows the block, each athlete\'s part and the mode', (
       tester,
