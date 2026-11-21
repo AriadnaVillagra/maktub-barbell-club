@@ -211,7 +211,9 @@ publicada**, nunca el borrador.
   Estado: `en curso`.
 - **Kilos por atleta al planificar** (Ari, 2026-11-21). En un plan con dos atletas, una serie en kilos (por ejemplo
   press con mancuerna) tiene que poder llevar un peso distinto para cada atleta. E5.16 ya lo hace para series por %
-  (`PlanSet.porAtleta`). Va después de "Peso en cualquier ejercicio", que toca el mismo editor. Estado: `pendiente`.
+  (`PlanSet.porAtleta`). Va después de "Peso en cualquier ejercicio", que toca el mismo editor. Decidido por Ari
+  el 2026-11-21: en planes con varios atletas, la serie en kilos pide un peso por atleta, sin valor general; las reps
+  son las mismas para todos. Estado: `pendiente`.
 - **Métrica objetivo según los chips** (Ari, 2026-11-21). El desplegable "métrica objetivo" no se llena con las
   métricas elegidas en los chips de arriba. Estado: `hecho` (`cee2fa0`).
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
