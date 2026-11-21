@@ -104,8 +104,9 @@ class ProposedSetLoad {
 }
 
 /// Proposes the weight of [target] on [basis]: the kilos frozen for [athleteId] in the plan (E5.16) with
-/// [adjustment], or as they are when the plan gave them in kilos and without % (kilos per athlete in a set in kilos;
-/// a fixed weight takes no adjustment), else RM × work factor × % with [adjustment] when it is measured by RM,
+/// [adjustment] (also the ones the coach typed by hand for them in a set by %, `AthleteSetLoad.manualKg`, % or not),
+/// or as they are when the plan gave them in kilos and without % (kilos per athlete in a set in kilos; a fixed weight
+/// takes no adjustment), else RM × work factor × % with [adjustment] when it is measured by RM,
 /// otherwise [athleteFixedKg] and then the plan's own kilos. An athlete without their own kilos in a set that has
 /// only kilos per athlete (added to the assignment after it was planned) gets [athleteFixedKg] or nothing. Rounded on [barKg] (the prescription's bar, else the exercise's; null is the
 /// default bar).
@@ -118,18 +119,19 @@ ProposedSetLoad proposedSetLoad({
   double? barKg,
   String? athleteId,
 }) {
-  if (target.byAthlete[athleteId]?.kg case final frozen? when frozen > 0) {
-    final own = target.byAthlete[athleteId]!.pct;
+  if (target.byAthlete[athleteId] case final entry? when (entry.kg ?? 0) > 0) {
+    final frozen = entry.kg!;
+    final own = entry.pct;
     // The athlete's own kilos in a set in kilos: a fixed weight, as loaded and without the adjustment, like the
-    // plan's one weight below.
-    if (own == null) {
+    // plan's one weight below. Kilos typed by hand in a set by % are not: they take the adjustment like the rest.
+    if (own == null && !entry.manualKg) {
       return ProposedSetLoad(kg: frozen, appliedPct: null, pcts: null);
     }
-    final applied = pctEfectivo(own, adjustment);
+    final applied = own == null ? null : pctEfectivo(own, adjustment);
     return ProposedSetLoad(
       kg: adjustment == 100 ? frozen : equipo.cargableOExacto(frozen * adjustment / 100, barKg: barKg),
       appliedPct: applied,
-      pcts: basis.rmExerciseId != null
+      pcts: applied != null && basis.rmExerciseId != null
           ? RecordPcts.fromPlan(applied, workFactor: basis.workFactor)
           : null,
     );

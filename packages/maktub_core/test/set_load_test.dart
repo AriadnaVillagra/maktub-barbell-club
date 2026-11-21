@@ -169,6 +169,54 @@ void main() {
     });
   });
 
+  group('kilos typed by hand per athlete in a set by % (Ari, 2026-11-21)', () {
+    // Ari's RM is 100: RM × 65 % would be 65; the coach typed 60 for her, and left Andi with the suggestion.
+    const target = PlanSet(
+      reps: 5,
+      pct: 65,
+      byAthlete: {
+        'ari': AthleteSetLoad(pct: 60, kg: 60, manualKg: true),
+        'andi': AthleteSetLoad(pct: 65, kg: 52),
+      },
+    );
+
+    test('the session proposes the kilos typed by hand, whatever the RM gives', () {
+      final load = _propose(_basis(pct: 65, references: [_rm(120)]), target: target, athleteId: 'ari');
+      expect(load.kg, 60);
+      expect(load.appliedPct, 60);
+      expect(load.pcts, isNotNull);
+    });
+
+    test('an athlete left blank gets the suggestion frozen when planning', () {
+      expect(_propose(_basis(pct: 65), target: target, athleteId: 'andi').kg, 52);
+    });
+
+    test('the day adjustment scales them to the nearest loadable, like frozen kilos', () {
+      final load = _propose(_basis(pct: 65), target: target, athleteId: 'ari', adjustment: 90);
+      expect(load.kg, Equipo.estandarDe('c1').cargableOExacto(54));
+      expect(load.appliedPct, 54);
+    });
+
+    test('without an RM they carry no %, and still take the day adjustment', () {
+      const noRm = PlanSet(reps: 5, pct: 65, byAthlete: {'ari': AthleteSetLoad(kg: 40, manualKg: true)});
+      final basis = _basis(pct: 65, references: const []);
+      expect(_propose(basis, target: noRm, athleteId: 'ari').kg, 40);
+      final adjusted = _propose(basis, target: noRm, athleteId: 'ari', adjustment: 90);
+      expect(adjusted.kg, Equipo.estandarDe('c1').cargableOExacto(36));
+      expect(adjusted.appliedPct, isNull);
+      expect(adjusted.pcts, isNull);
+    });
+
+    test('travel as kilosManual only when typed by hand, so older plans read the same', () {
+      expect(target.toJson()['porAtleta'], {
+        'ari': {'pct': 60.0, 'kilos': 60.0, 'kilosManual': true},
+        'andi': {'pct': 65.0, 'kilos': 52.0},
+      });
+      expect(PlanSet.fromJson(target.toJson()).byAthlete, target.byAthlete);
+      expect(AthleteSetLoad.fromJson(const {'pct': 65, 'kilos': 52}).manualKg, isFalse);
+    });
+  });
+
   group('setLoadBasis', () {
     test('is by RM only with a reference exercise and a positive percent', () {
       expect(_basis().byRm, isTrue);
