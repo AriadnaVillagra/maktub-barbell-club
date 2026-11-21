@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../core/refresh/refresh_on_return.dart';
+import '../features/access/presentation/club_picker_page.dart';
 import '../features/access/presentation/providers.dart';
 import '../features/asignacion/presentation/providers.dart' show clubAssignmentsProvider;
 import '../features/atletas/presentation/providers.dart' show athletesProvider;
@@ -72,6 +73,9 @@ abstract final class Rutas {
 
   /// Club requests from people without an account; only platform admins see it.
   static const pedidosClub = '$preferencias/pedidos-club';
+
+  /// Every club of the platform, to work in any of them; only platform admins see it.
+  static const club = '$preferencias/club';
 
   /// The athlete's own read-only references.
   static const perfil = '/perfil';
@@ -262,6 +266,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                 ),
                 GoRoute(path: 'miembros', builder: (_, _) => const MembersPage(exitPath: Rutas.preferencias)),
                 GoRoute(path: 'pedidos-club', builder: (_, _) => const ClubRequestsPage()),
+                GoRoute(path: 'club', builder: (_, _) => const ClubPickerPage()),
               ],
             ),
           ]),

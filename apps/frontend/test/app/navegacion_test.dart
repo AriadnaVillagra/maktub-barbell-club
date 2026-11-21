@@ -381,7 +381,7 @@ void main() {
       ]);
     });
 
-    testWidgets('a platform admin: everything of the club, plus club requests', (tester) async {
+    testWidgets('a platform admin: everything of the club, plus club requests and the club picker', (tester) async {
       await _montar(
         tester,
         const Size(400, 800),
@@ -397,6 +397,7 @@ void main() {
         Rutas.equipo,
         Rutas.miembros,
         Rutas.pedidosClub,
+        Rutas.club,
       ]);
       expect(_tab('Planificación'), findsOneWidget);
     });

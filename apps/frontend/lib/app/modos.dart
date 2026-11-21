@@ -61,6 +61,7 @@ class PaginaPreferencias extends ConsumerWidget {
               if (ref.watch(canEditEquipmentProvider)) (Icons.inventory_2_outlined, 'Equipo', Rutas.equipo),
               if (ref.watch(canManageMembersProvider)) (Icons.group_outlined, 'Miembros', Rutas.miembros),
               if (ref.watch(isPlatformAdminProvider)) (Icons.domain_add_outlined, 'Pedidos de clubes', Rutas.pedidosClub),
+              if (ref.watch(canPickAnyClubProvider)) (Icons.swap_horiz, 'Club activo', Rutas.club),
             ])
               Card(
                 child: ListTile(
