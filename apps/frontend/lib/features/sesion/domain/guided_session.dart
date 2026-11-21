@@ -4,11 +4,13 @@
 /// See `reference/Guia.html` and decision D19 in docs/work/M1-mvp/design.md. Since E7.26 the position is the
 /// session's guided pass ([GuidedPass]), the same on every device: each action here is a [GuidedPassAction] that the
 /// device applies at once and queues for the server. What is done comes from the session's records and the sets the
-/// pass went through, so a set another device finishes drops out of the steps. Only the athletes being chosen and the
-/// draft of the step on screen stay on the device.
+/// pass went through, so a set another device finishes drops out of the steps. Only the athletes being chosen, the
+/// draft of the step on screen and the step shown again with "Atrás" stay on the device.
 library;
 
 import 'package:maktub_core/maktub_core.dart';
+
+import 'guided_position.dart';
 
 /// A set recorded as done: the block it belongs to and the athlete's set in it.
 typedef BlockSet = (int block, AthleteSet set);
@@ -113,6 +115,8 @@ class GuidedSession {
     this.chosen = const [],
     this.replacing,
     this.draft,
+    this.reviewing,
+    this.reviewDraft,
   });
 
   /// Choosing who trains, with [athleteIds] already chosen. [pass] is the session's pass, if any: the new one replaces
@@ -157,7 +161,16 @@ class GuidedSession {
   /// The pass the device saw when it started choosing: a new one replaces it, while one begun meanwhile by another
   /// device is joined.
   final String? replacing;
+
+  /// The draft of the step the pass is on.
   final GuidedStepDraft? draft;
+
+  /// The step behind shown again with "Atrás", while it still is one ([reviewStep]). Only on this device: going back
+  /// is looking, not a change of the pass, so the other devices stay where they are.
+  final GuidedStep? reviewing;
+
+  /// The draft of [reviewing].
+  final GuidedStepDraft? reviewDraft;
 
   GuidedSession _copy({
     GuidedPass? pass,
@@ -165,6 +178,9 @@ class GuidedSession {
     List<String>? chosen,
     GuidedStepDraft? draft,
     bool clearDraft = false,
+    GuidedStep? reviewing,
+    GuidedStepDraft? reviewDraft,
+    bool clearReview = false,
   }) => GuidedSession._(
     day: day,
     pass: pass ?? this.pass,
@@ -172,6 +188,8 @@ class GuidedSession {
     chosen: chosen ?? this.chosen,
     replacing: replacing,
     draft: clearDraft ? null : draft ?? this.draft,
+    reviewing: clearReview ? null : reviewing ?? this.reviewing,
+    reviewDraft: clearReview ? null : reviewDraft ?? this.reviewDraft,
   );
 
   GuidedPhase get phase => choosing || pass == null
@@ -225,24 +243,35 @@ class GuidedSession {
   Duration? elapsed(DateTime now) =>
       start == null ? null : (end ?? now).difference(start!);
 
-  /// What is left of the block on screen, in order: its first one is the step on screen.
-  List<GuidedStep> pending(Set<BlockSet> recorded) {
+  /// Every step of the block on screen, in the order it goes now; empty for a block without steps.
+  List<GuidedStep> _allSteps() {
     final run = this.run;
     final block = this.block;
     if (run == null || block == null || !blockHasSteps(block)) return const [];
+    return guidedSteps(
+      executionMode: run.executionMode,
+      athleteMode: run.athleteMode,
+      athleteIds: athleteIds,
+      setCounts: setCountsOf(block, athleteIds),
+    );
+  }
+
+  /// The sets of the block on screen that count as done: those the pass went through and, unless the day is redone,
+  /// those recorded.
+  Set<AthleteSet> _doneOf(GuidedBlockRun run, Set<BlockSet> recorded) => {
+    ...run.passed,
+    if (!redo)
+      for (final (b, s) in recorded)
+        if (b == run.blockIndex) s,
+  };
+
+  /// What is left of the block on screen, in order: its first one is the step on screen.
+  List<GuidedStep> pending(Set<BlockSet> recorded) {
+    final run = this.run;
+    if (run == null) return const [];
     return pendingSteps(
-      guidedSteps(
-        executionMode: run.executionMode,
-        athleteMode: run.athleteMode,
-        athleteIds: athleteIds,
-        setCounts: setCountsOf(block, athleteIds),
-      ),
-      done: {
-        ...run.passed,
-        if (!redo)
-          for (final (b, s) in recorded)
-            if (b == run.blockIndex) s,
-      },
+      _allSteps(),
+      done: _doneOf(run, recorded),
       left: run.left,
     );
   }
@@ -253,14 +282,177 @@ class GuidedSession {
       ? pending(recorded).firstOrNull
       : null;
 
-  /// The draft of [step]: empty if what is held belongs to another step.
-  GuidedStepDraft draftFor(GuidedStep step) =>
-      draft != null && draft!.isFor(step)
-      ? draft!
-      : GuidedStepDraft(prescription: step.prescription, set: step.set);
+  /// The draft of [step]: empty if what is held belongs to another step. The step shown with "Atrás" has its own.
+  GuidedStepDraft draftFor(GuidedStep step) {
+    if (reviewing == step && reviewDraft != null && reviewDraft!.isFor(step)) {
+      return reviewDraft!;
+    }
+    return draft != null && draft!.isFor(step)
+        ? draft!
+        : GuidedStepDraft(prescription: step.prescription, set: step.set);
+  }
 
   /// The same, without the draft of the step on screen.
   GuidedSession clearingDraft() => _copy(clearDraft: true);
+
+  // ---------- going back ("Atrás", Ari 2026-11-21) ----------
+
+  /// The steps of the running block already behind the step the pass is on, in order: each with the athletes whose set
+  /// counts as done. A set done out of order, after that step, is not behind it. Empty outside a running block with
+  /// steps.
+  List<GuidedStep> behind(Set<BlockSet> recorded) {
+    final run = this.run;
+    if (run?.status != GuidedBlockStatus.running) return const [];
+    final all = _allSteps();
+    final done = _doneOf(run!, recorded);
+    final current = currentStep(recorded);
+    final until = current == null
+        ? all.length
+        : all.indexWhere(
+            (s) =>
+                s.prescription == current.prescription &&
+                s.set == current.set &&
+                s.athleteIds.contains(current.athleteIds.first),
+          );
+    return [
+      for (final step in all.take(until < 0 ? all.length : until))
+        if ([
+              for (final a in step.athleteIds)
+                if (done.contains(AthleteSet(a, step.prescription, step.set)))
+                  a,
+            ]
+            case final athletes when athletes.isNotEmpty)
+          athletes.length == step.athleteIds.length
+              ? step
+              : GuidedStep(
+                  prescription: step.prescription,
+                  set: step.set,
+                  athleteIds: List.unmodifiable(athletes),
+                ),
+    ];
+  }
+
+  /// The step shown again with "Atrás", while it is still behind; null on the step the pass is on.
+  GuidedStep? reviewStep(Set<BlockSet> recorded) {
+    final reviewing = this.reviewing;
+    if (reviewing == null) return null;
+    return behind(recorded).where((s) => s == reviewing).firstOrNull;
+  }
+
+  /// The step on screen: the one shown with "Atrás", else the one the pass is on.
+  GuidedStep? shownStep(Set<BlockSet> recorded) =>
+      reviewStep(recorded) ?? currentStep(recorded);
+
+  /// What comes after the step on screen: the next step behind, or the one the pass is on, after one shown with
+  /// "Atrás"; else the second step left.
+  GuidedStep? stepAfter(Set<BlockSet> recorded) {
+    final review = reviewStep(recorded);
+    if (review == null) {
+      final left = pending(recorded);
+      return left.length > 1 ? left[1] : null;
+    }
+    final behind = this.behind(recorded);
+    final i = behind.indexOf(review);
+    return i + 1 < behind.length ? behind[i + 1] : currentStep(recorded);
+  }
+
+  /// Whether there is a step before the one on screen to go back to.
+  bool canGoBack(Set<BlockSet> recorded) {
+    final behind = this.behind(recorded);
+    final review = reviewStep(recorded);
+    return review == null ? behind.isNotEmpty : behind.indexOf(review) > 0;
+  }
+
+  /// "Atrás": shows the step before the one on screen, with what was recorded. Nothing is unmarked and the pass does
+  /// not move: the step the pass is on keeps its draft. An athlete whose set was passed without being recorded ("No
+  /// hizo esta serie") starts marked as not doing it, so finishing the step again leaves them as they were.
+  GuidedSession goBack(Set<BlockSet> recorded) {
+    if (!canGoBack(recorded)) return this;
+    final behind = this.behind(recorded);
+    final review = reviewStep(recorded);
+    final target = review == null
+        ? behind.last
+        : behind[behind.indexOf(review) - 1];
+    return _copy(
+      reviewing: target,
+      reviewDraft: _reviewDraftOf(target, recorded),
+    );
+  }
+
+  /// Back to the step the pass is on, leaving the one shown with "Atrás" as it was.
+  GuidedSession toCurrent() => _copy(clearReview: true);
+
+  /// "Terminar serie" on a step shown with "Atrás": [record] are the athletes whose set is written again, which
+  /// replaces what they had (as when the day is redone); the screen goes on to the next step behind, or to the step
+  /// the pass is on. The pass does not change: those sets were already passed.
+  ({GuidedSession next, List<String> record}) finishReview(
+    Set<BlockSet> recorded,
+  ) {
+    final review = reviewStep(recorded);
+    if (review == null) return (next: this, record: const []);
+    final draft = draftFor(review);
+    final behind = this.behind(recorded);
+    final i = behind.indexOf(review);
+    final following = i + 1 < behind.length ? behind[i + 1] : null;
+    return (
+      next: following == null
+          ? toCurrent()
+          : _copy(
+              reviewing: following,
+              reviewDraft: _reviewDraftOf(following, recorded),
+            ),
+      record: [
+        for (final a in review.athleteIds)
+          if (!draft.notDone.contains(a)) a,
+      ],
+    );
+  }
+
+  GuidedStepDraft _reviewDraftOf(GuidedStep step, Set<BlockSet> recorded) =>
+      GuidedStepDraft(
+        prescription: step.prescription,
+        set: step.set,
+        running: true,
+        notDone: {
+          for (final a in step.athleteIds)
+            if (!recorded.contains((
+              run!.blockIndex,
+              AthleteSet(a, step.prescription, step.set),
+            )))
+              a,
+        },
+      );
+
+  // ---------- remembering where the device was ----------
+
+  /// What this device holds of the pass of session [sessionId], to land on the same step when it comes back. Null
+  /// outside the blocks: choosing who trains or the summary need nothing.
+  GuidedPosition? positionIn(String sessionId) => phase == GuidedPhase.blocks
+      ? GuidedPosition(
+          sessionId: sessionId,
+          passId: pass!.id,
+          block: current,
+          draft: draft,
+          reviewing: reviewing,
+          reviewDraft: reviewDraft,
+        )
+      : null;
+
+  /// With what [position] remembered, if it belongs to this pass and its block is still the running one on screen.
+  /// The session is checked by whoever knows it.
+  GuidedSession restoring(GuidedPosition position) {
+    if (phase != GuidedPhase.blocks ||
+        pass!.id != position.passId ||
+        current != position.block ||
+        run?.status != GuidedBlockStatus.running) {
+      return this;
+    }
+    return _copy(
+      draft: position.draft,
+      reviewing: position.reviewing,
+      reviewDraft: position.reviewDraft,
+    );
+  }
 
   // ---------- the pass ----------
 
@@ -279,6 +471,8 @@ class GuidedSession {
       chosen: chosen,
       replacing: replacing,
       draft: moved ? null : draft,
+      reviewing: moved ? null : reviewing,
+      reviewDraft: moved ? null : reviewDraft,
     );
   }
 
@@ -626,6 +820,9 @@ class GuidedSession {
     Set<BlockSet> recorded,
     GuidedStepDraft Function(GuidedStepDraft) change,
   ) {
+    if (reviewStep(recorded) case final review?) {
+      return _copy(reviewDraft: change(draftFor(review)));
+    }
     final step = currentStep(recorded);
     if (step == null) return this;
     return _copy(draft: change(draftFor(step)));

@@ -589,4 +589,121 @@ void main() {
       expect(g.interruptBlock(now: _t0).draft, isNull);
     });
   });
+
+  group('going back (Ari, 2026-11-21)', () {
+    /// Block 1 by turns, running, after Ari's and Andi's first sets: Ari's second is on screen.
+    (GuidedSession, Set<BlockSet>) afterTwo() {
+      var g = _onBlock(1).startBlock(_none, now: _t0);
+      final recorded = <BlockSet>{};
+      for (var i = 0; i < 2; i++) {
+        final step = g.currentStep(recorded)!;
+        final r = g.finishStep(recorded, now: _t0);
+        for (final a in r.record) {
+          recorded.add((1, AthleteSet(a, step.prescription, step.set)));
+        }
+        g = r.next;
+      }
+      return (g, recorded);
+    }
+
+    test('behind are the steps already done before the one on screen, in order', () {
+      final (g, recorded) = afterTwo();
+      expect(g.currentStep(recorded), _step(0, 1, ['ari']));
+      expect(g.behind(recorded), [
+        _step(0, 0, ['ari']),
+        _step(0, 0, ['andi']),
+      ]);
+      expect(_onBlock(1).startBlock(_none, now: _t0).canGoBack(_none), false);
+    });
+
+    test('goes back one step at a time, and not past the first', () {
+      final (g, recorded) = afterTwo();
+      final once = g.goBack(recorded);
+      expect(once.shownStep(recorded), _step(0, 0, ['andi']));
+      expect(once.stepAfter(recorded), _step(0, 1, ['ari']));
+      final twice = once.goBack(recorded);
+      expect(twice.shownStep(recorded), _step(0, 0, ['ari']));
+      expect(twice.canGoBack(recorded), false);
+      expect(twice.goBack(recorded).shownStep(recorded), _step(0, 0, ['ari']));
+      expect(twice.toCurrent().shownStep(recorded), _step(0, 1, ['ari']));
+    });
+
+    test('the pass does not move and the draft of the current step stays', () {
+      final (g, recorded) = afterTwo();
+      final typed = g.edit('ari', const SetEdit(manualKg: 90), recorded);
+      final back = typed.goBack(recorded);
+      expect(identical(back.pass, typed.pass), true);
+      final edited = back.edit('andi', const SetEdit(reps: 3), recorded);
+      expect(edited.draftFor(_step(0, 0, ['andi'])).edits['andi']?.reps, 3);
+      final current = edited.toCurrent();
+      expect(current.draftFor(_step(0, 1, ['ari'])).edits['ari']?.manualKg, 90);
+      expect(current.draftFor(_step(0, 1, ['ari'])).edits['andi'], isNull);
+    });
+
+    test('finishing a step behind records it again and goes on, without pass actions', () {
+      final (g, recorded) = afterTwo();
+      final back = g.goBack(recorded).goBack(recorded);
+      final r = back.finishReview(recorded);
+      expect(r.record, ['ari']);
+      expect(identical(r.next.pass, g.pass), true);
+      expect(r.next.shownStep(recorded), _step(0, 0, ['andi']));
+      final last = r.next.finishReview(recorded);
+      expect(last.record, ['andi']);
+      expect(last.next.shownStep(recorded), _step(0, 1, ['ari']));
+      expect(last.next.reviewing, isNull);
+    });
+
+    test('a set passed but not recorded starts as not done', () {
+      var g = _onBlock(1)
+          .withAthleteMode(AthleteMode.simultaneous)
+          .startBlock(_none, now: _t0)
+          .toggleNotDone('andi', _none);
+      final r = g.finishStep(_none, now: _t0);
+      expect(r.record, ['ari']);
+      final recorded = {(1, const AthleteSet('ari', 0, 0))};
+      g = r.next.goBack(recorded);
+      final step = g.shownStep(recorded)!;
+      expect(step, _step(0, 0, ['ari', 'andi']));
+      expect(g.draftFor(step).notDone, {'andi'});
+      expect(g.finishReview(recorded).record, ['ari']);
+    });
+
+    test('once the block on screen changes, the step behind is dropped', () {
+      final (g, recorded) = afterTwo();
+      final back = g.goBack(recorded);
+      expect(back.interruptBlock(now: _t0).reviewing, isNull);
+    });
+  });
+
+  group('remembering the position (Ari, 2026-11-21)', () {
+    test('restores the drafts and the step behind of the same pass and block', () {
+      var g = _onBlock(1).startBlock(_none, now: _t0).startStep(_none);
+      g = g.edit('ari', const SetEdit(manualKg: 85, reps: 4), _none);
+      final position = g.positionIn('s1')!;
+      expect((position.sessionId, position.passId, position.block), ('s1', g.pass!.id, 1));
+
+      final fresh = GuidedSession.following(_day, g.pass!);
+      expect(fresh.draft, isNull);
+      final back = fresh.restoring(position);
+      final draft = back.draftFor(back.currentStep(_none)!);
+      expect(draft.running, true);
+      expect(draft.edits['ari']?.manualKg, 85);
+    });
+
+    test('a position of another pass or block is not taken', () {
+      final g = _onBlock(1).startBlock(_none, now: _t0).startStep(_none);
+      final position = g.positionIn('s1')!;
+      final other = GuidedSession.following(_day, g.interruptBlock(now: _t0).pass!);
+      expect(other.restoring(position).draft, isNull);
+      final otherPass = GuidedSession.choosing(_day, const ['ari'])
+          .begin(now: _t0, passId: 'otra')
+          .skipBlock(now: _t0)
+          .startBlock(_none, now: _t0);
+      expect(otherPass.restoring(position).draft, isNull);
+    });
+
+    test('choosing who trains or the summary have no position', () {
+      expect(GuidedSession.choosing(_day, const ['ari']).positionIn('s1'), isNull);
+    });
+  });
 }

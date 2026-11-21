@@ -15,7 +15,9 @@ import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
+import 'package:maktub_frontend/features/sesion/data/shared_preferences_guided_position_store.dart';
 import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
+import 'package:maktub_frontend/features/sesion/domain/guided_position.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 import 'package:maktub_frontend/features/sesion/presentation/guided_page.dart';
@@ -24,6 +26,7 @@ import 'package:maktub_frontend/features/sesion/presentation/session_page.dart';
 import 'package:maktub_frontend/features/temporizador/presentation/controllers/crono_controller.dart';
 import 'package:maktub_frontend/features/temporizador/presentation/providers.dart';
 import 'package:maktub_ui/maktub_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../access/fakes.dart';
 import '../catalogo/catalog_admin_fakes.dart';
@@ -398,6 +401,17 @@ String _w(SetWrite w) =>
     '${w.athleteId} ${w.blockIndex}-${w.prescriptionIndex}-${w.setIndex}'
     '${w.done ? ' done' : ''}';
 
+/// Where the device remembers the guided mode's position, in memory.
+class _Positions implements GuidedPositionStore {
+  GuidedPosition? saved;
+
+  @override
+  Future<GuidedPosition?> load() async => saved;
+
+  @override
+  Future<void> save(GuidedPosition? position) async => saved = position;
+}
+
 class _Harness {
   _Harness(this.sessions);
 
@@ -413,6 +427,7 @@ Future<_Harness> _pump(
   GuidedPass? pass,
   _Sessions? sessions,
   DateTime? today,
+  GuidedPositionStore? positions,
 }) async {
   final h = _Harness(sessions ?? (_Sessions(records: records)..pass = pass));
   tester.view.physicalSize = const Size(900, 3000);
@@ -480,6 +495,9 @@ Future<_Harness> _pump(
         todayProvider.overrideWithValue(today ?? _today),
         timerPlatformProvider.overrideWithValue(h.platform),
         guidedClockProvider.overrideWithValue(() => h.now),
+        guidedPositionStoreProvider.overrideWithValue(
+          positions ?? _Positions(),
+        ),
       ],
       child: MaterialApp.router(
         theme: TemaMaktub.para(Brightness.dark, Densidad.entrenamiento),
@@ -1724,6 +1742,268 @@ void main() {
       await reopen(tester, h, tomorrow);
 
       expect(marked(tester, '1-0-0'), false);
+    });
+  });
+
+  group('going back (Ari, 2026-11-21)', () {
+    /// Block 1 ("Principal", by turns) running, with Ari's first set done: Andi's turn is on screen.
+    Future<_Harness> afterAriFirst(WidgetTester tester) async {
+      final h = await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+      return h;
+    }
+
+    testWidgets('on the first step there is nothing behind; "Atrás" is away from the timers and 56 dp', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+
+      final back = find.byKey(const Key('guided-back'));
+      expect(tester.widget<TextButton>(back).onPressed, isNull);
+      final size = tester.getSize(back);
+      expect(size.height, greaterThanOrEqualTo(56));
+      expect(size.width, greaterThanOrEqualTo(56));
+      // Above the exercise, far from "⏱ Descanso", which sits by the main button.
+      final backTop = tester.getTopLeft(back).dy;
+      expect(backTop, lessThan(tester.getTopLeft(find.byKey(const Key('guided-exercise'))).dy));
+      expect(backTop, lessThan(tester.getTopLeft(find.byKey(const Key('guided-rest'))).dy - 100));
+    });
+
+    testWidgets('shows the step before with what was recorded, and keeps the draft of the current one', (
+      tester,
+    ) async {
+      final h = await afterAriFirst(tester);
+      await _tap(tester, 'guided-edit-andi');
+      await tester.enterText(find.byKey(const Key('session-set-kg')), '70');
+      await _tap(tester, 'session-set-save');
+
+      await _tap(tester, 'guided-back');
+
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · ya registrada');
+      expect(find.byKey(const Key('guided-card-ari')), findsOneWidget);
+      expect(find.byKey(const Key('guided-card-andi')), findsNothing);
+      expect(_text(tester, 'guided-values-ari'), '80 kg × 5 reps');
+      expect(find.byKey(const Key('guided-reviewing')), findsOneWidget);
+      expect(find.byKey(const Key('guided-leave-ari')), findsNothing);
+      expect(_text(tester, 'guided-next'), 'Después vuelve al paso actual: Sentadilla, serie 1 · Andi');
+      expect(tester.widget<TextButton>(find.byKey(const Key('guided-back'))).onPressed, isNull);
+      // Looking is not a change: nothing written, nothing unmarked, the pass does not move.
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done']);
+      final version = h.sessions.pass!.version;
+
+      await _tap(tester, 'guided-to-current');
+
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+      expect(_text(tester, 'guided-values-andi'), '70 kg × 5 reps');
+      expect(h.sessions.writes, hasLength(1));
+      expect(h.sessions.pass!.version, version);
+    });
+
+    testWidgets('finishing the step behind again overwrites its set, without unmarking it', (
+      tester,
+    ) async {
+      final h = await afterAriFirst(tester);
+      final passed = h.sessions.pass!.blocks[1].passed;
+      await _tap(tester, 'guided-back');
+      await _tap(tester, 'guided-edit-ari');
+      await tester.enterText(find.byKey(const Key('session-set-kg')), '85');
+      await tester.enterText(find.byKey(const Key('session-set-reps')), '4');
+      await _tap(tester, 'session-set-save');
+      expect(find.text('Terminar turno de nuevo'), findsOneWidget);
+
+      await _tap(tester, 'guided-step-main');
+
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done', 'ari 1-0-0 done']);
+      expect(h.sessions.writes.last.manualKg, 85);
+      expect(h.sessions.writes.last.reps, 4);
+      expect(h.sessions.writes.every((w) => w.done), isTrue);
+      final live = h.container.read(sessionScreenProvider).live!;
+      final ari = recordOf(live, 'ari', 1, 0, 0)!;
+      expect((ari.done, ari.kg, ari.reps), (true, 85, 4));
+      expect(h.sessions.pass!.blocks[1].passed, passed);
+      // Back on the step the pass is on.
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+    });
+
+    testWidgets('it goes back step by step and finishing walks forward again', (tester) async {
+      final h = await afterAriFirst(tester);
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-set'), 'Serie 2 de 2 · turno de Ari');
+
+      await _tap(tester, 'guided-back');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi · ya registrada');
+      await _tap(tester, 'guided-back');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · ya registrada');
+
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi · ya registrada');
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-set'), 'Serie 2 de 2 · turno de Ari');
+      expect(h.sessions.writes.map(_w), [
+        'ari 1-0-0 done',
+        'andi 1-0-0 done',
+        'ari 1-0-0 done',
+        'andi 1-0-0 done',
+      ]);
+    });
+
+    testWidgets('an athlete who did not do the set behind stays without it unless counted', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-not-done-andi');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done']);
+
+      await _tap(tester, 'guided-back');
+
+      expect(find.text('No hace esta serie'), findsOneWidget);
+      await _tap(tester, 'guided-step-main');
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done', 'ari 1-0-0 done']);
+
+      await _tap(tester, 'guided-back');
+      await _tap(tester, 'guided-not-done-andi');
+      await _tap(tester, 'guided-step-main');
+      expect(h.sessions.writes.map(_w).skip(2), ['ari 1-0-0 done', 'andi 1-0-0 done']);
+    });
+  });
+
+  group('coming back where it was (Ari, 2026-11-21)', () {
+    Future<void> leave(WidgetTester tester) async {
+      await _tap(tester, 'guided-exit');
+      await tester.tap(find.text('Salir'));
+      await tester.pumpAndSettle();
+      expect(find.byType(GuidedPage), findsNothing);
+    }
+
+    /// Block 1 by turns, Ari's turn started with 85 kg × 4 typed.
+    Future<void> typeOnAri(WidgetTester tester) async {
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-edit-ari');
+      await tester.enterText(find.byKey(const Key('session-set-kg')), '85');
+      await tester.enterText(find.byKey(const Key('session-set-reps')), '4');
+      await _tap(tester, 'session-set-save');
+    }
+
+    testWidgets('leaving and entering again keeps the step started and what was typed', (tester) async {
+      final h = await _pump(tester);
+      await typeOnAri(tester);
+      await leave(tester);
+
+      await _train(tester);
+
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · en curso');
+      expect(_text(tester, 'guided-values-ari'), '85 kg × 4 reps');
+      await _tap(tester, 'guided-step-main');
+      expect(h.sessions.writes.single.manualKg, 85);
+      expect(h.sessions.writes.single.reps, 4);
+    });
+
+    testWidgets('a step shown with "Atrás" is shown again on coming back', (tester) async {
+      await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-back');
+      await _tap(tester, 'guided-edit-ari');
+      await tester.enterText(find.byKey(const Key('session-set-kg')), '90');
+      await _tap(tester, 'session-set-save');
+      await leave(tester);
+
+      await _train(tester);
+
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · ya registrada');
+      expect(_text(tester, 'guided-values-ari'), '90 kg × 5 reps');
+    });
+
+    testWidgets('after a reload of the app it lands on the same step, from local storage', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final first = await _pump(
+        tester,
+        positions: SharedPreferencesGuidedPositionStore(),
+      );
+      await typeOnAri(tester);
+      expect(
+        (await SharedPreferences.getInstance()).getString(SharedPreferencesGuidedPositionStore.key),
+        isNotNull,
+      );
+
+      // A new app over the same server and the same local storage.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pump(
+        tester,
+        sessions: first.sessions,
+        positions: SharedPreferencesGuidedPositionStore(),
+      );
+      await _train(tester);
+
+      expect(_text(tester, 'guided-block-name'), 'Principal');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · en curso');
+      expect(_text(tester, 'guided-values-ari'), '85 kg × 4 reps');
+    });
+
+    testWidgets('if the pass moved on meanwhile, what was remembered is dropped', (tester) async {
+      final positions = _Positions();
+      final h = await _pump(tester, positions: positions);
+      await typeOnAri(tester);
+      await leave(tester);
+      expect(positions.saved?.draft, isNotNull);
+
+      // Another device finished block 1.
+      final pass = h.sessions.pass!;
+      h.sessions.pass = applyGuidedAction(
+        pass,
+        GuidedPassAction.onBlock(
+          GuidedActionKind.finishBlock,
+          passId: pass.id,
+          version: pass.version,
+          at: h.now,
+          block: 1,
+        ),
+      );
+      h.sessions.sessionChanges++;
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pump(tester, sessions: h.sessions, positions: positions);
+      await _train(tester);
+
+      expect(_text(tester, 'guided-block-name'), 'Accesorios');
+      expect(find.byKey(const Key('guided-start-block')), findsOneWidget);
+      expect(positions.saved?.block, 2);
+      expect(positions.saved?.draft, isNull);
+    });
+
+    testWidgets('a new pass does not take the draft of the one before', (tester) async {
+      final positions = _Positions();
+      await _pump(tester, positions: positions);
+      await typeOnAri(tester);
+      final before = positions.saved!.passId;
+
+      await _tap(tester, 'guided-pass-menu');
+      await _tap(tester, 'guided-start-over');
+      await _tap(tester, 'guided-begin');
+      if (find.byKey(const Key('guided-resume')).evaluate().isNotEmpty) {
+        await _tap(tester, 'guided-resume');
+      }
+      await _skipBlock(tester);
+      await _tap(tester, 'guided-start-block');
+
+      expect(positions.saved!.passId, isNot(before));
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari');
+      expect(_text(tester, 'guided-values-ari'), '80 kg × 5 reps');
     });
   });
 }

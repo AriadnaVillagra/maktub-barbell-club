@@ -29,10 +29,12 @@ import '../data/shared_preferences_calendar_layout_store.dart';
 import '../data/shared_preferences_collapsed_blocks_store.dart';
 import '../domain/collapsed_blocks.dart';
 import '../data/shared_preferences_draft_store.dart';
+import '../data/shared_preferences_guided_position_store.dart';
 import '../data/web_socket_live_channel.dart';
 import '../domain/athlete_adjustments.dart';
 import '../domain/block_time_write.dart';
 import '../domain/calendar_layout.dart';
+import '../domain/guided_position.dart';
 import '../domain/guided_session.dart';
 import '../domain/live_channel.dart';
 import '../domain/live_session_sync.dart';
@@ -1093,6 +1095,16 @@ final guidedPassIdProvider = Provider<String Function()>((ref) {
       '${random.nextInt(0x7fffffff).toRadixString(36)}';
 });
 
+final guidedPositionStoreProvider = Provider<GuidedPositionStore>(
+  (ref) => SharedPreferencesGuidedPositionStore(),
+);
+
+/// Where this device was in the guided mode: it outlives the screen (whose state goes when it is left) and, through
+/// [guidedPositionStoreProvider], a reload of the PWA.
+final rememberedGuidedPositionProvider = Provider<RememberedGuidedPosition>(
+  (ref) => RememberedGuidedPosition(ref.watch(guidedPositionStoreProvider)),
+);
+
 /// The guided mode over the day's session (E7.20): the pure [GuidedSession], fed with the session's records and its
 /// guided pass, and the writes it leads to. Null without a plan day on screen. Until "Comenzar" it needs no session
 /// (E7.27): choosing who trains writes nothing, and "Comenzar" creates the session with them.
@@ -1100,12 +1112,17 @@ final guidedPassIdProvider = Provider<String Function()>((ref) {
 /// Since E7.26 the pass is the session's, the same on every device: each action is applied on screen at once and goes
 /// to the queue (E7.9) behind the sets; what other devices do arrives with the session over the live channel. What is
 /// shown is the server's pass with this device's unsent actions applied over it, so nothing steps back while they
-/// travel. Leaving the screen keeps the pass for everyone; only the athletes being chosen and the step's draft are
+/// travel. Leaving the screen keeps the pass for everyone and, on this device, the step's draft and the step shown
+/// with "Atrás" ([RememberedGuidedPosition]), so coming back lands where it was; only the athletes being chosen are
 /// dropped.
 class GuidedController extends Notifier<GuidedSession?> {
   /// Actions applied on screen that have not reached the queue yet.
   final _unqueued = <GuidedPassAction>[];
   Future<void> _submitting = Future.value();
+
+  /// Whether the remembered position was already compared with the session's pass. Until then nothing is remembered,
+  /// so the empty state of a screen just opened does not overwrite it.
+  var _restored = false;
 
   @override
   GuidedSession? build() {
@@ -1131,7 +1148,53 @@ class GuidedController extends Notifier<GuidedSession?> {
     final day = planDayOf(data, shown.week, shown.day);
     if (day == null) return null;
     final athlete = athleteOnScreen(data, screen);
-    return GuidedSession.entering(day, _shownPass(live), [?athlete]);
+    listenSelf((_, next) => _remember(next));
+    final remembered = ref.read(rememberedGuidedPositionProvider);
+    if (!remembered.loaded) {
+      unawaited(
+        remembered.load().then((_) {
+          if (ref.mounted) _setRestoring(state);
+        }),
+      );
+    }
+    return _restoring(
+      GuidedSession.entering(day, _shownPass(live), [?athlete]),
+    );
+  }
+
+  /// [guided] with what the device remembered of this pass, the first time it can be compared: once the position is
+  /// loaded and the session is there. A pass that is no longer the remembered one, or on another block, keeps
+  /// nothing of it.
+  GuidedSession? _restoring(GuidedSession? guided) {
+    if (_restored || guided == null) return guided;
+    final remembered = ref.read(rememberedGuidedPositionProvider);
+    final live = _live;
+    if (!remembered.loaded || live == null) return guided;
+    _restored = true;
+    final saved = remembered.value;
+    final queue = ref.read(setSyncQueueProvider);
+    final restored =
+        saved != null &&
+            queue.currentIdOf(saved.sessionId) ==
+                queue.currentIdOf(live.session.id)
+        ? guided.restoring(saved)
+        : guided;
+    // What no longer applies is forgotten now, not on the next change.
+    _remember(restored);
+    return restored;
+  }
+
+  void _setRestoring(GuidedSession? guided) {
+    final next = _restoring(guided);
+    if (!identical(next, state)) state = next;
+  }
+
+  void _remember(GuidedSession? guided) {
+    final live = _live;
+    if (!_restored || guided == null || live == null) return;
+    ref
+        .read(rememberedGuidedPositionProvider)
+        .save(guided.positionIn(live.session.id));
   }
 
   LiveSession? get _live => ref.read(sessionScreenProvider).live;
@@ -1157,7 +1220,7 @@ class GuidedController extends Notifier<GuidedSession?> {
 
   void _refresh() {
     final s = state;
-    if (s != null) state = s.withPass(_shownPass());
+    if (s != null) _setRestoring(s.withPass(_shownPass()));
   }
 
   void _settle() {
@@ -1301,6 +1364,12 @@ class GuidedController extends Notifier<GuidedSession?> {
 
   void startStep() => _update((s) => s.startStep(recorded));
 
+  /// "Atrás": shows the step before, on this device only.
+  void goBack() => _update((s) => s.goBack(recorded));
+
+  /// Back from a step shown with "Atrás" to the one the pass is on.
+  void toCurrent() => _update((s) => s.toCurrent());
+
   void toggleNotDone(String athleteId) =>
       _update((s) => s.toggleNotDone(athleteId, recorded));
 
@@ -1317,13 +1386,34 @@ class GuidedController extends Notifier<GuidedSession?> {
   );
 
   /// "Terminar serie": moves on at once and writes each athlete's set with what their card shows. The sets go to the
-  /// queue ahead of the pass. Rethrows the backend's refusal so the screen can show it.
+  /// queue ahead of the pass. On a step shown with "Atrás" the sets are written again, replacing what they had, and
+  /// the pass does not change. Rethrows the backend's refusal so the screen can show it.
   Future<void> finishStep() async {
     final s = state;
     final done = recorded;
     final run = s?.run;
-    final step = s?.currentStep(done);
-    if (s == null || run == null || step == null) return;
+    if (s == null || run == null) return;
+    if (s.reviewStep(done) case final review?) {
+      final draft = s.draftFor(review);
+      final result = s.finishReview(done);
+      final writes = [
+        for (final a in result.record)
+          _markWrite(
+            s.day.blocks[run.blockIndex],
+            run.blockIndex,
+            review.prescription,
+            review.set,
+            a,
+            draft.edits[a],
+            fromRecord: true,
+          ),
+      ];
+      state = result.next;
+      await _send(writes);
+      return;
+    }
+    final step = s.currentStep(done);
+    if (step == null) return;
     final draft = s.draftFor(step);
     final result = s.finishStepActions(done, now: _now);
     final writes = [
@@ -1369,10 +1459,12 @@ class GuidedController extends Notifier<GuidedSession?> {
     int p,
     int set,
     String athleteId,
-    SetEdit? edit,
-  ) {
+    SetEdit? edit, {
+    bool fromRecord = false,
+  }) {
     final screen = ref.read(sessionScreenProvider);
-    final redo = state?.redo ?? false;
+    // A step shown again with "Atrás" starts from what it recorded, even when the day is redone.
+    final redo = !fromRecord && (state?.redo ?? false);
     final current = redo
         ? null // a redone set starts from the proposal, not from what was recorded before
         : screen.live?.records
