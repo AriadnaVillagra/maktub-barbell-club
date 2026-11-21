@@ -40,6 +40,42 @@ class GuidedStepView extends ConsumerWidget {
     if (ok) notifier.interruptBlock();
   }
 
+  /// The secondary and destructive actions live in a sheet, away from the timer and the main button.
+  Future<void> _showMoreActions(BuildContext context, WidgetRef ref) {
+    final notifier = ref.read(guidedProvider.notifier);
+    return showModalBottomSheet<void>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheet) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            key: const Key('guided-skip-exercise'),
+            minTileHeight: context.densidad.tactilMinimo,
+            leading: const Icon(Icons.skip_next),
+            title: const Text('Saltar este ejercicio'),
+            onTap: () {
+              Navigator.pop(sheet);
+              notifier.skipExercise();
+            },
+          ),
+          ListTile(
+            key: const Key('guided-interrupt'),
+            minTileHeight: context.densidad.tactilMinimo,
+            iconColor: context.esquema.error,
+            textColor: context.esquema.error,
+            leading: const Icon(Icons.stop_circle_outlined),
+            title: const Text('Interrumpir bloque'),
+            onTap: () {
+              Navigator.pop(sheet);
+              _interrupt(context, ref);
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(guidedProvider.notifier);
@@ -142,24 +178,14 @@ class GuidedStepView extends ConsumerWidget {
           key: const Key('guided-next'),
           style: context.textos.bodyMedium,
         ),
-        Wrap(
-          spacing: Espacio.s,
-          runSpacing: Espacio.s,
-          children: [
-            TextButton(
-              key: const Key('guided-skip-exercise'),
-              onPressed: notifier.skipExercise,
-              child: const Text('Saltar este ejercicio'),
-            ),
-            TextButton(
-              key: const Key('guided-interrupt'),
-              style: TextButton.styleFrom(
-                foregroundColor: context.esquema.error,
-              ),
-              onPressed: () => _interrupt(context, ref),
-              child: const Text('Interrumpir bloque'),
-            ),
-          ],
+        Align(
+          alignment: Alignment.centerRight,
+          child: TextButton.icon(
+            key: const Key('guided-more-actions'),
+            icon: const Icon(Icons.more_horiz),
+            onPressed: () => _showMoreActions(context, ref),
+            label: const Text('Más acciones'),
+          ),
         ),
       ],
     );

@@ -1049,6 +1049,7 @@ void main() {
       await _tap(tester, 'guided-start-block');
       expect(_text(tester, 'guided-exercise'), 'Curl');
 
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-skip-exercise');
 
       expect(_text(tester, 'guided-exercise'), 'Face pull');
@@ -1146,6 +1147,22 @@ void main() {
   });
 
   group('blocks', () {
+    testWidgets('skip and interrupt live in "Más acciones", not on the step', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+
+      expect(find.byKey(const Key('guided-skip-exercise')), findsNothing);
+      expect(find.byKey(const Key('guided-interrupt')), findsNothing);
+
+      await _tap(tester, 'guided-more-actions');
+
+      expect(find.text('Saltar este ejercicio'), findsOneWidget);
+      expect(find.text('Interrumpir bloque'), findsOneWidget);
+    });
+
     testWidgets('interrupting asks first, records nothing and goes on', (
       tester,
     ) async {
@@ -1153,12 +1170,14 @@ void main() {
       await _toBlock(tester, 1);
       await _tap(tester, 'guided-start-block');
 
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-interrupt');
       expect(find.text('¿Interrumpir el bloque?'), findsOneWidget);
       await tester.tap(find.text('Cancelar'));
       await tester.pumpAndSettle();
       expect(_text(tester, 'guided-block-name'), 'Principal');
 
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-interrupt');
       await tester.tap(find.text('Interrumpir'));
       await tester.pumpAndSettle();
@@ -1208,6 +1227,7 @@ void main() {
       expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 01:15');
       expect(_text(tester, 'guided-total-clock'), '01:15');
 
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-skip-exercise'); // the block closes
       h.now = h.now.add(const Duration(seconds: 30));
       await _tap(tester, 'guided-start-block');
@@ -1246,6 +1266,7 @@ void main() {
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main'); // Ari's first set
       h.now = h.now.add(const Duration(seconds: 60));
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-interrupt');
       await tester.tap(find.text('Interrumpir'));
       await tester.pumpAndSettle();
