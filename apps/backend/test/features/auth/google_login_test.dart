@@ -7,6 +7,7 @@ import 'package:maktub_backend/features/auth/start_session/start_session.dart';
 import 'package:maktub_backend/features/auth/start_session/start_session_store.dart';
 import 'package:maktub_backend/features/auth/tokens.dart';
 import 'package:maktub_backend/infraestructura/http.dart';
+import 'package:maktub_core/maktub_core.dart';
 import 'package:test/test.dart';
 
 class _FakeUsers implements GoogleLoginStore {
@@ -15,6 +16,12 @@ class _FakeUsers implements GoogleLoginStore {
 
   /// Simulates another login linking an account between our read and our write.
   String? linkedConcurrently;
+
+  /// email → state of the latest club request.
+  final requests = <String, ClubRequestStatus>{};
+
+  @override
+  Future<ClubRequestStatus?> latestClubRequestStatus(String email) async => requests[email];
 
   @override
   Future<GoogleLoginUser?> findByEmail(String email) async {
@@ -98,6 +105,33 @@ void main() {
 
     expect(users.rows.keys, ['ari@example.com']);
     expect(sessions.userIds, isEmpty);
+  });
+
+  Matcher refusedWith(String code) => throwsA(
+    isA<ErrorDeSolicitud>()
+        .having((e) => e.estado, 'estado', HttpStatus.forbidden)
+        .having((e) => e.extra['codigo'], 'codigo', code),
+  );
+
+  test('without an account the 403 says whether a club request can be sent or where it stands', () async {
+    await expectLater(login(idToken: 'ok:sub-9:nadie@example.com'), refusedWith('sin_cuenta'));
+
+    users.requests['nadie@example.com'] = ClubRequestStatus.pending;
+    await expectLater(login(idToken: 'ok:sub-9:Nadie@example.com'), refusedWith('pedido_pendiente'));
+
+    // Approved but the account is not there yet: still being set up.
+    users.requests['nadie@example.com'] = ClubRequestStatus.approved;
+    await expectLater(login(idToken: 'ok:sub-9:nadie@example.com'), refusedWith('pedido_pendiente'));
+
+    users.requests['nadie@example.com'] = ClubRequestStatus.rejected;
+    await expectLater(login(idToken: 'ok:sub-9:nadie@example.com'), refusedWith('pedido_rechazado'));
+    expect(sessions.userIds, isEmpty);
+  });
+
+  test('a user with an account logs in whatever their old requests say', () async {
+    users.requests['ari@example.com'] = ClubRequestStatus.approved;
+    final issued = await login(idToken: 'ok:sub-1:ari@example.com');
+    expect(codec.verify(issued.accessToken, now: now)!.userId, 'u-ari');
   });
 
   test('an invalid token or one with an unverified email is refused with 401 without a session', () async {

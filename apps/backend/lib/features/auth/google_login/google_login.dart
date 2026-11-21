@@ -16,7 +16,9 @@ import 'google_login_store.dart';
 ///
 /// - 401 if the ID token is not acceptable (bad signature, expired, wrong audience, email not verified…).
 /// - 403 if the email has no account, or the account is linked to another Google account. Not 401,
-///   because the app treats 401 as "renew the token" (F1, "Identidad"). Chosen in E1.7.
+///   because the app treats 401 as "renew the token" (F1, "Identidad"). Chosen in E1.7. Without an account
+///   the body also carries `codigo` ([SignInRefusal]): `sin_cuenta` (the app offers a club request),
+///   `pedido_pendiente` or `pedido_rechazado`.
 Future<Response> googleLoginEndpoint(RequestContext context) async {
   final body = await leerCuerpoJson(context.request);
   final idToken = body['idToken'];
@@ -38,9 +40,22 @@ typedef VerifyGoogleIdToken = Future<GoogleIdentity> Function(String idToken);
 
 const invalidGoogleToken = ErrorDeSolicitud('No se pudo verificar el ingreso con Google.', estado: HttpStatus.unauthorized);
 
-const unknownAccount = ErrorDeSolicitud(
+final unknownAccount = ErrorDeSolicitud(
   'Este email no tiene una cuenta en Maktub. Pedile acceso a tu coach.',
   estado: HttpStatus.forbidden,
+  extra: {'codigo': SignInRefusal.noAccount.cable},
+);
+
+final clubRequestPending = ErrorDeSolicitud(
+  'Tu pedido está en revisión. Vas a poder ingresar cuando lo aprueben.',
+  estado: HttpStatus.forbidden,
+  extra: {'codigo': SignInRefusal.requestPending.cable},
+);
+
+final clubRequestRejected = ErrorDeSolicitud(
+  'Tu pedido no fue aprobado.',
+  estado: HttpStatus.forbidden,
+  extra: {'codigo': SignInRefusal.requestRejected.cable},
 );
 
 const otherGoogleAccount = ErrorDeSolicitud(
@@ -48,8 +63,9 @@ const otherGoogleAccount = ErrorDeSolicitud(
   estado: HttpStatus.forbidden,
 );
 
-/// Logs in with Google: the email identifies the user (F1, "Identidad"), only users created by the
-/// alta script can log in (no sign-up here), and the Google `sub` is linked on the first login.
+/// Logs in with Google: the email identifies the user (F1, "Identidad"), only existing users can log in
+/// (no sign-up here: without an account, the person may request a club), and the Google `sub` is linked
+/// on the first login.
 ///
 /// Once linked, a different `sub` for the same email is refused: Google can hand an email over to a
 /// new account (e.g. a recreated Workspace user), and `sub` is what stays stable.
@@ -70,7 +86,14 @@ class GoogleLogin {
 
     final email = normalizarEmail(identity.email);
     final user = await _store.findByEmail(email);
-    if (user == null) throw unknownAccount;
+    if (user == null) {
+      // An approved request whose account is not there yet is still being set up: the admin can approve again.
+      throw switch (await _store.latestClubRequestStatus(email)) {
+        null => unknownAccount,
+        ClubRequestStatus.rejected => clubRequestRejected,
+        ClubRequestStatus.pending || ClubRequestStatus.approved => clubRequestPending,
+      };
+    }
 
     if (user.googleSub == null && !await _store.linkGoogleSub(email, identity.sub)) {
       // Another login linked an account in between: accept only if it was this same one.

@@ -64,6 +64,10 @@ abstract final class Colecciones {
 
   /// Block times (E7.19): one per client-generated id, read by session (`clubId`, `sesionId`).
   static const tiemposBloque = 'tiempos_bloque';
+
+  /// Club requests from people without an account (2026-11-21). Platform data: `clubId` is always
+  /// `plataforma`. At most one pending request per email; reviewed ones are kept as history.
+  static const clubRequests = 'pedidos_club';
 }
 
 String urlMongoDesdeEntorno() =>
@@ -238,6 +242,27 @@ Future<void> asegurarIndices(Db db) async {
 
   // Reading the block times of a session (E7.19). The document id is the client's, so it is already unique.
   await db.collection(Colecciones.tiemposBloque).createIndex(keys: {'clubId': 1, 'sesionId': 1}, name: 'club_sesion');
+
+  // Club requests: one pending per email (a second insert fails with a duplicate key, also under a race), the
+  // latest one of an email (sign-in says where it stands), and the platform admin's list by state.
+  // mongo_dart's createIndex has no partialFilterExpression option, so the unique one uses the raw command.
+  await db.runCommand({
+    'createIndexes': Colecciones.clubRequests,
+    'indexes': [
+      {
+        'key': {'email': 1},
+        'name': 'email_pendiente_unico',
+        'unique': true,
+        'partialFilterExpression': {'estado': ClubRequestStatus.pending.cable},
+      },
+    ],
+  });
+  final clubRequests = db.collection(Colecciones.clubRequests);
+  await clubRequests.createIndex(keys: {'email': 1, 'auditoria.creadoEn': -1}, name: 'email_creado');
+  await clubRequests.createIndex(
+    keys: {'clubId': 1, 'estado': 1, 'auditoria.creadoEn': 1},
+    name: 'club_estado_creado',
+  );
 }
 
 /// Atomically applies [update] to the document [filter] matches, inserting it if there is none, and returns the

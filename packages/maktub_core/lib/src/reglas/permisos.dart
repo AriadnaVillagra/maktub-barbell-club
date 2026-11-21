@@ -37,7 +37,19 @@ enum Accion {
 
   /// Editar el catálogo base y la biblioteca de planes. Solo el administrador de plataforma.
   editarPlataforma,
+
+  /// See the pending club requests and approve or reject them. Only the platform admin; grants nothing
+  /// inside any club.
+  reviewClubRequests,
 }
+
+/// Actions that belong to the platform, not to a club: they depend only on the platform admin flag.
+const platformActions = {Accion.editarPlataforma, Accion.reviewClubRequests};
+
+/// Whether a user with [isPlatformAdmin] can do the platform action [action]. Club actions are never
+/// allowed here: they need a membership ([puede]).
+bool canOnPlatform(Accion action, {required bool isPlatformAdmin}) =>
+    platformActions.contains(action) && isPlatformAdmin;
 
 const _atleta = {Accion.verCatalogoYPlanes, Accion.registrar, Accion.verReportesPropios};
 
@@ -71,9 +83,10 @@ const _personal = {
 /// Si alguien con [roles] en un club de [tipo] puede hacer [accion].
 ///
 /// En el club personal mandan sus capacidades recortadas, sin importar los roles de la membresía.
-/// [Accion.editarPlataforma] depende solo de [esAdminPlataforma], y esa marca no da nada dentro de un club.
+/// Las acciones de plataforma ([platformActions]) dependen solo de [esAdminPlataforma], y esa marca no da
+/// nada dentro de un club.
 bool puede(Set<Rol> roles, Accion accion, TipoClub tipo, {bool esAdminPlataforma = false}) {
-  if (accion == Accion.editarPlataforma) return esAdminPlataforma;
+  if (platformActions.contains(accion)) return canOnPlatform(accion, isPlatformAdmin: esAdminPlataforma);
   if (roles.isEmpty) return false;
   if (tipo == TipoClub.personal) return _personal.contains(accion);
   return (roles.contains(Rol.coach) && _coach.contains(accion)) ||
