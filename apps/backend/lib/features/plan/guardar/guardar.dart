@@ -23,7 +23,8 @@ import 'guardar_store.dart';
 /// [PlanProblem.blocksSaving] (no name, repeated week model ids) is 422 and writes nothing, with each one and where it is:
 /// `{"error": "...", "problemas": [{"codigo": "setWithoutPct", "modeloSemana": 0, "dia": 1, "bloque": 0,
 /// "prescripcion": 2, "serie": 1}, ...]}`. `codigo` is a `PlanProblemCode` name; the location keys are
-/// 0-based and only present when the problem is at that level (`semana` is the position in the assignment).
+/// 0-based and only present when the problem is at that level (`semana` is the position in the assignment);
+/// `atleta` is the athlete's id in a problem about one athlete (only publishing reports those).
 /// [store] and [now] are for tests.
 Future<Response> savePlanEndpoint(
   RequestContext context,

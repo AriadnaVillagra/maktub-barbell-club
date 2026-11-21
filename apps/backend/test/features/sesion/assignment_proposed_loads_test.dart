@@ -308,6 +308,7 @@ extension on _Data {
     DateTime date, {
     required int week,
     required int day,
+    List<String> present = const ['ari', 'andi'],
   }) => sessions['club-a/$id'] = Session(
     id: id,
     clubId: 'club-a',
@@ -317,7 +318,7 @@ extension on _Data {
     week: week,
     day: day,
     date: date,
-    presentAthleteIds: const ['ari', 'andi'],
+    presentAthleteIds: present,
     auditoria: _audit,
   );
 }
@@ -533,6 +534,62 @@ void main() {
         },
       );
     }
+
+    test('a set in kilos with kilos per athlete: each gets theirs, by date and by session, without the adjustment; '
+        'an athlete added later gets their fixed kilos or nothing', () async {
+      final data = _data()
+        ..plans['club-a/p1'] = PublishedPlan(
+          weekModels: const [
+            WeekModel(
+              id: 'A',
+              name: 'A',
+              days: [
+                PlanDay(
+                  blocks: [
+                    PlanBlock(
+                      name: 'Accesorios',
+                      prescriptions: [
+                        Prescription(
+                          exerciseId: 'accessory',
+                          sets: [
+                            PlanSet(
+                              reps: 12,
+                              byAthlete: {'ari': AthleteSetLoad(kg: 12.5), 'andi': AthleteSetLoad(kg: 16)},
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+          weekAssignment: const ['A', 'A', 'A', 'A'],
+          publishedAt: DateTime.utc(2026, 11, 8),
+          publishedBy: 'coach',
+        )
+        ..groups['club-a/g1'] = ['ari', 'andi', 'lu', 'mo']
+        ..fixed.add(
+          FixedWeight(
+            id: 'k-mo',
+            clubId: 'club-a',
+            athleteId: 'mo',
+            exerciseId: 'accessory',
+            kg: 8,
+            auditoria: _audit,
+          ),
+        )
+        ..session('s1', DateTime.utc(2026, 11, 16), week: 1, day: 1, present: const ['ari', 'andi', 'lu', 'mo']);
+      const query = '&ajuste=90';
+      final body = await _body(data, query: '?desde=2026-11-16&hasta=2026-11-16$query');
+
+      for (final (athleteId, kg) in [('ari', 12.5), ('andi', 16.0), ('lu', null), ('mo', 8.0)]) {
+        final byDate = _sets(body, '2026-11-16', day: 1, athleteId: athleteId);
+        expect((byDate.single as Map)['kilos'], kg, reason: athleteId);
+        expect(byDate, await _bySession(data, 's1', athleteId: athleteId, query: '?ajuste=90'), reason: athleteId);
+      }
+    });
 
     test('writes nothing and needs no session', () async {
       final data = _data();

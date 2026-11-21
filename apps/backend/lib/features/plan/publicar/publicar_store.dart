@@ -10,6 +10,9 @@ abstract interface class PublishPlanStore {
   /// The exercises visible to [clubId] (platform base plus the club's own), by id.
   Future<Map<String, Exercise>> exercises(String clubId);
 
+  /// The assignments of plan [planId] in [clubId], in any status: who the plan is for (`planAthleteIds`).
+  Future<List<Assignment>> assignments(String clubId, String planId);
+
   /// Sets the published copy of the plan with that id **of that club** to [copy], in one write, but only if
   /// the plan was not saved since [savedAt] (its `auditoria.modificadoEn`, null if never modified): the copy
   /// was validated against that saved content. Returns false, and writes nothing, if there is no such plan or
@@ -47,6 +50,15 @@ class MongoPublishPlanStore implements PublishPlanStore {
       for (final d in docs)
         for (final e in [Exercise.fromJson(desdeDocumento(d))]) e.id: e,
     };
+  }
+
+  @override
+  Future<List<Assignment>> assignments(String clubId, String planId) async {
+    final docs = await _db.collection(Colecciones.asignaciones).find({
+      'clubId': clubId,
+      'planId': planId,
+    }).toList();
+    return [for (final d in docs) Assignment.fromJson(desdeDocumento(d))];
   }
 
   // One document, one `$set`: the published copy is replaced whole or not at all (design D15). The filter on
