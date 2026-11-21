@@ -178,7 +178,11 @@ publicada**, nunca el borrador.
 - **Ver lo que se hizo en un día pasado** (salió de la revisión de E8.6, 2026-11-19). Hoy el calendario muestra
   solo el ciclo del plan activo, y el editor de un plan histórico muestra lo planificado, sin kilos. Refinado con Ari
   el 2026-11-21: una pantalla de historial por atleta, con las sesiones pasadas por fecha (de cualquier plan, también
-  terminados e históricos), y al tocar una se ve el detalle con kilos y reps. Estado: `en curso`.
+  terminados e históricos), y al tocar una se ve el detalle con kilos y reps. Estado: `hecho` (commits "Historial por
+  atleta (API)" y "(app)"). Entradas: Perfil → Historial (atleta) y ficha del atleta → Historial (coach). Una sesión es
+  del atleta si figura en presentes; el detalle usa la versión publicada actual del plan, y un plan eliminado muestra
+  solo lo registrado. Índice nuevo `club_presentes_fecha`. **Para revisar con Ari:** un usuario solo `admin_club` no ve
+  el historial (igual que la ficha). **Deploy:** primero el backend y después la PWA.
 - **Insignias de las tarjetas en la sesión del día** (pedido por Ari el 2026-11-19). Una tarjeta dice "Hecho"
   apenas se tilda un ejercicio, aunque falte el resto del día. Tiene que reflejar cuánto se hizo de verdad.
   Estado: `hecho` (`777cff5`, `7905917`). Decidido por Ari el 2026-11-21, reemplaza D13: el estado es por atleta,
@@ -228,4 +232,8 @@ publicada**, nunca el borrador.
   cuenta puede pedir un club; queda pendiente hasta que un admin de plataforma lo aprueba desde la app, y mientras
   tanto ve "Tu pedido está en revisión" (sin emails). Al aprobarse se crea el club con la semilla base del catálogo, y
   quien lo pidió queda `admin_club`, coach y atleta. Los demás miembros se siguen sumando por alta de email.
-  Estado: `en curso`.
+  Estado: `hecho` (commits "Alta de club con aprobación (API)" y "(app)"). `POST /auth/pedidos-club` con el ID token de
+  Google; `/plataforma/pedidos-club` para listar, aprobar y rechazar (solo admin de plataforma, en Preferencias →
+  Pedidos de clubes). Quien fue rechazado puede pedir de nuevo. **No se copia la semilla:** el catálogo base vive en
+  `plataforma` y todos los clubes ya lo ven (C1); copiarlo duplicaría todo. Índices nuevos en `pedidos_club`.
+  **Deploy:** primero el backend y después la PWA. **`diseno.md`** no tiene el flujo de pedido y aprobación.
