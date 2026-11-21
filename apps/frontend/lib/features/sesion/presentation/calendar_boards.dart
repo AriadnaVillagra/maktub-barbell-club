@@ -368,10 +368,7 @@ class CompactBoard extends StatelessWidget {
       children: [
         if (main.isEmpty) const _EmptyDay(),
         for (final p in main)
-          _ExerciseLine(
-            name: _exerciseName(p, names),
-            detail: setsSummary(p.sets),
-          ),
+          _ExerciseLine(name: _exerciseName(p, names), detail: ''),
       ],
     );
   }

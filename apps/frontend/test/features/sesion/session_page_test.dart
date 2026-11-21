@@ -1922,7 +1922,7 @@ void main() {
       );
     }
 
-    testWidgets('Compacta shows the main exercises with their sets', (
+    testWidgets('Compacta shows only the main exercise names', (
       tester,
     ) async {
       await _pump(tester, _FakeSessions());
@@ -1932,10 +1932,7 @@ void main() {
         inKey('calendar-day-4-1', find.text('Sentadilla')),
         findsOneWidget,
       );
-      expect(
-        inKey('calendar-day-4-1', find.text('2x5 al 80 %')),
-        findsOneWidget,
-      );
+      expect(inKey('calendar-day-4-1', find.text('2x5 al 80 %')), findsNothing);
       // The warm-up is not a main exercise.
       expect(inKey('calendar-day-4-1', find.text('1x10')), findsNothing);
     });
