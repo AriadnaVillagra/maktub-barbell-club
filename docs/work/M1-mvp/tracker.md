@@ -180,14 +180,22 @@ publicada**, nunca el borrador.
   `sin refinar`, fuera de M1.
 - **Insignias de las tarjetas en la sesión del día** (pedido por Ari el 2026-11-19). Una tarjeta dice "Hecho"
   apenas se tilda un ejercicio, aunque falte el resto del día. Tiene que reflejar cuánto se hizo de verdad.
-  Estado: `en curso` (estado del día por atleta, con progreso: decidido por Ari el 2026-11-21, reemplaza D13).
+  Estado: `hecho` (`777cff5`, `7905917`). Decidido por Ari el 2026-11-21, reemplaza D13: el estado es por atleta,
+  "Hecho" con todas las series, "En curso n/m" con algunas y "Pendiente" sin ninguna. `.../dias?atletaId=` devuelve
+  `estado` (`hecho`, `en_curso`, `pendiente`), `hechas`, `total` y `fecha`; sin `atletaId` responde como antes. El
+  calendario suma un selector de atleta. **Deploy:** primero el backend y después la PWA. **`diseno.md`** todavía
+  describe D13: avisar a su sesión.
 - **Días marcados como hechos sin hacerlos** (bug, Ari, 2026-11-21). El estado del día es de toda la asignación:
-  con una serie de Andi, el día figura hecho también para Ari. Se arregla con el estado por atleta. Estado: `en curso`.
-- **Calendario compacto solo con los ejercicios** (Ari, 2026-11-21), sin series ni repeticiones. Estado: `pendiente`.
+  con una serie de Andi, el día figura hecho también para Ari. Se arregla con el estado por atleta. Estado: `hecho` (`7905917`).
+- **Calendario compacto solo con los ejercicios** (Ari, 2026-11-21), sin series ni repeticiones. Estado: `en curso`.
 - **El temporizador saca del modo guiado** (bug, Ari, 2026-11-21). El modo guiado se abre con `push`, y al abrir un
-  temporizador `CronoConAtras` hace `go(?crono=1)`, que reemplaza la pila. Estado: `en curso`.
+  temporizador `CronoConAtras` hace `go(?crono=1)`, que reemplaza la pila. Estado: `hecho` (`c950f03`: se abre con `go`).
 - **Series del modo guiado sin marcar en la sesión del día** (bug, Ari, 2026-11-21). El día figura como hecho, pero
-  las viñetas de la sesión del día no se marcan, ni siquiera al recargar. Estado: `en curso`.
-- **Tarjetas colapsables en la sesión del día** (Ari, 2026-11-21), para ver todo compacto. Estado: `en curso`.
+  las viñetas de la sesión del día no se marcan, ni siquiera al recargar. Estado: `hecho` (`a35de6a`). El modo guiado
+  escribía bien; la sesión del día buscaba solo la sesión de hoy, y un día hecho en otra fecha quedaba sin series.
+  Ahora la busca en la fecha en que el atleta de la pestaña empezó ese día. `todayProvider` cambia a medianoche (antes
+  quedaba fijo desde que se abrió la app). Escribir en un día hecho en otra fecha va a esa sesión, no a una nueva de
+  hoy: falta decidir si rehacer un día otro día es un día recuperado (3.6).
+- **Tarjetas colapsables en la sesión del día** (Ari, 2026-11-21), para ver todo compacto. Estado: `hecho` (`7a010cc`: cada bloque se colapsa desde su cabecera, "Colapsar todo" en la cabecera del día; se recuerda por posición de bloque en el dispositivo).
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
   `admin_club` da de alta miembros en un club existente. Falta diseño. Estado: `sin refinar`.
