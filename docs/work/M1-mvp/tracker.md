@@ -213,7 +213,9 @@ publicada**, nunca el borrador.
   plataforma en los base. Un coach sin `admin_club` no lo ve.
 - **El coach crea y edita ejercicios** (Ari, 2026-11-21). Hoy solo `admin_club` escribe el catálogo del club. El coach
   tiene que poder crear y editar ejercicios del club, y marcar "con peso" desde el plan. Los ejercicios base siguen
-  siendo solo del admin de plataforma. Estado: `en curso`.
+  siendo solo del admin de plataforma. Estado: `hecho` (`cb1c96c`): acción nueva `editarEjerciciosClub` para coach y
+  `admin_club`; archivar y eliminar ejercicios, categorías, temporizadores y equipo siguen con `admin_club`. **Para
+  revisar con Ari:** si el coach también archiva. **Deploy:** primero el backend y después la PWA.
 - **Kilos por atleta al planificar** (Ari, 2026-11-21). En un plan con dos atletas, una serie en kilos (por ejemplo
   press con mancuerna) tiene que poder llevar un peso distinto para cada atleta. E5.16 ya lo hace para series por %
   (`PlanSet.porAtleta`). Va después de "Peso en cualquier ejercicio", que toca el mismo editor. Decidido por Ari
