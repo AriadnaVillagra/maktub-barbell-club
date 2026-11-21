@@ -27,9 +27,9 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 7 / 7 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13; E6.7 en `m1-mvp`) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 27 / 27 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
-| E8 | [Migración](E8-migracion.md) | lista para merge | 10 / 10 (todos hechos; migración cerrada el 2026-11-19. Lo que falta de Octubre 2026 y Levantamiento lo hace Ari a mano en la app, ver E8.6) | — |
-| E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | hecho | 27 / 27 (mergeada a `main`, PR #11; la prueba real con dos teléfonos y modo avión queda en E9.2 y E9.3) | — |
+| E8 | [Migración](E8-migracion.md) | hecho | 10 / 10 (mergeada a `main`, PR #11; migración cerrada el 2026-11-19. Lo que falta de Octubre 2026 y Levantamiento lo hace Ari a mano en la app, ver E8.6) | — |
+| E9 | [Cierre](E9-cierre.md) | en curso | 1 / 8 (E9.1 hecho: PR #11 y versión 1.6.0+7 desplegada) | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
 2026-11-07.
@@ -180,4 +180,14 @@ publicada**, nunca el borrador.
   `sin refinar`, fuera de M1.
 - **Insignias de las tarjetas en la sesión del día** (pedido por Ari el 2026-11-19). Una tarjeta dice "Hecho"
   apenas se tilda un ejercicio, aunque falte el resto del día. Tiene que reflejar cuánto se hizo de verdad.
-  Estado: `sin refinar`.
+  Estado: `en curso` (estado del día por atleta, con progreso: decidido por Ari el 2026-11-21, reemplaza D13).
+- **Días marcados como hechos sin hacerlos** (bug, Ari, 2026-11-21). El estado del día es de toda la asignación:
+  con una serie de Andi, el día figura hecho también para Ari. Se arregla con el estado por atleta. Estado: `en curso`.
+- **Calendario compacto solo con los ejercicios** (Ari, 2026-11-21), sin series ni repeticiones. Estado: `pendiente`.
+- **El temporizador saca del modo guiado** (bug, Ari, 2026-11-21). El modo guiado se abre con `push`, y al abrir un
+  temporizador `CronoConAtras` hace `go(?crono=1)`, que reemplaza la pila. Estado: `en curso`.
+- **Series del modo guiado sin marcar en la sesión del día** (bug, Ari, 2026-11-21). El día figura como hecho, pero
+  las viñetas de la sesión del día no se marcan, ni siquiera al recargar. Estado: `en curso`.
+- **Tarjetas colapsables en la sesión del día** (Ari, 2026-11-21), para ver todo compacto. Estado: `en curso`.
+- **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
+  `admin_club` da de alta miembros en un club existente. Falta diseño. Estado: `sin refinar`.
