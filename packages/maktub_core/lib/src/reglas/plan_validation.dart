@@ -8,6 +8,7 @@ library;
 
 import '../modelos/catalogo.dart';
 import '../modelos/plan.dart';
+import 'athlete_kg.dart';
 
 /// Base categories whose exercises must have sets. As in the reference, in any other block, such as
 /// stretching or warm-up, the exercise alone is enough.
@@ -38,6 +39,9 @@ enum PlanProblemCode {
   prescriptionWithoutSets,
   setWithoutReps,
   setWithoutPct,
+
+  /// A set in kilos of a plan for several athletes without one athlete's kilos ([PlanProblem.athleteId]).
+  setWithoutAthleteKg,
 }
 
 /// What a [PlanType.history] plan may lack: the old record never had the % or, for a few sets, the reps of
@@ -45,6 +49,7 @@ enum PlanProblemCode {
 const historyPlanAccepts = {
   PlanProblemCode.setWithoutPct,
   PlanProblemCode.setWithoutReps,
+  PlanProblemCode.setWithoutAthleteKg,
 };
 
 /// A problem and where it is. Indices are 0-based and null when the problem is above that level
@@ -58,6 +63,7 @@ class PlanProblem {
     this.blockIndex,
     this.prescriptionIndex,
     this.setIndex,
+    this.athleteId,
   });
 
   final PlanProblemCode code;
@@ -67,6 +73,9 @@ class PlanProblem {
   final int? blockIndex;
   final int? prescriptionIndex;
   final int? setIndex;
+
+  /// The athlete the problem is about, when it is one athlete's (null otherwise).
+  final String? athleteId;
 
   /// Whether this stops a plan from being saved. Only what makes the plan unusable as a document does:
   /// everything else marks unfinished work, so a coach can save and continue later.
@@ -83,7 +92,8 @@ class PlanProblem {
       other.dayIndex == dayIndex &&
       other.blockIndex == blockIndex &&
       other.prescriptionIndex == prescriptionIndex &&
-      other.setIndex == setIndex;
+      other.setIndex == setIndex &&
+      other.athleteId == athleteId;
 
   @override
   int get hashCode => Object.hash(
@@ -94,21 +104,28 @@ class PlanProblem {
     blockIndex,
     prescriptionIndex,
     setIndex,
+    athleteId,
   );
 
   @override
   String toString() =>
       'PlanProblem(${code.name}, model: $weekModelIndex, week: $assignmentIndex, day: $dayIndex, '
-      'block: $blockIndex, prescription: $prescriptionIndex, set: $setIndex)';
+      'block: $blockIndex, prescription: $prescriptionIndex, set: $setIndex, athlete: $athleteId)';
 }
 
 /// Validates [plan]. [exerciseById] resolves catalog exercises (null if unknown); the checks that need the
 /// exercise (percentage, reps, category) only run for the ones it finds. A [PlanType.history] plan is not
 /// asked for what [historyPlanAccepts] lists.
+///
+/// [athleteIds] are who the plan is for ([planAthleteIds]), when known. With more than one ([asksKgPerAthlete]), a
+/// set of an exercise in kilos ([isKgExercise]) needs every one's kilos ([plannedKg]): one problem per athlete
+/// missing (Ari, 2026-11-21).
 List<PlanProblem> validatePlan(
   Plan plan, {
   required Exercise? Function(String id) exerciseById,
+  Iterable<String> athleteIds = const [],
 }) {
+  final kgAthleteIds = asksKgPerAthlete(athleteIds) ? athleteIds.toSet().toList() : const <String>[];
   final problems = <PlanProblem>[];
 
   if (plan.name.trim().isEmpty) {
@@ -133,7 +150,7 @@ List<PlanProblem> validatePlan(
       );
     }
     for (var d = 0; d < model.days.length; d++) {
-      _validateDay(problems, model.days[d], m, d, exerciseById);
+      _validateDay(problems, model.days[d], m, d, exerciseById, kgAthleteIds);
     }
   }
 
@@ -159,6 +176,7 @@ void _validateDay(
   int m,
   int d,
   Exercise? Function(String id) exerciseById,
+  List<String> kgAthleteIds,
 ) {
   if (day.blocks.isEmpty) {
     out.add(
@@ -171,13 +189,14 @@ void _validateDay(
   }
   for (var b = 0; b < day.blocks.length; b++) {
     final block = day.blocks[b];
-    PlanProblem at(PlanProblemCode code, {int? p, int? s}) => PlanProblem(
+    PlanProblem at(PlanProblemCode code, {int? p, int? s, String? athleteId}) => PlanProblem(
       code,
       weekModelIndex: m,
       dayIndex: d,
       blockIndex: b,
       prescriptionIndex: p,
       setIndex: s,
+      athleteId: athleteId,
     );
 
     if (block.categoryId == null) {
@@ -213,6 +232,7 @@ void _validateDay(
       }
       final usesPct = exercise.metrics.contains(Metric.loadPctRm);
       final usesReps = exercise.metrics.contains(Metric.reps);
+      final kgPerAthlete = isKgExercise(exercise) ? kgAthleteIds : const <String>[];
       for (var s = 0; s < rx.sets.length; s++) {
         final set = rx.sets[s];
         if (usesReps && !set.maxReps && !((set.reps ?? 0) > 0)) {
@@ -222,6 +242,14 @@ void _validateDay(
         final hasLoad = (set.pct ?? 0) > 0 || (set.kg ?? 0) > 0 || set.byAthlete.isNotEmpty;
         if (usesPct && !hasLoad) {
           out.add(at(PlanProblemCode.setWithoutPct, p: p, s: s));
+        }
+        // A test attempt's weight is chosen live.
+        if (set.attempt == null) {
+          for (final athleteId in kgPerAthlete) {
+            if (!((plannedKg(set, athleteId) ?? 0) > 0)) {
+              out.add(at(PlanProblemCode.setWithoutAthleteKg, p: p, s: s, athleteId: athleteId));
+            }
+          }
         }
       }
     }

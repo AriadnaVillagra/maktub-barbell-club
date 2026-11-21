@@ -295,6 +295,7 @@ void main() {
         expect(historyPlanAccepts, {
           PlanProblemCode.setWithoutPct,
           PlanProblemCode.setWithoutReps,
+          PlanProblemCode.setWithoutAthleteKg,
         });
       },
     );

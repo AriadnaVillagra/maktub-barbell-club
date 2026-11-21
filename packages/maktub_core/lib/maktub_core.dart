@@ -23,6 +23,7 @@ export 'src/modelos/wod.dart';
 export 'src/models/athlete_history.dart';
 export 'src/models/club_request.dart';
 export 'src/models/issued_session.dart';
+export 'src/reglas/athlete_kg.dart';
 export 'src/reglas/catalogo.dart';
 export 'src/reglas/daily_adjustment.dart';
 export 'src/reglas/day_progress.dart';

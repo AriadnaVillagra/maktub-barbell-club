@@ -101,7 +101,8 @@ Auditoria _auditoria(Object? v) =>
 /// ejercicio"); a set normally fills only the ones its exercise measures. Nothing here is a result: what the
 /// athlete did is recorded in the session.
 /// One athlete's load for a set, frozen when the coach planned it (E5.16): the % of their RM and the kilos, worked
-/// out from whichever the coach typed with the RM they had then.
+/// out from whichever the coach typed with the RM they had then. In a set in kilos of a plan for several athletes,
+/// the kilos the coach typed for that athlete, without % (`athlete_kg.dart`).
 class AthleteSetLoad {
   const AthleteSetLoad({this.pct, this.kg});
 
@@ -175,7 +176,8 @@ class PlanSet {
   /// live, so [kg] stays null. Null for every other set.
   final int? attempt;
 
-  /// Each athlete's % and kilos, by athlete id, frozen when planned (E5.16). The session proposes these kilos to an
+  /// Each athlete's % and kilos, by athlete id, frozen when planned (E5.16), or only their kilos in a set in kilos of a
+  /// plan for several athletes, which then has no [kg] (`athlete_kg.dart`). The session proposes these kilos to an
   /// athlete who has them; the others go by [pct] and [kg]. Empty in sets planned before it existed.
   final Map<String, AthleteSetLoad> byAthlete;
 

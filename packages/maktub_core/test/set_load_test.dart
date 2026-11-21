@@ -91,6 +91,84 @@ void main() {
     });
   });
 
+  group('kilos per athlete in a set in kilos', () {
+    const target = PlanSet(
+      reps: 10,
+      byAthlete: {'ari': AthleteSetLoad(kg: 12.5), 'andi': AthleteSetLoad(kg: 16)},
+    );
+    final basis = _basis(rmExerciseId: null, pct: null);
+
+    test('each athlete gets their own kilos, as typed', () {
+      expect(_propose(basis, target: target, athleteId: 'ari').kg, 12.5);
+      expect(_propose(basis, target: target, athleteId: 'andi').kg, 16);
+    });
+
+    test('a fixed weight takes no day adjustment and carries no %', () {
+      final load = _propose(basis, target: target, athleteId: 'ari', adjustment: 90);
+      expect(load.kg, 12.5);
+      expect(load.appliedPct, isNull);
+      expect(load.pcts, isNull);
+    });
+
+    test('they win over the athlete\'s fixed kilos for the exercise', () {
+      expect(_propose(basis, target: target, athleteId: 'ari', fixedKg: 20).kg, 12.5);
+    });
+
+    test('an athlete added later gets their fixed kilos, else nothing (never another athlete\'s)', () {
+      expect(_propose(basis, target: target, athleteId: 'new', fixedKg: 20).kg, 20);
+      expect(_propose(basis, target: target, athleteId: 'new').kg, isNull);
+    });
+
+    test('a set planned with one weight still gives it to everyone', () {
+      expect(_propose(basis, target: const PlanSet(reps: 10, kg: 14), athleteId: 'andi').kg, 14);
+    });
+
+    test('travel as porAtleta with kilos only', () {
+      expect(target.toJson()['porAtleta'], {
+        'ari': {'kilos': 12.5},
+        'andi': {'kilos': 16.0},
+      });
+      expect(PlanSet.fromJson(target.toJson()).byAthlete, target.byAthlete);
+    });
+
+    test('plannedKg is the athlete\'s own, else the set\'s one weight', () {
+      const mixed = PlanSet(reps: 10, kg: 14, byAthlete: {'ari': AthleteSetLoad(kg: 12.5)});
+      expect(plannedKg(mixed, 'ari'), 12.5);
+      expect(plannedKg(mixed, 'andi'), 14);
+      expect(plannedKg(target, 'new'), isNull);
+    });
+
+    test('proposedDaySets gives each athlete theirs', () {
+      final curl = Exercise(
+        id: 'curl',
+        clubId: clubPlataforma,
+        name: 'curl',
+        categoryIds: const ['accesorio'],
+        metrics: const [Metric.fixedLoad, Metric.reps],
+        auditoria: _audit,
+      );
+      List<ProposedSet> day(String athleteId) => proposedDaySets(
+        blocks: const [
+          PlanBlock(
+            name: 'Accesorios',
+            prescriptions: [Prescription(exerciseId: 'curl', sets: [target])],
+          ),
+        ],
+        exercises: {'curl': curl},
+        athleteId: athleteId,
+        on: DateTime.utc(2026, 11, 16),
+        references: const [],
+        factors: const [],
+        fixedKg: const {},
+        equipo: Equipo.estandarDe('c1'),
+        sessionAdjustment: 95,
+      );
+      expect(day('ari').single.kg, 12.5);
+      expect(day('andi').single.kg, 16);
+      expect(day('new').single.kg, isNull);
+    });
+  });
+
   group('setLoadBasis', () {
     test('is by RM only with a reference exercise and a positive percent', () {
       expect(_basis().byRm, isTrue);
