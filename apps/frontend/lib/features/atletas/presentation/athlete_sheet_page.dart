@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
 import '../../catalogo/presentation/category_filter_chips.dart';
@@ -17,9 +18,12 @@ import 'providers.dart';
 /// An athlete's references as the coach reads them (E3.5), filterable by category. The coach also
 /// gets the forms to record RMs, factors and fixed weights (E3.6).
 class AthleteSheetPage extends ConsumerStatefulWidget {
-  const AthleteSheetPage({super.key, required this.athleteId});
+  const AthleteSheetPage({super.key, required this.athleteId, this.historyPath});
 
   final String athleteId;
+
+  /// Where the athlete's history lives; without it the way in is hidden.
+  final String? historyPath;
 
   @override
   ConsumerState<AthleteSheetPage> createState() => _AthleteSheetPageState();
@@ -61,7 +65,18 @@ class _AthleteSheetPageState extends ConsumerState<AthleteSheetPage> {
       _ => const AsyncLoading<(AthleteSheet, Map<String, String>)>(),
     };
     return Scaffold(
-      appBar: AppBar(title: Text(name ?? 'Ficha del atleta')),
+      appBar: AppBar(
+        title: Text(name ?? 'Ficha del atleta'),
+        actions: [
+          if (widget.historyPath case final path?)
+            TextButton.icon(
+              key: const Key('sheet-history'),
+              onPressed: () => context.go(path),
+              icon: const Icon(Icons.history),
+              label: const Text('Historial'),
+            ),
+        ],
+      ),
       body: asyncView(
         combined,
         onRetry: () {

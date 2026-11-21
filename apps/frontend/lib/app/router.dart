@@ -19,6 +19,8 @@ import '../features/atletas/presentation/profile_page.dart';
 import '../features/catalogo/presentation/catalog_routes.dart';
 import '../features/catalogo/presentation/categories_page.dart';
 import '../features/catalogo/presentation/team_page.dart';
+import '../features/history/presentation/history_page.dart';
+import '../features/history/presentation/session_history_page.dart';
 import '../features/catalogo/presentation/timers_page.dart';
 import '../features/plan/presentation/plan_editor_page.dart';
 import '../features/wods/presentation/wod_editor_page.dart';
@@ -73,6 +75,12 @@ abstract final class Rutas {
 
   /// The athlete's own read-only references.
   static const perfil = '/perfil';
+
+  /// The athlete's own past sessions; one session is `<historial>/<sessionId>`.
+  static const historial = '$perfil/historial';
+
+  /// An athlete's past sessions as the coach reads them, from their sheet; one session is `<that>/<sessionId>`.
+  static String historialDeAtleta(String athleteId) => '$atletas/${Uri.encodeComponent(athleteId)}/historial';
 
   /// Sign-in with Google. Every route leads here without a session (see [sessionRedirect]).
   static const signIn = '/ingreso';
@@ -159,7 +167,28 @@ final routerProvider = Provider<GoRouter>((ref) {
                   routes: [
                     GoRoute(
                       path: ':id',
-                      builder: (_, state) => AthleteSheetPage(athleteId: state.pathParameters['id']!),
+                      builder: (_, state) => AthleteSheetPage(
+                        athleteId: state.pathParameters['id']!,
+                        historyPath: Rutas.historialDeAtleta(state.pathParameters['id']!),
+                      ),
+                      routes: [
+                        GoRoute(
+                          path: 'historial',
+                          builder: (_, state) => CoachHistoryPage(
+                            athleteId: state.pathParameters['id']!,
+                            basePath: Rutas.historialDeAtleta(state.pathParameters['id']!),
+                          ),
+                          routes: [
+                            GoRoute(
+                              path: ':sessionId',
+                              builder: (_, state) => SessionHistoryPage(
+                                athleteId: state.pathParameters['id']!,
+                                sessionId: state.pathParameters['sessionId']!,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -224,7 +253,22 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: Rutas.perfil, builder: (_, _) => const ProfilePage()),
+            GoRoute(
+              path: Rutas.perfil,
+              builder: (_, _) => const ProfilePage(historyPath: Rutas.historial),
+              routes: [
+                GoRoute(
+                  path: 'historial',
+                  builder: (_, _) => const OwnHistoryPage(basePath: Rutas.historial),
+                  routes: [
+                    GoRoute(
+                      path: ':sessionId',
+                      builder: (_, state) => OwnSessionHistoryPage(sessionId: state.pathParameters['sessionId']!),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ]),
         ],
       ),

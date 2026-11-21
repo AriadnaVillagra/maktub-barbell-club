@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
@@ -15,7 +16,10 @@ import 'providers.dart';
 /// are the coach's, so they don't show here, even for a user who is also a coach; that user sees and
 /// edits them in the athlete sheet (E3.6).
 class ProfilePage extends ConsumerWidget {
-  const ProfilePage({super.key});
+  const ProfilePage({super.key, this.historyPath});
+
+  /// Where the athlete's own history lives; without it the way in is hidden.
+  final String? historyPath;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,6 +30,15 @@ class ProfilePage extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const _Identity(),
+          if (athleteId != null && historyPath != null)
+            ListTile(
+              key: const Key('profile-history'),
+              leading: const Icon(Icons.history),
+              title: const Text('Historial'),
+              subtitle: const Text('Tus sesiones pasadas, con kilos y repeticiones'),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => context.go(historyPath!),
+            ),
           const Divider(),
           if (athleteId != null) Expanded(child: _Body(athleteId: athleteId)),
         ],
