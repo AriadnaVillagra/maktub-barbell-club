@@ -240,7 +240,9 @@ publicada**, nunca el borrador.
     pisa la serie). Salir del modo guiado (por ejemplo a Preferencias) y volver retoma el mismo paso. `hecho` (`c87d6f3`: "Atrás" es
     local a cada dispositivo y no mueve la pasada; la posición y el borrador se guardan en `maktub.guidedPosition`).
   - **Kilos por atleta en ejercicios por %.** En un plan con varios atletas, cada serie por % muestra debajo la
-    sugerencia de cada atleta (RM × % = kg) y el coach escribe a mano los kg de cada uno. `en curso`.
+    sugerencia de cada atleta (RM × % = kg) y el coach escribe a mano los kg de cada uno. `hecho` (commits "kilos a
+    mano por atleta en series por %"). Vacío vale la sugerencia; los kg a mano llevan el ajuste del día (para
+    revisar con Ari). **Deploy:** primero el backend.
   - **Historial en su lugar.** El propio va en la pantalla Entrenamiento; el de los atletas, en Planificación. `hecho`
     (`7c4ad2d`: tarjeta "Mi historial" en Entrenamiento; botón Historial por atleta en la lista de atletas;
     `/perfil/historial` redirige).
