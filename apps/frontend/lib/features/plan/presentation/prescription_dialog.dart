@@ -6,6 +6,7 @@ import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_providers.dart';
 import '../domain/athlete_loads.dart';
+import '../domain/load_promotion.dart';
 import '../domain/prescription_edit.dart';
 import 'plan_labels.dart';
 
@@ -17,12 +18,16 @@ import 'plan_labels.dart';
 ///
 /// A set of an exercise loaded by % of RM is typed in % or in kg (E5.16): typing one clears the other, and each of
 /// [athletes] with an RM gets the other value worked out and frozen in the set, shown under it.
+///
+/// [offerLoad]: an exercise that is not weighted still offers the % and kg of one loaded by % (planning, Ari
+/// 2026-11-21). Left blank it stays without weight; saving the plan with a weight makes the exercise weighted.
 Future<Prescription?> askPrescription(
   BuildContext context, {
   required Prescription initial,
   required Exercise? exercise,
   String inheritedTimerLabel = 'El del bloque',
   PrescriptionAthletes athletes = const PrescriptionAthletes(),
+  bool offerLoad = false,
 }) => showDialog<Prescription>(
   context: context,
   builder: (_) => _PrescriptionDialog(
@@ -30,6 +35,7 @@ Future<Prescription?> askPrescription(
     exercise: exercise,
     inheritedTimerLabel: inheritedTimerLabel,
     athletes: athletes,
+    offerLoad: offerLoad,
   ),
 );
 
@@ -59,12 +65,14 @@ class _PrescriptionDialog extends ConsumerStatefulWidget {
     required this.exercise,
     required this.inheritedTimerLabel,
     required this.athletes,
+    required this.offerLoad,
   });
 
   final Prescription initial;
   final Exercise? exercise;
   final String inheritedTimerLabel;
   final PrescriptionAthletes athletes;
+  final bool offerLoad;
 
   @override
   ConsumerState<_PrescriptionDialog> createState() =>
@@ -159,9 +167,10 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   }
 
 
-  bool get _hasPct =>
-      widget.exercise?.metrics.contains(Metric.loadPctRm) ??
-      _sets.any((s) => s.pct != null);
+  bool get _hasPct => switch (widget.exercise) {
+    null => _sets.any((s) => s.pct != null),
+    final e => e.metrics.contains(Metric.loadPctRm) || (widget.offerLoad && !isWeighted(e)),
+  };
   bool get _hasKg =>
       widget.exercise?.metrics.contains(Metric.fixedLoad) ??
       _sets.any((s) => s.kg != null);

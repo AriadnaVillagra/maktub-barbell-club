@@ -46,3 +46,16 @@ String setsSummary(List<PlanSet> sets) {
   }
   return groups.map((g) => '${g.$1}x${g.$2}').join(', ');
 }
+
+/// "A, B y C", for a sentence.
+String _namesList(List<String> names) =>
+    names.length == 1 ? names.single : '${names.take(names.length - 1).join(', ')} y ${names.last}';
+
+/// What a save says about the exercises it made weighted ([gained]) or could not ([failed]): one notice each, none when
+/// both are empty.
+List<String> gainedLoadNotices(List<String> gained, List<String> failed) => [
+  if (gained.isNotEmpty)
+    '${_namesList(gained)} ${gained.length == 1 ? 'ahora tiene' : 'ahora tienen'} peso',
+  if (failed.isNotEmpty)
+    'No se pudo guardar con peso: ${_namesList(failed)}. Se vuelve a intentar al guardar el plan.',
+];

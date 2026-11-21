@@ -4,9 +4,9 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
-import '../../access/presentation/providers.dart' show planAccessProvider;
+import '../../access/presentation/providers.dart' show meProvider, planAccessProvider;
 import '../../catalogo/presentation/catalog_admin_widgets.dart'
-    show asyncView, confirmAction, showApiError;
+    show asyncView, confirmAction, showApiError, showNotice;
 import '../../catalogo/presentation/exercise_picker.dart';
 import '../../catalogo/presentation/catalog_admin_providers.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
@@ -86,6 +86,14 @@ class PlanEditorPage extends ConsumerWidget {
     final value = ref.watch(editor);
     final dirty = value.value?.isDirty ?? false;
     final saving = ref.watch(planSaveProvider(planId)).saving;
+    // Exercises the save made weighted in the catalog: said in passing, nothing to do about it.
+    ref.listen(planSaveProvider(planId), (before, after) {
+      if (after.justSaved && before?.justSaved != true) {
+        for (final notice in gainedLoadNotices(after.gainedLoad, after.loadFailed)) {
+          showNotice(context, notice);
+        }
+      }
+    });
     final access = value.hasValue ? ref.watch(planAccessProvider)(value.requireValue.base) : null;
     return PopScope(
       canPop: !dirty,
@@ -985,6 +993,11 @@ class _BlockTile extends ConsumerWidget {
   /// Who the plan is for, with their RM and factor for [exercise], and the club's equipment: what the prescription
   /// dialog converts % and kg with (E5.16). Without an assignment, those chosen in the Detalles card. Empty when they
   /// cannot be read.
+  /// Whether the dialog offers % and kg on [exercise] even if it is not weighted: only to who can make it weighted in
+  /// the catalog when the plan is saved ([exercisesGainingLoad]).
+  bool _offersLoad(WidgetRef ref, Exercise? exercise) =>
+      exercise != null && (ref.read(meProvider).value?.canWriteCatalog(exercise) ?? false);
+
   Future<PrescriptionAthletes> _loadBasis(WidgetRef ref, Exercise? exercise) async {
     if (exercise == null) return const PrescriptionAthletes();
     try {
@@ -1033,6 +1046,7 @@ class _BlockTile extends ConsumerWidget {
       exercise: exercise,
       inheritedTimerLabel: _inheritedTimerLabel,
       athletes: basis,
+      offerLoad: _offersLoad(ref, exercise),
     );
     if (prescription == null) return;
     editor.addPrescription(modelId, day, index, prescription);
@@ -1075,6 +1089,7 @@ class _BlockTile extends ConsumerWidget {
       exercise: exercise,
       inheritedTimerLabel: _inheritedTimerLabel,
       athletes: basis,
+      offerLoad: _offersLoad(ref, exercise),
     );
     if (edited == null) return;
     editor.updatePrescription(modelId, day, index, p, edited);
