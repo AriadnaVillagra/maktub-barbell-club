@@ -494,6 +494,12 @@ Future<void> _tap(WidgetTester tester, String key) async {
   await tester.pumpAndSettle();
 }
 
+/// "Saltar bloque" lives in the preview's "Más acciones" sheet.
+Future<void> _skipBlock(WidgetTester tester) async {
+  await _tap(tester, 'guided-more-actions');
+  await _tap(tester, 'guided-skip-block');
+}
+
 /// Enters the guided mode from the day's session, which may not exist yet (E7.27).
 Future<void> _train(WidgetTester tester) => _tap(tester, 'session-train');
 
@@ -506,7 +512,7 @@ Future<void> _toBlock(WidgetTester tester, int block) async {
     await _tap(tester, 'guided-resume');
   }
   for (var b = 0; b < block; b++) {
-    await _tap(tester, 'guided-skip-block');
+    await _skipBlock(tester);
   }
 }
 
@@ -657,7 +663,7 @@ void main() {
       await redo(tester);
 
       expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-mode-simultaneous');
       await _tap(tester, 'guided-start-block');
 
@@ -679,7 +685,7 @@ void main() {
         records: [_record('ari', 1, 0, 0, kg: 70, reps: 3, manualKg: true)],
       );
       await redo(tester);
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-mode-simultaneous');
       await _tap(tester, 'guided-start-block');
       await _tap(tester, 'guided-step-main');
@@ -700,7 +706,7 @@ void main() {
         records: [_record('ari', 1, 0, 0, kg: 80)],
       );
       await redo(tester);
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-mode-simultaneous');
       await _tap(tester, 'guided-start-block');
       await _tap(tester, 'guided-not-done-ari');
@@ -725,7 +731,7 @@ void main() {
         ],
       );
       await redo(tester);
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-start-block');
 
       // The block is not closed for having everything recorded.
@@ -750,7 +756,7 @@ void main() {
       await _tap(tester, 'guided-athlete-andi');
       await _tap(tester, 'guided-begin');
       await _tap(tester, 'guided-resume');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-start-block');
 
       expect(_text(tester, 'guided-block-name'), 'Accesorios');
@@ -766,7 +772,7 @@ void main() {
       await _train(tester);
       await _tap(tester, 'guided-begin');
       await _tap(tester, 'guided-redo');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-start-block');
       h.sessions.offlineSets = true;
       await _tap(tester, 'guided-step-main');
@@ -799,7 +805,7 @@ void main() {
       // A block without sets offers no mode.
       expect(find.byKey(const Key('guided-mode-turns')), findsNothing);
 
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
 
       expect(_text(tester, 'guided-block-count'), 'Bloque 2 de 4');
       expect(_text(tester, 'guided-block-name'), 'Principal');
@@ -815,7 +821,7 @@ void main() {
       await _pump(tester);
       await _train(tester);
       await _tap(tester, 'guided-begin');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
 
       expect(_text(tester, 'guided-block-name'), 'Principal');
       expect(find.byKey(const Key('guided-mode-turns')), findsNothing);
@@ -940,7 +946,7 @@ void main() {
       await _pump(tester);
       await _toBlock(tester, 0); // no sets
       expect(find.byKey(const Key('guided-order-circuit')), findsNothing);
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       expect(_text(tester, 'guided-block-name'), 'Principal'); // one prescription
       expect(find.byKey(const Key('guided-order-circuit')), findsNothing);
       await _tap(tester, 'guided-start-block');
@@ -1147,6 +1153,19 @@ void main() {
   });
 
   group('blocks', () {
+    testWidgets('skip block lives in "Más acciones" of the preview', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 0);
+      expect(find.byKey(const Key('guided-skip-block')), findsNothing);
+      expect(find.byKey(const Key('guided-start-block')), findsOneWidget);
+
+      await _tap(tester, 'guided-more-actions');
+
+      expect(find.text('Saltar bloque'), findsOneWidget);
+    });
+
     testWidgets('skip and interrupt live in "Más acciones", not on the step', (
       tester,
     ) async {
@@ -1261,7 +1280,7 @@ void main() {
     ) async {
       final h = await _pump(tester);
       await _toBlock(tester, 0);
-      await _tap(tester, 'guided-skip-block'); // Movilidad
+      await _skipBlock(tester); // Movilidad
       await _tap(tester, 'guided-start-block'); // Principal, by turns
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main'); // Ari's first set
@@ -1270,7 +1289,7 @@ void main() {
       await _tap(tester, 'guided-interrupt');
       await tester.tap(find.text('Interrumpir'));
       await tester.pumpAndSettle();
-      await _tap(tester, 'guided-skip-block'); // Accesorios
+      await _skipBlock(tester); // Accesorios
       h.now = h.now.add(const Duration(seconds: 15));
       await _tap(tester, 'guided-start-block'); // Cindy
       h.now = h.now.add(const Duration(seconds: 30));
@@ -1321,8 +1340,8 @@ void main() {
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main'); // the second set, as proposed
-      await _tap(tester, 'guided-skip-block');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
+      await _skipBlock(tester);
 
       expect(
         find.text('Ari · Sentadilla, serie 1: 4 × 77.5 kg (plan 5 × 80 kg)'),
@@ -1351,9 +1370,9 @@ void main() {
       final h = await _pump(tester);
       h.sessions.offline = true;
       await _toBlock(tester, 0);
-      await _tap(tester, 'guided-skip-block');
-      await _tap(tester, 'guided-skip-block');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
+      await _skipBlock(tester);
+      await _skipBlock(tester);
       await doBlockAsPlanned(tester);
       expect(find.text('Día terminado'), findsOneWidget);
 

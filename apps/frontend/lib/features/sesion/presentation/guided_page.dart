@@ -13,6 +13,7 @@ import '../domain/guided_session.dart';
 import '../domain/session_repository.dart';
 import '../domain/set_sync_queue.dart' show SaveState;
 import '../domain/set_write.dart';
+import 'guided_more_actions.dart';
 import 'guided_step_view.dart';
 import 'guided_summary.dart';
 import 'providers.dart';
@@ -539,15 +540,20 @@ class _Preview extends ConsumerWidget {
           spacing: Espacio.s,
           runSpacing: Espacio.s,
           children: [
-            OutlinedButton(
-              key: const Key('guided-skip-block'),
-              onPressed: notifier.skipBlock,
-              child: const Text('Saltar bloque'),
-            ),
             FilledButton(
               key: const Key('guided-start-block'),
               onPressed: notifier.startBlock,
               child: const Text('Iniciar bloque'),
+            ),
+          ],
+        ),
+        GuidedMoreActionsButton(
+          actions: [
+            GuidedAction(
+              key: const Key('guided-skip-block'),
+              icon: Icons.skip_next,
+              label: 'Saltar bloque',
+              onTap: notifier.skipBlock,
             ),
           ],
         ),

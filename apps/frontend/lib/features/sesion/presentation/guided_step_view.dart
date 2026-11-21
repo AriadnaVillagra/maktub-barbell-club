@@ -9,6 +9,7 @@ import '../../temporizador/presentation/widgets/iniciar_temporizador.dart';
 import '../domain/guided_session.dart';
 import '../domain/session_repository.dart';
 import '../domain/set_write.dart';
+import 'guided_more_actions.dart';
 import 'guided_page.dart';
 import 'providers.dart';
 import 'session_page.dart';
@@ -38,42 +39,6 @@ class GuidedStepView extends ConsumerWidget {
       action: 'Interrumpir',
     );
     if (ok) notifier.interruptBlock();
-  }
-
-  /// The secondary and destructive actions live in a sheet, away from the timer and the main button.
-  Future<void> _showMoreActions(BuildContext context, WidgetRef ref) {
-    final notifier = ref.read(guidedProvider.notifier);
-    return showModalBottomSheet<void>(
-      context: context,
-      useSafeArea: true,
-      builder: (sheet) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          ListTile(
-            key: const Key('guided-skip-exercise'),
-            minTileHeight: context.densidad.tactilMinimo,
-            leading: const Icon(Icons.skip_next),
-            title: const Text('Saltar este ejercicio'),
-            onTap: () {
-              Navigator.pop(sheet);
-              notifier.skipExercise();
-            },
-          ),
-          ListTile(
-            key: const Key('guided-interrupt'),
-            minTileHeight: context.densidad.tactilMinimo,
-            iconColor: context.esquema.error,
-            textColor: context.esquema.error,
-            leading: const Icon(Icons.stop_circle_outlined),
-            title: const Text('Interrumpir bloque'),
-            onTap: () {
-              Navigator.pop(sheet);
-              _interrupt(context, ref);
-            },
-          ),
-        ],
-      ),
-    );
   }
 
   @override
@@ -178,14 +143,22 @@ class GuidedStepView extends ConsumerWidget {
           key: const Key('guided-next'),
           style: context.textos.bodyMedium,
         ),
-        Align(
-          alignment: Alignment.centerRight,
-          child: TextButton.icon(
-            key: const Key('guided-more-actions'),
-            icon: const Icon(Icons.more_horiz),
-            onPressed: () => _showMoreActions(context, ref),
-            label: const Text('Más acciones'),
-          ),
+        GuidedMoreActionsButton(
+          actions: [
+            GuidedAction(
+              key: const Key('guided-skip-exercise'),
+              icon: Icons.skip_next,
+              label: 'Saltar este ejercicio',
+              onTap: notifier.skipExercise,
+            ),
+            GuidedAction(
+              key: const Key('guided-interrupt'),
+              icon: Icons.stop_circle_outlined,
+              label: 'Interrumpir bloque',
+              destructive: true,
+              onTap: () => _interrupt(context, ref),
+            ),
+          ],
         ),
       ],
     );
