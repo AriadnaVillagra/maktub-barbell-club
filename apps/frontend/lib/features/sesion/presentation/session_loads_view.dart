@@ -141,17 +141,21 @@ class SessionAthleteSelector extends StatelessWidget {
     required this.data,
     required this.selected,
     required this.onSelect,
+    this.keyPrefix = 'session',
   });
 
   final SessionDayData data;
   final String? selected;
   final ValueChanged<String> onSelect;
 
+  /// Starts the keys of the selector (`<prefix>-athletes`) and of each athlete (`<prefix>-athlete-<id>`).
+  final String keyPrefix;
+
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     child: SegmentedButton<String>(
-      key: const Key('session-athletes'),
+      key: Key('$keyPrefix-athletes'),
       showSelectedIcon: false,
       style: const ButtonStyle(visualDensity: VisualDensity.compact),
       segments: [
@@ -160,7 +164,7 @@ class SessionAthleteSelector extends StatelessWidget {
             value: id,
             label: Text(
               athleteLabel(data, id),
-              key: Key('session-athlete-$id'),
+              key: Key('$keyPrefix-athlete-$id'),
             ),
           ),
       ],
@@ -198,6 +202,7 @@ class _Blocks extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(sessionScreenProvider.notifier);
     final timers = SessionTimers.watch(ref);
+    final collapsed = ref.watch(collapsedBlocksProvider);
     SetWrite writeOf(int b, int p, int s, String exerciseId) => SetWrite.of(
       records[(b, p, s)],
       athleteId: athleteId,
@@ -213,6 +218,14 @@ class _Blocks extends ConsumerWidget {
         for (var b = 0; b < day.blocks.length; b++)
           SessionBlockCard(
             key: Key('session-block-$b'),
+            toggleKey: Key('session-block-toggle-$b'),
+            collapsed: collapsed.contains(b),
+            onToggle: () =>
+                ref.read(collapsedBlocksProvider.notifier).toggle(b),
+            summary: [
+              for (final p in day.blocks[b].prescriptions)
+                if (p.exerciseId case final id?) names[id] ?? 'Ejercicio',
+            ].join(' · '),
             block: day.blocks[b],
             action: day.blocks[b].categoryId == wodCategoryId
                 ? SessionWodTimerButton(block: day.blocks[b])

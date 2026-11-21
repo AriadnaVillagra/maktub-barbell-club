@@ -80,3 +80,45 @@ String athleteLoadsSummary(Map<String, AthleteSetLoad> loads, List<AthleteBasis>
             if (load.pct != null) '${number(load.pct!)} %',
           ].join(' '),
     ].join(' · ');
+
+/// Kilos per athlete in a set by % (Ari, 2026-11-21): in a plan for several athletes, each athlete's line under the
+/// set shows what their RM suggests, and the coach types their kilos by hand. Left blank, the athlete keeps the
+/// suggestion frozen above ([athleteLoads]), so the plan publishes without typing them all.
+
+/// [athlete]'s load for kilos [kg] the coach typed by hand: the % of their RM they amount to (with their factor, as
+/// the session derives it), none without an RM.
+AthleteSetLoad manualAthleteLoad(double kg, AthleteBasis athlete) => AthleteSetLoad(
+  pct: switch (athlete.rm) {
+    final rm? when rm > 0 => pctDesdePeso(kg, rm, workFactor: athlete.workFactor),
+    _ => null,
+  },
+  kg: kg,
+  manualKg: true,
+);
+
+/// The entries of [byAthlete] the coach typed by hand: working the set out again keeps them.
+Map<String, AthleteSetLoad> manualLoads(Map<String, AthleteSetLoad> byAthlete) => {
+  for (final e in byAthlete.entries)
+    if (e.value.manualKg) e.key: e.value,
+};
+
+/// What [athlete]'s RM suggests for a set typed as [setPct] or as [setKg], given [suggested] (their entry of
+/// [athleteLoads] for it): "RM 80 kg × 65 % = 52 kg", "RM 80 kg · 50 kg = 62,5 %", with
+/// " (factor 95 %)" when their factor is not neutral; "RM 80 kg" with nothing typed, "sin RM" without one (the athlete's name is the label of their field).
+String athleteSuggestion(
+  AthleteBasis athlete, {
+  required double? setPct,
+  required AthleteSetLoad? suggested,
+  required String Function(double) number,
+}) {
+  final rm = athlete.rm;
+  if (rm == null || rm <= 0) return 'sin RM';
+  final base = 'RM ${number(rm)} kg';
+  final factor = athlete.workFactor == defaultWorkFactor ? '' : ' (factor ${number(athlete.workFactor)} %)';
+  return switch (suggested) {
+    AthleteSetLoad(pct: final pct?, kg: final kg?) when setPct != null && setPct > 0 =>
+      '$base × ${number(pct)} % = ${number(kg)} kg$factor',
+    AthleteSetLoad(pct: final pct?, kg: final kg?) => '$base · ${number(kg)} kg = ${number(pct)} %$factor',
+    _ => base,
+  };
+}

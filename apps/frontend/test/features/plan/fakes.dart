@@ -190,6 +190,7 @@ class _SignedIn extends SessionController {
 List<Override> planOverrides(
   FakePlanRepository repo, {
   Set<Rol> roles = const {Rol.coach},
+  bool isPlatformAdmin = false,
   FakeCatalogAdminRepository? catalog,
   FakeWodRepository? wods,
   AssignmentRepository? assignments,
@@ -208,7 +209,9 @@ List<Override> planOverrides(
   ),
   sessionControllerProvider.overrideWith(_SignedIn.new),
   meRepositoryProvider.overrideWithValue(
-    FakeMeRepository(meWith([(club('c1', 'Gimnasio', TipoClub.club), roles)])),
+    FakeMeRepository(
+      meWith([(club('c1', 'Gimnasio', TipoClub.club), roles)], isPlatformAdmin: isPlatformAdmin),
+    ),
   ),
   planRepositoryProvider.overrideWithValue(repo),
   wodRepositoryProvider.overrideWithValue(wods ?? FakeWodRepository()),
@@ -220,13 +223,21 @@ Future<void> pumpPlanPage(
   FakePlanRepository repo, {
   FakeCatalogAdminRepository? catalog,
   FakeWodRepository? wods,
+  Set<Rol> roles = const {Rol.coach},
+  bool isPlatformAdmin = false,
 }) async {
   tester.view.physicalSize = const Size(900, 3000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(
     ProviderScope(
-      overrides: planOverrides(repo, catalog: catalog, wods: wods),
+      overrides: planOverrides(
+        repo,
+        catalog: catalog,
+        wods: wods,
+        roles: roles,
+        isPlatformAdmin: isPlatformAdmin,
+      ),
       child: MaterialApp(theme: TemaMaktub.claro(), home: page),
     ),
   );

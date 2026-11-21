@@ -74,7 +74,7 @@ void main() {
       expect(json['deNuevo'], true);
       expect(json['actual'], 0);
       expect(json['terminada'], false);
-      expect(json['inicio'], _at(1).toIso8601String());
+      expect(json['inicio'], _t0.toIso8601String());
       final block = (json['bloques'] as List).first as Map;
       expect(block['estado'], 'en_curso');
       expect(block['modoAtletas'], 'simultaneo');
@@ -194,7 +194,7 @@ void main() {
       final pass = _apply(null, [_begin()]);
       expect(pass.version, 1);
       expect(pass.current, 0);
-      expect(pass.start, isNull);
+      expect(pass.start, _t0, reason: 'the day runs from "Comenzar"');
       expect(pass.blocks.map((b) => b.status), [
         GuidedBlockStatus.pending,
         GuidedBlockStatus.pending,
@@ -220,10 +220,21 @@ void main() {
       expect(pass.blocks[0].start, _at(1));
       expect(pass.blocks[0].end, _at(4));
       expect(pass.blocks[1].status, GuidedBlockStatus.skipped);
-      expect(pass.start, _at(1));
+      expect(pass.start, _t0);
       expect(pass.finished, true);
       expect(pass.end, _at(5));
       expect(pass.version, 4);
+    });
+
+    test('a pass begun without a start takes the first block\'s', () {
+      final begun = _apply(null, [_begin()]);
+      final old = GuidedPass.fromJson({...begun.toJson()}..remove('inicio'));
+      expect(old.start, isNull);
+      final started = applyGuidedAction(
+        old,
+        _on(GuidedActionKind.startBlock, 0, minute: 3),
+      )!;
+      expect(started.start, _at(3));
     });
 
     test('finishing the day interrupts the block running', () {

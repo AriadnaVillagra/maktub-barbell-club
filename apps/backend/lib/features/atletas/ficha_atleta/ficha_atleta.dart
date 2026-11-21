@@ -10,7 +10,7 @@ import 'ficha_atleta_store.dart';
 /// work factor histories and the fixed weights of one athlete. The order of the histories is not defined
 /// yet (open question in E3.4): they come as the store returns them. [store] is for tests.
 ///
-/// Access: anyone with [Accion.verReportesDeTodos] (the coach) reads any athlete of the club; anyone with
+/// Access: anyone with [Accion.verReportesDeTodos] (coach or club admin) reads any athlete of the club; anyone with
 /// only [Accion.verReportesPropios] reads the athlete linked to their own user. Asking for another
 /// athlete's sheet, or for one that does not exist in the club, gets the same 404, so the answer
 /// does not say whether that athlete exists.

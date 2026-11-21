@@ -29,7 +29,7 @@ class ReadPlan {
 
   Future<Plan> call(ClubContext club, String planId) async {
     final plan = await _store.plan(club.clubId, planId);
-    if (plan == null || !PlanAccess.of(plan, userId: club.userId, roles: club.roles).see) {
+    if (plan == null || !club.planAccess(plan).see) {
       throw const ErrorDeSolicitud.noEncontrado('Plan no encontrado.');
     }
     return plan;

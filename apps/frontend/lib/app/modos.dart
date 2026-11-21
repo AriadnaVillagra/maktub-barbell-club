@@ -8,20 +8,23 @@ import 'router.dart';
 
 /// Portadas de cada modo. Por ahora listan lo que va a vivir ahí; cada feature
 /// reemplaza su entrada por la navegación real a sus pantallas.
-class PaginaEntrenamiento extends StatelessWidget {
+class PaginaEntrenamiento extends ConsumerWidget {
   const PaginaEntrenamiento({super.key});
 
   @override
-  Widget build(BuildContext context) => const _PortadaModo(
+  Widget build(BuildContext context, WidgetRef ref) => _PortadaModo(
         titulo: 'Entrenamiento',
         descripcion: 'Ejecutar el día con los atletas presentes, en el gimnasio.',
         secciones: [
           (Icons.play_circle_outline, 'Sesión del día', 'Presentes y kilos de cada serie, y el calendario del plan', Rutas.sesion),
-          (Icons.show_chart, 'Historial', 'Progresión, % real del RM, marcas y WoDs', null),
+          // The own history needs an athlete profile in the active club.
+          if (ref.watch(hasAthleteProfileProvider) ?? false)
+            (Icons.history, 'Mi historial', 'Tus sesiones pasadas, con kilos y repeticiones', Rutas.historial),
         ],
       );
 }
 
+/// Only reached by coach and up (the router sends the rest to training), so every entry shows.
 class PaginaPlanificacion extends StatelessWidget {
   const PaginaPlanificacion({super.key});
 
@@ -37,7 +40,8 @@ class PaginaPlanificacion extends StatelessWidget {
       );
 }
 
-/// What configures the club rather than a plan.
+/// What configures the club rather than a plan. Each entry shows by the permission it needs (by hierarchy: coach
+/// the catalog, club admin also equipment and members, platform admin also club requests and the club picker).
 class PaginaPreferencias extends ConsumerWidget {
   const PaginaPreferencias({super.key});
 
@@ -48,12 +52,16 @@ class PaginaPreferencias extends ConsumerWidget {
           padding: const EdgeInsets.all(Espacio.l),
           children: [
             for (final (icono, nombre, ruta) in [
-              (Icons.list_alt, 'Ejercicios', Rutas.catalogo),
-              (Icons.fitness_center, 'Categorías', Rutas.categorias),
-              (Icons.timer_outlined, 'Temporizadores', Rutas.temporizadores),
+              if (ref.watch(canEditClubCatalogProvider)) ...[
+                (Icons.list_alt, 'Ejercicios', Rutas.catalogo),
+                (Icons.fitness_center, 'Categorías', Rutas.categorias),
+                (Icons.timer_outlined, 'Temporizadores', Rutas.temporizadores),
+              ],
               if (ref.watch(canPlanProvider) ?? false) (Icons.local_fire_department_outlined, 'WoDs', Rutas.wods),
-              (Icons.inventory_2_outlined, 'Equipo', Rutas.equipo),
+              if (ref.watch(canEditEquipmentProvider)) (Icons.inventory_2_outlined, 'Equipo', Rutas.equipo),
               if (ref.watch(canManageMembersProvider)) (Icons.group_outlined, 'Miembros', Rutas.miembros),
+              if (ref.watch(isPlatformAdminProvider)) (Icons.domain_add_outlined, 'Pedidos de clubes', Rutas.pedidosClub),
+              if (ref.watch(canPickAnyClubProvider)) (Icons.swap_horiz, 'Club activo', Rutas.club),
             ])
               Card(
                 child: ListTile(

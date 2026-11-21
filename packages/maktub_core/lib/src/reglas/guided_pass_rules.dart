@@ -48,6 +48,7 @@ GuidedPass? applyGuidedAction(GuidedPass? pass, GuidedPassAction action) {
       final started = withRun(
         run.copyWith(status: GuidedBlockStatus.running, start: action.at),
       );
+      // A pass begun before "Comenzar" stamped its start takes the first block's.
       return pass.start == null ? started.copyWith(start: action.at) : started;
     case GuidedActionKind.skipBlock:
       if (run == null ||
@@ -120,6 +121,8 @@ GuidedPass? _begin(GuidedPass? pass, GuidedPassAction action) {
     version: (pass?.version ?? 0) + 1,
     athleteIds: List.unmodifiable(action.athleteIds),
     redo: action.redo,
+    // The day's clock runs from "Comenzar".
+    start: action.at,
     blocks: blocks,
     // A day without blocks has nothing to walk.
     finished: blocks.isEmpty,

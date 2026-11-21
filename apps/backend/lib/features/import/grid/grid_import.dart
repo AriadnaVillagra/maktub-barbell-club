@@ -185,7 +185,7 @@ class GridImport implements ImportStep {
         await SavePlan(_planSaves, now: now)(club, p.id, p.toJson());
       }
       if ((plan.createPlan || plan.publishPlan) && plan.publishable) {
-        await PublishPlan(_planPublishes, now: now, history: true)(club, p.id);
+        await PublishPlan(_planPublishes, now: now, history: true, askAthleteKg: false)(club, p.id);
       }
     } on ErrorDeSolicitud catch (e) {
       report.problems.add('plan "${p.name}": no se pudo escribir (${e.estado}): ${e.mensaje} ${e.extra}');

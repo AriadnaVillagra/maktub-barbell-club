@@ -180,6 +180,22 @@ void main() {
     });
   });
 
+  group('coach without the club admin role', () {
+    testWidgets('can create, edit, archive and delete a club exercise', (tester) async {
+      await pump(tester, {Rol.coach}, at: '/planificacion/catalogo');
+      expect(find.byTooltip('Nuevo ejercicio'), findsOneWidget);
+      await pump(tester, {Rol.coach}, at: '/planificacion/catalogo/ejercicios/curl');
+      expect(find.text('Editar'), findsOneWidget);
+      expect(find.text('Archivar'), findsOneWidget);
+      expect(find.text('Eliminar'), findsOneWidget);
+    });
+
+    testWidgets('cannot edit a default exercise', (tester) async {
+      await pump(tester, {Rol.coach}, at: '/planificacion/catalogo/ejercicios/squat');
+      expect(find.text('Editar'), findsNothing);
+    });
+  });
+
   group('coach writes', () {
     testWidgets(
       'creates an exercise choosing muscles and pattern from the seeded lists',
@@ -258,6 +274,90 @@ void main() {
         expect(find.text('Curl martillo'), findsWidgets);
       },
     );
+
+    group('target metric dropdown', () {
+      final dropdown = find.byType(DropdownButtonFormField<Metric?>);
+
+      final inner = find.descendant(
+        of: dropdown,
+        matching: find.byType(DropdownButton<Metric?>),
+      );
+
+      Future<void> openForm(WidgetTester tester) async {
+        await pump(tester, {Rol.coach, Rol.adminClub});
+        await tester.tap(find.byTooltip('Nuevo ejercicio'));
+        await tester.pumpAndSettle();
+      }
+
+      Future<void> chip(WidgetTester tester, String label) async {
+        await tester.tap(find.widgetWithText(FilterChip, label));
+        await tester.pumpAndSettle();
+      }
+
+      Future<List<String>> options(WidgetTester tester) async {
+        await tester.tap(dropdown);
+        await tester.pumpAndSettle();
+        final texts = [
+          for (final i in tester.widgetList<DropdownMenuItem<Metric?>>(
+            find.byType(DropdownMenuItem<Metric?>),
+          ))
+            (i.child as Text).data!,
+        ];
+        await tester.tapAt(const Offset(5, 5));
+        await tester.pumpAndSettle();
+        return texts.toSet().toList();
+      }
+
+      testWidgets('is disabled with a hint while no metric is chosen', (
+        tester,
+      ) async {
+        await openForm(tester);
+        expect(tester.widget<DropdownButton<Metric?>>(inner).onChanged, isNull);
+        expect(find.text('Elegí métricas arriba'), findsWidgets);
+      });
+
+      testWidgets('lists only the chosen metrics, live', (tester) async {
+        await openForm(tester);
+        await chip(tester, 'Repeticiones');
+        await chip(tester, 'Carga fija');
+        expect(
+          await options(tester),
+          unorderedEquals(['Ninguna', 'Repeticiones', 'Carga fija']),
+        );
+        await chip(tester, 'Repeticiones');
+        expect(await options(tester), ['Carga fija']);
+      });
+
+      testWidgets('selects the only chosen metric by itself', (tester) async {
+        await openForm(tester);
+        await chip(tester, 'Repeticiones');
+        expect(
+          find.descendant(of: dropdown, matching: find.text('Repeticiones')),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('clears or moves the target when it is deselected', (
+        tester,
+      ) async {
+        await openForm(tester);
+        await chip(tester, 'Repeticiones');
+        await chip(tester, 'Carga fija');
+        await tester.tap(dropdown);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Carga fija').last);
+        await tester.pumpAndSettle();
+        await chip(tester, 'Carga fija');
+        // Only reps left: it becomes the target.
+        expect(
+          find.descendant(of: dropdown, matching: find.text('Repeticiones')),
+          findsOneWidget,
+        );
+        await chip(tester, 'Repeticiones');
+        expect(tester.widget<DropdownButton<Metric?>>(inner).onChanged, isNull);
+        expect(find.text('Elegí métricas arriba'), findsWidgets);
+      });
+    });
 
     testWidgets('does not send a nameless exercise', (tester) async {
       await pump(tester, {

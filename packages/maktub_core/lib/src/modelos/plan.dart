@@ -101,26 +101,37 @@ Auditoria _auditoria(Object? v) =>
 /// ejercicio"); a set normally fills only the ones its exercise measures. Nothing here is a result: what the
 /// athlete did is recorded in the session.
 /// One athlete's load for a set, frozen when the coach planned it (E5.16): the % of their RM and the kilos, worked
-/// out from whichever the coach typed with the RM they had then.
+/// out from whichever the coach typed with the RM they had then. In a set in kilos of a plan for several athletes,
+/// the kilos the coach typed for that athlete, without % (`athlete_kg.dart`). In a set by % of a plan for several
+/// athletes, the kilos the coach typed by hand for that athlete ([manualKg], Ari 2026-11-21) with the % of their RM
+/// they amount to (none without an RM).
 class AthleteSetLoad {
-  const AthleteSetLoad({this.pct, this.kg});
+  const AthleteSetLoad({this.pct, this.kg, this.manualKg = false});
 
   final double? pct;
   final double? kg;
 
-  factory AthleteSetLoad.fromJson(Json j) =>
-      AthleteSetLoad(pct: numOpcional(j['pct']), kg: numOpcional(j['kilos']));
+  /// Whether the coach typed [kg] by hand for this athlete in a set by %, instead of it being worked out from the
+  /// set's % or kilos. The session proposes them with the day's adjustment, like any frozen kilos, even without a %.
+  final bool manualKg;
 
-  Json toJson() => sinNulos({'pct': pct, 'kilos': kg});
+  factory AthleteSetLoad.fromJson(Json j) => AthleteSetLoad(
+    pct: numOpcional(j['pct']),
+    kg: numOpcional(j['kilos']),
+    manualKg: j['kilosManual'] == true,
+  );
+
+  Json toJson() => sinNulos({'pct': pct, 'kilos': kg, 'kilosManual': manualKg ? true : null});
 
   @override
-  bool operator ==(Object other) => other is AthleteSetLoad && other.pct == pct && other.kg == kg;
+  bool operator ==(Object other) =>
+      other is AthleteSetLoad && other.pct == pct && other.kg == kg && other.manualKg == manualKg;
 
   @override
-  int get hashCode => Object.hash(pct, kg);
+  int get hashCode => Object.hash(pct, kg, manualKg);
 
   @override
-  String toString() => 'AthleteSetLoad($pct %, $kg kg)';
+  String toString() => 'AthleteSetLoad($pct %, $kg kg${manualKg ? ', a mano' : ''})';
 }
 
 class PlanSet {
@@ -175,7 +186,8 @@ class PlanSet {
   /// live, so [kg] stays null. Null for every other set.
   final int? attempt;
 
-  /// Each athlete's % and kilos, by athlete id, frozen when planned (E5.16). The session proposes these kilos to an
+  /// Each athlete's % and kilos, by athlete id, frozen when planned (E5.16), or only their kilos in a set in kilos of a
+  /// plan for several athletes, which then has no [kg] (`athlete_kg.dart`). The session proposes these kilos to an
   /// athlete who has them; the others go by [pct] and [kg]. Empty in sets planned before it existed.
   final Map<String, AthleteSetLoad> byAthlete;
 

@@ -113,4 +113,46 @@ void main() {
     expect(open(), isFalse);
     expect(find.text('B'), findsOneWidget);
   });
+
+  testWidgets('a nested screen opened with go keeps showing while the timer opens and closes', (tester) async {
+    stepsBack = 0;
+    container = ProviderContainer(overrides: [timerPlatformProvider.overrideWithValue(FakeTimerPlatform())]);
+    addTearDown(container.dispose);
+    router = GoRouter(
+      initialLocation: '/s',
+      routes: [
+        ShellRoute(
+          builder: (_, _, child) => CronoConAtras(
+            enNavegador: true,
+            volverAtras: () => router.go(router.routeInformationProvider.value.uri.path),
+            child: child,
+          ),
+          routes: [
+            GoRoute(
+              path: '/s',
+              builder: (_, _) => const Scaffold(body: Text('Session')),
+              routes: [GoRoute(path: 'guided', builder: (_, _) => const Scaffold(body: Text('Guided')))],
+            ),
+          ],
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(container: container, child: MaterialApp.router(routerConfig: router)),
+    );
+    await tester.pumpAndSettle();
+
+    router.go('/s/guided');
+    await tester.pumpAndSettle();
+    crono().iniciar(_rest);
+    await tester.pumpAndSettle();
+    expect(find.text('Guided'), findsOneWidget);
+    expect(location().toString(), '/s/guided?crono=1');
+
+    crono().detener();
+    await tester.pumpAndSettle();
+    expect(find.text('Guided'), findsOneWidget);
+    expect(location().toString(), '/s/guided');
+  });
 }

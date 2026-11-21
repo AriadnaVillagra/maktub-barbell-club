@@ -305,6 +305,12 @@ class _TimerFormState extends State<TimerForm> {
           ListTile(
             key: ValueKey('timer-block-$i'),
             contentPadding: EdgeInsets.zero,
+            horizontalTitleGap: Espacio.m,
+            leading: ManijaArrastre(
+              key: Key('timer-block-drag-$i'),
+              index: i,
+              tooltip: 'Mover bloque',
+            ),
             title: Text(b.nombre.isEmpty ? timerTypeLabel(b.tipo) : b.nombre),
             subtitle: Text(describirTemporizador(b)),
             onTap: () => _editBlock(block: b, index: i),
@@ -323,7 +329,6 @@ class _TimerFormState extends State<TimerForm> {
                   tooltip: 'Quitar',
                   onPressed: () => setState(() => _blocks = [..._blocks]..removeAt(i)),
                 ),
-                ReorderableDragStartListener(index: i, child: const Icon(Icons.drag_handle)),
               ],
             ),
           ),

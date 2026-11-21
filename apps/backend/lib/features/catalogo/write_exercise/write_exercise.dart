@@ -12,8 +12,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'write_exercise_store.dart';
 
-/// Writes of exercises (F2). Creating needs [Accion.editarCatalogoClub]; changing an existing one is
-/// authorized once it is loaded, because a default one needs a platform admin instead.
+/// Writes of exercises (F2). Creating, editing, archiving and deleting need [Accion.editarCatalogoClub] (coach and
+/// up). Changing an existing one is authorized once it is loaded, because a default one needs a platform admin instead.
 ///
 /// `POST   .../catalogo/ejercicios` body: the exercise without `id`, `clubId`, `estado`, `auditoria` → the
 ///   created exercise (200, active)

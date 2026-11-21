@@ -114,6 +114,11 @@ void main() {
       expect(store.categories, hasLength(1));
     });
 
+    test('a coach without club admin creates one too (hierarchy)', () async {
+      expect((await create({'nombre': 'Accesorio'}, club: _club('club-a', roles: {Rol.coach}))).statusCode, HttpStatus.ok);
+      expect(store.categories, hasLength(1));
+    });
+
     test('an athlete is rejected', () async {
       expect((await create({'nombre': 'X'}, club: _club('club-a', roles: {Rol.atleta}))).statusCode, 403);
       expect(store.categories, isEmpty);

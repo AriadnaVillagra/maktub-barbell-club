@@ -219,13 +219,24 @@ void main() {
       expect(store.all, hasLength(1));
     });
 
-    test('an athlete and an admin without coach role get 403 and nothing is stored', () async {
+    test('an athlete gets 403 and nothing is stored', () async {
       final store = _FakeStore();
-      for (final ctx in [_athleteA, _adminOnlyA]) {
-        final r = await create(ctx, store, {'nombre': 'X'});
-        expect(r.statusCode, HttpStatus.forbidden);
-      }
+      final r = await create(_athleteA, store, {'nombre': 'X'});
+      expect(r.statusCode, HttpStatus.forbidden);
       expect(store.all, isEmpty);
+    });
+
+    test('a club admin without the coach role plans too (hierarchy)', () async {
+      final store = _FakeStore();
+      expect((await create(_adminOnlyA, store, {'nombre': 'X'})).statusCode, HttpStatus.created);
+      expect(store.all, hasLength(1));
+    });
+
+    test('a platform admin who is not a member of the club plans in it', () async {
+      final store = _FakeStore();
+      const platform = ClubContext(clubId: 'club-a', userId: 'soporte', roles: {}, clubType: TipoClub.club, isPlatformAdmin: true);
+      expect((await create(platform, store, {'nombre': 'X'})).statusCode, HttpStatus.created);
+      expect(store.all.single.clubId, 'club-a');
     });
   });
 

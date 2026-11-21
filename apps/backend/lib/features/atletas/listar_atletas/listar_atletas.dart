@@ -8,7 +8,7 @@ import 'listar_atletas_store.dart';
 /// `GET /clubes/{clubId}/atletas` → `[{id, usuarioId, nombreVisible}]`, sorted alphabetically by
 /// `nombreVisible` (case-insensitive, ties broken by id). [store] is for tests.
 ///
-/// Only anyone with [Accion.verReportesDeTodos] (the coach) can list; the rest get 403. Visibility never
+/// Only anyone with [Accion.verReportesDeTodos] (coach or club admin) can list; the rest get 403. Visibility never
 /// goes up: an athlete reads only their own sheet (E3.4), never the list.
 Future<Response> listAthletesEndpoint(
   RequestContext context, {

@@ -19,6 +19,7 @@ import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/data/shared_preferences_calendar_layout_store.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
 import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
+import 'package:maktub_frontend/features/sesion/domain/collapsed_blocks.dart';
 import 'package:maktub_frontend/features/sesion/domain/proposed_days.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
@@ -72,6 +73,12 @@ class _FakeCalendar implements CalendarRepository {
 
   /// Done days by (week, day) of the cycle of [_today], on top of [done] (those are in today's week).
   final extraDone = <(int, int)>{};
+
+  /// One athlete's progress by day of today's week: (done sets, planned sets). Replaces [done] for that athlete.
+  final progress = <String, Map<int, (int, int)>>{};
+
+  /// The athlete of every read of the days' states.
+  final athletesAsked = <String?>[];
   int stateCalls = 0;
 
   @override
@@ -118,15 +125,34 @@ class _FakeCalendar implements CalendarRepository {
     String clubId,
     String groupId,
     DateTime from,
-    DateTime to,
-  ) async {
+    DateTime to, {
+    String? athleteId,
+  }) async {
     stateCalls++;
+    athletesAsked.add(athleteId);
     final where = UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: _today);
+    if (progress[athleteId] case final days?) {
+      return [
+        for (final MapEntry(key: d, value: (done, total)) in days.entries)
+          DayState(
+            cycle: where.ciclo,
+            week: where.semana,
+            day: d,
+            status: done == 0
+                ? DayProgressStatus.pending
+                : done >= total
+                ? DayProgressStatus.done
+                : DayProgressStatus.inProgress,
+            doneSets: done,
+            totalSets: total,
+          ),
+      ];
+    }
     return [
       for (final d in done)
-        DayState(cycle: where.ciclo, week: where.semana, day: d, done: true),
+        DayState(cycle: where.ciclo, week: where.semana, day: d, status: DayProgressStatus.done),
       for (final (w, d) in extraDone)
-        DayState(cycle: where.ciclo, week: w, day: d, done: true),
+        DayState(cycle: where.ciclo, week: w, day: d, status: DayProgressStatus.done),
     ];
   }
 }
@@ -476,6 +502,18 @@ final _levantamiento = PublishedPlanView(
   ],
 );
 
+class _MemoryCollapsedStore implements CollapsedBlocksStore {
+  _MemoryCollapsedStore([this.saved = const {}]);
+
+  Set<int> saved;
+
+  @override
+  Future<Set<int>> load() async => saved;
+
+  @override
+  Future<void> save(Set<int> collapsed) async => saved = collapsed;
+}
+
 Future<void> _pump(
   WidgetTester tester,
   _FakeSessions sessions, {
@@ -486,6 +524,7 @@ Future<void> _pump(
   MemoryDraftStore? draft,
   FakeLiveServer? live,
   _FakeProposedDays? proposedDays,
+  _MemoryCollapsedStore? collapsedStore,
   Widget home = const SessionPage(assignmentsPath: '/asig'),
   bool withRouter = false,
   Size size = const Size(900, 2400),
@@ -521,6 +560,9 @@ Future<void> _pump(
           draft ?? MemoryDraftStore(),
         ),
         todayProvider.overrideWithValue(_today),
+        collapsedBlocksStoreProvider.overrideWithValue(
+          collapsedStore ?? _MemoryCollapsedStore(),
+        ),
       ],
       child: withRouter
           ? MaterialApp.router(
@@ -1031,6 +1073,55 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('tapping a header folds the block and unfolds it again', (
+      tester,
+    ) async {
+      final store = _MemoryCollapsedStore();
+      await _pump(tester, _FakeSessions(), collapsedStore: store);
+      expect(find.byKey(const Key('session-check-0-0-0')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('session-block-toggle-0')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-check-0-0-0')), findsNothing);
+      expect(find.byKey(const Key('session-check-1-0-0')), findsOneWidget);
+      expect(store.saved, {0});
+
+      await tester.tap(find.byKey(const Key('session-block-toggle-0')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-check-0-0-0')), findsOneWidget);
+      expect(store.saved, isEmpty);
+    });
+
+    testWidgets('the collapsed state of the device is restored', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _FakeSessions(),
+        collapsedStore: _MemoryCollapsedStore({1}),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-check-0-0-0')), findsOneWidget);
+      expect(find.byKey(const Key('session-check-1-0-0')), findsNothing);
+    });
+
+    testWidgets('collapse all and expand all', (tester) async {
+      await _pump(tester, _FakeSessions());
+
+      await tester.tap(find.byKey(const Key('session-collapse-all')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('session-check-0-0-0')), findsNothing);
+      expect(find.byKey(const Key('session-check-1-0-0')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('session-collapse-all')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('session-check-0-0-0')), findsOneWidget);
+      expect(find.byKey(const Key('session-check-1-0-0')), findsOneWidget);
     });
 
     testWidgets('a warm-up has no per-exercise adjustment, a primary does', (
@@ -1626,6 +1717,78 @@ void main() {
     });
   });
 
+  group("the athlete on screen's progress (2026-11-21)", () {
+    Finder inKey(String key, String text) =>
+        find.descendant(of: find.byKey(Key(key)), matching: find.text(text));
+
+    _FakeCalendar calendar() => _FakeCalendar()
+      ..progress['ari'] = {1: (2, 5), 2: (0, 4)}
+      ..progress['andi'] = {1: (5, 5), 2: (1, 4)};
+
+    testWidgets('the day says how many sets the athlete did, and follows the tab', (
+      tester,
+    ) async {
+      final days = calendar();
+      await _pump(tester, _FakeSessions(), calendar: days);
+
+      expect(days.athletesAsked.toSet(), {'ari'});
+      expect(inKey('session-day-status', 'En curso 2/5'), findsOneWidget);
+      await _openDayPicker(tester);
+      expect(inKey('session-day-1', 'En curso 2/5'), findsOneWidget);
+      expect(inKey('session-day-2', 'Pendiente'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('session-athlete-andi')));
+      await tester.pumpAndSettle();
+
+      expect(days.athletesAsked.last, 'andi');
+      expect(inKey('session-day-status', 'Hecho'), findsOneWidget);
+      expect(inKey('session-day-1', 'Hecho'), findsOneWidget);
+      expect(inKey('session-day-2', 'En curso 1/4'), findsOneWidget);
+    });
+
+    testWidgets("another athlete's finished day does not open as done", (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions(), calendar: calendar());
+
+      // Andi finished day 1, Ari did not: Ari's session opens on day 1.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('session-day-title')),
+          matching: find.textContaining('Día 1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets("the calendar shows the tab's athlete, and changes it", (
+      tester,
+    ) async {
+      final days = calendar();
+      await _pump(tester, _FakeSessions(), calendar: days);
+      await tester.tap(find.text('Calendario'));
+      await tester.pumpAndSettle();
+      final week = UbicacionEnCiclo.desdeFechas(
+        inicio: _start,
+        fecha: _today,
+      ).semana;
+
+      expect(inKey('calendar-day-$week-1', 'En curso 2/5'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('calendar-athlete-andi')));
+      await tester.pumpAndSettle();
+
+      expect(days.athletesAsked.last, 'andi');
+      expect(inKey('calendar-day-$week-1', 'Hecho'), findsOneWidget);
+      expect(inKey('calendar-day-$week-2', 'En curso 1/4'), findsOneWidget);
+
+      // The session view keeps the tab chosen in the calendar.
+      await tester.tap(find.text('Sesión del día'));
+      await tester.pumpAndSettle();
+      expect(inKey('session-day-status', 'Hecho'), findsOneWidget);
+    });
+  });
+
   group('calendar board (E7.25)', () {
     const phone = Size(400, 800);
     const wide = Size(1200, 800);
@@ -1759,7 +1922,7 @@ void main() {
       );
     }
 
-    testWidgets('Compacta shows the main exercises with their sets', (
+    testWidgets('Compacta shows only the main exercise names', (
       tester,
     ) async {
       await _pump(tester, _FakeSessions());
@@ -1769,10 +1932,7 @@ void main() {
         inKey('calendar-day-4-1', find.text('Sentadilla')),
         findsOneWidget,
       );
-      expect(
-        inKey('calendar-day-4-1', find.text('2x5 al 80 %')),
-        findsOneWidget,
-      );
+      expect(inKey('calendar-day-4-1', find.text('2x5 al 80 %')), findsNothing);
       // The warm-up is not a main exercise.
       expect(inKey('calendar-day-4-1', find.text('1x10')), findsNothing);
     });

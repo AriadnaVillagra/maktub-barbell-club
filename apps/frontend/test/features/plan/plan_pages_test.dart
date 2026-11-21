@@ -711,6 +711,8 @@ void main() {
       expect(topOf('Uno'), lessThan(topOf('Dos')));
 
       final handle = find.byKey(const Key('block-drag-a-0-1'));
+      expect(tester.getSize(handle).width, greaterThanOrEqualTo(48));
+      expect(tester.getSize(handle).height, greaterThanOrEqualTo(48));
       final gesture = await tester.startGesture(tester.getCenter(handle));
       await tester.pump();
       final distance = topOf('Dos') - topOf('Uno') + 40;
@@ -1213,14 +1215,14 @@ void main() {
       expect(find.byKey(const Key('wod-name-field')), findsOneWidget);
     });
 
-    testWidgets('who cannot plan does not see WoDs in Preferencias', (
+    testWidgets('a club admin without the coach role sees WoDs in Preferencias too (hierarchy)', (
       tester,
     ) async {
       await mount(tester, {Rol.adminClub});
       await tester.tap(find.text('Preferencias'));
       await tester.pumpAndSettle();
       expect(find.text('Miembros'), findsOneWidget);
-      expect(find.text('WoDs'), findsNothing);
+      expect(find.text('WoDs'), findsOneWidget);
     });
   });
 }

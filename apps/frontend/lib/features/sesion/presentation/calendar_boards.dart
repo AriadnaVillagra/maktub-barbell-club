@@ -9,6 +9,7 @@ import '../../catalogo/presentation/catalog_admin_providers.dart'
     show clubTimersProvider;
 import '../../plan/presentation/plan_labels.dart'
     show formatNumber, setsSummary;
+import '../../asignacion/domain/calendar_repository.dart' show DayState;
 import 'providers.dart';
 
 /// The category whose exercises the compact grid shows as the day's main ones.
@@ -21,13 +22,21 @@ class CalendarDay {
     required this.day,
     required this.plan,
     required this.done,
+    this.doneSets = 0,
+    this.totalSets,
     required this.highlighted,
   });
 
   final int week;
   final int day;
   final PlanDay plan;
+
+  /// Every planned set done by the athlete on screen.
   final bool done;
+
+  /// Planned sets the athlete on screen has done, and the day's planned sets (null when not known).
+  final int doneSets;
+  final int? totalSets;
 
   /// The day D13 opens.
   final bool highlighted;
@@ -52,10 +61,11 @@ class CalendarWeek {
   final List<CalendarDay> days;
 }
 
-/// Every week of the cycle [data] is in, with each day done or pending as [isDone] says and the D13 day marked.
+/// Every week of the cycle [data] is in, with how far each day is done as [stateOf] says (null: pending) and the D13
+/// day marked.
 List<CalendarWeek> calendarWeeks(
   SessionDayData data, {
-  required bool Function(int week, int day) isDone,
+  required DayState? Function(int week, int day) stateOf,
 }) => [
   for (var w = 1; w <= planCycleWeeks; w++)
     CalendarWeek(
@@ -65,13 +75,16 @@ List<CalendarWeek> calendarWeeks(
       days: [
         for (final (i, plan)
             in (data.plan.weekModelOf(w)?.days ?? const <PlanDay>[]).indexed)
-          CalendarDay(
-            week: w,
-            day: i + 1,
-            plan: plan,
-            done: isDone(w, i + 1),
-            highlighted: w == data.location.week && i + 1 == data.openingDay,
-          ),
+          if (stateOf(w, i + 1) case final state)
+            CalendarDay(
+              week: w,
+              day: i + 1,
+              plan: plan,
+              done: state?.done ?? false,
+              doneSets: state?.doneSets ?? 0,
+              totalSets: state?.totalSets,
+              highlighted: w == data.location.week && i + 1 == data.openingDay,
+            ),
       ],
     ),
 ];
@@ -347,16 +360,15 @@ class CompactBoard extends StatelessWidget {
       title: day.title,
       subtitle: day.plan.name,
       done: day.done,
+      doneSets: day.doneSets,
+      totalSets: day.totalSets,
       highlighted: day.highlighted,
       selected: selected == (day.week, day.day),
       onTap: () => onSelect(day),
       children: [
         if (main.isEmpty) const _EmptyDay(),
         for (final p in main)
-          _ExerciseLine(
-            name: _exerciseName(p, names),
-            detail: setsSummary(p.sets),
-          ),
+          _ExerciseLine(name: _exerciseName(p, names), detail: ''),
       ],
     );
   }
@@ -407,6 +419,8 @@ class CardsBoard extends StatelessWidget {
                           title: day.title,
                           subtitle: day.plan.name,
                           done: day.done,
+                          doneSets: day.doneSets,
+                          totalSets: day.totalSets,
                           highlighted: day.highlighted,
                           selected: selected == (day.week, day.day),
                           onTap: () => onSelect(day),
@@ -498,6 +512,8 @@ class DetailedBoard extends StatelessWidget {
                             title: day.title,
                             subtitle: day.plan.name,
                             done: day.done,
+                            doneSets: day.doneSets,
+                            totalSets: day.totalSets,
                             highlighted: day.highlighted,
                             action: GoToSessionButton(
                               day: day,

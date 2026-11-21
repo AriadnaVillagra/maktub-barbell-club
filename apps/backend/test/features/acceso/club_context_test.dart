@@ -16,6 +16,7 @@ class _Context extends Mock implements RequestContext {}
 class _FakeStore implements ClubContextStore {
   final memberships = <Membresia>[];
   final clubs = <String, TipoClub>{};
+  final platformAdmins = <String>{};
 
   @override
   Future<Membresia?> activeMembership({required String clubId, required String userId}) async {
@@ -29,7 +30,7 @@ class _FakeStore implements ClubContextStore {
   Future<TipoClub?> clubType(String clubId) async => clubs[clubId];
 
   @override
-  Future<bool> isPlatformAdmin(String userId) async => false;
+  Future<bool> isPlatformAdmin(String userId) async => platformAdmins.contains(userId);
 }
 
 void main() {
@@ -109,6 +110,23 @@ void main() {
       expect(await body(r), {'clubId': 'c1', 'userId': 'u1', 'roles': ['atleta']});
     });
 
+    test('a platform admin enters a club without being a member, with every club action', () async {
+      store.platformAdmins.add('u1');
+
+      final r = await call('/clubes/c1/planes');
+      expect(r.statusCode, HttpStatus.ok);
+      expect(await body(r), {'clubId': 'c1', 'userId': 'u1', 'roles': <String>[]});
+      for (final action in [Accion.planificar, Accion.editarEquipo, Accion.gestionarMiembros, Accion.verReportesDeTodos]) {
+        expect((await call('/clubes/c1/x', action: action)).statusCode, HttpStatus.ok, reason: action.name);
+      }
+    });
+
+    test('a platform admin still needs the club to exist', () async {
+      store.platformAdmins.add('u1');
+
+      expect((await call('/clubes/nope/planes')).statusCode, HttpStatus.forbidden);
+    });
+
     test('a path without a club is not found', () async {
       expect((await call('/clubes')).statusCode, HttpStatus.notFound);
     });
@@ -138,6 +156,19 @@ void main() {
 
       expect((await call('/clubes/cp1/x', action: Accion.planificar)).statusCode, HttpStatus.forbidden);
       expect((await call('/clubes/cp1/x', action: Accion.seguirPlanPorDefecto)).statusCode, HttpStatus.ok);
+    });
+
+    test('each role reaches what the roles below it reach (hierarchy)', () async {
+      store.memberships
+        ..add(membership('c1', {Rol.coach}, userId: 'coach'))
+        ..add(membership('c1', {Rol.adminClub}, userId: 'admin'));
+
+      expect((await call('/clubes/c1/x', action: Accion.registrar, userId: 'coach')).statusCode, HttpStatus.ok);
+      expect((await call('/clubes/c1/x', action: Accion.editarCatalogoClub, userId: 'coach')).statusCode, HttpStatus.ok);
+      expect((await call('/clubes/c1/x', action: Accion.editarEquipo, userId: 'coach')).statusCode, HttpStatus.forbidden);
+      for (final action in [Accion.planificar, Accion.deletePlan, Accion.editarReferencias, Accion.editarEquipo]) {
+        expect((await call('/clubes/c1/x', action: action, userId: 'admin')).statusCode, HttpStatus.ok, reason: action.name);
+      }
     });
 
     test('authorize lets slices check a per-method action', () {

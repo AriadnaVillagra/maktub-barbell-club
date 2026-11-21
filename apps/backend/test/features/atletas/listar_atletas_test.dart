@@ -135,6 +135,11 @@ void main() {
     expect(users, contains('coach-1'));
   });
 
+  test('a club admin without the coach role lists the athletes', () async {
+    const admin = ClubContext(clubId: 'club-a', userId: 'admin-1', roles: {Rol.adminClub}, clubType: TipoClub.club);
+    expect((await _call(admin, seeded())).statusCode, HttpStatus.ok);
+  });
+
   test('an athlete gets 403', () async {
     final r = await _call(athleteOnly, seeded());
 

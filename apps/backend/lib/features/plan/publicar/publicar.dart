@@ -15,7 +15,9 @@ import 'publicar_store.dart';
 /// cannot see it; 403 if they see it but cannot change it ([PlanAccess.edit]).
 ///
 /// The saved plan must have no problem at all (`validatePlan`, not only the ones that block saving; a
-/// [PlanType.history] plan is not asked for % or reps, [historyPlanAccepts]): otherwise
+/// [PlanType.history] plan is not asked for % or reps, [historyPlanAccepts]). It is validated for who the plan is
+/// for (`planAthleteIds` of its assignments): for more than one, each set in kilos needs every athlete's kilos
+/// (`setWithoutAthleteKg`, with `atleta`). Otherwise
 /// it is 422 with `problemas` in the same shape as saving, nothing is written and the previous published
 /// version stays. The copy is one document write; if the plan was saved between the read and the write it is
 /// 409 and nothing is written (publish again). [store] and [now] are for tests.
@@ -39,7 +41,7 @@ Future<Response> publishPlanEndpoint(
 const historyPublishAccepts = historyPlanAccepts;
 
 class PublishPlan {
-  PublishPlan(this._store, {DateTime Function()? now, this._history = false})
+  PublishPlan(this._store, {DateTime Function()? now, this._history = false, this._askAthleteKg = true})
     : _now = now ?? DateTime.now;
 
   final PublishPlanStore _store;
@@ -50,17 +52,24 @@ class PublishPlan {
   /// plan already gets that from `validatePlan`).
   final bool _history;
 
+  /// Whether the plan is validated for the athletes of its assignments (kilos per athlete in its sets in kilos).
+  /// The E8 importer turns it off: the old spreadsheet never had kilos per athlete.
+  final bool _askAthleteKg;
+
   Future<Plan> call(ClubContext club, String planId) async {
     final plan = await _store.plan(club.clubId, planId);
-    final access = plan == null ? null : PlanAccess.of(plan, userId: club.userId, roles: club.roles);
+    final access = plan == null ? null : club.planAccess(plan);
     if (plan == null || !access!.see) {
       throw const ErrorDeSolicitud.noEncontrado('Plan no encontrado.');
     }
     if (!access.edit) throw readOnlyPlan;
 
     final exercises = await _store.exercises(club.clubId);
+    final athleteIds = _askAthleteKg
+        ? planAthleteIds(await _store.assignments(club.clubId, plan.id))
+        : const <String>[];
     final problems = [
-      for (final p in validatePlan(plan, exerciseById: (id) => exercises[id]))
+      for (final p in validatePlan(plan, exerciseById: (id) => exercises[id], athleteIds: athleteIds))
         if (!_history || !historyPublishAccepts.contains(p.code)) p,
     ];
     if (problems.isNotEmpty) {

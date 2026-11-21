@@ -92,12 +92,32 @@ class FakeCatalogAdminRepository
   Future<Exercise> createExercise(String clubId, ExerciseDraft draft) =>
       throw UnimplementedError();
 
+  /// Exercises sent to [updateExercise], in order.
+  final updatedExercises = <(String, ExerciseDraft)>[];
+
+  /// When set, [updateExercise] throws it instead of saving.
+  Object? updateExerciseFailure;
+
   @override
   Future<Exercise> updateExercise(
     String clubId,
     String id,
     ExerciseDraft draft,
-  ) => throw UnimplementedError();
+  ) async {
+    updatedExercises.add((id, draft));
+    if (updateExerciseFailure != null) throw updateExerciseFailure!;
+    final i = exercisesList.indexWhere((e) => e.id == id);
+    final current = exercisesList[i];
+    final saved = Exercise.fromJson({
+      ...draft.toJson(),
+      'id': id,
+      'clubId': current.clubId,
+      'estado': current.status.cable,
+      'auditoria': current.auditoria.toJson(),
+    });
+    exercisesList = [...exercisesList]..[i] = saved;
+    return saved;
+  }
 
   @override
   Future<Exercise> setExerciseStatus(

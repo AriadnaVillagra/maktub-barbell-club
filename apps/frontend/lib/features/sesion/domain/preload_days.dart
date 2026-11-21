@@ -61,6 +61,7 @@ class PreloadDays {
       await _preloadDays(
           clubId,
           soloFecha(today),
+          athleteId,
           // The same read the session screen does: the athlete's plans (their groups' and their own, E8.8), or the
           // first group's for a user who is not an athlete.
           (d) async => athleteId != null
@@ -77,6 +78,7 @@ class PreloadDays {
   Future<void> _preloadDays(
     String clubId,
     DateTime today,
+    String? athleteId,
     Future<List<CalendarLocation>> Function(DateTime date) locate,
   ) async {
     final dates = [
@@ -84,21 +86,30 @@ class PreloadDays {
     ];
     final located = [for (final d in dates) await _try(() => locate(d))];
     final plans = <String>{};
-    final cycles = <(String, DateTime, int)>{};
+    final cycles = <(String, DateTime, int, String?)>{};
     final byAssignment = <String, List<DateTime>>{};
     for (var i = 0; i < dates.length; i++) {
       for (final l in located[i] ?? const <CalendarLocation>[]) {
         plans.add(l.planId);
-        cycles.add((l.assignmentId, l.startDate, l.cycle));
+        // The days' states of the tab the session screen opens on: the user's, else the plan's first athlete.
+        final members = l.athleteIds;
+        cycles.add((
+          l.assignmentId,
+          l.startDate,
+          l.cycle,
+          members == null || members.contains(athleteId) ? athleteId : members.firstOrNull,
+        ));
         (byAssignment[l.assignmentId] ??= []).add(dates[i]);
       }
     }
     for (final p in plans) {
       await _try(() => calendar.publishedPlan(clubId, p));
     }
-    for (final (assignmentId, start, cycle) in cycles) {
+    for (final (assignmentId, start, cycle, athlete) in cycles) {
       final (from, to) = cycleDates(start, cycle);
-      await _try(() => calendar.dayStates(clubId, assignmentId, from, to));
+      await _try(
+        () => calendar.dayStates(clubId, assignmentId, from, to, athleteId: athlete),
+      );
     }
     for (final e in byAssignment.entries) {
       await _try(() => proposedDays.proposedDays(clubId, e.key, e.value.first, e.value.last));

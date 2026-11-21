@@ -77,7 +77,7 @@ class CreateAssignment {
 
     // A plan the caller cannot see does not exist for them; one shared read-only can be assigned.
     final plan = await _store.plan(club.clubId, planId);
-    if (plan == null || !PlanAccess.of(plan, userId: club.userId, roles: club.roles).see) {
+    if (plan == null || !club.planAccess(plan).see) {
       throw const ErrorDeSolicitud.noEncontrado('Plan no encontrado.');
     }
     if (plan.published == null) {

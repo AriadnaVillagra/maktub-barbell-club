@@ -12,6 +12,9 @@ abstract interface class GoogleLoginStore {
   /// Links [sub] to the user with [email] only if no Google account is linked yet, in one atomic
   /// write. `false` means another account got linked first.
   Future<bool> linkGoogleSub(String email, String sub);
+
+  /// The state of the latest club request of [email] (normalized), or `null` if it never sent one.
+  Future<ClubRequestStatus?> latestClubRequestStatus(String email);
 }
 
 class MongoGoogleLoginStore implements GoogleLoginStore {
@@ -38,5 +41,13 @@ class MongoGoogleLoginStore implements GoogleLoginStore {
       },
     );
     return result.nModified == 1;
+  }
+
+  @override
+  Future<ClubRequestStatus?> latestClubRequestStatus(String email) async {
+    final doc = await _db.collection(Colecciones.clubRequests).findOne(
+      where.eq('clubId', clubPlataforma).eq('email', email).sortBy('auditoria.creadoEn', descending: true).fields(['estado']),
+    );
+    return doc == null ? null : ClubRequestStatus.fromWire(doc['estado']);
   }
 }

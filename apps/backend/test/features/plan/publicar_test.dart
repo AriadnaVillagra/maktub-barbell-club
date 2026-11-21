@@ -22,6 +22,7 @@ class _Context extends Mock implements RequestContext {}
 class _FakeStore implements PublishPlanStore, SavePlanStore, ListPlansStore {
   final stored = <Plan>[];
   final catalog = <String, Exercise>{};
+  final assignmentsStored = <Assignment>[];
 
   /// Simulates a save that lands between the publish's read and its write.
   void Function()? beforePublishWrite;
@@ -43,6 +44,12 @@ class _FakeStore implements PublishPlanStore, SavePlanStore, ListPlansStore {
 
   @override
   Future<Map<String, Exercise>> exercises(String clubId) async => catalog;
+
+  @override
+  Future<List<Assignment>> assignments(String clubId, String planId) async => [
+    for (final a in assignmentsStored)
+      if (a.clubId == clubId && a.planId == planId) a,
+  ];
 
   @override
   Future<bool> replace(Plan plan) async {
@@ -194,12 +201,121 @@ Future<Response> _publish(
 Future<Map<String, dynamic>> _json(Response r) async =>
     jsonDecode(await r.body()) as Map<String, dynamic>;
 
+/// A day with one press (an exercise in kilos) and [sets].
+List<WeekModel> _pressModels(List<PlanSet> sets) => [
+  WeekModel(
+    id: 'A',
+    name: 'A',
+    days: [
+      PlanDay(
+        blocks: [
+          PlanBlock(
+            name: 'Accesorios',
+            categoryId: 'cat-1',
+            prescriptions: [Prescription(exerciseId: 'press', sets: sets)],
+          ),
+        ],
+      ),
+    ],
+  ),
+];
+
+Assignment _assignment(
+  List<String> athleteIds, {
+  String clubId = 'club-a',
+  AssignmentStatus status = AssignmentStatus.active,
+}) => Assignment(
+  id: 'as-${athleteIds.join('-')}',
+  clubId: clubId,
+  planId: 'p1',
+  members: [
+    for (final id in athleteIds)
+      AssignmentMember(athleteId: id, from: DateTime.utc(2026, 11, 2)),
+  ],
+  startDate: DateTime.utc(2026, 11, 2),
+  status: status,
+  auditoria: Auditoria.nueva('coach-1', ahora: _t0),
+);
+
 void main() {
   final coachA = _ctx('club-a', {Rol.coach});
 
   _FakeStore storeWith(Plan plan) => _FakeStore()
     ..stored.add(plan)
     ..catalog['ex-1'] = _exercise('ex-1');
+
+  group('kilos per athlete in sets in kilos', () {
+    _FakeStore pressStore(List<PlanSet> sets, List<Assignment> assignments) => _FakeStore()
+      ..stored.add(_plan('club-a', models: _pressModels(sets)))
+      ..catalog['press'] = Exercise(
+        id: 'press',
+        clubId: 'plataforma',
+        name: 'Press con mancuerna',
+        categoryIds: const ['cat-1'],
+        metrics: const [Metric.fixedLoad, Metric.reps],
+        auditoria: Auditoria.nueva('sys', ahora: _t0),
+      )
+      ..assignmentsStored.addAll(assignments);
+
+    test('a plan for several athletes needs every athlete\'s kilos: 422 lists who is missing', () async {
+      final store = pressStore(
+        const [
+          PlanSet(reps: 10, byAthlete: {'ari': AthleteSetLoad(kg: 12)}),
+        ],
+        [_assignment(['ari', 'andi'])],
+      );
+      final r = await _publish(coachA, store);
+
+      expect(r.statusCode, HttpStatus.unprocessableEntity);
+      expect((await _json(r))['problemas'], [
+        {
+          'codigo': 'setWithoutAthleteKg',
+          'modeloSemana': 0,
+          'dia': 0,
+          'bloque': 0,
+          'prescripcion': 0,
+          'serie': 0,
+          'atleta': 'andi',
+        },
+      ]);
+      expect(store.stored.single.published, isNull);
+    });
+
+    test('with every athlete\'s kilos it publishes them', () async {
+      final store = pressStore(
+        const [
+          PlanSet(reps: 10, byAthlete: {'ari': AthleteSetLoad(kg: 12), 'andi': AthleteSetLoad(kg: 16)}),
+        ],
+        [_assignment(['ari', 'andi'])],
+      );
+      final r = await _publish(coachA, store);
+
+      expect(r.statusCode, HttpStatus.ok);
+      final set = store.stored.single.published!.weekModels.single.days.single.blocks.single.prescriptions.single
+          .sets.single;
+      expect(set.byAthlete, {'ari': const AthleteSetLoad(kg: 12), 'andi': const AthleteSetLoad(kg: 16)});
+      expect(set.kg, isNull);
+    });
+
+    test('a plan with one weight, one athlete or no assignment publishes as before', () async {
+      for (final (sets, assignments) in [
+        (const [PlanSet(reps: 10, kg: 14)], [_assignment(['ari', 'andi'])]),
+        (const [PlanSet(reps: 10)], [_assignment(['ari'])]),
+        (const [PlanSet(reps: 10)], <Assignment>[]),
+        // Another club's assignment of a plan with the same id does not count.
+        (const [PlanSet(reps: 10)], [_assignment(['x', 'y'], clubId: 'club-b')]),
+      ]) {
+        final r = await _publish(coachA, pressStore(sets, assignments));
+        expect(r.statusCode, HttpStatus.ok, reason: '$sets $assignments');
+      }
+    });
+
+    test('the importer does not ask for them', () async {
+      final store = pressStore(const [PlanSet(reps: 10)], [_assignment(['ari', 'andi'])]);
+      final published = await PublishPlan(store, now: () => _t2, askAthleteKg: false)(coachA, 'p1');
+      expect(published.published, isNotNull);
+    });
+  });
 
   group('publish', () {
     test('copies the saved content with date and author', () async {
@@ -438,11 +554,10 @@ void main() {
       expect(store.stored.single.published, isNull);
     });
 
-    test('an athlete and an admin without coach role get 403', () async {
+    test('an athlete gets 403', () async {
       final store = storeWith(_plan('club-a'));
       for (final ctx in [
         _ctx('club-a', {Rol.atleta}),
-        _ctx('club-a', {Rol.adminClub}),
       ]) {
         final r = await _publish(ctx, store);
         expect(r.statusCode, HttpStatus.forbidden);

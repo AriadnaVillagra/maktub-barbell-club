@@ -13,6 +13,7 @@ import '../domain/guided_session.dart';
 import '../domain/session_repository.dart';
 import '../domain/set_sync_queue.dart' show SaveState;
 import '../domain/set_write.dart';
+import 'guided_more_actions.dart';
 import 'guided_step_view.dart';
 import 'guided_summary.dart';
 import 'providers.dart';
@@ -31,20 +32,116 @@ Future<void> guardedGuided(
   }
 }
 
+/// What ✕ leads to while the blocks go on.
+enum GuidedExitChoice {
+  /// "Pausar y salir": the pass goes on and this device comes back where it was.
+  saveAndLeave,
+
+  /// "Terminar el entrenamiento": the pass finishes for every device, like "Terminar el día".
+  finish,
+}
+
+/// ✕ while the blocks go on (Ari, 2026-11-21): keep the pass to come back to it, or finish the training. Null is
+/// "Cancelar".
+Future<GuidedExitChoice?> showGuidedExit(BuildContext context) =>
+    showModalBottomSheet<GuidedExitChoice>(
+      context: context,
+      useSafeArea: true,
+      builder: (sheet) {
+        ListTile option({
+          required Key key,
+          required IconData icon,
+          required String title,
+          String? subtitle,
+          bool destructive = false,
+          GuidedExitChoice? choice,
+        }) => ListTile(
+          key: key,
+          minTileHeight: sheet.densidad.tactilMinimo,
+          iconColor: destructive ? sheet.esquema.error : null,
+          textColor: destructive ? sheet.esquema.error : null,
+          leading: Icon(icon),
+          title: Text(title),
+          subtitle: subtitle == null ? null : Text(subtitle),
+          onTap: () => Navigator.pop(sheet, choice),
+        );
+        return Column(
+          key: const Key('guided-exit-sheet'),
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Espacio.l,
+                Espacio.l,
+                Espacio.l,
+                Espacio.s,
+              ),
+              child: Text(
+                'Salir del modo guiado',
+                style: sheet.textos.titleMedium,
+              ),
+            ),
+            option(
+              key: const Key('guided-exit-save'),
+              icon: Icons.bookmark_outline,
+              title: 'Pausar y salir',
+              subtitle: 'El entrenamiento queda abierto. Al volver, seguís en el mismo paso.',
+              choice: GuidedExitChoice.saveAndLeave,
+            ),
+            option(
+              key: const Key('guided-exit-finish'),
+              icon: Icons.stop_circle_outlined,
+              title: 'Terminar el entrenamiento',
+              subtitle:
+                  'Da el día por terminado, para todos. Lo que hiciste queda '
+                  'guardado; lo que falta, sin hacer.',
+              destructive: true,
+              choice: GuidedExitChoice.finish,
+            ),
+            option(
+              key: const Key('guided-exit-cancel'),
+              icon: Icons.close,
+              title: 'Cancelar',
+            ),
+          ],
+        );
+      },
+    );
+
 /// The guided mode "Entrenar" (E7.20): who trains, then each block of the day with its preview and its steps. It
 /// writes the same sets as the session's list, so leaving it keeps everything finished. The pass is the session's
 /// (E7.26): every device in it sees the same block and step, and entering with a pass going on resumes it.
-class GuidedPage extends ConsumerWidget {
+class GuidedPage extends ConsumerStatefulWidget {
   const GuidedPage({super.key, required this.sessionPath});
 
   /// Where ✕ goes when there is nothing to pop back to.
   final String sessionPath;
 
+  @override
+  ConsumerState<GuidedPage> createState() => _GuidedPageState();
+}
+
+class _GuidedPageState extends ConsumerState<GuidedPage> {
+  @override
+  void initState() {
+    super.initState();
+    // The session's lookup is the day view's (E7.27). After a reload on this route that view may never show, so the
+    // guided mode asks for it too once the day is known.
+    ref.listenManual(sessionDayProvider, (_, next) {
+      final data = next.value;
+      if (data == null) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) ref.read(sessionScreenProvider.notifier).show(data);
+      });
+    }, fireImmediately: true);
+  }
+
   void _leave(BuildContext context) {
     if (context.canPop()) {
       context.pop();
     } else {
-      context.go(sessionPath);
+      context.go(widget.sessionPath);
     }
   }
 
@@ -60,15 +157,34 @@ class GuidedPage extends ConsumerWidget {
     if (ok && context.mounted) _leave(context);
   }
 
+  /// ✕ while the blocks go on: keep the pass and leave, or finish it and go to the summary.
+  Future<void> _exit(BuildContext context) async {
+    final choice = await showGuidedExit(context);
+    if (!context.mounted) return;
+    switch (choice) {
+      case GuidedExitChoice.saveAndLeave:
+        _leave(context);
+      case GuidedExitChoice.finish:
+        ref.read(guidedProvider.notifier).finishDay();
+      case null:
+        break;
+    }
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final guided = ref.watch(guidedProvider);
-    final data = ref.watch(sessionDayProvider).value;
+    final day = ref.watch(sessionDayProvider);
+    final data = day.value;
     final screen = ref.watch(sessionScreenProvider);
     final live = screen.live;
     // Choosing who trains needs no session (E7.27); the blocks and the summary come with the pass, which is the
-    // session's.
+    // session's. Until the day and its session were looked up, a missing one says nothing (after a reload).
+    final waiting =
+        (data == null && day.isLoading) ||
+        (data != null && live == null && !screen.lookedUp);
     final ready =
+        !waiting &&
         guided != null &&
         data != null &&
         (live != null || guided.phase == GuidedPhase.athletes);
@@ -88,13 +204,19 @@ class GuidedPage extends ConsumerWidget {
             key: const Key('guided-exit'),
             tooltip: 'Salir del modo guiado',
             icon: const Icon(Icons.close),
-            onPressed: () => ready && guided.phase != GuidedPhase.finished
-                ? _confirmLeave(context)
-                : _leave(context),
+            onPressed: () => switch (ready ? guided.phase : null) {
+              GuidedPhase.blocks => _exit(context),
+              GuidedPhase.athletes => _confirmLeave(context),
+              _ => _leave(context),
+            },
           ),
         ],
       ),
-      body: !ready
+      body: waiting
+          ? const Center(
+              child: CircularProgressIndicator(key: Key('guided-loading')),
+            )
+          : !ready
           ? _Message(
               text: 'No hay un día del plan para entrenar.',
               onBack: () => _leave(context),
@@ -107,6 +229,7 @@ class GuidedPage extends ConsumerWidget {
                     guided: guided,
                     data: data,
                     live: live,
+                    onFinish: () => _exit(context),
                   ),
                   (GuidedPhase.finished, final live?) => GuidedSummary(
                     guided: guided,
@@ -375,21 +498,32 @@ class _Athletes extends ConsumerWidget {
 
 /// The block on screen: its preview, the block without steps running, or the step card.
 class _Block extends ConsumerWidget {
-  const _Block({required this.guided, required this.data, required this.live});
+  const _Block({
+    required this.guided,
+    required this.data,
+    required this.live,
+    required this.onFinish,
+  });
 
   final GuidedSession guided;
   final SessionDayData data;
   final LiveSession live;
+
+  /// Opens what ✕ opens, from the notice of a pass left open.
+  final VoidCallback onFinish;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final run = guided.run!;
     final block = guided.block!;
     final running = run.status == GuidedBlockStatus.running;
+    final now = ref.read(guidedClockProvider)();
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: Espacio.s,
       children: [
+        if (guided.isStaleAt(now))
+          _StaleNotice(elapsed: guided.elapsed(now)!, onFinish: onFinish),
         Text(
           'Bloque ${guided.current + 1} de ${guided.runs.length}',
           key: const Key('guided-block-count'),
@@ -409,6 +543,62 @@ class _Block extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// A pass that began hours ago and is still going on (Ari, 2026-11-21): likely one left open from before. Its times
+/// are the real ones; this offers to finish it.
+class _StaleNotice extends StatelessWidget {
+  const _StaleNotice({required this.elapsed, required this.onFinish});
+
+  final Duration elapsed;
+  final VoidCallback onFinish;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colores.alertaContenedor;
+    return SizedBox(
+      width: double.infinity,
+      child: Card(
+        key: const Key('guided-stale'),
+        margin: EdgeInsets.zero,
+        color: colors.fondo,
+        child: Padding(
+          padding: const EdgeInsets.all(Espacio.m),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            spacing: Espacio.s,
+            children: [
+              Text(
+                'Esta pasada empezó hace ${elapsedLabel(elapsed)} y sigue '
+                'abierta. Si quedó de antes, terminala.',
+                style: context.textos.bodyMedium?.copyWith(color: colors.sobre),
+              ),
+              OutlinedButton(
+                key: const Key('guided-stale-finish'),
+                // The container's content color keeps the contrast on it.
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: colors.sobre,
+                  side: BorderSide(color: colors.sobre),
+                ),
+                onPressed: onFinish,
+                child: const Text('Terminar el entrenamiento'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// "4 h 50 min", "45 min".
+String elapsedLabel(Duration elapsed) {
+  final hours = elapsed.inHours;
+  final minutes = elapsed.inMinutes % 60;
+  if (elapsed.inDays >= 1) {
+    return elapsed.inDays == 1 ? '1 día' : '${elapsed.inDays} días';
+  }
+  return hours == 0 ? '$minutes min' : '$hours h $minutes min';
 }
 
 /// Simultaneous or by turns, starting on the block's default.
@@ -539,15 +729,20 @@ class _Preview extends ConsumerWidget {
           spacing: Espacio.s,
           runSpacing: Espacio.s,
           children: [
-            OutlinedButton(
-              key: const Key('guided-skip-block'),
-              onPressed: notifier.skipBlock,
-              child: const Text('Saltar bloque'),
-            ),
             FilledButton(
               key: const Key('guided-start-block'),
               onPressed: notifier.startBlock,
               child: const Text('Iniciar bloque'),
+            ),
+          ],
+        ),
+        GuidedMoreActionsButton(
+          actions: [
+            GuidedAction(
+              key: const Key('guided-skip-block'),
+              icon: Icons.skip_next,
+              label: 'Saltar bloque',
+              onTap: notifier.skipBlock,
             ),
           ],
         ),

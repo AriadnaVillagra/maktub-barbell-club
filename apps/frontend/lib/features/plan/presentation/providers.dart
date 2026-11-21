@@ -6,12 +6,18 @@ import 'package:maktub_core/maktub_core.dart';
 import '../../../core/red/api_providers.dart';
 import '../../../core/red/cliente_api.dart';
 import '../../access/presentation/providers.dart';
+import '../../catalogo/domain/exercise_draft.dart';
 import '../../catalogo/presentation/exercise_catalog_providers.dart';
+import '../../catalogo/presentation/providers.dart'
+    show activeExercisesProvider, catalogRepositoryProvider;
 import '../data/http_plan_repository.dart';
 import '../data/shared_preferences_models_view_store.dart';
 import '../domain/models_view.dart';
+import '../domain/athlete_loads.dart';
+import '../domain/load_promotion.dart';
 import '../domain/plan_draft.dart';
 import '../domain/plan_repository.dart';
+import 'plan_athletes_providers.dart';
 import 'plan_problem_messages.dart';
 
 final planRepositoryProvider = Provider<PlanRepository>(
@@ -270,6 +276,8 @@ class PlanSaveState {
     this.problems = const [],
     this.error,
     this.justSaved = false,
+    this.gainedLoad = const [],
+    this.loadFailed = const [],
   });
 
   final bool saving;
@@ -282,6 +290,12 @@ class PlanSaveState {
   final String? error;
   final bool justSaved;
 
+  /// Names of the exercises this save made weighted in the catalog, because the plan gives them a weight.
+  final List<String> gainedLoad;
+
+  /// Names of those that could not be made weighted: the plan was saved, and the next save tries again.
+  final List<String> loadFailed;
+
   bool get hasFailure => error != null || problems.isNotEmpty;
 }
 
@@ -291,6 +305,11 @@ final planSaveProvider = NotifierProvider.autoDispose
 /// Validates the draft with `validatePlan` (the server's rule) and sends it unless a problem blocks saving.
 /// An unfinished plan is saved and what it still lacks is listed. Any failure leaves the draft as it was; a
 /// second save while one is in flight is ignored.
+///
+/// Once the plan is saved, each exercise that is not weighted but got a weight in it, and that the user can change in
+/// the catalog, is saved weighted ([exercisesGainingLoad]); the plan is validated as if it already were. Done here and
+/// not when the weight is typed, so a weight that is cancelled, erased or never saved changes nothing. A failure there
+/// does not undo the plan: the exercise stays as it was and the next save tries again.
 class PlanSave extends Notifier<PlanSaveState> {
   PlanSave(this.planId);
 
@@ -307,15 +326,27 @@ class PlanSave extends Notifier<PlanSaveState> {
     state = const PlanSaveState(saving: true);
     final plan = draft.toPlan();
     String? Function(String) nameOf = (_) => null;
+    final athletes = _planAthletesNow(ref, planId);
     try {
       final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
       if (clubId == null) throw StateError('No active club');
-      final exercises = {
+      final me = await ref.read(meProvider.future);
+      final catalog = {
         for (final e in await ref.read(catalogExercisesProvider.future))
           e.id: e,
       };
+      final gaining = exercisesGainingLoad(
+        plan,
+        catalog,
+        canWrite: (e) => me?.canWriteCatalog(e) ?? false,
+      );
+      final exercises = {...catalog, ...gaining};
       nameOf = (id) => exercises[id]?.name;
-      final problems = validatePlan(plan, exerciseById: (id) => exercises[id]);
+      final problems = validatePlan(
+        plan,
+        exerciseById: (id) => exercises[id],
+        athleteIds: athletes?.kgAthleteIds ?? const [],
+      );
       final blocking = problems.where((p) => p.blocksSaving).toList();
       if (blocking.isNotEmpty) {
         _rejected(plan, blocking, nameOf, null);
@@ -325,8 +356,12 @@ class PlanSave extends Notifier<PlanSaveState> {
       if (!ref.mounted) return;
       editor.commitSaved(draft, saved);
       ref.invalidate(plansProvider);
+      final load = await _saveWeighted(clubId, gaining.values);
+      if (!ref.mounted) return;
       state = PlanSaveState(
         justSaved: true,
+        gainedLoad: load.saved,
+        loadFailed: load.failed,
         title: problems.isEmpty
             ? null
             : plan.type == PlanType.history
@@ -335,7 +370,7 @@ class PlanSave extends Notifier<PlanSaveState> {
             : 'Plan guardado. Para poder asignarlo falta completar:',
         problems: [
           for (final p in problems)
-            describePlanProblem(p, plan, exerciseName: nameOf),
+            describePlanProblem(p, plan, exerciseName: nameOf, athleteName: _athleteNames(athletes)),
         ],
       );
     } on PlanRejected catch (e) {
@@ -347,6 +382,29 @@ class PlanSave extends Notifier<PlanSaveState> {
         state = const PlanSaveState(error: 'No se pudo guardar el plan.');
       }
     }
+  }
+
+  /// Saves [exercises] (made weighted) in the catalog, one by one, and reloads the catalog when any was saved.
+  Future<({List<String> saved, List<String> failed})> _saveWeighted(
+    String clubId,
+    Iterable<Exercise> exercises,
+  ) async {
+    final saved = <String>[];
+    final failed = <String>[];
+    final repo = ref.read(catalogRepositoryProvider);
+    for (final e in exercises) {
+      try {
+        await repo.updateExercise(clubId, e.id, ExerciseDraft.from(e));
+        saved.add(e.name);
+      } catch (_) {
+        failed.add(e.name);
+      }
+    }
+    if (saved.isNotEmpty && ref.mounted) {
+      ref.invalidate(catalogExercisesProvider);
+      ref.invalidate(activeExercisesProvider);
+    }
+    return (saved: saved, failed: failed);
   }
 
   void _rejected(
@@ -389,7 +447,13 @@ final planPublishBlockProvider = Provider.autoDispose
       if (draft == null || exercises == null) return null;
       final byId = {for (final e in exercises) e.id: e};
       final plan = draft.toPlan();
-      final problems = validatePlan(plan, exerciseById: (id) => byId[id]);
+      // While they load, the server still validates with them when publishing.
+      final athletes = ref.watch(planAthletesProvider(planId)).value;
+      final problems = validatePlan(
+        plan,
+        exerciseById: (id) => byId[id],
+        athleteIds: athletes?.kgAthleteIds ?? const [],
+      );
       if (problems.isNotEmpty) {
         return PlanPublishBlock(
           problems.length == 1
@@ -401,6 +465,7 @@ final planPublishBlockProvider = Provider.autoDispose
                 p,
                 plan,
                 exerciseName: (id) => byId[id]?.name,
+                athleteName: _athleteNames(athletes),
               ),
           ],
         );
@@ -493,7 +558,12 @@ class PlanPublish extends Notifier<PlanPublishState> {
         title: e.message,
         problems: [
           for (final p in e.problems)
-            describePlanProblem(p, plan, exerciseName: nameOf),
+            describePlanProblem(
+              p,
+              plan,
+              exerciseName: nameOf,
+              athleteName: _athleteNames(_planAthletesNow(ref, planId)),
+            ),
         ],
       );
     } on ErrorDeApi catch (e) {
@@ -504,4 +574,13 @@ class PlanPublish extends Notifier<PlanPublishState> {
       }
     }
   }
+}
+
+/// Who plan [planId] is for, as the editor has them loaded (it watches them); null while they load.
+PlanAthletes? _planAthletesNow(Ref ref, String planId) => ref.read(planAthletesProvider(planId)).value;
+
+/// Names of [athletes] by id, for a problem about one of them.
+String? Function(String) _athleteNames(PlanAthletes? athletes) {
+  final names = {for (final a in athletes?.athletes ?? const <PlanAthlete>[]) a.id: a.name};
+  return (id) => names[id];
 }

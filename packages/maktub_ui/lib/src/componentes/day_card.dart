@@ -4,8 +4,40 @@ import '../tema/contexto.dart';
 import '../tokens/primitivos.dart';
 import 'insignia.dart';
 
-/// One day of a plan's calendar: its title, whether it is done or pending (icon and text, never color alone), and
-/// what the screen puts under it. [highlighted] marks the day that comes next with a strong accent border and the
+/// How far an athlete got through a day, as an icon and a text (never color alone): "Hecho" when [done], "En curso"
+/// with [doneSets] of [totalSets] when some sets are done, else "Pendiente". Without [totalSets] the in-progress
+/// badge carries no count.
+class DayStatusBadge extends StatelessWidget {
+  const DayStatusBadge({super.key, required this.done, this.doneSets = 0, this.totalSets});
+
+  final bool done;
+  final int doneSets;
+  final int? totalSets;
+
+  static const doneLabel = 'Hecho';
+  static const inProgressLabel = 'En curso';
+  static const pendingLabel = 'Pendiente';
+
+  /// The badge's text, for places that show the state as plain text, such as a pill's detail.
+  static String labelOf({required bool done, int doneSets = 0, int? totalSets}) => done
+      ? doneLabel
+      : doneSets > 0
+          ? (totalSets == null ? inProgressLabel : '$inProgressLabel $doneSets/$totalSets')
+          : pendingLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = labelOf(done: done, doneSets: doneSets, totalSets: totalSets);
+    return done
+        ? InsigniaMaktub(label, context.colores.exitoContenedor, icono: Icons.check_circle)
+        : doneSets > 0
+            ? InsigniaMaktub(label, context.colores.alertaContenedor, icono: Icons.timelapse)
+            : InsigniaMaktub(label, context.colores.insigniaBase, icono: Icons.radio_button_unchecked);
+  }
+}
+
+/// One day of a plan's calendar: its title, how far it is done ([DayStatusBadge]), and what the screen puts under
+/// it. [highlighted] marks the day that comes next with a strong accent border and the
 /// [highlightLabel] badge; [selected] marks the day whose detail is open. With [onTap] the whole card is a button at
 /// least as tall as the active density's touch side.
 class DayCard extends StatelessWidget {
@@ -13,6 +45,8 @@ class DayCard extends StatelessWidget {
     super.key,
     required this.title,
     required this.done,
+    this.doneSets = 0,
+    this.totalSets,
     this.subtitle,
     this.highlighted = false,
     this.highlightLabel = nextLabel,
@@ -27,6 +61,10 @@ class DayCard extends StatelessWidget {
   /// A smaller line under [title], such as the day's name.
   final String? subtitle;
   final bool done;
+
+  /// Sets done out of the planned ones, for a day in progress ([DayStatusBadge]).
+  final int doneSets;
+  final int? totalSets;
   final bool highlighted;
   final String highlightLabel;
   final bool selected;
@@ -38,8 +76,6 @@ class DayCard extends StatelessWidget {
   /// Goes last, full width, such as the button that opens the day.
   final Widget? action;
 
-  static const doneLabel = 'Hecho';
-  static const pendingLabel = 'Pendiente';
   static const nextLabel = 'Toca hoy';
 
   /// Widths a calendar lays days out with: a grid cell, the week's label beside a row of cells, a card with its
@@ -87,13 +123,7 @@ class DayCard extends StatelessWidget {
                     spacing: Espacio.xs,
                     runSpacing: Espacio.xs,
                     children: [
-                      done
-                          ? InsigniaMaktub(doneLabel, context.colores.exitoContenedor, icono: Icons.check_circle)
-                          : InsigniaMaktub(
-                              pendingLabel,
-                              context.colores.insigniaBase,
-                              icono: Icons.radio_button_unchecked,
-                            ),
+                      DayStatusBadge(done: done, doneSets: doneSets, totalSets: totalSets),
                       if (highlighted)
                         InsigniaMaktub(highlightLabel, context.colores.turnoActivo, icono: Icons.arrow_forward),
                     ],

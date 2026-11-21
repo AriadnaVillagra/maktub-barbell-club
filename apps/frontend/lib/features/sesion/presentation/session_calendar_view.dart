@@ -7,9 +7,15 @@ import '../../asignacion/domain/calendar_repository.dart' show DayState;
 import '../domain/calendar_layout.dart';
 import 'calendar_boards.dart';
 import 'providers.dart';
+import 'session_loads_view.dart' show SessionAthleteSelector;
 
-/// The day states of the cycle [data] is in, kept current as sets are recorded. Empty while loading.
-List<DayState> watchDayStates(WidgetRef ref, SessionDayData data) =>
+/// The day states of the cycle [data] is in, as [athleteId] (the tab on screen) did it, kept current as sets are
+/// recorded. Empty while loading.
+List<DayState> watchDayStates(
+  WidgetRef ref,
+  SessionDayData data,
+  String? athleteId,
+) =>
     ref
         .watch(
           cycleDayStatesProvider((
@@ -17,23 +23,27 @@ List<DayState> watchDayStates(WidgetRef ref, SessionDayData data) =>
             data.location.assignmentId,
             data.location.startDate,
             data.location.cycle,
+            athleteId,
           )),
         )
         .value ??
     const [];
 
-/// Whether the day of the current cycle has sets recorded; false when nothing says so.
-bool isDayDone(List<DayState> states, SessionDayData data, int week, int day) =>
-    states.any(
-      (s) =>
-          s.cycle == data.location.cycle &&
-          s.week == week &&
-          s.day == day &&
-          s.done,
-    );
+/// The state of the day of the current cycle; null when nothing says it (pending).
+DayState? dayStateOf(
+  List<DayState> states,
+  SessionDayData data,
+  int week,
+  int day,
+) => states
+    .where(
+      (s) => s.cycle == data.location.cycle && s.week == week && s.day == day,
+    )
+    .firstOrNull;
 
 /// The whole plan as a board (E7.25): the plan's name and cycle, a selector of the layout, remembered on the device,
-/// and every week of the cycle laid out compact, as cards or in full. Each day shows whether it is done or pending,
+/// and every week of the cycle laid out compact, as cards or in full. Each day shows how far the athlete on screen got
+/// (with a selector of the athlete when the plan has more than one),
 /// and the day D13 would open is highlighted. Tapping a day in the compact or cards layout opens its detail right
 /// there, at the bottom on a phone and at the side from a medium screen. Only "Ir a la sesión de este día" leaves,
 /// calling [onPick] with its week and day.
@@ -63,11 +73,13 @@ class _SessionCalendarViewState extends ConsumerState<SessionCalendarView> {
   @override
   Widget build(BuildContext context) {
     final data = widget.data;
-    final states = watchDayStates(ref, data);
+    final screen = ref.watch(sessionScreenProvider);
+    final athleteId = athleteOnScreen(data, screen);
+    final states = watchDayStates(ref, data, athleteId);
     final layout = ref.watch(calendarLayoutProvider);
     final weeks = calendarWeeks(
       data,
-      isDone: (w, d) => isDayDone(states, data, w, d),
+      stateOf: (w, d) => dayStateOf(states, data, w, d),
     );
     final names = data.exerciseNames;
     final daysPerWeek = weeks.fold(
@@ -96,6 +108,16 @@ class _SessionCalendarViewState extends ConsumerState<SessionCalendarView> {
               spacing: Espacio.s,
               children: [
                 widget.viewToggle,
+                // Each athlete's days are their own: the tab chosen here is the session's.
+                if (data.memberIds.length > 1)
+                  SessionAthleteSelector(
+                    keyPrefix: 'calendar',
+                    data: data,
+                    selected: athleteId,
+                    onSelect: ref
+                        .read(sessionScreenProvider.notifier)
+                        .selectAthlete,
+                  ),
                 Wrap(
                   spacing: Espacio.s,
                   crossAxisAlignment: WrapCrossAlignment.center,
@@ -303,17 +325,11 @@ class _DayPanel extends StatelessWidget {
                       spacing: Espacio.xs,
                       runSpacing: Espacio.xs,
                       children: [
-                        day.done
-                            ? InsigniaMaktub(
-                                DayCard.doneLabel,
-                                context.colores.exitoContenedor,
-                                icono: Icons.check_circle,
-                              )
-                            : InsigniaMaktub(
-                                DayCard.pendingLabel,
-                                context.colores.insigniaBase,
-                                icono: Icons.radio_button_unchecked,
-                              ),
+                        DayStatusBadge(
+                          done: day.done,
+                          doneSets: day.doneSets,
+                          totalSets: day.totalSets,
+                        ),
                         if (day.highlighted)
                           InsigniaMaktub(
                             DayCard.nextLabel,

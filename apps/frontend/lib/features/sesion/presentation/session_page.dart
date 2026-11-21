@@ -81,7 +81,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
           if (canTrain)
             FilledButton.icon(
               key: const Key('session-train'),
-              onPressed: () => context.push(path!),
+              onPressed: () => context.go(path!),
               icon: const Icon(Icons.play_arrow),
               label: const Text('Entrenar'),
             ),
@@ -239,7 +239,13 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     final dayCount = plan.weekModelOf(week)?.days.length ?? 0;
     final planDay = planDayOf(data, week, day);
     final live = state.live;
-    final dayStates = watchDayStates(ref, data);
+    final dayStates = watchDayStates(ref, data, athleteOnScreen(data, state));
+    final shownState = dayStateOf(dayStates, data, week, day);
+    final blockCount = planDay?.blocks.length ?? 0;
+    final collapsedBlocks = ref.watch(collapsedBlocksProvider);
+    final allCollapsed = collapsedBlocks.containsAll([
+      for (var i = 0; i < blockCount; i++) i,
+    ]);
 
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
@@ -267,6 +273,20 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                         child: widget.viewToggle,
                       ),
                     ),
+                    if (data.memberIds.isNotEmpty && blockCount > 0)
+                      IconButton(
+                        key: const Key('session-collapse-all'),
+                        tooltip: allCollapsed
+                            ? 'Expandir todo'
+                            : 'Colapsar todo',
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          allCollapsed ? Icons.unfold_more : Icons.unfold_less,
+                        ),
+                        onPressed: () => ref
+                            .read(collapsedBlocksProvider.notifier)
+                            .toggleAll(blockCount),
+                      ),
                     IconButton(
                       key: const Key('session-day-picker-toggle'),
                       tooltip: _picking ? 'Cerrar' : 'Elegir semana y día',
@@ -309,15 +329,12 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                           context.colores.insigniaBase,
                           key: const Key('session-day-title'),
                         ),
-                        isDayDone(dayStates, data, week, day)
-                            ? InsigniaMaktub(
-                                'Hecho',
-                                context.colores.exitoContenedor,
-                              )
-                            : InsigniaMaktub(
-                                'Pendiente',
-                                context.colores.insigniaPropio,
-                              ),
+                        DayStatusBadge(
+                          key: const Key('session-day-status'),
+                          done: shownState?.done ?? false,
+                          doneSets: shownState?.doneSets ?? 0,
+                          totalSets: shownState?.totalSets,
+                        ),
                       ],
                     ],
                   ),
@@ -363,9 +380,19 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                               PildoraMaktub(
                                 key: Key('session-day-$d'),
                                 texto: 'Día $d',
-                                detalle: isDayDone(dayStates, data, week, d)
-                                    ? 'Hecho'
-                                    : 'Pendiente',
+                                detalle: switch (dayStateOf(
+                                  dayStates,
+                                  data,
+                                  week,
+                                  d,
+                                )) {
+                                  final s? => DayStatusBadge.labelOf(
+                                    done: s.done,
+                                    doneSets: s.doneSets ?? 0,
+                                    totalSets: s.totalSets,
+                                  ),
+                                  null => DayStatusBadge.pendingLabel,
+                                },
                                 seleccionada: d == day,
                                 onTap: () {
                                   notifier.selectDay(week, d);

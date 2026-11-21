@@ -101,9 +101,9 @@ void main() {
     method: 'PUT',
     body: body,
   );
-  Future<Response> status(String id, String estado) => _call(
+  Future<Response> status(String id, String estado, {ClubContext? club}) => _call(
     (c) => setExerciseStatusEndpoint(c, id, store: store, usage: usage, now: () => _at),
-    _club('club-a'),
+    club ?? _club('club-a'),
     method: 'PATCH',
     body: {'estado': estado},
   );
@@ -131,6 +131,12 @@ void main() {
       expect(e.auditoria.creadoPor, 'u1');
       expect(e.auditoria.creadoEn, _at);
       expect(store.exercises.single.id, 'new-1');
+    });
+
+    test('a coach without the club admin role creates a club exercise', () async {
+      final r = await create(_body('Remo'), club: _club('club-a', roles: {Rol.coach}));
+      expect(r.statusCode, HttpStatus.ok);
+      expect(store.exercises.single.clubId, 'club-a');
     });
 
     test('an athlete is rejected and nothing is written', () async {
@@ -298,6 +304,14 @@ void main() {
       expect(store.exercises.single.name, 'Remo');
     });
 
+    test('a coach without the club admin role edits a club exercise but not a base one', () async {
+      final coach = _club('club-a', roles: {Rol.coach});
+      expect((await update('e1', _body('Remo 2'), club: coach)).statusCode, HttpStatus.ok);
+      expect(store.exercises.single.name, 'Remo 2');
+      store.exercises.add(_exercise('base', clubPlataforma, 'Sentadilla'));
+      expect((await update('base', _body('Otra'), club: coach)).statusCode, HttpStatus.forbidden);
+    });
+
     test('a platform admin edits a default exercise and it stays default', () async {
       store.exercises.add(_exercise('base', clubPlataforma, 'Sentadilla'));
       final admin = ClubContext(
@@ -396,6 +410,16 @@ void main() {
       expect((await status('base', 'archivado')).statusCode, HttpStatus.forbidden);
       expect((await remove('base')).statusCode, HttpStatus.forbidden);
       expect(store.exercises.firstWhere((e) => e.id == 'base').status, CatalogStatus.active);
+    });
+
+    test('a coach without the club admin role archives and deletes a club exercise but not a base one', () async {
+      final coach = _club('club-a', roles: {Rol.coach});
+      store.exercises.add(_exercise('base', clubPlataforma, 'Sentadilla'));
+      expect((await status('e1', 'archivado', club: coach)).statusCode, HttpStatus.ok);
+      expect((await remove('e1', club: coach)).statusCode, HttpStatus.ok);
+      expect((await status('base', 'archivado', club: coach)).statusCode, HttpStatus.forbidden);
+      expect((await remove('base', club: coach)).statusCode, HttpStatus.forbidden);
+      expect(store.exercises.map((e) => e.id), ['base']);
     });
 
     test('an athlete cannot delete or archive', () async {

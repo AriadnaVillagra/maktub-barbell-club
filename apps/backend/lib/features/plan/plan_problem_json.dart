@@ -11,4 +11,5 @@ Json planProblemJson(PlanProblem p) => {
   if (p.blockIndex != null) 'bloque': p.blockIndex,
   if (p.prescriptionIndex != null) 'prescripcion': p.prescriptionIndex,
   if (p.setIndex != null) 'serie': p.setIndex,
+  if (p.athleteId != null) 'atleta': p.athleteId,
 };

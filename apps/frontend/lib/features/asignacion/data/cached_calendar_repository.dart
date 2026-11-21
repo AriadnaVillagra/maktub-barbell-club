@@ -2,6 +2,7 @@ import 'package:maktub_core/maktub_core.dart';
 
 import '../../../core/offline/local_copy.dart';
 import '../domain/calendar_repository.dart';
+import 'http_calendar_repository.dart' show dayStateFromJson, dayStateToJson;
 
 /// The calendar's reads with the device's copy (E7.15): where each date falls, the published plans and the days'
 /// states. A date that was neither preloaded nor seen says so in its message.
@@ -64,28 +65,23 @@ class CachedCalendarRepository implements CalendarRepository {
     String clubId,
     String assignmentId,
     DateTime from,
-    DateTime to,
-  ) => _reads.read(
+    DateTime to, {
+    String? athleteId,
+  }) => _reads.read(
+    // Each athlete's progress is their own: the athlete is part of the key ('-' for anyone's, the old marking).
     copyKey([
       'assignmentDays',
       clubId,
       assignmentId,
+      athleteId ?? '-',
       aIsoFecha(from),
       aIsoFecha(to),
     ]),
-    () => _remote.dayStates(clubId, assignmentId, from, to),
-    encode: (ss) => [
-      for (final s in ss)
-        {'ciclo': s.cycle, 'semana': s.week, 'dia': s.day, 'hecho': s.done},
-    ],
+    () => _remote.dayStates(clubId, assignmentId, from, to, athleteId: athleteId),
+    encode: (ss) => [for (final s in ss) dayStateToJson(s)],
     decode: (d) => [
       for (final s in (d as List).cast<Map>())
-        DayState(
-          cycle: (s['ciclo'] as num).toInt(),
-          week: (s['semana'] as num).toInt(),
-          day: (s['dia'] as num).toInt(),
-          done: s['hecho'] == true,
-        ),
+        dayStateFromJson(s.cast<String, dynamic>()),
     ],
   );
 }

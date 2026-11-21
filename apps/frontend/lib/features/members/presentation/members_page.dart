@@ -43,7 +43,7 @@ class MembersPage extends ConsumerWidget {
       final saved = await repo.register(clubId, email: result.email, name: result.name, roles: result.roles);
       final me = ref.read(meProvider).value;
       final clubType = me?.activeClub?.club.tipo ?? TipoClub.club;
-      if (saved.userId == me?.user.id && !puede(saved.roles, Accion.gestionarMiembros, clubType)) {
+      if (saved.userId == me?.user.id && !puede(saved.roles, Accion.gestionarMiembros, clubType, esAdminPlataforma: me?.isPlatformAdmin ?? false)) {
         // Their roles changed: fetched again so the app stops offering what they can no longer do.
         ref.invalidate(meProvider);
         if (!context.mounted) return;

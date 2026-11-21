@@ -531,6 +531,51 @@ void main() {
 
       expect(record.kg, 10);
     });
+
+    test('kilos the coach typed by hand for the athlete in a set by %: recorded as planned, with the adjustment', () async {
+      final store = _store();
+      store.plans['club-a/p1'] = PublishedPlan(
+        weekModels: const [
+          WeekModel(
+            id: 'A',
+            name: 'A',
+            days: [
+              PlanDay(
+                blocks: [
+                  PlanBlock(
+                    name: 'Principal',
+                    prescriptions: [
+                      Prescription(
+                        exerciseId: 'squat',
+                        sets: [
+                          PlanSet(
+                            reps: 5,
+                            pct: 65,
+                            byAthlete: {'ari': AthleteSetLoad(pct: 60, kg: 60, manualKg: true)},
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
+        weekAssignment: const ['A', 'A', 'A', 'A'],
+        publishedAt: DateTime.utc(2026, 11, 8),
+        publishedBy: 'coach',
+      );
+
+      final planned = await _record(store, _body());
+      expect(planned.kg, 60);
+      expect(planned.pctPlan, 60);
+      expect(planned.manualKg, isFalse);
+
+      final adjusted = await _record(store, _body(extra: {'ajuste': 90}));
+      expect(adjusted.kg, Equipo.estandar.cargableOExacto(54));
+      expect(adjusted.pctPlan, 54);
+    });
   });
 
   group('manual kilos', () {

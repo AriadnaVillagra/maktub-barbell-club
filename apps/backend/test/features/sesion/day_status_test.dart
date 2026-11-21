@@ -22,6 +22,9 @@ class _FakeStore implements DayStatusStore {
   /// `clubId/assignmentId` → days with sets.
   final done = <String, List<DoneDay>>{};
 
+  /// `clubId/assignmentId/athleteId` → sets done.
+  final sets = <String, List<DoneSet>>{};
+
   @override
   Future<bool> groupExists(String clubId, String groupId) async =>
       groups.contains('$clubId/$groupId');
@@ -59,14 +62,45 @@ class _FakeStore implements DayStatusStore {
     for (final d in done['$clubId/$assignmentId'] ?? const <DoneDay>[])
       if (cycles.contains(d.cycle)) d,
   ];
+
+  @override
+  Future<List<DoneSet>> doneSets(
+    String clubId,
+    String assignmentId,
+    List<int> cycles,
+    String athleteId,
+  ) async => [
+    for (final s
+        in sets['$clubId/$assignmentId/$athleteId'] ?? const <DoneSet>[])
+      if (cycles.contains(s.cycle)) s,
+  ];
 }
 
-PublishedPlan _plan({int days = 3}) => PublishedPlan(
+/// Every day has a squat with 3 sets and a bench with 1 (4 planned sets), unless [empty].
+PublishedPlan _plan({int days = 3, bool empty = false}) => PublishedPlan(
   weekModels: [
     WeekModel(
       id: 'w1',
       name: 'Base',
-      days: [for (var i = 0; i < days; i++) const PlanDay()],
+      days: [
+        for (var i = 0; i < days; i++)
+          empty
+              ? const PlanDay()
+              : const PlanDay(
+                  blocks: [
+                    PlanBlock(
+                      name: 'Fuerza',
+                      prescriptions: [
+                        Prescription(
+                          exerciseId: 'squat',
+                          sets: [PlanSet(reps: 3), PlanSet(reps: 3), PlanSet()],
+                        ),
+                        Prescription(exerciseId: 'bench', sets: [PlanSet()]),
+                      ],
+                    ),
+                  ],
+                ),
+      ],
     ),
   ],
   weekAssignment: const ['w1', 'w1', 'w1', 'w1'],
@@ -250,6 +284,114 @@ void main() {
       expect((await _getByAssignment(s, 'own', week1)).statusCode, 200);
       expect((await _getByAssignment(s, 'nope', week1)).statusCode, 404);
       expect((await _getByAssignment(s, 'own', '?desde=x')).statusCode, 400);
+    });
+  });
+
+  group("one athlete's progress (2026-11-21, replaces D13's marking)", () {
+    DoneSet set(int day, int p, int s, {int date = 9, int week = 1}) => (
+      cycle: 1,
+      week: week,
+      day: day,
+      date: DateTime.utc(2026, 11, date),
+      position: (block: 0, prescription: p, set: s),
+    );
+
+    List<String> progress(Map<String, dynamic> json) => [
+      for (final d in json['dias'] as List)
+        '${d['dia']}:${d['estado']}:${d['hechas']}/${d['total']}',
+    ];
+
+    test("another athlete's sets do not mark the day", () async {
+      final s = store()
+        ..done['club-a/a1'] = [
+          (cycle: 1, week: 1, day: 1, date: DateTime.utc(2026, 11, 9)),
+        ]
+        ..sets['club-a/a1/andi'] = [
+          set(1, 0, 0),
+          set(1, 0, 1),
+          set(1, 0, 2),
+          set(1, 1, 0),
+        ];
+      final json = await _json(await _get(s, '$week1&atletaId=ari'));
+
+      expect(progress(json), [
+        '1:pendiente:0/4',
+        '2:pendiente:0/4',
+        '3:pendiente:0/4',
+      ]);
+      expect((json['dias'] as List).first.containsKey('fecha'), isFalse);
+    });
+
+    test('one set ticked is in progress with the count, all of them is done', () async {
+      final s = store()
+        ..sets['club-a/a1/ari'] = [
+          set(1, 0, 0),
+          set(2, 0, 0, date: 10),
+          set(2, 0, 1, date: 10),
+          set(2, 0, 2, date: 10),
+          set(2, 1, 0, date: 10),
+        ];
+      final json = await _json(await _get(s, '$week1&atletaId=ari'));
+
+      expect(progress(json), [
+        '1:en_curso:1/4',
+        '2:hecho:4/4',
+        '3:pendiente:0/4',
+      ]);
+      expect((json['dias'] as List)[0]['fecha'], '2026-11-09');
+      expect((json['dias'] as List)[1]['fecha'], '2026-11-10');
+    });
+
+    test('a day opened on two dates counts each set once, dated by the first', () async {
+      final s = store()
+        ..sets['club-a/a1/ari'] = [
+          set(1, 0, 0, date: 12),
+          set(1, 0, 1, date: 12),
+          set(1, 0, 0, date: 10),
+          set(1, 1, 0, date: 10),
+        ];
+      final json = await _json(await _get(s, '$week1&atletaId=ari'));
+
+      expect(progress(json).first, '1:en_curso:3/4');
+      expect((json['dias'] as List).first['fecha'], '2026-11-10');
+    });
+
+    test('sets the published plan no longer has do not count', () async {
+      final s = store()..sets['club-a/a1/ari'] = [set(1, 0, 7), set(1, 4, 0)];
+      final json = await _json(await _get(s, '$week1&atletaId=ari'));
+
+      expect(progress(json).first, '1:pendiente:0/4');
+      expect((json['dias'] as List).first.containsKey('fecha'), isFalse);
+    });
+
+    test('a day without planned sets stays pending', () async {
+      final s = store()..plans['club-a/p1'] = _plan(empty: true);
+      final json = await _json(await _get(s, '$week1&atletaId=ari'));
+
+      expect(progress(json).first, '1:pendiente:0/0');
+    });
+
+    test("by assignment it is the athlete's progress too", () async {
+      final s = store()..sets['club-a/a1/ari'] = [set(3, 1, 0)];
+      final json = await _json(
+        await _getByAssignment(s, 'a1', '$week1&atletaId=ari'),
+      );
+
+      expect(progress(json), [
+        '1:pendiente:0/4',
+        '2:pendiente:0/4',
+        '3:en_curso:1/4',
+      ]);
+    });
+
+    test('an empty atletaId keeps the old answer, without counts', () async {
+      final s = store();
+      expect(
+        await _json(await _get(s, '$week1&atletaId=')),
+        await _json(await _get(s, week1)),
+      );
+      final day = ((await _json(await _get(s, week1)))['dias'] as List).first;
+      expect((day as Map).containsKey('hechas'), isFalse);
     });
   });
 

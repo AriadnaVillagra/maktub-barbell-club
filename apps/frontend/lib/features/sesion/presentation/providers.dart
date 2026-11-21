@@ -26,11 +26,15 @@ import '../data/cached_session_repository.dart';
 import '../data/http_proposed_days_repository.dart';
 import '../data/http_session_repository.dart';
 import '../data/shared_preferences_calendar_layout_store.dart';
+import '../data/shared_preferences_collapsed_blocks_store.dart';
+import '../domain/collapsed_blocks.dart';
 import '../data/shared_preferences_draft_store.dart';
+import '../data/shared_preferences_guided_position_store.dart';
 import '../data/web_socket_live_channel.dart';
 import '../domain/athlete_adjustments.dart';
 import '../domain/block_time_write.dart';
 import '../domain/calendar_layout.dart';
+import '../domain/guided_position.dart';
 import '../domain/guided_session.dart';
 import '../domain/live_channel.dart';
 import '../domain/live_session_sync.dart';
@@ -208,7 +212,7 @@ class SessionDayData {
   /// Athlete name by id; empty when the user cannot list them (only coaches can).
   final Map<String, String> athleteNames;
 
-  /// The day of today's week that opens by D13.
+  /// The day of today's week that opens by D13: the first one the athlete of the first tab has not finished.
   final int openingDay;
 
   /// The user's athlete id, when they are one in this club.
@@ -250,23 +254,69 @@ final calendarLayoutProvider =
       CalendarLayoutController.new,
     );
 
-/// Which cycle's day states to fetch: the cycle of the assignment [assignmentId], started on [startDate].
+final collapsedBlocksStoreProvider = Provider<CollapsedBlocksStore>(
+  (ref) => SharedPreferencesCollapsedBlocksStore(),
+);
+
+/// The block cards of the session screen the user collapsed, by block index, remembered on the device. Keyed by
+/// index (not by day) to stay simple: a block position folds the same way on every day. A change made before the
+/// saved set loads wins.
+class CollapsedBlocksController extends Notifier<Set<int>> {
+  var _changed = false;
+
+  @override
+  Set<int> build() {
+    unawaited(_restore());
+    return const {};
+  }
+
+  Future<void> _restore() async {
+    final saved = await ref.read(collapsedBlocksStoreProvider).load();
+    if (!_changed && ref.mounted) state = saved;
+  }
+
+  void _set(Set<int> next) {
+    _changed = true;
+    state = next;
+    unawaited(ref.read(collapsedBlocksStoreProvider).save(next));
+  }
+
+  void toggle(int block) => _set(
+    state.contains(block) ? ({...state}..remove(block)) : {...state, block},
+  );
+
+  /// Collapses the first [count] blocks, or expands them all when they already are.
+  void toggleAll(int count) => _set(
+    state.containsAll([for (var i = 0; i < count; i++) i])
+        ? <int>{}
+        : {for (var i = 0; i < count; i++) i},
+  );
+}
+
+final collapsedBlocksProvider =
+    NotifierProvider<CollapsedBlocksController, Set<int>>(
+      CollapsedBlocksController.new,
+    );
+
+/// Which cycle's day states to fetch: the cycle of the assignment [assignmentId], started on [startDate], as
+/// [athleteId] did it (null: done when anyone recorded a set, for an assignment without athletes).
 typedef CycleDaysQuery = (
   String clubId,
   String assignmentId,
   DateTime startDate,
   int cycle,
+  String? athleteId,
 );
 
-/// Done or pending state of the days of one cycle (E7.13, E7.24). Invalidated when sets are recorded, so the
-/// day pills follow.
+/// The state of the days of one cycle for one athlete: done, in progress with its count, or pending (E7.13, E7.24;
+/// per athlete since 2026-11-21). Invalidated when sets are recorded, so the day badges follow.
 final cycleDayStatesProvider = FutureProvider.autoDispose
     .family<List<DayState>, CycleDaysQuery>((ref, query) {
-      final (clubId, assignmentId, startDate, cycle) = query;
+      final (clubId, assignmentId, startDate, cycle, athleteId) = query;
       final (from, to) = cycleDates(startDate, cycle);
       return ref
           .watch(calendarRepositoryProvider)
-          .dayStates(clubId, assignmentId, from, to);
+          .dayStates(clubId, assignmentId, from, to, athleteId: athleteId);
     });
 
 /// Where today falls for the user: every active assignment they train, their groups' and their own (E8.8). A user
@@ -338,14 +388,6 @@ Future<SessionDayData> _dayData(
   final plan = await ref
       .watch(calendarRepositoryProvider)
       .publishedPlan(clubId, location.planId);
-  final states = await ref.read(
-    cycleDayStatesProvider((
-      clubId,
-      location.assignmentId,
-      location.startDate,
-      location.cycle,
-    )).future,
-  );
   // E6.7: the location lists who is in the plan today. One saved before that does not: it was its group's (or the
   // first group's, before E8.8), or its one athlete's.
   final group = location.athleteIds != null || location.athleteId != null
@@ -358,6 +400,16 @@ Future<SessionDayData> _dayData(
       (location.athleteId != null
           ? [location.athleteId!]
           : group?.memberIds ?? const <String>[]);
+  // The day that opens is the first one the athlete of the first tab has not finished.
+  final states = await ref.read(
+    cycleDayStatesProvider((
+      clubId,
+      location.assignmentId,
+      location.startDate,
+      location.cycle,
+      defaultAthleteOf(memberIds, ownAthleteId),
+    )).future,
+  );
   return SessionDayData(
     clubId: clubId,
     memberIds: memberIds,
@@ -413,6 +465,7 @@ class SessionScreenState {
     this.adjustments = const {},
     this.opening = false,
     this.liveStatus = LiveStatus.connecting,
+    this.lookedUp = false,
   });
 
   /// The chosen week and day; null keeps today's week and the D13 day.
@@ -434,15 +487,23 @@ class SessionScreenState {
   /// How the open session's live channel is doing. Only an indicator: marking a set never waits for it.
   final LiveStatus liveStatus;
 
+  /// Whether the chosen day's session was looked up at least once, found or not (or the lookup failed, as without
+  /// signal). Until then a missing [live] says nothing: after a reload the guided mode waits for it instead of
+  /// offering to choose who trains over a pass going on.
+  final bool lookedUp;
+
   AthleteAdjustments adjustmentsOf(String athleteId) =>
       adjustments[athleteId] ?? const AthleteAdjustments();
 }
 
-/// The week and day on screen: the chosen ones, else today's week and the D13 day, kept within the week's days.
+/// The week and day on screen: the session's when one is shown, else the chosen ones, else today's week and the D13
+/// day, kept within the week's days. The session's win so the day never drifts from the records on screen: the D13
+/// day moves once the day being trained has its first set done.
 ({int week, int day}) shownDayOf(
   SessionDayData data,
   SessionScreenState state,
 ) {
+  if (state.live?.session case final s?) return (week: s.week, day: s.day);
   final week = state.week ?? data.location.week;
   final count = data.plan.weekModelOf(week)?.days.length ?? 0;
   final day = (state.day ?? data.openingDay).clamp(1, count < 1 ? 1 : count);
@@ -507,31 +568,48 @@ class SessionScreenController extends Notifier<SessionScreenState> {
 
   /// Reads the chosen day's session without creating it and, if it exists, takes it with what this device still has
   /// queued over it and follows its live channel. A failed read is left for the next attempt.
+  ///
+  /// A session belongs to a date: today's is looked up first, and a day done on another date with no session today
+  /// shows the session it was done in, so its marked sets are there whatever the day it is looked at.
   Future<void> _lookUp() async {
     final data = _dayData;
     if (data == null) return;
     final shown = shownDayOf(data, state);
-    final LiveSession? found;
-    try {
-      found = await ref
-          .read(sessionRepositoryProvider)
-          .find(
-            data.clubId,
-            assignmentId: data.location.assignmentId,
-            date: ref.read(todayProvider),
-            week: shown.week,
-            day: shown.day,
-          );
-    } catch (_) {
-      return;
-    }
+    final today = ref.read(todayProvider);
+    final sessions = ref.read(sessionRepositoryProvider);
+    Future<LiveSession?> findOn(DateTime date) => sessions.find(
+      data.clubId,
+      assignmentId: data.location.assignmentId,
+      date: date,
+      week: shown.week,
+      day: shown.day,
+    );
+    LiveSession? found;
     bool stale() =>
         !ref.mounted ||
         state.live != null ||
         state.opening ||
         _dayData?.location.assignmentId != data.location.assignmentId ||
         shownDayOf(data, state) != shown;
-    if (found == null || stale()) return;
+    void lookedUp() {
+      if (!stale() && !state.lookedUp) state = _with(lookedUp: true);
+    }
+
+    try {
+      found = await findOn(today);
+      if (found == null) {
+        final doneOn = await _doneDateOf(data, shown.week, shown.day);
+        if (doneOn != null && doneOn != today) found = await findOn(doneOn);
+      }
+    } catch (_) {
+      lookedUp();
+      return;
+    }
+    if (found == null) {
+      lookedUp();
+      return;
+    }
+    if (stale()) return;
     final unsent = await ref
         .read(setSyncQueueProvider)
         .resume(found.session.id);
@@ -540,7 +618,35 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     state = _with(
       live: _withUnsent(found, unsent),
       liveStatus: _sync?.status ?? LiveStatus.connecting,
+      lookedUp: true,
     );
+  }
+
+  /// The date the athlete on screen started [day] of [week], from the cycle's day states; null when it is pending or
+  /// they cannot be read.
+  Future<DateTime?> _doneDateOf(SessionDayData data, int week, int day) async {
+    final subscription = ref.listen(
+      cycleDayStatesProvider((
+        data.clubId,
+        data.location.assignmentId,
+        data.location.startDate,
+        data.location.cycle,
+        athleteOnScreen(data, state),
+      )).future,
+      (_, _) {},
+    );
+    try {
+      return doneDateOf(
+        await subscription.read(),
+        cycle: data.location.cycle,
+        week: week,
+        day: day,
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      subscription.close();
+    }
   }
 
   /// The opening of the session on screen reached the server (E7.16): the screen moves to the server's session, with
@@ -756,11 +862,11 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     final live = state.live;
     final present = live?.session.presentAthleteIds ?? const <String>[];
     if (live != null && athleteIds.every(present.contains)) return live;
-    final shown = live == null
-        ? shownDayOf(data, state)
-        : (week: live.session.week, day: live.session.day);
+    final shown = shownDayOf(data, state);
+    // A session on screen is opened again on its own date: it may be the one of a day done on an earlier date.
     await _open(
       data,
+      date: live?.session.date ?? ref.read(todayProvider),
       week: shown.week,
       day: shown.day,
       present: {...present, ...athleteIds},
@@ -770,6 +876,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
 
   Future<void> _open(
     SessionDayData data, {
+    required DateTime date,
     required int week,
     required int day,
     required Set<String> present,
@@ -789,7 +896,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
               assignmentId: data.location.assignmentId,
               planId: data.location.planId,
               cycle: data.location.cycle,
-              date: ref.read(todayProvider),
+              date: date,
               week: week,
               day: day,
             ),
@@ -804,7 +911,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
                 .open(
                   data.clubId,
                   assignmentId: data.location.assignmentId,
-                  date: ref.read(todayProvider),
+                  date: date,
                   week: week,
                   day: day,
                   presentAthleteIds: present,
@@ -946,6 +1053,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
         adjustments: {...state.adjustments, athleteId: value},
         opening: state.opening,
         liveStatus: state.liveStatus,
+        lookedUp: state.lookedUp,
       );
 
   SessionScreenState _with({
@@ -953,6 +1061,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     String? athleteId,
     LiveSession? live,
     LiveStatus? liveStatus,
+    bool? lookedUp,
   }) => SessionScreenState(
     week: state.week,
     day: state.day,
@@ -961,6 +1070,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     adjustments: state.adjustments,
     opening: opening ?? state.opening,
     liveStatus: liveStatus ?? state.liveStatus,
+    lookedUp: lookedUp ?? state.lookedUp,
   );
 }
 
@@ -972,13 +1082,15 @@ final sessionScreenProvider =
 /// The athlete tab on screen: the chosen one, else the user if they are in the group, else the group's first. Null
 /// for a group without athletes.
 String? athleteOnScreen(SessionDayData data, SessionScreenState state) {
-  final members = data.memberIds;
   final chosen = state.athleteId;
-  if (chosen != null && members.contains(chosen)) return chosen;
-  return members.contains(data.ownAthleteId)
-      ? data.ownAthleteId
-      : members.firstOrNull;
+  if (chosen != null && data.memberIds.contains(chosen)) return chosen;
+  return defaultAthleteOf(data.memberIds, data.ownAthleteId);
 }
+
+/// The athlete tab shown before choosing one: the user if they are among [memberIds], else the first. Null without
+/// athletes.
+String? defaultAthleteOf(List<String> memberIds, String? ownAthleteId) =>
+    memberIds.contains(ownAthleteId) ? ownAthleteId : memberIds.firstOrNull;
 
 /// The date whose proposed kilos (E7.14) stand for [week] of the cycle on screen: today in today's week, else the
 /// first date of that week of the cycle.
@@ -1002,6 +1114,16 @@ final guidedPassIdProvider = Provider<String Function()>((ref) {
       '${random.nextInt(0x7fffffff).toRadixString(36)}';
 });
 
+final guidedPositionStoreProvider = Provider<GuidedPositionStore>(
+  (ref) => SharedPreferencesGuidedPositionStore(),
+);
+
+/// Where this device was in the guided mode: it outlives the screen (whose state goes when it is left) and, through
+/// [guidedPositionStoreProvider], a reload of the PWA.
+final rememberedGuidedPositionProvider = Provider<RememberedGuidedPosition>(
+  (ref) => RememberedGuidedPosition(ref.watch(guidedPositionStoreProvider)),
+);
+
 /// The guided mode over the day's session (E7.20): the pure [GuidedSession], fed with the session's records and its
 /// guided pass, and the writes it leads to. Null without a plan day on screen. Until "Comenzar" it needs no session
 /// (E7.27): choosing who trains writes nothing, and "Comenzar" creates the session with them.
@@ -1009,12 +1131,17 @@ final guidedPassIdProvider = Provider<String Function()>((ref) {
 /// Since E7.26 the pass is the session's, the same on every device: each action is applied on screen at once and goes
 /// to the queue (E7.9) behind the sets; what other devices do arrives with the session over the live channel. What is
 /// shown is the server's pass with this device's unsent actions applied over it, so nothing steps back while they
-/// travel. Leaving the screen keeps the pass for everyone; only the athletes being chosen and the step's draft are
+/// travel. Leaving the screen keeps the pass for everyone and, on this device, the step's draft and the step shown
+/// with "Atrás" ([RememberedGuidedPosition]), so coming back lands where it was; only the athletes being chosen are
 /// dropped.
 class GuidedController extends Notifier<GuidedSession?> {
   /// Actions applied on screen that have not reached the queue yet.
   final _unqueued = <GuidedPassAction>[];
   Future<void> _submitting = Future.value();
+
+  /// Whether the remembered position was already compared with the session's pass. Until then nothing is remembered,
+  /// so the empty state of a screen just opened does not overwrite it.
+  var _restored = false;
 
   @override
   GuidedSession? build() {
@@ -1030,7 +1157,8 @@ class GuidedController extends Notifier<GuidedSession?> {
     final queue = ref.read(setSyncQueueProvider);
     final subscription = queue.changes.listen((_) => _refresh());
     ref.onDispose(subscription.cancel);
-    final data = ref.read(sessionDayProvider).value;
+    // Watched, not read: after a reload on the guided route the day arrives after this is first built.
+    final data = ref.watch(sessionDayProvider.select((d) => d.value));
     final screen = ref.read(sessionScreenProvider);
     if (data == null) return null;
     final live = screen.live;
@@ -1040,7 +1168,53 @@ class GuidedController extends Notifier<GuidedSession?> {
     final day = planDayOf(data, shown.week, shown.day);
     if (day == null) return null;
     final athlete = athleteOnScreen(data, screen);
-    return GuidedSession.entering(day, _shownPass(live), [?athlete]);
+    listenSelf((_, next) => _remember(next));
+    final remembered = ref.read(rememberedGuidedPositionProvider);
+    if (!remembered.loaded) {
+      unawaited(
+        remembered.load().then((_) {
+          if (ref.mounted) _setRestoring(state);
+        }),
+      );
+    }
+    return _restoring(
+      GuidedSession.entering(day, _shownPass(live), [?athlete]),
+    );
+  }
+
+  /// [guided] with what the device remembered of this pass, the first time it can be compared: once the position is
+  /// loaded and the session is there. A pass that is no longer the remembered one, or on another block, keeps
+  /// nothing of it.
+  GuidedSession? _restoring(GuidedSession? guided) {
+    if (_restored || guided == null) return guided;
+    final remembered = ref.read(rememberedGuidedPositionProvider);
+    final live = _live;
+    if (!remembered.loaded || live == null) return guided;
+    _restored = true;
+    final saved = remembered.value;
+    final queue = ref.read(setSyncQueueProvider);
+    final restored =
+        saved != null &&
+            queue.currentIdOf(saved.sessionId) ==
+                queue.currentIdOf(live.session.id)
+        ? guided.restoring(saved)
+        : guided;
+    // What no longer applies is forgotten now, not on the next change.
+    _remember(restored);
+    return restored;
+  }
+
+  void _setRestoring(GuidedSession? guided) {
+    final next = _restoring(guided);
+    if (!identical(next, state)) state = next;
+  }
+
+  void _remember(GuidedSession? guided) {
+    final live = _live;
+    if (!_restored || guided == null || live == null) return;
+    ref
+        .read(rememberedGuidedPositionProvider)
+        .save(guided.positionIn(live.session.id));
   }
 
   LiveSession? get _live => ref.read(sessionScreenProvider).live;
@@ -1066,7 +1240,7 @@ class GuidedController extends Notifier<GuidedSession?> {
 
   void _refresh() {
     final s = state;
-    if (s != null) state = s.withPass(_shownPass());
+    if (s != null) _setRestoring(s.withPass(_shownPass()));
   }
 
   void _settle() {
@@ -1210,6 +1384,12 @@ class GuidedController extends Notifier<GuidedSession?> {
 
   void startStep() => _update((s) => s.startStep(recorded));
 
+  /// "Atrás": shows the step before, on this device only.
+  void goBack() => _update((s) => s.goBack(recorded));
+
+  /// Back from a step shown with "Atrás" to the one the pass is on.
+  void toCurrent() => _update((s) => s.toCurrent());
+
   void toggleNotDone(String athleteId) =>
       _update((s) => s.toggleNotDone(athleteId, recorded));
 
@@ -1226,13 +1406,34 @@ class GuidedController extends Notifier<GuidedSession?> {
   );
 
   /// "Terminar serie": moves on at once and writes each athlete's set with what their card shows. The sets go to the
-  /// queue ahead of the pass. Rethrows the backend's refusal so the screen can show it.
+  /// queue ahead of the pass. On a step shown with "Atrás" the sets are written again, replacing what they had, and
+  /// the pass does not change. Rethrows the backend's refusal so the screen can show it.
   Future<void> finishStep() async {
     final s = state;
     final done = recorded;
     final run = s?.run;
-    final step = s?.currentStep(done);
-    if (s == null || run == null || step == null) return;
+    if (s == null || run == null) return;
+    if (s.reviewStep(done) case final review?) {
+      final draft = s.draftFor(review);
+      final result = s.finishReview(done);
+      final writes = [
+        for (final a in result.record)
+          _markWrite(
+            s.day.blocks[run.blockIndex],
+            run.blockIndex,
+            review.prescription,
+            review.set,
+            a,
+            draft.edits[a],
+            fromRecord: true,
+          ),
+      ];
+      state = result.next;
+      await _send(writes);
+      return;
+    }
+    final step = s.currentStep(done);
+    if (step == null) return;
     final draft = s.draftFor(step);
     final result = s.finishStepActions(done, now: _now);
     final writes = [
@@ -1278,10 +1479,12 @@ class GuidedController extends Notifier<GuidedSession?> {
     int p,
     int set,
     String athleteId,
-    SetEdit? edit,
-  ) {
+    SetEdit? edit, {
+    bool fromRecord = false,
+  }) {
     final screen = ref.read(sessionScreenProvider);
-    final redo = state?.redo ?? false;
+    // A step shown again with "Atrás" starts from what it recorded, even when the day is redone.
+    final redo = !fromRecord && (state?.redo ?? false);
     final current = redo
         ? null // a redone set starts from the proposal, not from what was recorded before
         : screen.live?.records

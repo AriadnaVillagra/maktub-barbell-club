@@ -29,7 +29,7 @@ class ListPlans {
   final ListPlansStore _store;
 
   Future<List<Json>> call(ClubContext club) async {
-    PlanAccess accessOf(Plan p) => PlanAccess.of(p, userId: club.userId, roles: club.roles);
+    PlanAccess accessOf(Plan p) => club.planAccess(p);
     final plans = [
       for (final p in await _store.plans(club.clubId))
         if (accessOf(p).see) p,

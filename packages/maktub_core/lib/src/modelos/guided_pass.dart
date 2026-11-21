@@ -157,7 +157,8 @@ class GuidedPass {
   /// counts as done. Nothing is ever unmarked.
   final bool redo;
 
-  /// When the first block started, and when the pass finished.
+  /// When the pass began ("Comenzar"), and when it finished. A pass begun before that was stamped has the first
+  /// block's start.
   final DateTime? start;
   final DateTime? end;
 

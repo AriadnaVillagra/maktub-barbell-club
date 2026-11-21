@@ -110,6 +110,18 @@ void main() {
       expect(create(club, {'nombre': ' ', 'tipo': 'emom', 'trabajoSeg': 0}), rejects(HttpStatus.badRequest));
     });
 
+    test('a coach without club admin creates a timer through the endpoint', () async {
+      const coach = ClubContext(clubId: 'club-a', userId: 'c', roles: {Rol.coach}, clubType: TipoClub.club);
+      final r = await _call(coach, (c) => createTimerEndpoint(c, store: _FakeTimers()), 'POST', {
+        'nombre': 'Tabata',
+        'tipo': 'tabata',
+        'trabajoSeg': 20,
+        'descansoSeg': 10,
+        'rondas': 8,
+      });
+      expect(r.statusCode, HttpStatus.created, reason: await r.body());
+    });
+
     test('the endpoint rejects an athlete', () async {
       final r = await _call(athlete, (c) => createTimerEndpoint(c, store: _FakeTimers()), 'POST', {'nombre': 'x'});
       expect(r.statusCode, HttpStatus.forbidden);
@@ -140,10 +152,11 @@ void main() {
       expect(edited.clubId, clubPlataforma);
     });
 
-    test('a coach without club admin cannot edit the club timers', () async {
+    test('a coach without club admin edits the club timers; an athlete cannot', () async {
       final store = _FakeTimers()..timers.add(timer('t1', 'club-a'));
       const coach = ClubContext(clubId: 'club-a', userId: 'c', roles: {Rol.coach}, clubType: TipoClub.club);
-      await expectLater(UpdateTimer(store)(coach, 't1', {'nombre': 'X'}), rejects(HttpStatus.forbidden));
+      expect((await UpdateTimer(store)(coach, 't1', {'nombre': 'X'})).nombre, 'X');
+      await expectLater(UpdateTimer(store)(athlete, 't1', {'nombre': 'Y'}), rejects(HttpStatus.forbidden));
     });
 
     test('clearing the cap of a timer removes it', () async {
@@ -280,6 +293,20 @@ void main() {
       expect(store.teams, isEmpty);
       final get = await _call(athlete, (c) => getTeamEndpoint(c, store: store), 'GET', null);
       expect(get.statusCode, HttpStatus.ok);
+    });
+
+    test('the equipment stays with the club admin: a coach gets 403, a platform admin without membership saves', () async {
+      final store = _FakeTeams();
+      final body = {
+        'barras': [{'kg': 15, 'cantidad': 1}],
+        'discos': [],
+      };
+      const coach = ClubContext(clubId: 'club-a', userId: 'c', roles: {Rol.coach, Rol.atleta}, clubType: TipoClub.club);
+      expect((await _call(coach, (c) => saveTeamEndpoint(c, store: store), 'PUT', body)).statusCode, HttpStatus.forbidden);
+      expect(store.teams, isEmpty);
+      const platform = ClubContext(clubId: 'club-a', userId: 'p', roles: {}, clubType: TipoClub.club, isPlatformAdmin: true);
+      expect((await _call(platform, (c) => saveTeamEndpoint(c, store: store), 'PUT', body)).statusCode, HttpStatus.ok);
+      expect(store.teams, isNotEmpty);
     });
   });
 

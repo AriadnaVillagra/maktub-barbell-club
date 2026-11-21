@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import '../tema/contexto.dart';
 import '../tokens/primitivos.dart';
 
-/// The body of the sign-in screen: the club's name, a line of help, the slot for the sign-in button
-/// and the reason the last attempt failed.
+/// The body of the sign-in screen: the club's name, a line of help, the slot for the sign-in button,
+/// the reason the last attempt failed and, optionally, what else the person can do ([footer]).
 ///
 /// The button is drawn by Google's library (an HTML element), so the panel only reserves its room:
 /// [externalButtonWidth] × [externalButtonHeight]. While [busy], a progress indicator takes the
@@ -18,6 +18,7 @@ class SignInPanel extends StatelessWidget {
     required this.action,
     this.busy = false,
     this.message,
+    this.footer,
   });
 
   /// Width asked from Google's button, in logical pixels (Google allows up to 400).
@@ -38,11 +39,15 @@ class SignInPanel extends StatelessWidget {
   /// Why the last attempt failed, shown under the button. Null when there's nothing to say.
   final String? message;
 
+  /// Under the message: other actions (e.g. requesting a club) or a short form, at full width.
+  final Widget? footer;
+
   @override
   Widget build(BuildContext context) {
     final logo = this.logo;
     final subtitle = this.subtitle;
     final message = this.message;
+    final footer = this.footer;
     return ConstrainedBox(
       constraints: const BoxConstraints(maxWidth: _maxWidth),
       child: Column(
@@ -74,6 +79,10 @@ class SignInPanel extends StatelessWidget {
           if (message != null) ...[
             const SizedBox(height: Espacio.l),
             _FailureMessage(message),
+          ],
+          if (footer != null) ...[
+            const SizedBox(height: Espacio.l),
+            footer,
           ],
         ],
       ),

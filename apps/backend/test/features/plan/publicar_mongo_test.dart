@@ -71,6 +71,30 @@ void main() {
   Future<void> insert(Plan p) =>
       db!.collection(Colecciones.planes).insertOne(aDocumento(p.toJson()));
 
+  mongoTest('assignments reads those of that plan and club only', () async {
+    final col = db!.collection(Colecciones.asignaciones);
+    await col.remove({});
+    Assignment assignment(String id, String clubId, String planId) => Assignment(
+      id: id,
+      clubId: clubId,
+      planId: planId,
+      members: [AssignmentMember(athleteId: 'ari', from: DateTime.utc(2026, 11, 2))],
+      startDate: DateTime.utc(2026, 11, 2),
+      auditoria: Auditoria.nueva('coach', ahora: DateTime.utc(2026, 11, 1)),
+    );
+    for (final a in [
+      assignment('a1', 'club-a', 'p1'),
+      assignment('a2', 'club-a', 'p2'),
+      assignment('a3', 'club-b', 'p1'),
+    ]) {
+      await col.insertOne(aDocumento(a.toJson()));
+    }
+
+    final read = await MongoPublishPlanStore(db!).assignments('club-a', 'p1');
+    expect([for (final a in read) a.id], ['a1']);
+    expect(read.single.currentAthleteIds, ['ari']);
+  });
+
   mongoTest('publish writes the copy of the plan of that club only', () async {
     await reset();
     await insert(plan('club-a'));

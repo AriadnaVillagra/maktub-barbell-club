@@ -25,11 +25,12 @@ String planVisibilityDetail(PlanVisibility v) => switch (v) {
 String formatNumber(double v) =>
     v == v.roundToDouble() ? '${v.toInt()}' : '$v'.replaceAll('.', ',');
 
-/// One set as "10", "10 al 65 %", "10 con 12,5 kg" or "Máx.".
+/// One set as "10", "10 al 65 %", "10 con 12,5 kg", "10 con kg por atleta" or "Máx.".
 String _setLabel(PlanSet s) {
   final reps = s.maxReps ? 'Máx.' : '${s.reps ?? '?'}';
   if (s.pct != null) return '$reps al ${formatNumber(s.pct!)} %';
   if (s.kg != null) return '$reps con ${formatNumber(s.kg!)} kg';
+  if (s.byAthlete.values.any((l) => l.pct == null && l.kg != null)) return '$reps con kg por atleta';
   return reps;
 }
 
@@ -46,3 +47,16 @@ String setsSummary(List<PlanSet> sets) {
   }
   return groups.map((g) => '${g.$1}x${g.$2}').join(', ');
 }
+
+/// "A, B y C", for a sentence.
+String _namesList(List<String> names) =>
+    names.length == 1 ? names.single : '${names.take(names.length - 1).join(', ')} y ${names.last}';
+
+/// What a save says about the exercises it made weighted ([gained]) or could not ([failed]): one notice each, none when
+/// both are empty.
+List<String> gainedLoadNotices(List<String> gained, List<String> failed) => [
+  if (gained.isNotEmpty)
+    '${_namesList(gained)} ${gained.length == 1 ? 'ahora tiene' : 'ahora tienen'} peso',
+  if (failed.isNotEmpty)
+    'No se pudo guardar con peso: ${_namesList(failed)}. Se vuelve a intentar al guardar el plan.',
+];

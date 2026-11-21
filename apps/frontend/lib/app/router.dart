@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:maktub_ui/maktub_ui.dart';
 
 import '../core/refresh/refresh_on_return.dart';
+import '../features/access/presentation/club_picker_page.dart';
 import '../features/access/presentation/providers.dart';
 import '../features/asignacion/presentation/providers.dart' show clubAssignmentsProvider;
 import '../features/atletas/presentation/providers.dart' show athletesProvider;
@@ -19,11 +20,14 @@ import '../features/atletas/presentation/profile_page.dart';
 import '../features/catalogo/presentation/catalog_routes.dart';
 import '../features/catalogo/presentation/categories_page.dart';
 import '../features/catalogo/presentation/team_page.dart';
+import '../features/history/presentation/history_page.dart';
+import '../features/history/presentation/session_history_page.dart';
 import '../features/catalogo/presentation/timers_page.dart';
 import '../features/plan/presentation/plan_editor_page.dart';
 import '../features/wods/presentation/wod_editor_page.dart';
 import '../features/wods/presentation/wods_page.dart';
 import '../features/plan/presentation/plans_page.dart';
+import '../features/club_requests/presentation/club_requests_page.dart';
 import '../features/members/presentation/members_page.dart';
 import '../features/sesion/presentation/guided_page.dart';
 import '../features/sesion/presentation/session_page.dart';
@@ -67,8 +71,23 @@ abstract final class Rutas {
   static const equipo = '$preferencias/equipo';
   static const miembros = '$preferencias/miembros';
 
+  /// Club requests from people without an account; only platform admins see it.
+  static const pedidosClub = '$preferencias/pedidos-club';
+
+  /// Every club of the platform, to work in any of them; only platform admins see it.
+  static const club = '$preferencias/club';
+
   /// The athlete's own read-only references.
   static const perfil = '/perfil';
+
+  /// The athlete's own past sessions, in training mode; one session is `<historial>/<sessionId>`.
+  static const historial = '$entrenamiento/historial';
+
+  /// Where the own history used to live (under Perfil); old links are redirected to [historial].
+  static const historialAntiguo = '$perfil/historial';
+
+  /// An athlete's past sessions as the coach reads them, from their sheet; one session is `<that>/<sessionId>`.
+  static String historialDeAtleta(String athleteId) => '$atletas/${Uri.encodeComponent(athleteId)}/historial';
 
   /// Sign-in with Google. Every route leads here without a session (see [sessionRedirect]).
   static const signIn = '/ingreso';
@@ -131,6 +150,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ],
                 ),
                 GoRoute(
+                  path: 'historial',
+                  builder: (_, _) => const OwnHistoryPage(basePath: Rutas.historial),
+                  routes: [
+                    GoRoute(
+                      path: ':sessionId',
+                      builder: (_, state) => OwnSessionHistoryPage(sessionId: state.pathParameters['sessionId']!),
+                    ),
+                  ],
+                ),
+                GoRoute(
                   path: 'calendario',
                   builder: (_, _) => const SessionPage(
                     guidedPath: Rutas.entrenar,
@@ -155,7 +184,28 @@ final routerProvider = Provider<GoRouter>((ref) {
                   routes: [
                     GoRoute(
                       path: ':id',
-                      builder: (_, state) => AthleteSheetPage(athleteId: state.pathParameters['id']!),
+                      builder: (_, state) => AthleteSheetPage(
+                        athleteId: state.pathParameters['id']!,
+                        historyPath: Rutas.historialDeAtleta(state.pathParameters['id']!),
+                      ),
+                      routes: [
+                        GoRoute(
+                          path: 'historial',
+                          builder: (_, state) => CoachHistoryPage(
+                            athleteId: state.pathParameters['id']!,
+                            basePath: Rutas.historialDeAtleta(state.pathParameters['id']!),
+                          ),
+                          routes: [
+                            GoRoute(
+                              path: ':sessionId',
+                              builder: (_, state) => SessionHistoryPage(
+                                athleteId: state.pathParameters['id']!,
+                                sessionId: state.pathParameters['sessionId']!,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -215,11 +265,26 @@ final routerProvider = Provider<GoRouter>((ref) {
                   builder: (_, _) => RefreshOnReturn(providers: [clubTeamProvider], child: const TeamPage()),
                 ),
                 GoRoute(path: 'miembros', builder: (_, _) => const MembersPage(exitPath: Rutas.preferencias)),
+                GoRoute(path: 'pedidos-club', builder: (_, _) => const ClubRequestsPage()),
+                GoRoute(path: 'club', builder: (_, _) => const ClubPickerPage()),
               ],
             ),
           ]),
           StatefulShellBranch(routes: [
-            GoRoute(path: Rutas.perfil, builder: (_, _) => const ProfilePage()),
+            GoRoute(
+              path: Rutas.perfil,
+              builder: (_, _) => const ProfilePage(),
+              routes: [
+                // Old links to the own history keep working: they land on the training branch.
+                GoRoute(
+                  path: 'historial',
+                  redirect: (_, state) => state.uri.toString().replaceFirst(Rutas.historialAntiguo, Rutas.historial),
+                  routes: [
+                    GoRoute(path: ':sessionId', builder: (_, _) => const SizedBox.shrink()),
+                  ],
+                ),
+              ],
+            ),
           ]),
         ],
       ),

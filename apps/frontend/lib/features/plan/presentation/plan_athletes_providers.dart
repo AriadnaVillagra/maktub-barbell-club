@@ -17,37 +17,28 @@ class PlanAthletes {
   /// True when [athletes] come from the plan's assignment. False when it has none: they are every athlete of the
   /// club, and the coach chooses among them ([planAthleteChoiceProvider]).
   final bool assigned;
+
+  /// Who the plan's sets in kilos ask kilos for, one by one (`asksKgPerAthlete`): the athletes of its assignment.
+  /// Empty without one, so a plan not assigned yet keeps one weight per set.
+  List<String> get kgAthleteIds => assigned ? [for (final a in athletes) a.id] : const [];
 }
 
-/// The athletes plan [planId] is for: those in its active assignments now (E6.7), once each; without an active
-/// assignment, everyone who was in its latest one. A plan never assigned
+/// The athletes plan [planId] is for (`planAthleteIds`, the rule publishing validates with): those in its active
+/// assignments now (E6.7), once each; without an active assignment, those of its latest one. A plan never assigned
 /// gets every athlete of the club to choose from. Empty when they cannot be read (who cannot plan does not get here).
 final planAthletesProvider = FutureProvider.autoDispose.family<PlanAthletes, String>((ref, planId) async {
   final clubId = (await ref.watch(meProvider.future))?.activeClub?.club.id;
   if (clubId == null) return PlanAthletes.none;
   try {
     // Through the screen's provider, so assigning the plan from the editor refreshes this.
-    final all = [
+    final ofPlan = [
       for (final a in (await ref.watch(clubAssignmentsProvider.future)).assignments)
         if (a.planId == planId) a,
     ];
-    final active = [
-      for (final a in all)
-        if (a.status == AssignmentStatus.active) a,
-    ];
-    final chosen = active.isNotEmpty ? active : all.take(1).toList();
-
     final people = await ref.watch(athletesProvider.future);
     final names = {for (final a in people) a.id: a.name};
-    final Iterable<String> ids;
-    if (chosen.isEmpty) {
-      ids = [for (final a in people) a.id];
-    } else {
-      ids = <String>{
-        for (final a in chosen)
-          ...(a.status == AssignmentStatus.ended ? a.athleteIds : a.currentAthleteIds),
-      };
-    }
+    final assigned = ofPlan.isNotEmpty;
+    final ids = assigned ? planAthleteIds(ofPlan) : [for (final a in people) a.id];
     final athletes = await [
       for (final id in ids)
         () async {
@@ -60,7 +51,7 @@ final planAthletesProvider = FutureProvider.autoDispose.family<PlanAthletes, Str
           );
         }(),
     ].wait;
-    return PlanAthletes(athletes: athletes, assigned: chosen.isNotEmpty);
+    return PlanAthletes(athletes: athletes, assigned: assigned);
   } catch (_) {
     // Without them the editor converts nothing; the plan is still edited as before.
     return PlanAthletes.none;

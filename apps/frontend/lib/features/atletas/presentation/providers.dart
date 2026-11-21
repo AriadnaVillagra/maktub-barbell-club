@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:maktub_core/maktub_core.dart';
 
@@ -22,8 +24,16 @@ final athleteRepositoryProvider = Provider<AthleteRepository>(
   ),
 );
 
-/// The calendar day the sheet is computed for. Tests override it.
-final todayProvider = Provider<DateTime>((ref) => hoy());
+/// Today's calendar date on the device, which places the user in their plan and dates the sessions they open. It
+/// moves at midnight: the app can stay open for days, and a stale date would open the day's session on another
+/// date. A timer due while the app sleeps runs when it wakes. Tests override it.
+final todayProvider = Provider<DateTime>((ref) {
+  final now = DateTime.now();
+  final midnight = DateTime(now.year, now.month, now.day + 1);
+  final timer = Timer(midnight.difference(now), ref.invalidateSelf);
+  ref.onDispose(timer.cancel);
+  return soloFecha(now);
+});
 
 /// The athletes of the active club, by name.
 final athletesProvider = FutureProvider<List<AthleteSummary>>((ref) async {

@@ -7,9 +7,9 @@ import 'package:mongo_dart/mongo_dart.dart';
 import 'save_team_store.dart';
 
 /// `PUT /clubes/{clubId}/equipo` with `{barras: [{kg, cantidad}], discos: [{kg, cantidad}]}` → the saved
-/// inventory, with `cargables`. Needs `editarCatalogoClub`.
+/// inventory, with `cargables`. Needs [Accion.editarEquipo] (club admin and up).
 Future<Response> saveTeamEndpoint(RequestContext context, {SaveTeamStore? store}) async {
-  final club = context.read<ClubContext>().authorize(Accion.editarCatalogoClub);
+  final club = context.read<ClubContext>().authorize(Accion.editarEquipo);
   final body = await leerCuerpoJson(context.request);
   final team = await SaveTeam(store ?? MongoSaveTeamStore(context.read<Db>()))(club, body);
   return Response.json(body: {...team.toJson(), 'cargables': team.cargables});

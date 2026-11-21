@@ -27,16 +27,18 @@ Rama: `m1-mvp`. Se mergea a `main` al cerrar cada épica (design.md D2).
 | E4 | [Reglas de carga](E4-reglas-de-carga.md) | hecho | 6 / 6 (mergeada a `main`; en producción) | — |
 | E5 | [Editor de plan](E5-editor-de-plan.md) | hecho | 15 / 15 (mergeada a `main`; en producción) | — |
 | E6 | [Asignación y calendario](E6-asignacion-calendario.md) | hecho | 7 / 7 (mergeada a `main`; en producción; el día abre en 1 hasta E7.13; E6.7 en `m1-mvp`) | — |
-| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | lista para merge | 27 / 27 (todos hechos; falta la prueba real con dos teléfonos y modo avión, D3) | — |
-| E8 | [Migración](E8-migracion.md) | lista para merge | 10 / 10 (todos hechos; migración cerrada el 2026-11-19. Lo que falta de Octubre 2026 y Levantamiento lo hace Ari a mano en la app, ver E8.6) | — |
-| E9 | [Cierre](E9-cierre.md) | pendiente | 0 / 8 | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
+| E7 | [Sesión y registro en vivo](E7-sesion-en-vivo.md) | hecho | 27 / 27 (mergeada a `main`, PR #11; la prueba real con dos teléfonos y modo avión queda en E9.2 y E9.3) | — |
+| E8 | [Migración](E8-migracion.md) | hecho | 10 / 10 (mergeada a `main`, PR #11; migración cerrada el 2026-11-19. Lo que falta de Octubre 2026 y Levantamiento lo hace Ari a mano en la app, ver E8.6) | — |
+| E9 | [Cierre](E9-cierre.md) | en curso | 1 / 8 (E9.1 hecho: PR #11 y versión 1.6.0+7 desplegada) | E9.3, E9.5, E9.7 ← disponibilidad de Andi y Ari (pasos manuales) |
 
 Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados a `main` el
 2026-11-07.
 
 ## Preguntas abiertas que vienen del diseño
 
-- R4 (`diseno.md` no refleja el recorte de M1): no frena nada. Ver design.md §6.
+- R4: resuelto el 2026-11-21 (`diseno.md` resume qué entró en M1).
+- **`diseno.md` al día (2026-11-21):** todas las notas de abajo que dicen "avisar a su sesión" o "`diseno.md` no tiene…"
+  ya están volcadas. Desde ahora `diseno.md` se actualiza en esta misma sesión al cerrar cada cambio (CLAUDE.md).
 
 ## Ajustes tras la prueba de E2 (2026-11-08)
 
@@ -45,7 +47,7 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 
 - **Antes de usarlo en producción:** desplegar la API y la PWA juntas, y correr `tool/ajustes_e2.dart`
   con `ADMIN_PLATAFORMA`. Sin ese paso, los coaches actuales pierden la edición del catálogo.
-- **`diseno.md` quedó atrás** en C1 (ejercicios base) y en Equipo (S3 de F2). Se actualiza desde su sesión.
+- **`diseno.md`** ya refleja C1 (ejercicios base) y Equipo (S3 de F2) (2026-11-21).
 - **E5 (editor de plan):** la barra se indica por ejercicio, y la prescripción la puede pisar con una barra opcional (decidido el 2026-11-08). El control va en el editor (E5.7 o E5.8), y E4/E7 tienen que usar esa barra al calcular.
 - **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja. El temporizador base `Cronómetro` (for time sin tope, agregado el 2026-11-08) depende de esto: tiene que contar hacia arriba y dejar registrado el tiempo final del WoD.
 - **Datos en producción (2026-11-08):** ya están el grupo de Andi y Ari, el temporizador `Cronómetro` y los roles de E2.
@@ -84,7 +86,7 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
   - E7.23: "Hacer todo de nuevo" nunca desmarca. Una serie rehecha se escribe con lo propuesto y pisa la anterior. "Terminar bloque" de un bloque sin pasos reescribe sus series con el plan.
   - E7.24: `CalendarPage` se borró. La sesión tiene el selector "Sesión del día / Calendario", y `/entrenamiento/calendario` abre la vista Calendario. El estado de los días es de todo el ciclo (`cycleDayStatesProvider`) y se refresca al escribir una serie.
 - **E7.25 (hecho):** el calendario tiene tres vistas (Compacta, Tarjetas y Detallada), y la elegida se guarda en el dispositivo (`maktub.calendarLayout`). Los ejercicios "principales" son los de bloques de categoría `primario`; si no hay, los del primer bloque con ejercicios. El día de D13 dice "Toca hoy". En el celular, el detalle es un panel abajo y no un modal. Componente nuevo `DayCard` en `maktub_ui`; los goldens del muestrario se regeneraron por la sección nueva de la galería.
-- **E7.20 (hecho), decisiones para revisar con Ari:** (1) elegir en el modo guiado a un atleta que no está presente reabre la sesión sumándolo a presentes, porque el backend solo acepta series de presentes; (2) "Terminar bloque" en un bloque por tiempo con series (WoD o EMOM con ejercicios) registra como hechas, con los valores del plan, las series que faltaban, para que el día cuente como hecho; (3) los kg y reps editados quedan en el teléfono hasta "Terminar serie"; (4) el modo guiado avanza sin esperar la escritura, y si una falla muestra el error y el paso queda pasado; (5) un bloque con todas sus series ya registradas se cierra como hecho al tocar "Iniciar bloque". Se entra desde la sesión con "Entrenar" (`/entrenamiento/sesion/entrenar`); la posición se pierde al salir.
+- **E7.20 (hecho), decisiones para revisar con Ari:** (1) elegir en el modo guiado a un atleta que no está presente reabre la sesión sumándolo a presentes, porque el backend solo acepta series de presentes; (2) "Terminar bloque" en un bloque por tiempo con series (WoD o EMOM con ejercicios) registra como hechas, con los valores del plan, las series que faltaban, para que el día cuente como hecho; (3) los kg y reps editados quedan en el teléfono hasta "Terminar serie"; (4) el modo guiado avanza sin esperar la escritura, y si una falla muestra el error y el paso queda pasado; (5) un bloque con todas sus series ya registradas se cierra como hecho al tocar "Iniciar bloque". Se entra desde la sesión con "Entrenar" (`/entrenamiento/sesion/entrenar`); la posición se recuerda al salir (2026-11-21).
 - **E7.19 (hecho):** `PUT .../sesiones/{id}/tiempos/{tiempoId}` exige que los atletas estén presentes en la sesión (422 si no). Un id de cliente repetido en otro club da 500 por clave duplicada; se aceptó porque los ids son UUID. Para E8.5: la hoja Tiempos trae nombres de atletas, no ids.
 - **`diseno.md`:** no tiene `BlockTime` ni que el modo guiado y parte de F10 entran en M1. Se avisa a su sesión.
 - **Revisar el resto de la versión nueva de `reference/`:** tiene más que la versión con la que se planificó M1,
@@ -176,8 +178,103 @@ publicada**, nunca el borrador.
 - **Visibilidad de un plan para otros coaches** (pedido por Ari el 2026-11-19): pasó a ser
   [E8.10](E8.10-visibilidad-del-plan.md), hecho. Falta sumarlo a `docs/diseno.md` desde la otra sesión.
 - **Ver lo que se hizo en un día pasado** (salió de la revisión de E8.6, 2026-11-19). Hoy el calendario muestra
-  solo el ciclo del plan activo, y el editor de un plan histórico muestra lo planificado, sin kilos. Estado:
-  `sin refinar`, fuera de M1.
+  solo el ciclo del plan activo, y el editor de un plan histórico muestra lo planificado, sin kilos. Refinado con Ari
+  el 2026-11-21: una pantalla de historial por atleta, con las sesiones pasadas por fecha (de cualquier plan, también
+  terminados e históricos), y al tocar una se ve el detalle con kilos y reps. Estado: `hecho` (commits "Historial por
+  atleta (API)" y "(app)"). Entradas: Perfil → Historial (atleta) y ficha del atleta → Historial (coach). Una sesión es
+  del atleta si figura en presentes; el detalle usa la versión publicada actual del plan, y un plan eliminado muestra
+  solo lo registrado. Índice nuevo `club_presentes_fecha`. Decidido por Ari el 2026-11-21: `admin_club` también ve la
+  ficha y el historial de los atletas del club (`hecho`, `e6a9e21`: ve
+  Planificación solo con "Atletas y referencias"; no edita referencias ni planifica). **Deploy:** primero el backend y después la PWA.
 - **Insignias de las tarjetas en la sesión del día** (pedido por Ari el 2026-11-19). Una tarjeta dice "Hecho"
   apenas se tilda un ejercicio, aunque falte el resto del día. Tiene que reflejar cuánto se hizo de verdad.
-  Estado: `sin refinar`.
+  Estado: `hecho` (`777cff5`, `7905917`). Decidido por Ari el 2026-11-21, reemplaza D13: el estado es por atleta,
+  "Hecho" con todas las series, "En curso n/m" con algunas y "Pendiente" sin ninguna. `.../dias?atletaId=` devuelve
+  `estado` (`hecho`, `en_curso`, `pendiente`), `hechas`, `total` y `fecha`; sin `atletaId` responde como antes. El
+  calendario suma un selector de atleta. **Deploy:** primero el backend y después la PWA. **`diseno.md`** todavía
+  describe D13: avisar a su sesión.
+- **Días marcados como hechos sin hacerlos** (bug, Ari, 2026-11-21). El estado del día es de toda la asignación:
+  con una serie de Andi, el día figura hecho también para Ari. Se arregla con el estado por atleta. Estado: `hecho` (`7905917`).
+- **Calendario compacto solo con los ejercicios** (Ari, 2026-11-21), sin series ni repeticiones. Estado: `hecho` (`227bb7f`).
+- **El temporizador saca del modo guiado** (bug, Ari, 2026-11-21). El modo guiado se abre con `push`, y al abrir un
+  temporizador `CronoConAtras` hace `go(?crono=1)`, que reemplaza la pila. Estado: `hecho` (`c950f03`: se abre con `go`).
+- **Series del modo guiado sin marcar en la sesión del día** (bug, Ari, 2026-11-21). El día figura como hecho, pero
+  las viñetas de la sesión del día no se marcan, ni siquiera al recargar. Estado: `hecho` (`a35de6a`). El modo guiado
+  escribía bien; la sesión del día buscaba solo la sesión de hoy, y un día hecho en otra fecha quedaba sin series.
+  Ahora la busca en la fecha en que el atleta de la pestaña empezó ese día. `todayProvider` cambia a medianoche (antes
+  quedaba fijo desde que se abrió la app). Escribir en un día hecho en otra fecha va a esa sesión, no a una nueva de
+  hoy. Decidido por Ari el 2026-11-21: rehacer un día ya hecho edita la sesión original, sin "recuperado".
+- **Tarjetas colapsables en la sesión del día** (Ari, 2026-11-21), para ver todo compacto. Estado: `hecho` (`7a010cc`: cada bloque se colapsa desde su cabecera, "Colapsar todo" en la cabecera del día; se recuerda por posición de bloque en el dispositivo).
+- **Prueba en local de Ari (2026-11-21):** temporizador en el modo guiado, tarjetas colapsables, estado por atleta,
+  viñetas de un día hecho en otra fecha y calendario compacto, todo ok.
+- **Acciones del modo guiado en "Más acciones"** (Ari, 2026-11-21). "Saltar este ejercicio" e "Interrumpir" quedan
+  cerca del temporizador y se tocan sin querer: van abajo, dentro de un botón "Más acciones". Estado: `hecho`
+  (`c67a5ea`). "Saltar bloque" también va a "Más acciones" (Ari, 2026-11-21): `hecho` (`34458b4`).
+- **Manijas para reordenar en el celular** (Ari, 2026-11-21). En el editor de planes, la manija (≡) de las tarjetas
+  cuesta tocarla y se tocan otras cosas antes. Estado: `hecho` (`36598d7`: componente `ManijaArrastre` de 48 dp, a la
+  izquierda; también en el formulario de temporizadores).
+- **Peso en cualquier ejercicio al planificar** (Ari, 2026-11-21). Un ejercicio dado de alta sin "con peso" igual
+  ofrece kilos o % al planificar. En blanco es sin peso; si se carga, el ejercicio queda guardado con peso.
+  Estado: `hecho` (`42a933b`). Al guardar el plan: un % suma "Carga (% del RM)" (y RM propio si mide reps), solo
+  kilos suma "Carga fija". Solo lo ve quien puede escribir ese ejercicio: `admin_club` en los del club, admin de
+  plataforma en los base. Un coach sin `admin_club` no lo ve.
+- **El coach crea y edita ejercicios** (Ari, 2026-11-21). Hoy solo `admin_club` escribe el catálogo del club. El coach
+  tiene que poder crear y editar ejercicios del club, y marcar "con peso" desde el plan. Los ejercicios base siguen
+  siendo solo del admin de plataforma. Estado: `hecho` (`cb1c96c`): acción nueva `editarEjerciciosClub` para coach y
+  `admin_club`; archivar y eliminar ejercicios, categorías, temporizadores y equipo siguen con `admin_club`. Decidido por Ari el
+  2026-11-21: el coach también archiva y elimina ejercicios (`hecho`, `e6a9e21`). **Deploy:** primero el backend y después la PWA.
+- **Kilos por atleta al planificar** (Ari, 2026-11-21). En un plan con dos atletas, una serie en kilos (por ejemplo
+  press con mancuerna) tiene que poder llevar un peso distinto para cada atleta. E5.16 ya lo hace para series por %
+  (`PlanSet.porAtleta`). Va después de "Peso en cualquier ejercicio", que toca el mismo editor. Decidido por Ari
+  el 2026-11-21: en planes con varios atletas, la serie en kilos pide un peso por atleta, sin valor general; las reps
+  son las mismas para todos. Estado: `hecho` (`8b08f57`, `dd95d27`, `3bc446b`). Se reusa `PlanSet.porAtleta` con solo
+  `kilos`; los planes viejos con peso general siguen valiendo para todos. Publicar exige los kilos de cada atleta
+  (`setWithoutAthleteKg`). La sesión propone esos kilos tal cual, sin ajuste del día. Un plan sin asignación usa un solo
+  peso. Un atleta sumado después recibe su kilaje fijo de la ficha o nada, y republicar pide cargar el suyo. El
+  importador no los pide. **Deploy:** primero el backend y después la PWA.
+- **Métrica objetivo según los chips** (Ari, 2026-11-21). El desplegable "métrica objetivo" no se llena con las
+  métricas elegidas en los chips de arriba. Estado: `hecho` (`cee2fa0`).
+- **Prueba en dev de Ari (2026-11-21, segunda tanda):** sesión y calendario, modo guiado, catálogo y alta de club ok.
+  Salieron cuatro pedidos:
+  - **Modo guiado: atrás y recordar dónde quedé.** "Atrás" vuelve al paso anterior sin desmarcar (terminarlo de nuevo
+    pisa la serie). Salir del modo guiado (por ejemplo a Preferencias) y volver retoma el mismo paso. `hecho` (`c87d6f3`: "Atrás" es
+    local a cada dispositivo y no mueve la pasada; la posición y el borrador se guardan en `maktub.guidedPosition`).
+  - **Kilos por atleta en ejercicios por %.** En un plan con varios atletas, cada serie por % muestra debajo la
+    sugerencia de cada atleta (RM × % = kg) y el coach escribe a mano los kg de cada uno. `hecho` (commits "kilos a
+    mano por atleta en series por %"). Vacío vale la sugerencia; los kg a mano llevan el ajuste del día (confirmado
+    por Ari). **Deploy:** primero el backend.
+  - **Historial en su lugar.** El propio va en la pantalla Entrenamiento; el de los atletas, en Planificación. `hecho`
+    (`7c4ad2d`: tarjeta "Mi historial" en Entrenamiento; botón Historial por atleta en la lista de atletas;
+    `/perfil/historial` redirige).
+  - **Permisos por jerarquía** (decidido por Ari): admin de plataforma ve y hace todo en todos los clubes; `admin_club`
+    ve y hace todo en su club (planes y asignaciones incluidos); coach: planes, ejercicios, categorías,
+    temporizadores, WoDs, asignar, ver planes, y todo lo del atleta (equipo no); atleta: su plan del día, su historial,
+    su perfil, los temporizadores del club y toda la pantalla Entrenamiento. `hecho` (commits "Permisos por
+    jerarquía" y "Elegir club"; A12 en `diseno.md`). El admin de plataforma elige el club activo en Preferencias →
+    Club activo (`GET /plataforma/clubes`). **Deploy:** primero el backend.
+    La matriz de `docs/features/F1-clubes-usuarios-acceso.md` quedó al día.
+- **Prueba en dev de Ari (2026-11-21, tercera tanda):** retomar el modo guiado ok; el resto ok salvo:
+  - **Tiempo infinito en el modo guiado:** la cabecera mostraba 289:55 y el bloque 289:48. El tiempo tiene que
+    empezar recién con "Comenzar". `hecho`: era una pasada vieja (de las 16:35) que nunca se terminó y se retomó.
+    El reloj del día ahora arranca con "Comenzar"; una pasada abierta hace más de 3 h muestra un aviso para
+    terminarla. Queda otra pasada abierta en la base local (sesión del 2026-11-15).
+  - **"Atrás" con el flujo normal:** en un paso ya hecho, primero "Iniciar serie" y después "Terminar serie", en vez
+    de "Terminar serie de nuevo". `hecho`.
+  - **La ✕ del modo guiado** ofrece terminar el modo guiado y pregunta si dejar guardado hasta dónde se llegó.
+    `hecho`: "Guardar y salir", "Terminar el entrenamiento" (va al resumen) o "Cancelar".
+  - **Al recargar, la sesión del día dice "No hay un día de plan cargado"**, aunque el modo guiado retoma bien. `hecho`: era el
+    cartel del modo guiado, que leía el día antes de que cargara; ahora espera con un indicador.
+  - **Diálogo de kilos por atleta:** con atletas en el plan, sin el campo kg general, cada atleta con su campo y la
+    sugerencia debajo, sin "(sugerido)". Con un solo atleta o sin atletas, el campo kg general como antes. `hecho` (`db66c0b`; con varios
+    atletas, la carga de la serie se fija solo por %). Ajuste (`bc372de`): los kg de cada atleta vienen llenos con el
+    cálculo, se recalculan al cambiar el % (pisando lo escrito a mano) y quedan alineados con Reps y %.
+- **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
+  `admin_club` da de alta miembros en un club existente. Refinado con Ari el 2026-11-21: quien entra con Google sin
+  cuenta puede pedir un club; queda pendiente hasta que un admin de plataforma lo aprueba desde la app, y mientras
+  tanto ve "Tu pedido está en revisión" (sin emails). Al aprobarse se crea el club con la semilla base del catálogo, y
+  quien lo pidió queda `admin_club`, coach y atleta. Los demás miembros se siguen sumando por alta de email.
+  Estado: `hecho` (commits "Alta de club con aprobación (API)" y "(app)"). `POST /auth/pedidos-club` con el ID token de
+  Google; `/plataforma/pedidos-club` para listar, aprobar y rechazar (solo admin de plataforma, en Preferencias →
+  Pedidos de clubes). Quien fue rechazado puede pedir de nuevo. **No se copia la semilla** (aprobado por Ari): el catálogo base vive en
+  `plataforma` y todos los clubes ya lo ven (C1); copiarlo duplicaría todo. Índices nuevos en `pedidos_club`.
+  **Deploy:** primero el backend y después la PWA. **`diseno.md`** no tiene el flujo de pedido y aprobación.

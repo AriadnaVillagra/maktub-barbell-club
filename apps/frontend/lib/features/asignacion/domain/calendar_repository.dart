@@ -64,14 +64,18 @@ class PublishedPlanView {
   }
 }
 
-/// Whether one day of the plan, in a cycle and week, has sets recorded in the group's session (E7.13).
-/// There is no third state here: recovered and missed belong to the coach (3.6).
+/// How far one athlete got through one day of the plan, in a cycle and week (E7.13; per athlete and with its real
+/// progress since Ari's decision of 2026-11-21, which replaces D13's marking). Read without an athlete, it is the old
+/// marking: done when anyone recorded a set, without counts. Recovered and missed belong to the coach (3.6).
 class DayState {
   const DayState({
     required this.cycle,
     required this.week,
     required this.day,
-    required this.done,
+    required this.status,
+    this.doneSets,
+    this.totalSets,
+    this.date,
   });
 
   final int cycle;
@@ -80,12 +84,35 @@ class DayState {
   /// 1-based.
   final int day;
 
-  /// Done (sets recorded) or pending.
-  final bool done;
+  final DayProgressStatus status;
+
+  /// Planned sets the athlete has done, and the day's planned sets; null when read without an athlete.
+  final int? doneSets;
+  final int? totalSets;
+
+  /// Every planned set done.
+  bool get done => status == DayProgressStatus.done;
+
+  /// The date of the session where the day was started (the first one, if it was done on several dates); null while
+  /// pending. A session belongs to a date, so a day started on another date is looked up with this one.
+  final DateTime? date;
 }
 
-/// The day the calendar opens on (D13): the first of [week] in [cycle], among [dayCount] days, without sets
-/// recorded; day 1 when all are done or [states] knows nothing (no sessions yet).
+/// The date of the session where [day] of [week] in [cycle] was started (some set done), or null when [states] do
+/// not have it.
+DateTime? doneDateOf(
+  Iterable<DayState> states, {
+  required int cycle,
+  required int week,
+  required int day,
+}) => states
+    .where((s) => s.date != null && s.cycle == cycle && s.week == week && s.day == day)
+    .firstOrNull
+    ?.date;
+
+
+/// The day the calendar opens on (D13): the first of [week] in [cycle], among [dayCount] days, not fully done; day
+/// 1 when all are done or [states] knows nothing (no sessions yet).
 int firstPendingDay(
   Iterable<DayState> states, {
   required int cycle,
@@ -122,11 +149,12 @@ abstract interface class CalendarRepository {
   Future<PublishedPlanView> publishedPlan(String clubId, String planId);
 
   /// The state of every day of the assignment [assignmentId], a group's or an athlete's, in the cycles and weeks
-  /// that [from]..[to] touch.
+  /// that [from]..[to] touch: [athleteId]'s progress, or without one, done when anyone recorded a set.
   Future<List<DayState>> dayStates(
     String clubId,
     String assignmentId,
     DateTime from,
-    DateTime to,
-  );
+    DateTime to, {
+    String? athleteId,
+  });
 }

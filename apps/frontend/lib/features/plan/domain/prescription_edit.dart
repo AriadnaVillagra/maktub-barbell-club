@@ -69,3 +69,73 @@ Prescription prescriptionWith(
   timerId: timerId,
   barKg: barKg,
 );
+
+/// Kilos per athlete in a set in kilos (Ari, 2026-11-21, `athlete_kg.dart` in maktub_core): in a plan for several
+/// athletes the set has one weight per athlete in `byAthlete` and no general one.
+
+/// [sets] ready to be typed per athlete for [athleteIds]: a set with a general weight gives it to each of them who has
+/// no kilos of their own, and loses it; every other entry stays (an athlete who left keeps theirs).
+List<PlanSet> withKgPerAthlete(List<PlanSet> sets, List<String> athleteIds) => [
+  for (final s in sets)
+    if (s.kg == null)
+      s
+    else
+      setWith(
+        s,
+        reps: s.reps,
+        pct: s.pct,
+        kg: null,
+        byAthlete: {
+          ...s.byAthlete,
+          for (final id in athleteIds) id: AthleteSetLoad(kg: plannedKg(s, id)),
+        },
+      ),
+];
+
+/// [s] with [athleteId]'s kilos set to [kg] (null removes them); the set keeps no general weight.
+PlanSet setWithAthleteKg(PlanSet s, String athleteId, double? kg) => setWith(
+  s,
+  reps: s.reps,
+  pct: s.pct,
+  kg: null,
+  byAthlete: {
+    for (final e in s.byAthlete.entries)
+      if (e.key != athleteId) e.key: e.value,
+    if (kg != null) athleteId: AthleteSetLoad(kg: kg),
+  },
+);
+
+/// [s] with one weight [kg] for everyone: kilos per athlete without % go, so they do not win over it in the session.
+PlanSet setWithSingleKg(PlanSet s, double? kg) => setWith(
+  s,
+  reps: s.reps,
+  pct: s.pct,
+  kg: kg,
+  byAthlete: {
+    for (final e in s.byAthlete.entries)
+      if (e.value.pct != null) e.key: e.value,
+  },
+);
+
+/// The one weight of [s] shown when it is typed as a single value: what the session proposes to [athleteId] (the plan's
+/// only athlete), or the general weight when there is none.
+double? singleKgOf(PlanSet s, String? athleteId) => athleteId == null ? s.kg : plannedKg(s, athleteId);
+
+/// [sets] of an exercise without weight that a plan for [athleteIds] gives kilos and no % (saving the plan makes it an
+/// exercise in kilos, `weightedBySets`): the kilos go to each athlete, so the set is already typed per athlete.
+/// Unchanged when any set has a %, which makes it loaded by %.
+List<PlanSet> kgToEachAthlete(List<PlanSet> sets, List<String> athleteIds) =>
+    sets.any((s) => (s.pct ?? 0) > 0) ? sets : withKgPerAthlete(sets, athleteIds);
+
+/// [s] with [athleteId]'s entry replaced by [load] (null removes it); its %, kilos and the other athletes' stay.
+PlanSet setWithAthleteLoad(PlanSet s, String athleteId, AthleteSetLoad? load) => setWith(
+  s,
+  reps: s.reps,
+  pct: s.pct,
+  kg: s.kg,
+  byAthlete: {
+    for (final e in s.byAthlete.entries)
+      if (e.key != athleteId) e.key: e.value,
+    athleteId: ?load,
+  },
+);

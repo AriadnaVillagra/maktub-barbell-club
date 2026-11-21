@@ -9,6 +9,7 @@ import '../../temporizador/presentation/widgets/iniciar_temporizador.dart';
 import '../domain/guided_session.dart';
 import '../domain/session_repository.dart';
 import '../domain/set_write.dart';
+import 'guided_more_actions.dart';
 import 'guided_page.dart';
 import 'providers.dart';
 import 'session_page.dart';
@@ -16,7 +17,8 @@ import 'session_set_dialogs.dart';
 import 'session_timers.dart';
 
 /// The step on screen (E7.17's list): the exercise and set, one card per athlete of the step, the rest timer and
-/// what comes next.
+/// what comes next. "Atrás", at the head of the step and away from the timers, shows the step before on this device
+/// only, to see it or correct it: it is started and finished like any step, and finishing it replaces its sets.
 class GuidedStepView extends ConsumerWidget {
   const GuidedStepView({
     super.key,
@@ -46,10 +48,13 @@ class GuidedStepView extends ConsumerWidget {
     final timers = SessionTimers.watch(ref);
     final run = guided.run!;
     final block = guided.block!;
-    final pending = guided.pending(recordedSets(live.records));
+    final recorded = recordedSets(live.records);
+    final pending = guided.pending(recorded);
     if (pending.isEmpty) return const SizedBox.shrink(); // the block closes
-    final step = pending.first;
-    final next = pending.length > 1 ? pending[1] : null;
+    final review = guided.reviewStep(recorded);
+    final reviewing = review != null;
+    final step = review ?? pending.first;
+    final next = guided.stepAfter(recorded);
     final nextName = next == null
         ? null
         : exerciseNameOf(data, block.prescriptions[next.prescription]);
@@ -81,6 +86,23 @@ class GuidedStepView extends ConsumerWidget {
         if (guided.offersAthleteMode) GuidedModePicker(mode: run.athleteMode),
         if (guided.offersExecutionMode)
           GuidedOrderPicker(mode: run.executionMode),
+        Row(
+          children: [
+            TextButton.icon(
+              key: const Key('guided-back'),
+              onPressed: guided.canGoBack(recorded) ? notifier.goBack : null,
+              icon: const Icon(Icons.arrow_back),
+              label: const Text('Atrás'),
+            ),
+            const Spacer(),
+            if (reviewing)
+              TextButton(
+                key: const Key('guided-to-current'),
+                onPressed: notifier.toCurrent,
+                child: const Text('Ir al paso actual'),
+              ),
+          ],
+        ),
         Text(
           exerciseNameOf(data, prescription),
           key: const Key('guided-exercise'),
@@ -90,11 +112,17 @@ class GuidedStepView extends ConsumerWidget {
           [
             'Serie ${step.set + 1} de $total',
             if (turns) 'turno de $whose',
-            if (draft.running) 'en curso',
+            if (reviewing) 'ya registrada' else if (draft.running) 'en curso',
           ].join(' · '),
           key: const Key('guided-set'),
           style: context.textos.titleMedium,
         ),
+        if (reviewing)
+          Text(
+            'Si la terminás, reemplaza lo registrado.',
+            key: const Key('guided-reviewing'),
+            style: context.textos.bodyMedium,
+          ),
         for (final a in step.athleteIds)
           _AthleteSetCard(
             key: Key('guided-card-$a'),
@@ -105,7 +133,8 @@ class GuidedStepView extends ConsumerWidget {
             step: step,
             target: prescription.sets[step.set],
             draft: draft,
-            redo: guided.redo,
+            redo: guided.redo && !reviewing,
+            reviewing: reviewing,
           ),
         Wrap(
           spacing: Espacio.s,
@@ -136,28 +165,29 @@ class GuidedStepView extends ConsumerWidget {
           next == null
               ? 'Es el último paso del bloque.'
               : [
-                  'Sigue: $nextName, serie ${next.set + 1}',
+                  '${reviewing && next == pending.first ? 'Después vuelve al paso actual' : 'Sigue'}: '
+                      '$nextName, serie ${next.set + 1}',
                   if (turns) athleteLabel(data, next.athleteIds.first),
                 ].join(' · '),
           key: const Key('guided-next'),
           style: context.textos.bodyMedium,
         ),
-        Wrap(
-          spacing: Espacio.s,
-          runSpacing: Espacio.s,
-          children: [
-            TextButton(
-              key: const Key('guided-skip-exercise'),
-              onPressed: notifier.skipExercise,
-              child: const Text('Saltar este ejercicio'),
-            ),
-            TextButton(
-              key: const Key('guided-interrupt'),
-              style: TextButton.styleFrom(
-                foregroundColor: context.esquema.error,
+        GuidedMoreActionsButton(
+          actions: [
+            // It acts on the step the pass is on, not on one shown with "Atrás".
+            if (!reviewing)
+              GuidedAction(
+                key: const Key('guided-skip-exercise'),
+                icon: Icons.skip_next,
+                label: 'Saltar este ejercicio',
+                onTap: notifier.skipExercise,
               ),
-              onPressed: () => _interrupt(context, ref),
-              child: const Text('Interrumpir bloque'),
+            GuidedAction(
+              key: const Key('guided-interrupt'),
+              icon: Icons.stop_circle_outlined,
+              label: 'Interrumpir bloque',
+              destructive: true,
+              onTap: () => _interrupt(context, ref),
             ),
           ],
         ),
@@ -178,6 +208,7 @@ class _AthleteSetCard extends ConsumerWidget {
     required this.target,
     required this.draft,
     required this.redo,
+    this.reviewing = false,
   });
 
   final SessionDayData data;
@@ -190,6 +221,9 @@ class _AthleteSetCard extends ConsumerWidget {
 
   /// The day is being redone: the card starts from the proposal and shows what was recorded before.
   final bool redo;
+
+  /// The step is one behind, shown with "Atrás": it can be corrected, not left.
+  final bool reviewing;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -311,11 +345,12 @@ class _AthleteSetCard extends ConsumerWidget {
                       notDone ? 'Contar esta serie' : 'No hizo esta serie',
                     ),
                   ),
-                  TextButton(
-                    key: Key('guided-leave-$athleteId'),
-                    onPressed: () => notifier.leaveExercise(athleteId),
-                    child: const Text('Dejar el ejercicio'),
-                  ),
+                  if (!reviewing)
+                    TextButton(
+                      key: Key('guided-leave-$athleteId'),
+                      onPressed: () => notifier.leaveExercise(athleteId),
+                      child: const Text('Dejar el ejercicio'),
+                    ),
                 ],
               ),
             ],

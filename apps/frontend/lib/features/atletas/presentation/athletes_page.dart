@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:maktub_ui/maktub_ui.dart';
 
 import '../../catalogo/presentation/catalog_admin_widgets.dart' show asyncView;
 import 'providers.dart';
@@ -32,7 +33,24 @@ class AthletesPage extends ConsumerWidget {
                     key: Key('athlete-${a.id}'),
                     leading: const Icon(Icons.person_outline),
                     title: Text(a.name),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          key: Key('athlete-history-${a.id}'),
+                          icon: const Icon(Icons.history),
+                          tooltip: 'Historial',
+                          onPressed: () => context.go('$basePath/${Uri.encodeComponent(a.id)}/historial'),
+                        ),
+                        const SizedBox(width: Espacio.xl),
+                        IconButton(
+                          key: Key('athlete-sheet-${a.id}'),
+                          icon: const Icon(Icons.assignment_ind_outlined),
+                          tooltip: 'Ficha',
+                          onPressed: () => context.go('$basePath/${Uri.encodeComponent(a.id)}'),
+                        ),
+                      ],
+                    ),
                     onTap: () =>
                         context.go('$basePath/${Uri.encodeComponent(a.id)}'),
                   ),

@@ -15,7 +15,9 @@ import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
+import 'package:maktub_frontend/features/sesion/data/shared_preferences_guided_position_store.dart';
 import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
+import 'package:maktub_frontend/features/sesion/domain/guided_position.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 import 'package:maktub_frontend/features/sesion/presentation/guided_page.dart';
@@ -24,6 +26,7 @@ import 'package:maktub_frontend/features/sesion/presentation/session_page.dart';
 import 'package:maktub_frontend/features/temporizador/presentation/controllers/crono_controller.dart';
 import 'package:maktub_frontend/features/temporizador/presentation/providers.dart';
 import 'package:maktub_ui/maktub_ui.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../access/fakes.dart';
 import '../catalogo/catalog_admin_fakes.dart';
@@ -97,6 +100,9 @@ final _plan = PublishedPlanView(
   ],
 );
 
+/// An exercise in kilos (not by % of RM).
+final _press = ex('press', 'Press con mancuerna', categories: ['accesorio'], metrics: [Metric.fixedLoad, Metric.reps]);
+
 /// The plan the fake calendar serves; a test can swap it for another.
 PublishedPlanView _served = _plan;
 
@@ -165,9 +171,13 @@ class _Calendar implements CalendarRepository {
     String clubId,
     String groupId,
     DateTime from,
-    DateTime to,
-  ) async => const [];
+    DateTime to, {
+    String? athleteId,
+  }) async => _states;
 }
+
+/// The day states the fake calendar serves; a test can set them.
+List<DayState> _states = const [];
 
 class _Athletes implements AthleteRepository {
   @override
@@ -188,6 +198,9 @@ class _Sessions implements SessionRepository {
 
   /// What the session already has when it opens, as if another device had marked it.
   final List<SetRecord> records;
+
+  /// What the server has: [records] and every set written since.
+  late final stored = [...records];
   final opened = <Set<String>>[];
   final writes = <SetWrite>[];
 
@@ -207,6 +220,9 @@ class _Sessions implements SessionRepository {
   /// The present athletes of the last opening.
   var present = <String>[];
 
+  /// What the server proposes to each athlete, when a test sets it; else the squat's kilos below.
+  List<ProposedSet> Function(String athleteId)? proposals;
+
   /// The reps the plan has for each prescription.
   static int _planReps(int block, int prescription) =>
       switch ((block, prescription)) {
@@ -220,6 +236,9 @@ class _Sessions implements SessionRepository {
   /// Whether the session exists on the server: something was recorded on it, a pass goes on, or it was opened.
   late var exists = records.isNotEmpty || pass != null;
 
+  /// The date the session was opened on: like the server, a session belongs to one date.
+  DateTime? date;
+
   @override
   Future<LiveSession?> find(
     String clubId, {
@@ -229,12 +248,13 @@ class _Sessions implements SessionRepository {
     required int day,
   }) async {
     if (!exists || day != 1) return null;
+    if (this.date != null && this.date != date) return null;
     if (opened.isEmpty) {
       _week = week;
       present = {for (final r in records) r.athleteId}.toList();
     }
     if (_week != week) return null;
-    return LiveSession(session: _session(), records: records);
+    return LiveSession(session: _session(), records: [...stored]);
   }
 
   @override
@@ -246,11 +266,15 @@ class _Sessions implements SessionRepository {
     required int day,
     required Set<String> presentAthleteIds,
   }) async {
+    if (this.date != null && this.date != date) {
+      throw StateError('a second session on $date');
+    }
+    this.date = date;
     opened.add(presentAthleteIds);
     present = {...present, ...presentAthleteIds}.toList();
     _week = week;
     exists = true;
-    return LiveSession(session: _session(), records: records);
+    return LiveSession(session: _session(), records: [...stored]);
   }
 
   var _week = 1;
@@ -263,7 +287,7 @@ class _Sessions implements SessionRepository {
     cycle: 3,
     week: _week,
     day: 1,
-    date: _today,
+    date: date ?? _today,
     presentAthleteIds: present,
     lastSessionChange: sessionChanges,
     guidedPass: pass,
@@ -291,7 +315,7 @@ class _Sessions implements SessionRepository {
     String sessionId,
     String athleteId,
     AthleteAdjustments adjustments,
-  ) async => [
+  ) async => proposals?.call(athleteId) ?? [
     for (var s = 0; s < 2; s++)
       ProposedSet(
         blockIndex: 1,
@@ -323,7 +347,7 @@ class _Sessions implements SessionRepository {
   ) async {
     if (offlineSets) throw const ErrorDeApi('No se pudo conectar.');
     writes.add(write);
-    return _record(
+    final record = _record(
       write.athleteId,
       write.blockIndex,
       write.prescriptionIndex,
@@ -333,6 +357,10 @@ class _Sessions implements SessionRepository {
       reps: write.reps ?? _planReps(write.blockIndex, write.prescriptionIndex),
       manualKg: write.manualKg != null,
     );
+    stored
+      ..removeWhere((r) => r.id == record.id)
+      ..add(record);
+    return record;
   }
 
   @override
@@ -373,6 +401,17 @@ String _w(SetWrite w) =>
     '${w.athleteId} ${w.blockIndex}-${w.prescriptionIndex}-${w.setIndex}'
     '${w.done ? ' done' : ''}';
 
+/// Where the device remembers the guided mode's position, in memory.
+class _Positions implements GuidedPositionStore {
+  GuidedPosition? saved;
+
+  @override
+  Future<GuidedPosition?> load() async => saved;
+
+  @override
+  Future<void> save(GuidedPosition? position) async => saved = position;
+}
+
 class _Harness {
   _Harness(this.sessions);
 
@@ -386,8 +425,12 @@ Future<_Harness> _pump(
   WidgetTester tester, {
   List<SetRecord> records = const [],
   GuidedPass? pass,
+  _Sessions? sessions,
+  DateTime? today,
+  GuidedPositionStore? positions,
+  String initialLocation = Rutas.sesion,
 }) async {
-  final h = _Harness(_Sessions(records: records)..pass = pass);
+  final h = _Harness(sessions ?? (_Sessions(records: records)..pass = pass));
   tester.view.physicalSize = const Size(900, 3000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -403,6 +446,7 @@ Future<_Harness> _pump(
       ex('curl', 'Curl'),
       ex('face', 'Face pull'),
       ex('pu', 'Dominadas'),
+      _press,
     ],
     timersList: [
       timer('rest90', 'Descanso 90', work: 90),
@@ -410,7 +454,7 @@ Future<_Harness> _pump(
     ],
   );
   final router = GoRouter(
-    initialLocation: Rutas.sesion,
+    initialLocation: initialLocation,
     routes: [
       GoRoute(
         path: Rutas.entrenamiento,
@@ -449,9 +493,12 @@ Future<_Harness> _pump(
           FakeLiveChannel(FakeLiveServer()),
         ),
         sessionDraftStoreProvider.overrideWithValue(MemoryDraftStore()),
-        todayProvider.overrideWithValue(_today),
+        todayProvider.overrideWithValue(today ?? _today),
         timerPlatformProvider.overrideWithValue(h.platform),
         guidedClockProvider.overrideWithValue(() => h.now),
+        guidedPositionStoreProvider.overrideWithValue(
+          positions ?? _Positions(),
+        ),
       ],
       child: MaterialApp.router(
         theme: TemaMaktub.para(Brightness.dark, Densidad.entrenamiento),
@@ -461,7 +508,7 @@ Future<_Harness> _pump(
   );
   await tester.pumpAndSettle();
   h.container = ProviderScope.containerOf(
-    tester.element(find.byType(SessionPage)),
+    tester.element(find.byType(SessionPage, skipOffstage: false)),
   );
   return h;
 }
@@ -471,6 +518,12 @@ Future<void> _tap(WidgetTester tester, String key) async {
   await tester.ensureVisible(target);
   await tester.tap(target);
   await tester.pumpAndSettle();
+}
+
+/// "Saltar bloque" lives in the preview's "Más acciones" sheet.
+Future<void> _skipBlock(WidgetTester tester) async {
+  await _tap(tester, 'guided-more-actions');
+  await _tap(tester, 'guided-skip-block');
 }
 
 /// Enters the guided mode from the day's session, which may not exist yet (E7.27).
@@ -485,7 +538,7 @@ Future<void> _toBlock(WidgetTester tester, int block) async {
     await _tap(tester, 'guided-resume');
   }
   for (var b = 0; b < block; b++) {
-    await _tap(tester, 'guided-skip-block');
+    await _skipBlock(tester);
   }
 }
 
@@ -504,7 +557,10 @@ bool _chosen(WidgetTester tester, String key) =>
     tester.widget<PildoraMaktub>(find.byKey(Key(key))).seleccionada;
 
 void main() {
-  setUp(() => _served = _plan);
+  setUp(() {
+    _served = _plan;
+    _states = const [];
+  });
 
   group('who trains', () {
     testWidgets('Entrenar starts with the athlete on screen chosen', (
@@ -633,7 +689,7 @@ void main() {
       await redo(tester);
 
       expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-mode-simultaneous');
       await _tap(tester, 'guided-start-block');
 
@@ -655,7 +711,7 @@ void main() {
         records: [_record('ari', 1, 0, 0, kg: 70, reps: 3, manualKg: true)],
       );
       await redo(tester);
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-mode-simultaneous');
       await _tap(tester, 'guided-start-block');
       await _tap(tester, 'guided-step-main');
@@ -676,7 +732,7 @@ void main() {
         records: [_record('ari', 1, 0, 0, kg: 80)],
       );
       await redo(tester);
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-mode-simultaneous');
       await _tap(tester, 'guided-start-block');
       await _tap(tester, 'guided-not-done-ari');
@@ -701,7 +757,7 @@ void main() {
         ],
       );
       await redo(tester);
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-start-block');
 
       // The block is not closed for having everything recorded.
@@ -726,7 +782,7 @@ void main() {
       await _tap(tester, 'guided-athlete-andi');
       await _tap(tester, 'guided-begin');
       await _tap(tester, 'guided-resume');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-start-block');
 
       expect(_text(tester, 'guided-block-name'), 'Accesorios');
@@ -742,7 +798,7 @@ void main() {
       await _train(tester);
       await _tap(tester, 'guided-begin');
       await _tap(tester, 'guided-redo');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       await _tap(tester, 'guided-start-block');
       h.sessions.offlineSets = true;
       await _tap(tester, 'guided-step-main');
@@ -762,6 +818,96 @@ void main() {
     });
   });
 
+  group('kilos per athlete in a set in kilos (Ari, 2026-11-21)', () {
+    final pressDay = _planOf(const [
+      PlanBlock(
+        name: 'Accesorios',
+        categoryId: 'accesorio',
+        prescriptions: [
+          Prescription(
+            exerciseId: 'press',
+            sets: [
+              PlanSet(reps: 10, byAthlete: {'ari': AthleteSetLoad(kg: 12.5), 'andi': AthleteSetLoad(kg: 16)}),
+            ],
+          ),
+        ],
+      ),
+    ]);
+
+    /// The server's proposal: the shared rule over the plan, as `kilos-propuestos` computes it.
+    List<ProposedSet> proposed(String athleteId) => proposedDaySets(
+      blocks: pressDay.weekModels.single.days.single.blocks,
+      exercises: {'press': _press},
+      athleteId: athleteId,
+      on: _today,
+      references: const [],
+      factors: const [],
+      fixedKg: const {},
+      equipo: Equipo.estandarDe('c1'),
+    );
+
+    testWidgets('the preview and the cards show each athlete\'s kilos', (tester) async {
+      _served = pressDay;
+      await _pump(tester, sessions: _Sessions()..proposals = proposed);
+      await _toBlock(tester, 0);
+
+      expect(_text(tester, 'guided-preview-0-ari'), endsWith('12.5 kg'));
+      expect(_text(tester, 'guided-preview-0-andi'), endsWith('16 kg'));
+
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+      expect(_text(tester, 'guided-values-ari'), '12.5 kg × 10 reps');
+      expect(_text(tester, 'guided-values-andi'), '16 kg × 10 reps');
+    });
+  });
+
+  group('kilos typed by hand per athlete in a set by % (Ari, 2026-11-21)', () {
+    // Ari's kilos were typed by hand; Andi was left blank and keeps the suggestion frozen when planning.
+    final squatDay = _planOf(const [
+      PlanBlock(
+        name: 'Principal',
+        categoryId: 'primario',
+        prescriptions: [
+          Prescription(
+            exerciseId: 'sq',
+            sets: [
+              PlanSet(
+                reps: 5,
+                pct: 65,
+                byAthlete: {
+                  'ari': AthleteSetLoad(pct: 60, kg: 60, manualKg: true),
+                  'andi': AthleteSetLoad(pct: 65, kg: 52.5),
+                },
+              ),
+            ],
+          ),
+        ],
+      ),
+    ]);
+
+    List<ProposedSet> proposed(String athleteId) => proposedDaySets(
+      blocks: squatDay.weekModels.single.days.single.blocks,
+      exercises: {'sq': ex('sq', 'Sentadilla')},
+      athleteId: athleteId,
+      on: _today,
+      references: const [],
+      factors: const [],
+      fixedKg: const {},
+      equipo: Equipo.estandarDe('c1'),
+    );
+
+    testWidgets('the session proposes the kilos typed by hand, and the suggestion to whoever was left blank', (
+      tester,
+    ) async {
+      _served = squatDay;
+      await _pump(tester, sessions: _Sessions()..proposals = proposed);
+      await _toBlock(tester, 0);
+
+      expect(_text(tester, 'guided-preview-0-ari'), endsWith('60 kg'));
+      expect(_text(tester, 'guided-preview-0-andi'), endsWith('52.5 kg'));
+    });
+  });
+
   group('preview', () {
     testWidgets('shows the block, each athlete\'s part and the mode', (
       tester,
@@ -775,7 +921,7 @@ void main() {
       // A block without sets offers no mode.
       expect(find.byKey(const Key('guided-mode-turns')), findsNothing);
 
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
 
       expect(_text(tester, 'guided-block-count'), 'Bloque 2 de 4');
       expect(_text(tester, 'guided-block-name'), 'Principal');
@@ -791,7 +937,7 @@ void main() {
       await _pump(tester);
       await _train(tester);
       await _tap(tester, 'guided-begin');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
 
       expect(_text(tester, 'guided-block-name'), 'Principal');
       expect(find.byKey(const Key('guided-mode-turns')), findsNothing);
@@ -916,7 +1062,7 @@ void main() {
       await _pump(tester);
       await _toBlock(tester, 0); // no sets
       expect(find.byKey(const Key('guided-order-circuit')), findsNothing);
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
       expect(_text(tester, 'guided-block-name'), 'Principal'); // one prescription
       expect(find.byKey(const Key('guided-order-circuit')), findsNothing);
       await _tap(tester, 'guided-start-block');
@@ -1025,6 +1171,7 @@ void main() {
       await _tap(tester, 'guided-start-block');
       expect(_text(tester, 'guided-exercise'), 'Curl');
 
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-skip-exercise');
 
       expect(_text(tester, 'guided-exercise'), 'Face pull');
@@ -1122,6 +1269,35 @@ void main() {
   });
 
   group('blocks', () {
+    testWidgets('skip block lives in "Más acciones" of the preview', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 0);
+      expect(find.byKey(const Key('guided-skip-block')), findsNothing);
+      expect(find.byKey(const Key('guided-start-block')), findsOneWidget);
+
+      await _tap(tester, 'guided-more-actions');
+
+      expect(find.text('Saltar bloque'), findsOneWidget);
+    });
+
+    testWidgets('skip and interrupt live in "Más acciones", not on the step', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+
+      expect(find.byKey(const Key('guided-skip-exercise')), findsNothing);
+      expect(find.byKey(const Key('guided-interrupt')), findsNothing);
+
+      await _tap(tester, 'guided-more-actions');
+
+      expect(find.text('Saltar este ejercicio'), findsOneWidget);
+      expect(find.text('Interrumpir bloque'), findsOneWidget);
+    });
+
     testWidgets('interrupting asks first, records nothing and goes on', (
       tester,
     ) async {
@@ -1129,12 +1305,14 @@ void main() {
       await _toBlock(tester, 1);
       await _tap(tester, 'guided-start-block');
 
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-interrupt');
       expect(find.text('¿Interrumpir el bloque?'), findsOneWidget);
       await tester.tap(find.text('Cancelar'));
       await tester.pumpAndSettle();
       expect(_text(tester, 'guided-block-name'), 'Principal');
 
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-interrupt');
       await tester.tap(find.text('Interrumpir'));
       await tester.pumpAndSettle();
@@ -1172,6 +1350,28 @@ void main() {
       expect(find.byKey(const Key('guided-finished')), findsOneWidget);
     });
 
+    testWidgets('the day clock starts at "Comenzar" and the block clock at "Iniciar bloque"', (tester) async {
+      final h = await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-athlete-andi');
+      h.now = h.now.add(const Duration(minutes: 30)); // choosing does not count
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byKey(const Key('guided-total-clock')), findsNothing);
+
+      await _tap(tester, 'guided-begin');
+      await _skipBlock(tester);
+      h.now = h.now.add(const Duration(seconds: 40));
+      await tester.pump(const Duration(seconds: 1));
+      expect(_text(tester, 'guided-total-clock'), '00:40');
+      expect(find.byKey(const Key('guided-block-clock')), findsNothing, reason: 'the preview has no clock');
+
+      await _tap(tester, 'guided-start-block');
+      h.now = h.now.add(const Duration(seconds: 20));
+      await tester.pump(const Duration(seconds: 1));
+      expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 00:20');
+      expect(_text(tester, 'guided-total-clock'), '01:00');
+    });
+
     testWidgets('the clocks run against the system clock', (tester) async {
       final h = await _pump(tester);
       await _toBlock(tester, 1);
@@ -1184,6 +1384,7 @@ void main() {
       expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 01:15');
       expect(_text(tester, 'guided-total-clock'), '01:15');
 
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-skip-exercise'); // the block closes
       h.now = h.now.add(const Duration(seconds: 30));
       await _tap(tester, 'guided-start-block');
@@ -1217,15 +1418,16 @@ void main() {
     ) async {
       final h = await _pump(tester);
       await _toBlock(tester, 0);
-      await _tap(tester, 'guided-skip-block'); // Movilidad
+      await _skipBlock(tester); // Movilidad
       await _tap(tester, 'guided-start-block'); // Principal, by turns
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main'); // Ari's first set
       h.now = h.now.add(const Duration(seconds: 60));
+      await _tap(tester, 'guided-more-actions');
       await _tap(tester, 'guided-interrupt');
       await tester.tap(find.text('Interrumpir'));
       await tester.pumpAndSettle();
-      await _tap(tester, 'guided-skip-block'); // Accesorios
+      await _skipBlock(tester); // Accesorios
       h.now = h.now.add(const Duration(seconds: 15));
       await _tap(tester, 'guided-start-block'); // Cindy
       h.now = h.now.add(const Duration(seconds: 30));
@@ -1276,8 +1478,8 @@ void main() {
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main'); // the second set, as proposed
-      await _tap(tester, 'guided-skip-block');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
+      await _skipBlock(tester);
 
       expect(
         find.text('Ari · Sentadilla, serie 1: 4 × 77.5 kg (plan 5 × 80 kg)'),
@@ -1306,9 +1508,9 @@ void main() {
       final h = await _pump(tester);
       h.sessions.offline = true;
       await _toBlock(tester, 0);
-      await _tap(tester, 'guided-skip-block');
-      await _tap(tester, 'guided-skip-block');
-      await _tap(tester, 'guided-skip-block');
+      await _skipBlock(tester);
+      await _skipBlock(tester);
+      await _skipBlock(tester);
       await doBlockAsPlanned(tester);
       expect(find.text('Día terminado'), findsOneWidget);
 
@@ -1361,22 +1563,59 @@ void main() {
       expect(find.byKey(const Key('session-train')), findsOneWidget);
     });
 
-    testWidgets('✕ asks first, then goes back to the session', (tester) async {
-      await _pump(tester);
+    testWidgets('✕ offers to save and leave, finish the training or cancel, each 56 dp', (tester) async {
+      final h = await _pump(tester);
       await _toBlock(tester, 1);
 
       await _tap(tester, 'guided-exit');
-      expect(find.text('¿Salir del modo guiado?'), findsOneWidget);
-      await tester.tap(find.text('Cancelar'));
-      await tester.pumpAndSettle();
+      expect(find.text('Salir del modo guiado'), findsOneWidget);
+      for (final key in ['guided-exit-save', 'guided-exit-finish', 'guided-exit-cancel']) {
+        expect(tester.getSize(find.byKey(Key(key))).height, greaterThanOrEqualTo(56));
+      }
+      expect(find.text('Pausar y salir'), findsOneWidget);
+      expect(find.text('Terminar el entrenamiento'), findsOneWidget);
+      final finish = tester.widget<ListTile>(find.byKey(const Key('guided-exit-finish')));
+      final scheme = Theme.of(tester.element(find.byKey(const Key('guided-exit-finish')))).colorScheme;
+      expect(finish.textColor, scheme.error, reason: 'destructive');
+
+      await _tap(tester, 'guided-exit-cancel');
+      expect(find.byKey(const Key('guided-exit-sheet')), findsNothing);
       expect(find.byType(GuidedPage), findsOneWidget);
+      expect(h.sessions.pass!.finished, false);
 
       await _tap(tester, 'guided-exit');
-      await tester.tap(find.text('Salir'));
-      await tester.pumpAndSettle();
+      await _tap(tester, 'guided-exit-save');
 
       expect(find.byType(GuidedPage), findsNothing);
       expect(find.byKey(const Key('session-train')), findsOneWidget);
+      expect(h.sessions.pass!.finished, false, reason: 'the pass goes on to come back to it');
+    });
+
+    testWidgets('"Terminar el entrenamiento" finishes the pass, keeps what was recorded and forgets the position', (
+      tester,
+    ) async {
+      final positions = _Positions();
+      final h = await _pump(tester, positions: positions);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main'); // Ari's first set
+      await _tap(tester, 'guided-step-main'); // Andi's turn started
+      expect(positions.saved?.draft?.running, true);
+
+      await _tap(tester, 'guided-exit');
+      await _tap(tester, 'guided-exit-finish');
+
+      expect(find.text('Día terminado'), findsOneWidget);
+      expect(h.sessions.pass!.finished, true);
+      expect(h.sessions.pass!.blocks[1].status, GuidedBlockStatus.interrupted);
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done']);
+      expect(positions.saved, isNull);
+
+      await _tap(tester, 'guided-exit');
+      expect(find.byType(GuidedPage), findsNothing, reason: 'the summary leaves without asking');
+      await _train(tester);
+      expect(find.text('¿Quiénes entrenan?'), findsOneWidget);
     });
 
     testWidgets('entering again resumes the pass where it is, without asking', (
@@ -1389,8 +1628,7 @@ void main() {
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-exit');
-      await tester.tap(find.text('Salir'));
-      await tester.pumpAndSettle();
+      await _tap(tester, 'guided-exit-save');
 
       expect(
         h.sessions.pass!.finished,
@@ -1468,7 +1706,12 @@ void main() {
         expect(_text(tester, 'guided-block-count'), 'Bloque 2 de 4');
         expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
         expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 02:05');
-        expect(_text(tester, 'guided-total-clock'), '02:05');
+        expect(
+          _text(tester, 'guided-total-clock'),
+          '07:05',
+          reason: 'the day runs from "Comenzar", at 9:55',
+        );
+        expect(find.byKey(const Key('guided-stale')), findsNothing);
       },
     );
 
@@ -1494,6 +1737,87 @@ void main() {
       },
     );
 
+    testWidgets('a pass left open hours ago shows its real times and offers to finish it', (tester) async {
+      final h = await _pump(tester, pass: running());
+      h.now = DateTime.utc(2026, 11, 18, 14, 45);
+      await _train(tester);
+
+      expect(_text(tester, 'guided-total-clock'), '290:00');
+      expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 285:00');
+      expect(
+        find.textContaining('Esta pasada empezó hace 4 h 50 min y sigue abierta'),
+        findsOneWidget,
+      );
+
+      await _tap(tester, 'guided-stale-finish');
+      await _tap(tester, 'guided-exit-finish');
+
+      expect(find.text('Día terminado'), findsOneWidget);
+      expect(h.sessions.pass!.finished, true);
+      expect(h.sessions.pass!.blocks[1].status, GuidedBlockStatus.interrupted);
+      expect(h.sessions.pass!.blocks[1].end, h.now);
+    });
+
+    group('after a reload of the app (Ari, 2026-11-21)', () {
+      testWidgets('on the guided route it waits for the day and its session, and resumes the pass', (tester) async {
+        await _pump(
+          tester,
+          records: [_record('ari', 1, 0, 0, kg: 80)],
+          pass: running(),
+          initialLocation: Rutas.entrenar,
+        );
+
+        expect(find.text('No hay un día del plan para entrenar.'), findsNothing);
+        expect(find.text('¿Quiénes entrenan?'), findsNothing);
+        expect(_text(tester, 'guided-block-name'), 'Principal');
+        expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+      });
+
+      testWidgets('on the guided route it lands on the remembered step', (tester) async {
+        final positions = _Positions();
+        final first = await _pump(tester, pass: running(), positions: positions);
+        await _train(tester);
+        await _tap(tester, 'guided-step-main');
+        await _tap(tester, 'guided-edit-ari');
+        await tester.enterText(find.byKey(const Key('session-set-kg')), '85');
+        await _tap(tester, 'session-set-save');
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pump(
+          tester,
+          sessions: first.sessions,
+          positions: positions,
+          initialLocation: Rutas.entrenar,
+        );
+
+        expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · en curso');
+        expect(_text(tester, 'guided-values-ari'), '85 kg × 5 reps');
+      });
+
+      testWidgets('the day\'s session shows the day, and Entrenar resumes the pass', (tester) async {
+        await _pump(
+          tester,
+          records: [_record('ari', 1, 0, 0, kg: 80)],
+          pass: running(),
+        );
+
+        expect(find.byKey(const Key('session-empty')), findsNothing);
+        expect(_text(tester, 'session-day-title'), 'Día 1 · Piernas');
+        await _train(tester);
+        expect(_text(tester, 'guided-block-name'), 'Principal');
+      });
+
+      testWidgets('back from the guided route, the day\'s session shows the day', (tester) async {
+        await _pump(tester, pass: running(), initialLocation: Rutas.entrenar);
+        await _tap(tester, 'guided-exit');
+        await _tap(tester, 'guided-exit-save');
+
+        expect(find.byKey(const Key('session-empty')), findsNothing);
+        expect(_text(tester, 'session-day-title'), 'Día 1 · Piernas');
+        expect(find.byKey(const Key('session-train')), findsOneWidget);
+      });
+    });
+
     testWidgets('a new pass can be started over the one going on, or left', (
       tester,
     ) async {
@@ -1515,6 +1839,372 @@ void main() {
       expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
       expect(h.sessions.pass!.id, isNot('other'));
       expect(h.sessions.pass!.blocks[1].status, GuidedBlockStatus.pending);
+    });
+  });
+
+
+  group('the day afterwards', () {
+    /// Trains the whole day in the guided mode, Ari alone, finishing every set, and goes back to the session.
+    Future<void> trainWholeDay(WidgetTester tester) async {
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+      while (find.byKey(const Key('guided-finished')).evaluate().isEmpty) {
+        if (find.byKey(const Key('guided-start-block')).evaluate().isNotEmpty) {
+          await _tap(tester, 'guided-start-block');
+        } else if (find.byKey(const Key('guided-step-main')).evaluate().isNotEmpty) {
+          await _tap(tester, 'guided-step-main');
+        } else {
+          await _tap(tester, 'guided-finish-block');
+        }
+      }
+      await _tap(tester, 'guided-save');
+    }
+
+    bool marked(WidgetTester tester, String set) =>
+        (tester.widget<IconButton>(find.byKey(Key('session-check-$set'))).icon as Icon).icon ==
+        Icons.check_circle;
+
+    /// The app opened again, on [today], over the same server.
+    Future<_Harness> reopen(WidgetTester tester, _Harness h, DateTime today) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      return _pump(tester, sessions: h.sessions, today: today);
+    }
+
+    final tomorrow = _today.add(const Duration(days: 1));
+    final where = UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: _today);
+    final doneToday = [
+      DayState(cycle: where.ciclo, week: where.semana, day: 1, status: DayProgressStatus.done, date: _today),
+    ];
+
+    testWidgets('the sets finished in the guided mode are marked in the session, also after reopening', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      await trainWholeDay(tester);
+
+      expect(h.sessions.writes.map(_w), [
+        'ari 1-0-0 done',
+        'ari 1-0-1 done',
+        'ari 2-0-0 done',
+        'ari 2-1-0 done',
+        'ari 2-0-1 done',
+        'ari 3-0-0 done',
+      ]);
+      expect(marked(tester, '1-0-0'), true);
+      expect(marked(tester, '1-0-1'), true);
+
+      _states = doneToday;
+      await reopen(tester, h, _today);
+
+      expect(marked(tester, '1-0-0'), true);
+      expect(marked(tester, '1-0-1'), true);
+    });
+
+    testWidgets('on another date, the day done shows the session it was done in', (tester) async {
+      final h = await _pump(tester);
+      await trainWholeDay(tester);
+
+      _states = doneToday;
+      await reopen(tester, h, tomorrow);
+
+      expect(marked(tester, '1-0-0'), true);
+      expect(marked(tester, '1-0-1'), true);
+    });
+
+    testWidgets('on another date, writing on that day goes to its session, also for an athlete not present', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      await trainWholeDay(tester);
+      _states = doneToday;
+      await reopen(tester, h, tomorrow);
+
+      await _tap(tester, 'session-athlete-andi');
+      await _tap(tester, 'session-check-1-0-0');
+
+      expect(h.sessions.opened.last, {'ari', 'andi'});
+      expect(h.sessions.date, _today, reason: 'no second session tomorrow');
+      expect(h.sessions.writes.map(_w).last, 'andi 1-0-0 done');
+      expect(marked(tester, '1-0-0'), true);
+    });
+
+    testWidgets('a day still pending is looked up only on today', (tester) async {
+      final h = await _pump(tester);
+      await trainWholeDay(tester);
+      await reopen(tester, h, tomorrow);
+
+      expect(marked(tester, '1-0-0'), false);
+    });
+  });
+
+  group('going back (Ari, 2026-11-21)', () {
+    /// Block 1 ("Principal", by turns) running, with Ari's first set done: Andi's turn is on screen.
+    Future<_Harness> afterAriFirst(WidgetTester tester) async {
+      final h = await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+      return h;
+    }
+
+    testWidgets('on the first step there is nothing behind; "Atrás" is away from the timers and 56 dp', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+
+      final back = find.byKey(const Key('guided-back'));
+      expect(tester.widget<TextButton>(back).onPressed, isNull);
+      final size = tester.getSize(back);
+      expect(size.height, greaterThanOrEqualTo(56));
+      expect(size.width, greaterThanOrEqualTo(56));
+      // Above the exercise, far from "⏱ Descanso", which sits by the main button.
+      final backTop = tester.getTopLeft(back).dy;
+      expect(backTop, lessThan(tester.getTopLeft(find.byKey(const Key('guided-exercise'))).dy));
+      expect(backTop, lessThan(tester.getTopLeft(find.byKey(const Key('guided-rest'))).dy - 100));
+    });
+
+    testWidgets('shows the step before with what was recorded, and keeps the draft of the current one', (
+      tester,
+    ) async {
+      final h = await afterAriFirst(tester);
+      await _tap(tester, 'guided-edit-andi');
+      await tester.enterText(find.byKey(const Key('session-set-kg')), '70');
+      await _tap(tester, 'session-set-save');
+
+      await _tap(tester, 'guided-back');
+
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · ya registrada');
+      expect(find.byKey(const Key('guided-card-ari')), findsOneWidget);
+      expect(find.byKey(const Key('guided-card-andi')), findsNothing);
+      expect(_text(tester, 'guided-values-ari'), '80 kg × 5 reps');
+      expect(_text(tester, 'guided-reviewing'), 'Si la terminás, reemplaza lo registrado.');
+      expect(_text(tester, 'guided-step-main'), 'Iniciar turno de Ari');
+      expect(find.byKey(const Key('guided-leave-ari')), findsNothing);
+      expect(_text(tester, 'guided-next'), 'Después vuelve al paso actual: Sentadilla, serie 1 · Andi');
+      expect(tester.widget<TextButton>(find.byKey(const Key('guided-back'))).onPressed, isNull);
+      // Looking is not a change: nothing written, nothing unmarked, the pass does not move.
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done']);
+      final version = h.sessions.pass!.version;
+
+      await _tap(tester, 'guided-to-current');
+
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+      expect(_text(tester, 'guided-values-andi'), '70 kg × 5 reps');
+      expect(h.sessions.writes, hasLength(1));
+      expect(h.sessions.pass!.version, version);
+    });
+
+    testWidgets('finishing the step behind again overwrites its set, without unmarking it', (
+      tester,
+    ) async {
+      final h = await afterAriFirst(tester);
+      final passed = h.sessions.pass!.blocks[1].passed;
+      await _tap(tester, 'guided-back');
+      await _tap(tester, 'guided-edit-ari');
+      await tester.enterText(find.byKey(const Key('session-set-kg')), '85');
+      await tester.enterText(find.byKey(const Key('session-set-reps')), '4');
+      await _tap(tester, 'session-set-save');
+      expect(_text(tester, 'guided-step-main'), 'Iniciar turno de Ari');
+
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-step-main'), 'Terminar turno');
+      expect(h.sessions.writes, hasLength(1), reason: 'starting it writes nothing');
+      await _tap(tester, 'guided-step-main');
+
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done', 'ari 1-0-0 done']);
+      expect(h.sessions.writes.last.manualKg, 85);
+      expect(h.sessions.writes.last.reps, 4);
+      expect(h.sessions.writes.every((w) => w.done), isTrue);
+      final live = h.container.read(sessionScreenProvider).live!;
+      final ari = recordOf(live, 'ari', 1, 0, 0)!;
+      expect((ari.done, ari.kg, ari.reps), (true, 85, 4));
+      expect(h.sessions.pass!.blocks[1].passed, passed);
+      // Back on the step the pass is on.
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+    });
+
+    testWidgets('it goes back step by step and finishing walks forward again', (tester) async {
+      final h = await afterAriFirst(tester);
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-set'), 'Serie 2 de 2 · turno de Ari');
+
+      await _tap(tester, 'guided-back');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi · ya registrada');
+      await _tap(tester, 'guided-back');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · ya registrada');
+
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi · ya registrada');
+      expect(_text(tester, 'guided-step-main'), 'Iniciar turno de Andi');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-set'), 'Serie 2 de 2 · turno de Ari');
+      expect(h.sessions.writes.map(_w), [
+        'ari 1-0-0 done',
+        'andi 1-0-0 done',
+        'ari 1-0-0 done',
+        'andi 1-0-0 done',
+      ]);
+    });
+
+    testWidgets('an athlete who did not do the set behind stays without it unless counted', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-not-done-andi');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done']);
+
+      await _tap(tester, 'guided-back');
+
+      expect(find.text('No hace esta serie'), findsOneWidget);
+      expect(_text(tester, 'guided-step-main'), 'Iniciar serie');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done', 'ari 1-0-0 done']);
+
+      await _tap(tester, 'guided-back');
+      await _tap(tester, 'guided-not-done-andi');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      expect(h.sessions.writes.map(_w).skip(2), ['ari 1-0-0 done', 'andi 1-0-0 done']);
+    });
+  });
+
+  group('coming back where it was (Ari, 2026-11-21)', () {
+    Future<void> leave(WidgetTester tester) async {
+      await _tap(tester, 'guided-exit');
+      await _tap(tester, 'guided-exit-save');
+      expect(find.byType(GuidedPage), findsNothing);
+    }
+
+    /// Block 1 by turns, Ari's turn started with 85 kg × 4 typed.
+    Future<void> typeOnAri(WidgetTester tester) async {
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-edit-ari');
+      await tester.enterText(find.byKey(const Key('session-set-kg')), '85');
+      await tester.enterText(find.byKey(const Key('session-set-reps')), '4');
+      await _tap(tester, 'session-set-save');
+    }
+
+    testWidgets('leaving and entering again keeps the step started and what was typed', (tester) async {
+      final h = await _pump(tester);
+      await typeOnAri(tester);
+      await leave(tester);
+
+      await _train(tester);
+
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · en curso');
+      expect(_text(tester, 'guided-values-ari'), '85 kg × 4 reps');
+      await _tap(tester, 'guided-step-main');
+      expect(h.sessions.writes.single.manualKg, 85);
+      expect(h.sessions.writes.single.reps, 4);
+    });
+
+    testWidgets('a step shown with "Atrás" is shown again on coming back', (tester) async {
+      await _pump(tester);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-back');
+      await _tap(tester, 'guided-edit-ari');
+      await tester.enterText(find.byKey(const Key('session-set-kg')), '90');
+      await _tap(tester, 'session-set-save');
+      await leave(tester);
+
+      await _train(tester);
+
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · ya registrada');
+      expect(_text(tester, 'guided-values-ari'), '90 kg × 5 reps');
+    });
+
+    testWidgets('after a reload of the app it lands on the same step, from local storage', (tester) async {
+      SharedPreferences.setMockInitialValues({});
+      final first = await _pump(
+        tester,
+        positions: SharedPreferencesGuidedPositionStore(),
+      );
+      await typeOnAri(tester);
+      expect(
+        (await SharedPreferences.getInstance()).getString(SharedPreferencesGuidedPositionStore.key),
+        isNotNull,
+      );
+
+      // A new app over the same server and the same local storage.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pump(
+        tester,
+        sessions: first.sessions,
+        positions: SharedPreferencesGuidedPositionStore(),
+      );
+      await _train(tester);
+
+      expect(_text(tester, 'guided-block-name'), 'Principal');
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · en curso');
+      expect(_text(tester, 'guided-values-ari'), '85 kg × 4 reps');
+    });
+
+    testWidgets('if the pass moved on meanwhile, what was remembered is dropped', (tester) async {
+      final positions = _Positions();
+      final h = await _pump(tester, positions: positions);
+      await typeOnAri(tester);
+      await leave(tester);
+      expect(positions.saved?.draft, isNotNull);
+
+      // Another device finished block 1.
+      final pass = h.sessions.pass!;
+      h.sessions.pass = applyGuidedAction(
+        pass,
+        GuidedPassAction.onBlock(
+          GuidedActionKind.finishBlock,
+          passId: pass.id,
+          version: pass.version,
+          at: h.now,
+          block: 1,
+        ),
+      );
+      h.sessions.sessionChanges++;
+      await tester.pumpWidget(const SizedBox.shrink());
+      await _pump(tester, sessions: h.sessions, positions: positions);
+      await _train(tester);
+
+      expect(_text(tester, 'guided-block-name'), 'Accesorios');
+      expect(find.byKey(const Key('guided-start-block')), findsOneWidget);
+      expect(positions.saved?.block, 2);
+      expect(positions.saved?.draft, isNull);
+    });
+
+    testWidgets('a new pass does not take the draft of the one before', (tester) async {
+      final positions = _Positions();
+      await _pump(tester, positions: positions);
+      await typeOnAri(tester);
+      final before = positions.saved!.passId;
+
+      await _tap(tester, 'guided-pass-menu');
+      await _tap(tester, 'guided-start-over');
+      await _tap(tester, 'guided-begin');
+      if (find.byKey(const Key('guided-resume')).evaluate().isNotEmpty) {
+        await _tap(tester, 'guided-resume');
+      }
+      await _skipBlock(tester);
+      await _tap(tester, 'guided-start-block');
+
+      expect(positions.saved!.passId, isNot(before));
+      expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari');
+      expect(_text(tester, 'guided-values-ari'), '80 kg × 5 reps');
     });
   });
 }

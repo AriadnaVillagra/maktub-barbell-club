@@ -129,6 +129,9 @@ class _PlanWrites implements CreatePlanStore, SavePlanStore, PublishPlanStore, M
   Future<Map<String, Exercise>> exercises(String clubId) async => db.visible(clubId);
 
   @override
+  Future<List<Assignment>> assignments(String clubId, String planId) async => const [];
+
+  @override
   Future<bool> replace(Plan plan) async {
     db.planWrites++;
     final stored = db.plans[plan.id];

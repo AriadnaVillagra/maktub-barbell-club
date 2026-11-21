@@ -22,15 +22,16 @@ class ClubContext {
   final String clubId;
   final String userId;
 
-  /// Roles of the active membership. Never empty.
+  /// Roles of the active membership. Empty only for a platform admin who is not a member of the club.
   final Set<Rol> roles;
   final TipoClub clubType;
 
-  /// Can change what is shared by every club (the default catalog).
+  /// Can do everything in any club, even without a membership (support), and change what every club shares (the
+  /// default catalog).
   final bool isPlatformAdmin;
 
-  /// Whether the permission matrix (F1) lets this membership do [action].
-  bool can(Accion action) => puede(roles, action, clubType);
+  /// Whether the permission matrix (F1, by hierarchy) lets this user do [action] in the club.
+  bool can(Accion action) => puede(roles, action, clubType, esAdminPlataforma: isPlatformAdmin);
 
   /// Throws a 403 unless [can] allows [action]. Slices call it first when each HTTP method needs a
   /// different action; a route group whose methods all need the same one uses [requireAction].
@@ -39,36 +40,42 @@ class ClubContext {
     return this;
   }
 
-  /// Throws a 403 unless the user can change [item]: a default one needs a platform admin, one of the
-  /// club needs [Accion.editarCatalogoClub].
+  /// Throws a 403 unless the user can change the catalog [item] (exercise, category, timer): a default one needs a
+  /// platform admin, one of the club needs [Accion.editarCatalogoClub].
   void authorizeCatalogWrite(DelClub item) {
     if (!puedeEscribirCatalogo(item, roles, clubType, esAdminPlataforma: isPlatformAdmin)) throw forbiddenRole;
   }
+
+  /// What this user can do with [plan] of the club ([PlanAccess]).
+  PlanAccess planAccess(Plan plan) =>
+      PlanAccess.of(plan, userId: userId, roles: roles, isPlatformAdmin: isPlatformAdmin);
 }
 
 // Both are 403, never 401: the app treats 401 as "renew the token and retry".
 const notAMember = ErrorDeSolicitud('No tenés acceso a este club.', estado: HttpStatus.forbidden);
 const forbiddenRole = ErrorDeSolicitud('Tu rol en este club no permite esta acción.', estado: HttpStatus.forbidden);
 
-/// Resolves [ClubContext] from the user's active membership. An ended membership gives no access.
+/// Resolves [ClubContext] from the user's active membership. An ended membership gives no access, except to a
+/// platform admin, who enters any existing club without one (support, pedido de Ari 2026-11-21).
 class ResolveClubContext {
   ResolveClubContext(this._store);
 
   final ClubContextStore _store;
 
   Future<ClubContext> call({required String userId, required String clubId}) async {
-    final membership = await _store.activeMembership(clubId: clubId, userId: userId);
-    if (membership == null || !membership.activa || membership.clubId != clubId || membership.roles.isEmpty) {
-      throw notAMember;
-    }
+    final found = await _store.activeMembership(clubId: clubId, userId: userId);
+    final membership =
+        found != null && found.activa && found.clubId == clubId && found.roles.isNotEmpty ? found : null;
+    final isPlatformAdmin = await _store.isPlatformAdmin(userId);
+    if (membership == null && !isPlatformAdmin) throw notAMember;
     final type = await _store.clubType(clubId);
     if (type == null) throw notAMember;
     return ClubContext(
       clubId: clubId,
       userId: userId,
-      roles: membership.roles,
+      roles: membership?.roles ?? const {},
       clubType: type,
-      isPlatformAdmin: await _store.isPlatformAdmin(userId),
+      isPlatformAdmin: isPlatformAdmin,
     );
   }
 }
@@ -82,7 +89,7 @@ String? clubIdFromPath(Uri uri) {
 }
 
 /// Goes in `routes/clubes/[clubId]/_middleware.dart`, inside [requireUser]: checks the active
-/// membership in the club of the path and provides [ClubContext] to every handler below.
+/// membership in the club of the path (or the platform admin flag) and provides [ClubContext] to every handler below.
 /// [store] is for tests; by default it reads Mongo through the provided [Db].
 Middleware requireClub({ClubContextStore Function(RequestContext context)? store}) => (handler) => (context) async {
       final clubId = clubIdFromPath(context.request.uri);

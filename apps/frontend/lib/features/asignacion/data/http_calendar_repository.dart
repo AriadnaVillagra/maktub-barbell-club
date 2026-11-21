@@ -81,20 +81,38 @@ class HttpCalendarRepository implements CalendarRepository {
     String clubId,
     String assignmentId,
     DateTime from,
-    DateTime to,
-  ) async {
+    DateTime to, {
+    String? athleteId,
+  }) async {
     final j = await _client.get(
       '${_club(clubId)}/asignaciones/${Uri.encodeComponent(assignmentId)}/dias'
-      '?desde=${aIsoFecha(from)}&hasta=${aIsoFecha(to)}',
+      '?desde=${aIsoFecha(from)}&hasta=${aIsoFecha(to)}'
+      '${athleteId == null ? '' : '&atletaId=${Uri.encodeComponent(athleteId)}'}',
     );
     return [
       for (final d in (j['dias'] as List? ?? const []))
-        DayState(
-          cycle: ((d as Map)['ciclo'] as num).toInt(),
-          week: (d['semana'] as num).toInt(),
-          day: (d['dia'] as num).toInt(),
-          done: d['estado'] == 'hecho',
-        ),
+        dayStateFromJson((d as Map).cast<String, dynamic>()),
     ];
   }
 }
+
+/// One day of `.../dias`, as the API sends it and the device's copy keeps it.
+DayState dayStateFromJson(Json d) => DayState(
+  cycle: (d['ciclo'] as num).toInt(),
+  week: (d['semana'] as num).toInt(),
+  day: (d['dia'] as num).toInt(),
+  status: DayProgressStatus.fromCable(d['estado']),
+  doneSets: (d['hechas'] as num?)?.toInt(),
+  totalSets: (d['total'] as num?)?.toInt(),
+  date: desdeIsoFechaOpcional(d['fecha']),
+);
+
+Json dayStateToJson(DayState s) => {
+  'ciclo': s.cycle,
+  'semana': s.week,
+  'dia': s.day,
+  'estado': s.status.cable,
+  'hechas': ?s.doneSets,
+  'total': ?s.totalSets,
+  if (s.date case final date?) 'fecha': aIsoFecha(date),
+};
