@@ -462,25 +462,34 @@ orden (secuencial o circuito) elegido al entrenar, arrancando en el del plan, si
 El cambio de modo en vivo recalcula solo lo pendiente. La lista de la sesión queda como vista
 general.
 
-- **La pasada es de la sesión**, no del dispositivo: quién entrena, si se rehace el día, inicio y
-  fin, y por bloque su estado (*pendiente*, *en curso*, *terminado*, *interrumpido*, *salteado*),
-  instantes, modo de atletas, orden, series pasadas y ejercicios dejados. El paso en pantalla no se
-  guarda: sale de los registros y de lo ya pasado.
+- **La pasada es de la sesión**, no del dispositivo: quién entrena, si se rehace el día, inicio (al
+  tocar "Comenzar") y fin, y por bloque su estado (*pendiente*, *en curso*, *terminado*,
+  *interrumpido*, *salteado*), instantes, modo de atletas, orden, series pasadas y ejercicios dejados.
+  El paso en pantalla no se guarda: sale de los registros y de lo ya pasado.
 - Se escribe con acciones (comenzar, iniciar, saltar o terminar bloque, pasar series, dejar,
   terminar…) que una regla compartida de `maktub_core` aplica sobre el estado actual, en el servidor
   y en el teléfono. No hay rechazo por versión: una acción que ya no tiene sentido no cambia nada, y
   dos "Comenzar" a la vez quedan en una sola pasada.
 - Nunca desmarca: arranca desde lo que falta, porque desmarcar borraría lo del otro teléfono. Una
   serie rehecha se escribe con lo propuesto y pisa la anterior.
-- Cada bloque cerrado deja su **tiempo de bloque** (3.6), y el día termina con un resumen.
-  "Terminar el día" con un bloque en curso lo cierra como interrumpido.
+- El reloj del día corre desde "Comenzar" y el del bloque desde "Iniciar bloque"; los dos salen de los
+  instantes de la pasada, así que todos los dispositivos muestran lo mismo. Cada bloque cerrado deja su
+  **tiempo de bloque** (3.6), y el día termina con un resumen. "Terminar el día" con un bloque en curso
+  lo cierra como interrumpido.
+- **La ✕** ofrece "Guardar y salir" (la pasada sigue y el dispositivo vuelve donde quedó),
+  "Terminar el entrenamiento" (termina la pasada para todos, como "Terminar el día", y va al resumen;
+  lo registrado queda) o "Cancelar".
+- Una pasada que empezó hace más de 3 horas y sigue abierta probablemente quedó de antes: se muestran
+  sus tiempos reales, sin inventar otros, con un aviso que ofrece terminarla.
 - Las acciones que se tocan sin querer (saltar ejercicio, saltar bloque, interrumpir) van en
   "Más acciones". Reordenar pasos queda para después.
 - **"Atrás"** vuelve a los pasos ya hechos del bloque en curso, uno por vez, para verlos o corregirlos.
-  Es local a cada dispositivo: no mueve la pasada ni a los otros teléfonos. Terminar de nuevo un paso
-  pisa sus series, sin desmarcar.
+  Es local a cada dispositivo: no mueve la pasada ni a los otros teléfonos. El paso se recorre como
+  cualquier otro ("Iniciar serie" y después "Terminar serie"), con un aviso de que ya está registrado;
+  al terminarlo pisa sus series, sin desmarcar.
 - Cada dispositivo **recuerda dónde quedó** (bloque, paso y lo tipeado) aunque se salga a otra
   pantalla o se recargue la PWA. Si la pasada cambió mientras tanto, arranca desde lo que dice ella.
+  Al recargar dentro del modo guiado, espera el día y su sesión antes de mostrar nada.
 
 ## 6. Temporizadores, cardio y WoD
 
