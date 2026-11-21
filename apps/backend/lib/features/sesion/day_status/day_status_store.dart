@@ -5,6 +5,15 @@ import 'package:mongo_dart/mongo_dart.dart';
 /// A day of an assignment that has sets recorded: where it sits in the cycle and the date of its session.
 typedef DoneDay = ({int cycle, int week, int day, DateTime date});
 
+/// One set an athlete recorded as done: the day it belongs to, the date of its session and its position in the day.
+typedef DoneSet = ({
+  int cycle,
+  int week,
+  int day,
+  DateTime date,
+  SetPosition position,
+});
+
 /// What the "status of each day" slice reads. Every method carries the club id.
 abstract interface class DayStatusStore {
   /// Whether the group [groupId] exists in [clubId].
@@ -25,6 +34,15 @@ abstract interface class DayStatusStore {
     String clubId,
     String assignmentId,
     List<int> cycles,
+  );
+
+  /// The sets [athleteId] recorded as done in the sessions of the assignment, in any of [cycles]. The same position
+  /// can appear more than once if its day was opened on several dates; callers count it once.
+  Future<List<DoneSet>> doneSets(
+    String clubId,
+    String assignmentId,
+    List<int> cycles,
+    String athleteId,
   );
 }
 
@@ -99,6 +117,49 @@ class MongoDayStatusStore implements DayStatusStore {
       for (final s in sessions)
         if (withSets.contains(s.id))
           (cycle: s.cycle, week: s.week, day: s.day, date: s.date),
+    ];
+  }
+
+  @override
+  Future<List<DoneSet>> doneSets(
+    String clubId,
+    String assignmentId,
+    List<int> cycles,
+    String athleteId,
+  ) async {
+    final docs = await _db.collection(Colecciones.sesiones).find({
+      'clubId': clubId,
+      'asignacionId': assignmentId,
+      'ciclo': {r'$in': cycles},
+    }).toList();
+    if (docs.isEmpty) return const [];
+    final sessions = <String, Session>{};
+    for (final d in docs) {
+      final s = Session.fromJson(desdeDocumento(d));
+      sessions[s.id] = s;
+    }
+    final records = await _db.collection(Colecciones.registros).find(
+      where
+          .eq('clubId', clubId)
+          .oneFrom('sesionId', sessions.keys.toList())
+          .eq('atletaId', athleteId)
+          .ne('hecha', false)
+          .fields(['sesionId', 'bloque', 'prescripcion', 'serie']),
+    ).toList();
+    return [
+      for (final r in records)
+        if (sessions[r['sesionId']] case final s?)
+          (
+            cycle: s.cycle,
+            week: s.week,
+            day: s.day,
+            date: s.date,
+            position: (
+              block: (r['bloque'] as num).toInt(),
+              prescription: (r['prescripcion'] as num).toInt(),
+              set: (r['serie'] as num).toInt(),
+            ),
+          ),
     ];
   }
 }

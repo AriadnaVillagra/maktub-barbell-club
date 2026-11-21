@@ -23,6 +23,7 @@ export 'src/modelos/wod.dart';
 export 'src/models/issued_session.dart';
 export 'src/reglas/catalogo.dart';
 export 'src/reglas/daily_adjustment.dart';
+export 'src/reglas/day_progress.dart';
 export 'src/reglas/ciclo.dart';
 export 'src/reglas/equipo.dart';
 export 'src/reglas/fases.dart';
