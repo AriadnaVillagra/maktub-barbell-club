@@ -234,6 +234,17 @@ publicada**, nunca el borrador.
   importador no los pide. **Deploy:** primero el backend y después la PWA.
 - **Métrica objetivo según los chips** (Ari, 2026-11-21). El desplegable "métrica objetivo" no se llena con las
   métricas elegidas en los chips de arriba. Estado: `hecho` (`cee2fa0`).
+- **Prueba en dev de Ari (2026-11-21, segunda tanda):** sesión y calendario, modo guiado, catálogo y alta de club ok.
+  Salieron cuatro pedidos:
+  - **Modo guiado: atrás y recordar dónde quedé.** "Atrás" vuelve al paso anterior sin desmarcar (terminarlo de nuevo
+    pisa la serie). Salir del modo guiado (por ejemplo a Preferencias) y volver retoma el mismo paso. `en curso`.
+  - **Kilos por atleta en ejercicios por %.** En un plan con varios atletas, cada serie por % muestra debajo la
+    sugerencia de cada atleta (RM × % = kg) y el coach escribe a mano los kg de cada uno. `en curso`.
+  - **Historial en su lugar.** El propio va en la pantalla Entrenamiento; el de los atletas, en Planificación. `en curso`.
+  - **Permisos por jerarquía** (decidido por Ari): admin de plataforma ve y hace todo en todos los clubes; `admin_club`
+    ve y hace todo en su club (planes y asignaciones incluidos); coach: planes, ejercicios, categorías,
+    temporizadores, WoDs, asignar, ver planes, y todo lo del atleta (equipo no); atleta: su plan del día, su historial,
+    su perfil, los temporizadores del club y toda la pantalla Entrenamiento. `en curso`.
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
   `admin_club` da de alta miembros en un club existente. Refinado con Ari el 2026-11-21: quien entra con Google sin
   cuenta puede pedir un club; queda pendiente hasta que un admin de plataforma lo aprueba desde la app, y mientras
