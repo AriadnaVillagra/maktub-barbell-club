@@ -21,6 +21,11 @@ import 'plan_labels.dart';
 ///
 /// [offerLoad]: an exercise that is not weighted still offers the % and kg of one loaded by % (planning, Ari
 /// 2026-11-21). Left blank it stays without weight; saving the plan with a weight makes the exercise weighted.
+///
+/// Kilos per athlete (Ari, 2026-11-21): when [athletes] are a plan's assignment of more than one athlete, a set of an
+/// exercise in kilos asks for each athlete's kilos and has no general weight; the reps are the same for all. A set that
+/// had one weight opens with it for each athlete. With one athlete, or before the plan is assigned, it keeps one
+/// weight. Kilos without % given to an exercise without weight go to each athlete too.
 Future<Prescription?> askPrescription(
   BuildContext context, {
   required Prescription initial,
@@ -43,10 +48,20 @@ Future<Prescription?> askPrescription(
 /// equipment that rounds the kilos (the standard one when null). The plan's assignment, or the athletes chosen in
 /// the editor's Detalles card when it has none.
 class PrescriptionAthletes {
-  const PrescriptionAthletes({this.athletes = const [], this.equipo});
+  const PrescriptionAthletes({this.athletes = const [], this.equipo, this.assigned = false});
 
   final List<AthleteBasis> athletes;
   final Equipo? equipo;
+
+  /// Whether [athletes] are the plan's assignment (not a choice in Detalles): only then a set in kilos asks for each
+  /// one's kilos.
+  final bool assigned;
+
+  /// The athletes a set in kilos asks kilos for, one by one; empty when it keeps one weight.
+  List<AthleteBasis> get kgAthletes {
+    final ids = [for (final a in athletes) a.id];
+    return assigned && asksKgPerAthlete(ids) ? athletes : const [];
+  }
 }
 
 final _decimalText = RegExp(r'^\d*[.,]?\d*$');
@@ -80,9 +95,10 @@ class _PrescriptionDialog extends ConsumerStatefulWidget {
 }
 
 class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
-  late List<PlanSet> _sets = widget.initial.sets.isEmpty
-      ? const [PlanSet()]
-      : widget.initial.sets;
+  late List<PlanSet> _sets = () {
+    final sets = widget.initial.sets.isEmpty ? const [PlanSet()] : widget.initial.sets;
+    return _kgPerAthlete ? withKgPerAthlete(sets, [for (final a in _kgAthletes) a.id]) : sets;
+  }();
   late String _note = widget.initial.note ?? '';
   late String? _timerId = widget.initial.timerId;
   late String _bar = widget.initial.barKg == null
@@ -102,6 +118,16 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   double? get _barKg => parseTypedNumber(_bar) ?? widget.exercise?.barKg;
 
   List<AthleteBasis> get _athletes => widget.athletes.athletes;
+
+  List<AthleteBasis> get _kgAthletes => widget.athletes.kgAthletes;
+
+  /// Whether this exercise is in kilos (not by %) and its sets ask for each athlete's kilos.
+  bool get _kgPerAthlete =>
+      _kgAthletes.isNotEmpty && widget.exercise != null && isKgExercise(widget.exercise!);
+
+  /// The plan's only athlete, when it is assigned to one: the single weight shown is the one proposed to them.
+  String? get _onlyAssignedId =>
+      widget.athletes.assigned && _athletes.length == 1 ? _athletes.single.id : null;
 
   Map<String, AthleteSetLoad> _loadsFor(double? pct, double? kg) => athleteLoads(
     pct: pct,
@@ -195,11 +221,55 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
     ];
   }
 
+  /// Kilos typed for an exercise without weight go to each athlete when the plan asks for kilos per athlete.
+  List<PlanSet> get _submittedSets {
+    final exercise = widget.exercise;
+    final unweighted = widget.offerLoad && exercise != null && !isWeighted(exercise);
+    return unweighted && _kgAthletes.isNotEmpty ? kgToEachAthlete(_sets, [for (final a in _kgAthletes) a.id]) : _sets;
+  }
+
+  /// Replaces set [i] with [change] of it, without rebuilding its fields.
+  void _setSet(int i, PlanSet Function(PlanSet) change) {
+    _sets = [for (final (j, x) in _sets.indexed) j == i ? change(x) : x];
+  }
+
+  /// Each athlete's kilos of set [i], under its reps, two per row.
+  Widget _athleteKgFields(int i, PlanSet set) {
+    final athletes = _kgAthletes;
+    Widget field(AthleteBasis a) => _numberField(
+      key: ValueKey('set-kg-$i-${a.id}-$_generation'),
+      label: '${a.name} (kg)',
+      initial: switch (set.byAthlete[a.id]?.kg) {
+        null => '',
+        final kg => formatNumber(kg),
+      },
+      formatters: [_decimalFormatter],
+      onChanged: (t) => _setSet(i, (s) => setWithAthleteKg(s, a.id, parseTypedNumber(t))),
+    );
+    return Padding(
+      key: Key('set-athlete-kg-$i'),
+      padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var k = 0; k < athletes.length; k += 2)
+            Row(
+              children: [
+                field(athletes[k]),
+                const SizedBox(width: Espacio.s),
+                if (k + 1 < athletes.length) field(athletes[k + 1]) else const Spacer(),
+              ],
+            ),
+        ],
+      ),
+    );
+  }
+
   void _submit() => Navigator.pop(
     context,
     prescriptionWith(
       widget.initial,
-      sets: _sets,
+      sets: _submittedSets,
       note: _note,
       timerId: _timerId,
       barKg: parseTypedNumber(_bar),
@@ -274,15 +344,17 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                         formatters: [_decimalFormatter],
                         onChanged: (t) => _typeLoad(i, inPct: false, value: parseTypedNumber(t)),
                       ),
-                    ] else if (_hasKg) ...[
+                    ] else if (_hasKg && !_kgPerAthlete) ...[
                       const SizedBox(width: Espacio.s),
                       _numberField(
                         key: ValueKey('set-kg-$i-$_generation'),
                         label: 'kg',
-                        initial: set.kg == null ? '' : formatNumber(set.kg!),
+                        initial: switch (singleKgOf(set, _onlyAssignedId)) {
+                          null => '',
+                          final kg => formatNumber(kg),
+                        },
                         formatters: [_decimalFormatter],
-                        onChanged: (t) =>
-                            _changeSet(i, kg: (_) => parseTypedNumber(t)),
+                        onChanged: (t) => _setSet(i, (s) => setWithSingleKg(s, parseTypedNumber(t))),
                       ),
                     ],
                     IconButton(
@@ -300,7 +372,8 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                     ),
                   ],
                 ),
-                if (_single == null
+                if (_hasKg && _kgPerAthlete) _athleteKgFields(i, set),
+                if (_single == null && !_kgPerAthlete
                     ? athleteLoadsSummary(set.byAthlete, _athletes, formatNumber)
                     : '' case final line
                     when line.isNotEmpty)

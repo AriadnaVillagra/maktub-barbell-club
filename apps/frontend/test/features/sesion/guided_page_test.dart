@@ -97,6 +97,9 @@ final _plan = PublishedPlanView(
   ],
 );
 
+/// An exercise in kilos (not by % of RM).
+final _press = ex('press', 'Press con mancuerna', categories: ['accesorio'], metrics: [Metric.fixedLoad, Metric.reps]);
+
 /// The plan the fake calendar serves; a test can swap it for another.
 PublishedPlanView _served = _plan;
 
@@ -214,6 +217,9 @@ class _Sessions implements SessionRepository {
   /// The present athletes of the last opening.
   var present = <String>[];
 
+  /// What the server proposes to each athlete, when a test sets it; else the squat's kilos below.
+  List<ProposedSet> Function(String athleteId)? proposals;
+
   /// The reps the plan has for each prescription.
   static int _planReps(int block, int prescription) =>
       switch ((block, prescription)) {
@@ -306,7 +312,7 @@ class _Sessions implements SessionRepository {
     String sessionId,
     String athleteId,
     AthleteAdjustments adjustments,
-  ) async => [
+  ) async => proposals?.call(athleteId) ?? [
     for (var s = 0; s < 2; s++)
       ProposedSet(
         blockIndex: 1,
@@ -424,6 +430,7 @@ Future<_Harness> _pump(
       ex('curl', 'Curl'),
       ex('face', 'Face pull'),
       ex('pu', 'Dominadas'),
+      _press,
     ],
     timersList: [
       timer('rest90', 'Descanso 90', work: 90),
@@ -789,6 +796,49 @@ void main() {
 
       expect(queue.pending, isEmpty);
       expect(h.sessions.writes.map(_w), ['ari 1-0-0 done']);
+    });
+  });
+
+  group('kilos per athlete in a set in kilos (Ari, 2026-11-21)', () {
+    final pressDay = _planOf(const [
+      PlanBlock(
+        name: 'Accesorios',
+        categoryId: 'accesorio',
+        prescriptions: [
+          Prescription(
+            exerciseId: 'press',
+            sets: [
+              PlanSet(reps: 10, byAthlete: {'ari': AthleteSetLoad(kg: 12.5), 'andi': AthleteSetLoad(kg: 16)}),
+            ],
+          ),
+        ],
+      ),
+    ]);
+
+    /// The server's proposal: the shared rule over the plan, as `kilos-propuestos` computes it.
+    List<ProposedSet> proposed(String athleteId) => proposedDaySets(
+      blocks: pressDay.weekModels.single.days.single.blocks,
+      exercises: {'press': _press},
+      athleteId: athleteId,
+      on: _today,
+      references: const [],
+      factors: const [],
+      fixedKg: const {},
+      equipo: Equipo.estandarDe('c1'),
+    );
+
+    testWidgets('the preview and the cards show each athlete\'s kilos', (tester) async {
+      _served = pressDay;
+      await _pump(tester, sessions: _Sessions()..proposals = proposed);
+      await _toBlock(tester, 0);
+
+      expect(_text(tester, 'guided-preview-0-ari'), endsWith('12.5 kg'));
+      expect(_text(tester, 'guided-preview-0-andi'), endsWith('16 kg'));
+
+      await _tap(tester, 'guided-mode-simultaneous');
+      await _tap(tester, 'guided-start-block');
+      expect(_text(tester, 'guided-values-ari'), '12.5 kg × 10 reps');
+      expect(_text(tester, 'guided-values-andi'), '16 kg × 10 reps');
     });
   });
 

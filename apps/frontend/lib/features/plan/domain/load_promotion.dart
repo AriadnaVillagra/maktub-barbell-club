@@ -4,13 +4,16 @@ import 'package:maktub_core/maktub_core.dart';
 bool isWeighted(Exercise exercise) => exercise.metrics.any((m) => m.isLoad);
 
 /// [exercise] made weighted because a plan gives it a weight in [sets] (Ari, 2026-11-21): a % adds "Carga (% del
-/// RM)", kilos alone add "Carga fija". Loaded by %, an exercise without a reference gets its own RM when it measures
+/// RM)", kilos alone (the set's, or each athlete's) add "Carga fija". Loaded by %, an exercise without a reference gets its own RM when it measures
 /// reps, so its % works out kilos from each athlete's RM like any other. Null when it is already weighted or no set
 /// has a weight.
 Exercise? weightedBySets(Exercise exercise, Iterable<PlanSet> sets) {
   if (isWeighted(exercise)) return null;
   final byPct = sets.any((s) => (s.pct ?? 0) > 0);
-  final byKg = sets.any((s) => (s.kg ?? 0) > 0);
+  // Kilos per athlete in a plan for several athletes have no %.
+  final byKg = sets.any(
+    (s) => (s.kg ?? 0) > 0 || s.byAthlete.values.any((l) => l.pct == null && (l.kg ?? 0) > 0),
+  );
   if (!byPct && !byKg) return null;
   final weighted = exercise.copyWith(
     metrics: [byPct ? Metric.loadPctRm : Metric.fixedLoad, ...exercise.metrics],

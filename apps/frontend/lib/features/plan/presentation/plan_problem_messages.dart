@@ -35,15 +35,17 @@ String planProblemMessage(PlanProblemCode code) => switch (code) {
   PlanProblemCode.prescriptionWithoutSets => 'El ejercicio no tiene series.',
   PlanProblemCode.setWithoutReps => 'Faltan las repeticiones de la serie.',
   PlanProblemCode.setWithoutPct => 'Falta el % de la serie.',
+  PlanProblemCode.setWithoutAthleteKg => 'Faltan los kilos de un atleta en la serie.',
 };
 
 /// Describes [problem] against [plan] (the plan that was validated or sent, so the indices match):
-/// "Modelo A › Día 2 › Bloque 1 "Fuerza" › Sentadilla › Serie 3". Indices that point outside the plan fall
-/// back to their number, so a stale or foreign index never throws.
+/// "Modelo A › Día 2 › Bloque 1 "Fuerza" › Sentadilla › Serie 3", and "› Andi" for one athlete's ([athleteName], else
+/// "Atleta"). Indices that point outside the plan fall back to their number, so a stale or foreign index never throws.
 PlanProblemLine describePlanProblem(
   PlanProblem problem,
   Plan plan, {
   required String? Function(String exerciseId) exerciseName,
+  String? Function(String athleteId)? athleteName,
 }) {
   final parts = <String>[];
   final modelIndex = problem.weekModelIndex;
@@ -88,6 +90,7 @@ PlanProblemLine describePlanProblem(
   }
   final setIndex = problem.setIndex;
   if (setIndex != null) parts.add('Serie ${setIndex + 1}');
+  if (problem.athleteId case final id?) parts.add(athleteName?.call(id) ?? 'Atleta');
   return PlanProblemLine(
     planProblemMessage(problem.code),
     parts.isEmpty ? null : parts.join(' › '),

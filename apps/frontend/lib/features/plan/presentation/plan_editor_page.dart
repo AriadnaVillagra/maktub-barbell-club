@@ -1006,7 +1006,7 @@ class _BlockTile extends ConsumerWidget {
       final rmId = rmExerciseIdFor(exercise, {for (final e in exercises) e.id: e});
       final equipo = await ref.read(clubTeamProvider.future);
       final bases = athleteBases(plan.athletes, rmId, hoy());
-      if (plan.assigned) return PrescriptionAthletes(athletes: bases, equipo: equipo);
+      if (plan.assigned) return PrescriptionAthletes(athletes: bases, equipo: equipo, assigned: true);
       final chosen = ref.read(planAthleteChoiceProvider(editor.planId));
       return PrescriptionAthletes(
         athletes: [

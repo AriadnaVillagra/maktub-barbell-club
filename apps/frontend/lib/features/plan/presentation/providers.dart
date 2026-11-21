@@ -13,9 +13,11 @@ import '../../catalogo/presentation/providers.dart'
 import '../data/http_plan_repository.dart';
 import '../data/shared_preferences_models_view_store.dart';
 import '../domain/models_view.dart';
+import '../domain/athlete_loads.dart';
 import '../domain/load_promotion.dart';
 import '../domain/plan_draft.dart';
 import '../domain/plan_repository.dart';
+import 'plan_athletes_providers.dart';
 import 'plan_problem_messages.dart';
 
 final planRepositoryProvider = Provider<PlanRepository>(
@@ -324,6 +326,7 @@ class PlanSave extends Notifier<PlanSaveState> {
     state = const PlanSaveState(saving: true);
     final plan = draft.toPlan();
     String? Function(String) nameOf = (_) => null;
+    final athletes = _planAthletesNow(ref, planId);
     try {
       final clubId = (await ref.read(meProvider.future))?.activeClub?.club.id;
       if (clubId == null) throw StateError('No active club');
@@ -339,7 +342,11 @@ class PlanSave extends Notifier<PlanSaveState> {
       );
       final exercises = {...catalog, ...gaining};
       nameOf = (id) => exercises[id]?.name;
-      final problems = validatePlan(plan, exerciseById: (id) => exercises[id]);
+      final problems = validatePlan(
+        plan,
+        exerciseById: (id) => exercises[id],
+        athleteIds: athletes?.kgAthleteIds ?? const [],
+      );
       final blocking = problems.where((p) => p.blocksSaving).toList();
       if (blocking.isNotEmpty) {
         _rejected(plan, blocking, nameOf, null);
@@ -363,7 +370,7 @@ class PlanSave extends Notifier<PlanSaveState> {
             : 'Plan guardado. Para poder asignarlo falta completar:',
         problems: [
           for (final p in problems)
-            describePlanProblem(p, plan, exerciseName: nameOf),
+            describePlanProblem(p, plan, exerciseName: nameOf, athleteName: _athleteNames(athletes)),
         ],
       );
     } on PlanRejected catch (e) {
@@ -440,7 +447,13 @@ final planPublishBlockProvider = Provider.autoDispose
       if (draft == null || exercises == null) return null;
       final byId = {for (final e in exercises) e.id: e};
       final plan = draft.toPlan();
-      final problems = validatePlan(plan, exerciseById: (id) => byId[id]);
+      // While they load, the server still validates with them when publishing.
+      final athletes = ref.watch(planAthletesProvider(planId)).value;
+      final problems = validatePlan(
+        plan,
+        exerciseById: (id) => byId[id],
+        athleteIds: athletes?.kgAthleteIds ?? const [],
+      );
       if (problems.isNotEmpty) {
         return PlanPublishBlock(
           problems.length == 1
@@ -452,6 +465,7 @@ final planPublishBlockProvider = Provider.autoDispose
                 p,
                 plan,
                 exerciseName: (id) => byId[id]?.name,
+                athleteName: _athleteNames(athletes),
               ),
           ],
         );
@@ -544,7 +558,12 @@ class PlanPublish extends Notifier<PlanPublishState> {
         title: e.message,
         problems: [
           for (final p in e.problems)
-            describePlanProblem(p, plan, exerciseName: nameOf),
+            describePlanProblem(
+              p,
+              plan,
+              exerciseName: nameOf,
+              athleteName: _athleteNames(_planAthletesNow(ref, planId)),
+            ),
         ],
       );
     } on ErrorDeApi catch (e) {
@@ -555,4 +574,13 @@ class PlanPublish extends Notifier<PlanPublishState> {
       }
     }
   }
+}
+
+/// Who plan [planId] is for, as the editor has them loaded (it watches them); null while they load.
+PlanAthletes? _planAthletesNow(Ref ref, String planId) => ref.read(planAthletesProvider(planId)).value;
+
+/// Names of [athletes] by id, for a problem about one of them.
+String? Function(String) _athleteNames(PlanAthletes? athletes) {
+  final names = {for (final a in athletes?.athletes ?? const <PlanAthlete>[]) a.id: a.name};
+  return (id) => names[id];
 }

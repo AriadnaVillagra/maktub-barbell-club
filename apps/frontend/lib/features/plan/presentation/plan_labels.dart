@@ -25,11 +25,12 @@ String planVisibilityDetail(PlanVisibility v) => switch (v) {
 String formatNumber(double v) =>
     v == v.roundToDouble() ? '${v.toInt()}' : '$v'.replaceAll('.', ',');
 
-/// One set as "10", "10 al 65 %", "10 con 12,5 kg" or "Máx.".
+/// One set as "10", "10 al 65 %", "10 con 12,5 kg", "10 con kg por atleta" or "Máx.".
 String _setLabel(PlanSet s) {
   final reps = s.maxReps ? 'Máx.' : '${s.reps ?? '?'}';
   if (s.pct != null) return '$reps al ${formatNumber(s.pct!)} %';
   if (s.kg != null) return '$reps con ${formatNumber(s.kg!)} kg';
+  if (s.byAthlete.values.any((l) => l.pct == null && l.kg != null)) return '$reps con kg por atleta';
   return reps;
 }
 

@@ -97,6 +97,7 @@ class HttpPlanRepository implements PlanRepository {
           blockIndex: at('bloque'),
           prescriptionIndex: at('prescripcion'),
           setIndex: at('serie'),
+          athleteId: item['atleta'] as String?,
         ),
       );
     }
