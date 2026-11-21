@@ -197,5 +197,14 @@ publicada**, nunca el borrador.
   quedaba fijo desde que se abrió la app). Escribir en un día hecho en otra fecha va a esa sesión, no a una nueva de
   hoy: falta decidir si rehacer un día otro día es un día recuperado (3.6).
 - **Tarjetas colapsables en la sesión del día** (Ari, 2026-11-21), para ver todo compacto. Estado: `hecho` (`7a010cc`: cada bloque se colapsa desde su cabecera, "Colapsar todo" en la cabecera del día; se recuerda por posición de bloque en el dispositivo).
+- **Acciones del modo guiado en "Más acciones"** (Ari, 2026-11-21). "Saltar este ejercicio" e "Interrumpir" quedan
+  cerca del temporizador y se tocan sin querer: van abajo, dentro de un botón "Más acciones". Estado: `en curso`.
+- **Manijas para reordenar en el celular** (Ari, 2026-11-21). En el editor de planes, la manija (≡) de las tarjetas
+  cuesta tocarla y se tocan otras cosas antes. Estado: `en curso`.
+- **Peso en cualquier ejercicio al planificar** (Ari, 2026-11-21). Un ejercicio dado de alta sin "con peso" igual
+  ofrece kilos o % al planificar. En blanco es sin peso; si se carga, el ejercicio queda guardado con peso.
+  Estado: `en curso`.
+- **Métrica objetivo según los chips** (Ari, 2026-11-21). El desplegable "métrica objetivo" no se llena con las
+  métricas elegidas en los chips de arriba. Estado: `en curso`.
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
   `admin_club` da de alta miembros en un club existente. Falta diseño. Estado: `sin refinar`.
