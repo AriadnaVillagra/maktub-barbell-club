@@ -197,6 +197,8 @@ publicada**, nunca el borrador.
   quedaba fijo desde que se abrió la app). Escribir en un día hecho en otra fecha va a esa sesión, no a una nueva de
   hoy: falta decidir si rehacer un día otro día es un día recuperado (3.6).
 - **Tarjetas colapsables en la sesión del día** (Ari, 2026-11-21), para ver todo compacto. Estado: `hecho` (`7a010cc`: cada bloque se colapsa desde su cabecera, "Colapsar todo" en la cabecera del día; se recuerda por posición de bloque en el dispositivo).
+- **Prueba en local de Ari (2026-11-21):** temporizador en el modo guiado, tarjetas colapsables, estado por atleta,
+  viñetas de un día hecho en otra fecha y calendario compacto, todo ok.
 - **Acciones del modo guiado en "Más acciones"** (Ari, 2026-11-21). "Saltar este ejercicio" e "Interrumpir" quedan
   cerca del temporizador y se tocan sin querer: van abajo, dentro de un botón "Más acciones". Estado: `en curso`.
 - **Manijas para reordenar en el celular** (Ari, 2026-11-21). En el editor de planes, la manija (≡) de las tarjetas
