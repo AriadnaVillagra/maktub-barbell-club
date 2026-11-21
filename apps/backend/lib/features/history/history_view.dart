@@ -7,10 +7,10 @@ import 'package:maktub_core/maktub_core.dart';
 const historyNotFound = ErrorDeSolicitud.noEncontrado('Historial no encontrado.');
 
 /// Who reads an athlete's history, like the athlete sheet ("Quién lee perfiles"): whoever has
-/// [Accion.verReportesDeTodos] (the coach) reads any athlete of the club, and whoever has only
+/// [Accion.verReportesDeTodos] (coach or club admin) reads any athlete of the club, and whoever has only
 /// [Accion.verReportesPropios] reads the athlete linked to their own user. [linkedUserId] is the user of the
 /// athlete asked for, or null when the club has no such athlete. Throws [historyNotFound] otherwise. The caller has
-/// already authorized [Accion.verReportesPropios] (a 403 for a role with neither, like a club admin only).
+/// already authorized [Accion.verReportesPropios] (a 403 for a role without it).
 void ensureCanReadHistory(ClubContext club, String? linkedUserId) {
   final allowed =
       linkedUserId != null &&

@@ -227,8 +227,8 @@ void main() {
     expect(await otherClub.body(), await missing.body());
   });
 
-  test('a club admin without reading permission gets a 403', () async {
-    expect((await _call(clubAdmin, seeded(), 'ath-1', 's1')).statusCode, HttpStatus.forbidden);
+  test('a club admin reads any athlete\'s session', () async {
+    expect((await _call(clubAdmin, seeded(), 'ath-1', 's1')).statusCode, HttpStatus.ok);
   });
 
   group('club isolation', () {

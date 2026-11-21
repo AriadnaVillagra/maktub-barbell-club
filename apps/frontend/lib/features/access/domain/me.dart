@@ -81,6 +81,12 @@ class Me {
   /// Whether planning is available in the active club (never in the personal one).
   bool get canPlan => activeClub?.can(Accion.planificar) ?? false;
 
+  /// Whether the user can read any athlete's sheet and history in the active club (coach and club admin).
+  bool get canReadAthletes => activeClub?.can(Accion.verReportesDeTodos) ?? false;
+
+  /// Whether the Planning tab opens: to plan, or to read the athletes (club admin, read-only).
+  bool get canOpenPlanning => canPlan || canReadAthletes;
+
   /// Whether the user can create and change what belongs to the active club.
   bool get canEditClubCatalog => activeClub?.can(Accion.editarCatalogoClub) ?? false;
 
@@ -104,7 +110,7 @@ class Me {
 
   /// Whether the Preferences tab (catalog, timers, equipment, members, club requests) is available.
   bool get canConfigure =>
-      canPlan || canEditClubCatalog || canEditClubExercises || canManageMembers || canReviewClubRequests;
+      canOpenPlanning || canEditClubCatalog || canEditClubExercises || canManageMembers || canReviewClubRequests;
 
   /// Whether the user can change [item]: default ones need a platform admin, the club's a club admin.
   bool canWriteCatalog(DelClub item) {

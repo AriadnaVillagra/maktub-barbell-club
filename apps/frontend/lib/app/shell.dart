@@ -45,7 +45,7 @@ class ShellPrincipal extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final canPlan = ref.watch(canPlanProvider);
+    final canPlan = ref.watch(canOpenPlanningProvider);
     final canConfigure = ref.watch(canConfigureProvider);
     final hasProfile = ref.watch(hasAthleteProfileProvider);
     // Until the permissions are known there is no bar: a short one that grows a moment later looks like an old

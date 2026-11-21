@@ -202,8 +202,8 @@ void main() {
     expect((await _call(coach, seeded(), 'nope')).statusCode, HttpStatus.notFound);
   });
 
-  test('a club admin without reading permission gets a 403', () async {
-    expect((await _call(clubAdmin, seeded(), 'ath-1')).statusCode, HttpStatus.forbidden);
+  test('a club admin reads any athlete\'s history', () async {
+    expect((await _call(clubAdmin, seeded(), 'ath-1')).statusCode, HttpStatus.ok);
   });
 
   test('rejects a malformed date or a page size out of range', () async {

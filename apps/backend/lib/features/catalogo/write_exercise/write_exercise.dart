@@ -12,8 +12,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'write_exercise_store.dart';
 
-/// Writes of exercises (F2). Creating and editing need [Accion.editarEjerciciosClub] (coach or club admin);
-/// archiving and deleting need [Accion.editarCatalogoClub] (club admin). Changing an existing one is authorized once
+/// Writes of exercises (F2). Creating, editing, archiving and deleting need [Accion.editarEjerciciosClub] (coach or club admin).
+/// Changing an existing one is authorized once
 /// it is loaded, because a default one needs a platform admin instead.
 ///
 /// `POST   .../catalogo/ejercicios` body: the exercise without `id`, `clubId`, `estado`, `auditoria` → the
@@ -162,7 +162,7 @@ class WriteExercise {
 
   Future<Exercise> update(ClubContext club, String id, Json body) async {
     final view = await _store.view({clubPlataforma, club.clubId});
-    final current = _writable(club, view, id, editing: true);
+    final current = _writable(club, view, id);
     final exercise = _parse(
       body,
       id: id,
@@ -244,17 +244,13 @@ class WriteExercise {
     }
   }
 
-  /// The exercise [id] if the user can change it ([editing]: create/edit rule, else archive/delete rule); 404 if not visible, 403 without permission.
-  Exercise _writable(ClubContext club, CatalogView view, String id, {bool editing = false}) {
+  /// The exercise [id] if the user can change it; 404 if not visible, 403 without permission.
+  Exercise _writable(ClubContext club, CatalogView view, String id) {
     final found = view.exercises[id];
     if (found == null || !isVisibleTo(found, club.clubId)) {
       throw const ErrorDeSolicitud.noEncontrado('Ejercicio no encontrado.');
     }
-    if (editing) {
-      club.authorizeExerciseWrite(found);
-    } else {
-      club.authorizeCatalogWrite(found);
-    }
+    club.authorizeExerciseWrite(found);
     return found;
   }
 

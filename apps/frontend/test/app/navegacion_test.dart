@@ -286,6 +286,20 @@ void main() {
       expect(find.text('Andi'), findsOneWidget);
     });
 
+    testWidgets('a club admin without the coach role reads the athletes, but sees no plans', (tester) async {
+      await _montar(tester, const Size(400, 800), roles: {Rol.adminClub}, ruta: Rutas.planificacion);
+      expect(_tab('Planificación'), findsOneWidget);
+      expect(find.byKey(const Key('portada-${Rutas.planes}')), findsNothing);
+      expect(find.byKey(const Key('portada-${Rutas.asignaciones}')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('portada-${Rutas.atletas}')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('athlete-a1')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('sheet-empty')), findsOneWidget);
+      expect(find.byKey(const Key('sheet-history')), findsOneWidget);
+    });
+
     testWidgets('an athlete is sent back to training when opening an athlete sheet by URL', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.atleta}, ruta: '${Rutas.atletas}/a1');
       expect(find.text('Sesión del día'), findsOneWidget);

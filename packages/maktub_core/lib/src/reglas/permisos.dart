@@ -23,16 +23,19 @@ enum Accion {
   /// Delete a plan with its assignments; what was recorded with it stays (E8.9). Coach and club admin.
   deletePlan,
 
-  /// Crear, editar, archivar y borrar lo del club: ejercicios, categorías, temporizadores y equipo.
+  /// Crear, editar, archivar y borrar lo del club: categorías, temporizadores y equipo (los ejercicios, ver
+  /// [editarEjerciciosClub]).
   editarCatalogoClub,
 
-  /// Crear y editar los ejercicios del club (incluido marcarlos con peso). Coach y administrador del club;
-  /// archivar y borrar siguen siendo de [editarCatalogoClub].
+  /// Crear, editar, archivar y borrar los ejercicios del club (incluido marcarlos con peso). Coach y
+  /// administrador del club.
   editarEjerciciosClub,
   seguirPlanPorDefecto,
 
   /// Registrar miembros y cambiar sus roles. Solo el administrador del club.
   gestionarMiembros,
+
+  /// Leer las fichas y el historial de cualquier atleta del club. Coach y administrador del club (solo lectura).
   verReportesDeTodos,
 
   /// Editar el catálogo base y la biblioteca de planes. Solo el administrador de plataforma.
@@ -70,6 +73,9 @@ const _adminClub = {
   Accion.editarEjerciciosClub,
   Accion.gestionarMiembros,
   Accion.deletePlan,
+  // Reading only: the club admin sees every athlete's sheet and history, without editing or planning.
+  Accion.verReportesPropios,
+  Accion.verReportesDeTodos,
 };
 
 const _personal = {
@@ -105,7 +111,7 @@ bool puedeEscribirCatalogo(
     ? esAdminPlataforma
     : puede(roles, Accion.editarCatalogoClub, tipo);
 
-/// Como [puedeEscribirCatalogo], pero para crear y editar un ejercicio: lo del club lo puede quien tenga
+/// Como [puedeEscribirCatalogo], pero para crear, editar, archivar y borrar un ejercicio: lo del club lo puede quien tenga
 /// [Accion.editarEjerciciosClub] (coach o administrador). Lo default sigue siendo solo del administrador de plataforma.
 bool puedeEscribirEjercicio(
   DelClub ejercicio,

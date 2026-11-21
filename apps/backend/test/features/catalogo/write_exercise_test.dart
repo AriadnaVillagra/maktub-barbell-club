@@ -101,9 +101,9 @@ void main() {
     method: 'PUT',
     body: body,
   );
-  Future<Response> status(String id, String estado) => _call(
+  Future<Response> status(String id, String estado, {ClubContext? club}) => _call(
     (c) => setExerciseStatusEndpoint(c, id, store: store, usage: usage, now: () => _at),
-    _club('club-a'),
+    club ?? _club('club-a'),
     method: 'PATCH',
     body: {'estado': estado},
   );
@@ -412,10 +412,14 @@ void main() {
       expect(store.exercises.firstWhere((e) => e.id == 'base').status, CatalogStatus.active);
     });
 
-    test('a coach without the club admin role cannot delete', () async {
+    test('a coach without the club admin role archives and deletes a club exercise but not a base one', () async {
       final coach = _club('club-a', roles: {Rol.coach});
-      expect((await remove('e1', club: coach)).statusCode, HttpStatus.forbidden);
-      expect(store.exercises, hasLength(1));
+      store.exercises.add(_exercise('base', clubPlataforma, 'Sentadilla'));
+      expect((await status('e1', 'archivado', club: coach)).statusCode, HttpStatus.ok);
+      expect((await remove('e1', club: coach)).statusCode, HttpStatus.ok);
+      expect((await status('base', 'archivado', club: coach)).statusCode, HttpStatus.forbidden);
+      expect((await remove('base', club: coach)).statusCode, HttpStatus.forbidden);
+      expect(store.exercises.map((e) => e.id), ['base']);
     });
 
     test('an athlete cannot delete or archive', () async {
@@ -454,7 +458,7 @@ void main() {
       'PATCH /clubes/{clubId}/catalogo/ejercicios/e1',
       endpoint: (c) => setExerciseStatusEndpoint(c, 'e1', store: isolationStore, usage: _FakeUsage()),
       path: '/clubes/{clubId}/catalogo/ejercicios/e1',
-      action: Accion.editarCatalogoClub,
+      action: Accion.editarEjerciciosClub,
       method: 'PATCH',
       body: jsonEncode({'estado': 'archivado'}),
       seed: (clubId, marker) => isolationStore.exercises
@@ -467,7 +471,7 @@ void main() {
       'DELETE /clubes/{clubId}/catalogo/ejercicios/e1',
       endpoint: (c) => deleteExerciseEndpoint(c, 'e1', store: isolationStore, usage: _FakeUsage()..used.add('e1')),
       path: '/clubes/{clubId}/catalogo/ejercicios/e1',
-      action: Accion.editarCatalogoClub,
+      action: Accion.editarEjerciciosClub,
       method: 'DELETE',
       seed: (clubId, marker) => isolationStore.exercises
         ..removeWhere((e) => e.clubId == clubId && e.id == 'e1')

@@ -22,19 +22,26 @@ class PaginaEntrenamiento extends StatelessWidget {
       );
 }
 
-class PaginaPlanificacion extends StatelessWidget {
+class PaginaPlanificacion extends ConsumerWidget {
   const PaginaPlanificacion({super.key});
 
   @override
-  Widget build(BuildContext context) => const _PortadaModo(
-        titulo: 'Planificación',
-        descripcion: 'Diseñar planes y mantener las referencias de cada atleta.',
-        secciones: [
+  Widget build(BuildContext context, WidgetRef ref) {
+    // A club admin without the coach role only reads the athletes: no plans, no assignments.
+    final canPlan = ref.watch(canPlanProvider) ?? false;
+    return _PortadaModo(
+      titulo: 'Planificación',
+      descripcion: 'Diseñar planes y mantener las referencias de cada atleta.',
+      secciones: [
+        if (ref.watch(canReadAthletesProvider))
           (Icons.people_outline, 'Atletas y referencias', 'RMs, marcas, ritmos, FC y factores de trabajo', Rutas.atletas),
+        if (canPlan) ...[
           (Icons.view_week_outlined, 'Planes', 'Modelos de semana, días, bloques y prescripciones', Rutas.planes),
           (Icons.event_available_outlined, 'Asignaciones', 'Plan × grupo × inicio y estado de los días', Rutas.asignaciones),
         ],
-      );
+      ],
+    );
+  }
 }
 
 /// What configures the club rather than a plan.

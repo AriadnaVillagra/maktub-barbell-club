@@ -219,11 +219,12 @@ void main() {
     expect(await r.body(), isNot(contains('referencias')));
   });
 
-  test('a club admin without reading permission gets a 403', () async {
-    expect(
-      (await _call(clubAdmin, seeded(), 'ath-1')).statusCode,
-      HttpStatus.forbidden,
-    );
+  test('a club admin reads any athlete but gets no work factors', () async {
+    final r = await _call(clubAdmin, seeded(), 'ath-1');
+    expect(r.statusCode, HttpStatus.ok);
+    final sheet = await read(r);
+    expect(sheet['referencias'], isNotEmpty);
+    expect(sheet['factores'], isEmpty);
   });
 
   group('club isolation', () {

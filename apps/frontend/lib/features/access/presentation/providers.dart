@@ -60,6 +60,18 @@ final canPlanProvider = Provider<bool?>((ref) {
   return me.value?.canPlan ?? false;
 });
 
+/// Whether the Planning tab opens (plan, or read the athletes): null while it is not known yet.
+final canOpenPlanningProvider = Provider<bool?>((ref) {
+  final me = ref.watch(meProvider);
+  if (me.isLoading && !me.hasValue) {
+    return null;
+  }
+  return me.value?.canOpenPlanning ?? false;
+});
+
+/// Whether the user can read any athlete (a club admin without planning sees the list read-only).
+final canReadAthletesProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canReadAthletes ?? false);
+
 /// Whether the Preferences tab is available: null while it is not known yet.
 final canConfigureProvider = Provider<bool?>((ref) {
   final me = ref.watch(meProvider);

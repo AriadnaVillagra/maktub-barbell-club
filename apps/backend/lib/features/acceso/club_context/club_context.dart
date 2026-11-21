@@ -45,7 +45,7 @@ class ClubContext {
     if (!puedeEscribirCatalogo(item, roles, clubType, esAdminPlataforma: isPlatformAdmin)) throw forbiddenRole;
   }
 
-  /// Like [authorizeCatalogWrite] for creating or editing an exercise: one of the club needs
+  /// Like [authorizeCatalogWrite] for creating, editing, archiving or deleting an exercise: one of the club needs
   /// [Accion.editarEjerciciosClub] (coach or club admin); a default one still needs a platform admin.
   void authorizeExerciseWrite(DelClub item) {
     if (!puedeEscribirEjercicio(item, roles, clubType, esAdminPlataforma: isPlatformAdmin)) throw forbiddenRole;

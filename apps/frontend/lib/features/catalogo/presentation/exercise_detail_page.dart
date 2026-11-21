@@ -93,7 +93,6 @@ class _ExerciseDetailPageState extends ConsumerState<ExerciseDetailPage> {
         ref.watch(movementPatternsProvider).value ?? const <MovementPattern>[];
     final canEditClub = ref.watch(canEditClubExercisesProvider);
     final canWriteExercise = ref.watch(canWriteExerciseProvider);
-    final canWrite = ref.watch(canWriteCatalogProvider);
     final clubId = ref.watch(catalogClubIdProvider);
 
     return Scaffold(
@@ -178,7 +177,7 @@ class _ExerciseDetailPageState extends ConsumerState<ExerciseDetailPage> {
                 ),
                 const SizedBox(height: Espacio.s),
               ],
-              if (canWrite(e)) ...[
+              if (canWriteExercise(e)) ...[
                 OutlinedButton.icon(
                   onPressed: _busy
                       ? null

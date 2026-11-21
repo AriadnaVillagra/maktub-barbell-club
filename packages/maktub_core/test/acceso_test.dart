@@ -112,7 +112,17 @@ void main() {
       expect(puede({Rol.adminClub}, Accion.editarCatalogoClub, TipoClub.personal), isFalse);
     });
 
-    test('crear y editar ejercicios del club lo hacen el coach y el admin del club, no el atleta', () {
+    test('el admin del club lee a todos los atletas pero no planifica ni edita referencias', () {
+      const admin = {Rol.adminClub};
+      expect(puede(admin, Accion.verReportesDeTodos, TipoClub.club), isTrue);
+      expect(puede(admin, Accion.verReportesPropios, TipoClub.club), isTrue);
+      expect(puede(admin, Accion.planificar, TipoClub.club), isFalse);
+      expect(puede(admin, Accion.editarReferencias, TipoClub.club), isFalse);
+      expect(puede(admin, Accion.registrar, TipoClub.club), isFalse);
+      expect(puede(admin, Accion.verReportesDeTodos, TipoClub.personal), isFalse);
+    });
+
+    test('crear, editar, archivar y borrar ejercicios del club lo hacen el coach y el admin del club, no el atleta', () {
       expect(puede(coach, Accion.editarEjerciciosClub, TipoClub.club), isTrue);
       expect(puede({Rol.adminClub}, Accion.editarEjerciciosClub, TipoClub.club), isTrue);
       expect(puede(atleta, Accion.editarEjerciciosClub, TipoClub.club), isFalse);
