@@ -277,8 +277,8 @@ class _Controles extends StatelessWidget {
       );
 }
 
-/// [SignInPanel] with a stand-in for Google's button (the real one is an HTML element) and a
-/// failure message.
+/// [SignInPanel] with a stand-in for Google's button (the real one is an HTML element), a failure
+/// message and a footer with another way in.
 class _Ingreso extends StatelessWidget {
   const _Ingreso();
 
@@ -297,6 +297,7 @@ class _Ingreso extends StatelessWidget {
             title: 'Maktub Barbell Club',
             action: OutlinedButton(onPressed: () {}, child: const Text('Botón de Google')),
             message: 'Este email no tiene una cuenta en Maktub. Pedile acceso a tu coach.',
+            footer: OutlinedButton(onPressed: () {}, child: const Text('Pedir un club para mi equipo')),
           ),
           const SignInPanel(title: 'Enviando', action: SizedBox.shrink(), busy: true),
         ],

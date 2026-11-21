@@ -24,6 +24,7 @@ import '../features/plan/presentation/plan_editor_page.dart';
 import '../features/wods/presentation/wod_editor_page.dart';
 import '../features/wods/presentation/wods_page.dart';
 import '../features/plan/presentation/plans_page.dart';
+import '../features/club_requests/presentation/club_requests_page.dart';
 import '../features/members/presentation/members_page.dart';
 import '../features/sesion/presentation/guided_page.dart';
 import '../features/sesion/presentation/session_page.dart';
@@ -66,6 +67,9 @@ abstract final class Rutas {
   static const wods = '$preferencias/wods';
   static const equipo = '$preferencias/equipo';
   static const miembros = '$preferencias/miembros';
+
+  /// Club requests from people without an account; only platform admins see it.
+  static const pedidosClub = '$preferencias/pedidos-club';
 
   /// The athlete's own read-only references.
   static const perfil = '/perfil';
@@ -215,6 +219,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   builder: (_, _) => RefreshOnReturn(providers: [clubTeamProvider], child: const TeamPage()),
                 ),
                 GoRoute(path: 'miembros', builder: (_, _) => const MembersPage(exitPath: Rutas.preferencias)),
+                GoRoute(path: 'pedidos-club', builder: (_, _) => const ClubRequestsPage()),
               ],
             ),
           ]),

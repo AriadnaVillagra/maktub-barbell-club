@@ -86,6 +86,9 @@ final canEditReferencesProvider = Provider<bool>((ref) => ref.watch(meProvider).
 
 final canManageMembersProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canManageMembers ?? false);
 
+/// Whether the user reviews club requests (platform admin). Grants nothing inside a club.
+final isPlatformAdminProvider = Provider<bool>((ref) => ref.watch(meProvider).value?.canReviewClubRequests ?? false);
+
 /// What the user can do with a given plan ([Me.planAccess]). While `GET /me` is not known, full access: the API
 /// enforces the rule anyway, and a coach's own plans are the common case.
 final planAccessProvider = Provider<PlanAccess Function(Plan)>((ref) {

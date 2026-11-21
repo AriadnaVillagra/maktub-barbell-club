@@ -99,8 +99,12 @@ class Me {
 
   bool get canManageMembers => activeClub?.can(Accion.gestionarMiembros) ?? false;
 
-  /// Whether the Preferences tab (catalog, timers, equipment, members) is available.
-  bool get canConfigure => canPlan || canEditClubCatalog || canEditClubExercises || canManageMembers;
+  /// Whether the user can see and review the club requests (platform admin, any club).
+  bool get canReviewClubRequests => canOnPlatform(Accion.reviewClubRequests, isPlatformAdmin: isPlatformAdmin);
+
+  /// Whether the Preferences tab (catalog, timers, equipment, members, club requests) is available.
+  bool get canConfigure =>
+      canPlan || canEditClubCatalog || canEditClubExercises || canManageMembers || canReviewClubRequests;
 
   /// Whether the user can change [item]: default ones need a platform admin, the club's a club admin.
   bool canWriteCatalog(DelClub item) {
