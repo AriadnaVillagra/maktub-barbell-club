@@ -225,6 +225,10 @@ Future<void> asegurarIndices(Db db) async {
         name: 'club_asignacion_fecha_semana_dia_unico',
         unique: true,
       );
+  // An athlete's history: the sessions they were present in, newest first (multikey on `presentes`).
+  await db
+      .collection(Colecciones.sesiones)
+      .createIndex(keys: {'clubId': 1, 'presentes': 1, 'fecha': -1}, name: 'club_presentes_fecha');
   await db
       .collection(Colecciones.registros)
       .createIndex(
