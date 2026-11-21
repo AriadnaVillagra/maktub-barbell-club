@@ -103,8 +103,8 @@ Map<String, AthleteSetLoad> manualLoads(Map<String, AthleteSetLoad> byAthlete) =
 };
 
 /// What [athlete]'s RM suggests for a set typed as [setPct] or as [setKg], given [suggested] (their entry of
-/// [athleteLoads] for it): "Ari · RM 80 kg × 65 % = 52 kg", "Ari · RM 80 kg · 50 kg = 62,5 %", with
-/// " (factor 95 %)" when their factor is not neutral; "Ari · RM 80 kg" with nothing typed, "Ari · sin RM" without one.
+/// [athleteLoads] for it): "RM 80 kg × 65 % = 52 kg", "RM 80 kg · 50 kg = 62,5 %", with
+/// " (factor 95 %)" when their factor is not neutral; "RM 80 kg" with nothing typed, "sin RM" without one (the athlete's name is the label of their field).
 String athleteSuggestion(
   AthleteBasis athlete, {
   required double? setPct,
@@ -112,8 +112,8 @@ String athleteSuggestion(
   required String Function(double) number,
 }) {
   final rm = athlete.rm;
-  if (rm == null || rm <= 0) return '${athlete.name} · sin RM';
-  final base = '${athlete.name} · RM ${number(rm)} kg';
+  if (rm == null || rm <= 0) return 'sin RM';
+  final base = 'RM ${number(rm)} kg';
   final factor = athlete.workFactor == defaultWorkFactor ? '' : ' (factor ${number(athlete.workFactor)} %)';
   return switch (suggested) {
     AthleteSetLoad(pct: final pct?, kg: final kg?) when setPct != null && setPct > 0 =>

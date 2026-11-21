@@ -233,9 +233,10 @@ Asignación de plan
   asignación.
   - En una serie por %, el coach escribe % o kg, y cada atleta con RM queda con su % y sus kg
     (con su factor de trabajo, como en F4). La sesión propone esos kg con el ajuste del día.
-    En un plan de varios atletas, debajo de cada serie se ve la sugerencia de cada atleta
-    (RM × % = kg) y el coach puede escribir a mano los kg de cada uno (`kilosManual`). Si lo deja
-    vacío, vale la sugerencia. Los kg a mano también llevan el ajuste del día.
+    En un plan de varios atletas la serie no tiene kg general (el % fija la carga): debajo de
+    cada serie, cada atleta tiene su campo de kg y justo debajo la sugerencia (RM × % = kg); el
+    coach puede escribir a mano los kg de cada uno (`kilosManual`). Si lo deja vacío, vale la
+    sugerencia. Los kg a mano también llevan el ajuste del día.
   - En un plan de varios atletas, una serie en kilos pide un peso para cada uno, sin valor general;
     las reps son las mismas para todos. La sesión propone esos kilos tal cual, sin ajuste del día.
     Publicar exige el de cada atleta; un plan sin asignación usa un solo peso.

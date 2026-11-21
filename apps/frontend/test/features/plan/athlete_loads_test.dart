@@ -73,20 +73,20 @@ void main() {
       final kg = formatNumber(_equipo.masCercano(52));
       expect(
         athleteSuggestion(_andi, setPct: 65, suggested: byPct, number: formatNumber),
-        'Andi · RM 80 kg × 65 % = $kg kg',
+        'RM 80 kg × 65 % = $kg kg',
       );
       final byKg = athleteLoads(pct: null, kg: 50, athletes: const [_andi], equipo: _equipo)['andi'];
       expect(
         athleteSuggestion(_andi, setPct: null, suggested: byKg, number: formatNumber),
-        'Andi · RM 80 kg · 50 kg = 62,5 %',
+        'RM 80 kg · 50 kg = 62,5 %',
       );
-      expect(athleteSuggestion(_andi, setPct: null, suggested: null, number: formatNumber), 'Andi · RM 80 kg');
-      expect(athleteSuggestion(_noRm, setPct: 65, suggested: null, number: formatNumber), 'Nadie · sin RM');
+      expect(athleteSuggestion(_andi, setPct: null, suggested: null, number: formatNumber), 'RM 80 kg');
+      expect(athleteSuggestion(_noRm, setPct: 65, suggested: null, number: formatNumber), 'sin RM');
       const slow = AthleteBasis(id: 'a', name: 'A', rm: 100, workFactor: 90);
       final slowLoad = athleteLoads(pct: 80, kg: null, athletes: const [slow], equipo: _equipo)['a'];
       expect(
         athleteSuggestion(slow, setPct: 80, suggested: slowLoad, number: formatNumber),
-        'A · RM 100 kg × 80 % = ${formatNumber(_equipo.masCercano(72))} kg (factor 90 %)',
+        'RM 100 kg × 80 % = ${formatNumber(_equipo.masCercano(72))} kg (factor 90 %)',
       );
     });
   });
@@ -199,10 +199,11 @@ void main() {
         final andiKg = _equipo.masCercano(52);
         expect(
           tester.widget<Text>(find.byKey(const Key('set-suggestion-0-andi'))).data,
-          'Andi · RM 80 kg × 65 % = ${formatNumber(andiKg)} kg',
+          'RM 80 kg × 65 % = ${formatNumber(andiKg)} kg',
         );
-        expect(tester.widget<Text>(find.byKey(const Key('set-suggestion-0-nadie'))).data, 'Nadie · sin RM');
-        expect(find.text('${formatNumber(andiKg)} (sugerido)'), findsOneWidget);
+        expect(tester.widget<Text>(find.byKey(const Key('set-suggestion-0-nadie'))).data, 'sin RM');
+        expect(find.textContaining('(sugerido)'), findsNothing);
+        expect(find.byKey(const ValueKey('set-kg-0-0')), findsNothing);
         expect(fieldText(tester, 'set-manual-kg-0-andi-0'), '');
         expect(find.byKey(const Key('set-athletes-0')), findsNothing);
 

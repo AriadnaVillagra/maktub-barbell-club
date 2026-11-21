@@ -28,9 +28,9 @@ import 'plan_labels.dart';
 /// weight. Kilos without % given to an exercise without weight go to each athlete too.
 ///
 /// Kilos per athlete in a set by % (Ari, 2026-11-21): in that same plan for several athletes, a set of an exercise
-/// loaded by % of RM shows under it one line per athlete with what their RM suggests ("Ari · RM 80 kg × 65 % = 52
-/// kg") and a field for the kilos the coach types by hand. Left blank, the athlete keeps the suggestion (the field
-/// says so: "52 (sugerido)").
+/// loaded by % of RM has no general kg (the % sets the load) and shows under it, per athlete, a field for the kilos
+/// the coach types by hand with what their RM suggests right below ("RM 80 kg × 65 % = 52 kg"). Left blank, the
+/// athlete keeps the suggestion.
 Future<Prescription?> askPrescription(
   BuildContext context, {
   required Prescription initial,
@@ -243,77 +243,65 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
     _sets = [for (final (j, x) in _sets.indexed) j == i ? change(x) : x];
   }
 
-  /// Each athlete's kilos of set [i], under its reps, two per row.
+  /// Under set [i], one column per athlete of the plan: their kilos input and, right below it, what their RM suggests
+  /// (only in a set by %). Two columns of equal width when the dialog is wide, stacked on a phone. A blank input in a
+  /// set by % keeps the suggestion.
   Widget _athleteKgFields(int i, PlanSet set) {
-    final athletes = _kgAthletes;
-    Widget field(AthleteBasis a) => _numberField(
-      key: ValueKey('set-kg-$i-${a.id}-$_generation'),
-      label: '${a.name} (kg)',
-      initial: switch (set.byAthlete[a.id]?.kg) {
-        null => '',
-        final kg => formatNumber(kg),
-      },
-      formatters: [_decimalFormatter],
-      onChanged: (t) => _setSet(i, (s) => setWithAthleteKg(s, a.id, parseTypedNumber(t))),
-    );
-    return Padding(
-      key: Key('set-athlete-kg-$i'),
-      padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var k = 0; k < athletes.length; k += 2)
-            Row(
-              children: [
-                field(athletes[k]),
-                const SizedBox(width: Espacio.s),
-                if (k + 1 < athletes.length) field(athletes[k + 1]) else const Spacer(),
-              ],
-            ),
-        ],
-      ),
-    );
-  }
-
-  /// Under set [i] of an exercise by %, one line per athlete: what their RM suggests, and their kilos by hand. The
-  /// field shows the suggestion as its hint, since a blank one keeps it.
-  Widget _athleteManualKgFields(int i, PlanSet set) {
-    final suggestions = _loadsFor(set.pct, set.kg);
-    Widget line(AthleteBasis a) {
-      final suggested = suggestions[a.id];
+    final byPct = _pctPerAthlete;
+    final suggestions = byPct ? _loadsFor(set.pct, set.kg) : const <String, AthleteSetLoad>{};
+    Widget column(AthleteBasis a) {
       final entry = set.byAthlete[a.id];
-      return Row(
+      final suggested = suggestions[a.id];
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(
-            flex: 2,
-            child: Text(
-              athleteSuggestion(a, setPct: set.pct, suggested: suggested, number: formatNumber),
-              key: Key('set-suggestion-$i-${a.id}'),
-              style: context.textos.bodySmall?.copyWith(color: context.esquema.onSurfaceVariant),
+          _numberInput(
+            key: byPct
+                ? ValueKey('set-manual-kg-$i-${a.id}-$_generation')
+                : ValueKey('set-kg-$i-${a.id}-$_generation'),
+            label: '${a.name} (kg)',
+            initial: byPct
+                ? (entry != null && entry.manualKg && entry.kg != null ? formatNumber(entry.kg!) : '')
+                : switch (entry?.kg) {
+                    null => '',
+                    final kg => formatNumber(kg),
+                  },
+            formatters: [_decimalFormatter],
+            onChanged: (t) => _setSet(
+              i,
+              (s) => byPct
+                  ? _withManualKg(s, a, parseTypedNumber(t))
+                  : setWithAthleteKg(s, a.id, parseTypedNumber(t)),
             ),
           ),
-          const SizedBox(width: Espacio.s),
-          _numberField(
-            key: ValueKey('set-manual-kg-$i-${a.id}-$_generation'),
-            label: '${a.name} (kg)',
-            hint: suggested?.kg == null ? null : '${formatNumber(suggested!.kg!)} (sugerido)',
-            initial: entry != null && entry.manualKg && entry.kg != null ? formatNumber(entry.kg!) : '',
-            formatters: [_decimalFormatter],
-            onChanged: (t) => _setSet(i, (s) => _withManualKg(s, a, parseTypedNumber(t))),
-          ),
+          if (byPct)
+            Padding(
+              padding: const EdgeInsets.only(top: Espacio.xs),
+              child: Text(
+                athleteSuggestion(a, setPct: set.pct, suggested: suggested, number: formatNumber),
+                key: Key('set-suggestion-$i-${a.id}'),
+                style: context.textos.bodySmall?.copyWith(color: context.esquema.onSurfaceVariant),
+              ),
+            ),
         ],
       );
     }
 
     return Padding(
-      key: Key('set-athlete-manual-$i'),
+      key: Key(byPct ? 'set-athlete-manual-$i' : 'set-athlete-kg-$i'),
       padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (final a in _athletes)
-            Padding(padding: const EdgeInsets.only(top: Espacio.xs), child: line(a)),
-        ],
+      child: LayoutBuilder(
+        builder: (context, box) {
+          final columns = box.maxWidth >= 360 ? 2 : 1;
+          final width = (box.maxWidth - Espacio.s * (columns - 1)) / columns;
+          return Wrap(
+            spacing: Espacio.s,
+            runSpacing: Espacio.s,
+            children: [
+              for (final a in _kgAthletes) SizedBox(width: width, child: column(a)),
+            ],
+          );
+        },
       ),
     );
   }
@@ -342,20 +330,29 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
     required String initial,
     required List<TextInputFormatter> formatters,
     required ValueChanged<String> onChanged,
-    String? hint,
   }) => Expanded(
-    child: TextFormField(
+    child: _numberInput(
       key: key,
-      initialValue: initial,
-      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-      inputFormatters: formatters,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        floatingLabelBehavior: hint == null ? null : FloatingLabelBehavior.always,
-      ),
+      label: label,
+      initial: initial,
+      formatters: formatters,
       onChanged: onChanged,
     ),
+  );
+
+  Widget _numberInput({
+    required Key key,
+    required String label,
+    required String initial,
+    required List<TextInputFormatter> formatters,
+    required ValueChanged<String> onChanged,
+  }) => TextFormField(
+    key: key,
+    initialValue: initial,
+    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+    inputFormatters: formatters,
+    decoration: InputDecoration(labelText: label),
+    onChanged: onChanged,
   );
 
   @override
@@ -401,6 +398,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                         formatters: [_decimalFormatter],
                         onChanged: (t) => _typeLoad(i, inPct: true, value: parseTypedNumber(t)),
                       ),
+                      if (!_pctPerAthlete) ...[
                       const SizedBox(width: Espacio.s),
                       _numberField(
                         key: ValueKey('set-kg-$i-$_generation${_clearedSuffix(_kgCleared, i)}'),
@@ -409,6 +407,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                         formatters: [_decimalFormatter],
                         onChanged: (t) => _typeLoad(i, inPct: false, value: parseTypedNumber(t)),
                       ),
+                      ],
                     ] else if (_hasKg && !_kgPerAthlete) ...[
                       const SizedBox(width: Espacio.s),
                       _numberField(
@@ -437,8 +436,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                     ),
                   ],
                 ),
-                if (_hasKg && _kgPerAthlete) _athleteKgFields(i, set),
-                if (_pctPerAthlete) _athleteManualKgFields(i, set),
+                if ((_hasKg && _kgPerAthlete) || _pctPerAthlete) _athleteKgFields(i, set),
                 if (_single == null && !_kgPerAthlete && !_pctPerAthlete
                     ? athleteLoadsSummary(set.byAthlete, _athletes, formatNumber)
                     : '' case final line
