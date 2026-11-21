@@ -91,8 +91,8 @@ class _ExerciseDetailPageState extends ConsumerState<ExerciseDetailPage> {
         ref.watch(muscleGroupsProvider).value ?? const <MuscleGroup>[];
     final patterns =
         ref.watch(movementPatternsProvider).value ?? const <MovementPattern>[];
-    final canEditClub = ref.watch(canEditClubExercisesProvider);
-    final canWriteExercise = ref.watch(canWriteExerciseProvider);
+    final canEditClub = ref.watch(canEditClubCatalogProvider);
+    final canWriteExercise = ref.watch(canWriteCatalogProvider);
     final clubId = ref.watch(catalogClubIdProvider);
 
     return Scaffold(

@@ -429,13 +429,17 @@ void main() {
       });
     });
 
-    test('an athlete and an admin without coach role get 403', () async {
+    test('an athlete gets 403', () async {
       final s = store();
-      for (final ctx in [_athleteA, _adminOnlyA]) {
-        final r = await create(ctx, s, body());
-        expect(r.statusCode, HttpStatus.forbidden);
-      }
+      final r = await create(_athleteA, s, body());
+      expect(r.statusCode, HttpStatus.forbidden);
       expect(s.all, isEmpty);
+    });
+
+    test('a club admin without the coach role assigns too (hierarchy)', () async {
+      final s = store();
+      expect((await create(_adminOnlyA, s, body())).statusCode, HttpStatus.created);
+      expect(s.all, hasLength(1));
     });
   });
 
@@ -539,9 +543,9 @@ void main() {
       expect(s.all.single.currentAthleteIds, ['ari', 'andi']);
     });
 
-    test('an athlete and an admin without coach role get 403', () async {
+    test('an athlete gets 403', () async {
       final s = running();
-      for (final ctx in [_athleteA, _adminOnlyA]) {
+      for (final ctx in [_athleteA]) {
         final r = await setAthletes(ctx, s, 'a1', {
           'atletas': ['ari'],
         });
@@ -652,12 +656,13 @@ void main() {
       },
     );
 
-    test('an athlete and an admin without coach role get 403', () async {
+    test('an athlete gets 403; a club admin without coach role ends it (hierarchy)', () async {
       final s = store()..all.add(_assignment('a1', 'club-a'));
-      for (final ctx in [_athleteA, _adminOnlyA]) {
+      for (final ctx in [_athleteA]) {
         expect((await end(ctx, s, 'a1')).statusCode, HttpStatus.forbidden);
       }
       expect(s.all.single.status, AssignmentStatus.active);
+      expect((await end(_adminOnlyA, s, 'a1')).statusCode, HttpStatus.ok);
     });
   });
 

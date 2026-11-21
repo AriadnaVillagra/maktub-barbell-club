@@ -58,10 +58,10 @@ void main() {
       expect(puede(const {Rol.coach, Rol.adminClub}, Accion.reviewClubRequests, TipoClub.club), isFalse);
     });
 
-    test('the platform admin flag grants no club action', () {
-      for (final a in Accion.values.where((a) => !platformActions.contains(a))) {
+    test('the platform admin flag grants every club action, even without a membership', () {
+      for (final a in Accion.values.where((a) => !platformActions.contains(a) && a != Accion.seguirPlanPorDefecto)) {
         expect(canOnPlatform(a, isPlatformAdmin: true), isFalse, reason: a.name);
-        expect(puede(const {}, a, TipoClub.club, esAdminPlataforma: true), isFalse, reason: a.name);
+        expect(puede(const {}, a, TipoClub.club, esAdminPlataforma: true), isTrue, reason: a.name);
       }
     });
   });

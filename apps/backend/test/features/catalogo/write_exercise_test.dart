@@ -448,7 +448,7 @@ void main() {
         newId: () => markers[c.read<ClubContext>().clubId]!,
       ),
       path: '/clubes/{clubId}/catalogo/ejercicios',
-      action: Accion.editarEjerciciosClub,
+      action: Accion.editarCatalogoClub,
       method: 'POST',
       body: jsonEncode(_body('Remo')),
       seed: (clubId, marker) => markers[clubId] = marker,
@@ -458,7 +458,7 @@ void main() {
       'PATCH /clubes/{clubId}/catalogo/ejercicios/e1',
       endpoint: (c) => setExerciseStatusEndpoint(c, 'e1', store: isolationStore, usage: _FakeUsage()),
       path: '/clubes/{clubId}/catalogo/ejercicios/e1',
-      action: Accion.editarEjerciciosClub,
+      action: Accion.editarCatalogoClub,
       method: 'PATCH',
       body: jsonEncode({'estado': 'archivado'}),
       seed: (clubId, marker) => isolationStore.exercises
@@ -471,7 +471,7 @@ void main() {
       'DELETE /clubes/{clubId}/catalogo/ejercicios/e1',
       endpoint: (c) => deleteExerciseEndpoint(c, 'e1', store: isolationStore, usage: _FakeUsage()..used.add('e1')),
       path: '/clubes/{clubId}/catalogo/ejercicios/e1',
-      action: Accion.editarEjerciciosClub,
+      action: Accion.editarCatalogoClub,
       method: 'DELETE',
       seed: (clubId, marker) => isolationStore.exercises
         ..removeWhere((e) => e.clubId == clubId && e.id == 'e1')

@@ -10,9 +10,10 @@ import '../modelos/plan.dart';
 class PlanAccess {
   const PlanAccess._({required this.see, required this.edit, required this.manage});
 
-  /// Its creator (`auditoria.creadoPor`) and the club admins reach it whole, whatever its visibility.
-  factory PlanAccess.of(Plan plan, {required String userId, required Set<Rol> roles}) =>
-      plan.auditoria.creadoPor == userId || roles.contains(Rol.adminClub)
+  /// Its creator (`auditoria.creadoPor`), the club admins and the platform admins reach it whole, whatever its
+  /// visibility.
+  factory PlanAccess.of(Plan plan, {required String userId, required Set<Rol> roles, bool isPlatformAdmin = false}) =>
+      plan.auditoria.creadoPor == userId || roles.contains(Rol.adminClub) || isPlatformAdmin
       ? const PlanAccess._(see: true, edit: true, manage: true)
       : switch (plan.visibility) {
           PlanVisibility.private => const PlanAccess._(see: false, edit: false, manage: false),

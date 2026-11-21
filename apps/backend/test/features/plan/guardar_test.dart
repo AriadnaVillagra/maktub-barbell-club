@@ -322,12 +322,11 @@ void main() {
   });
 
   test(
-    'an athlete and an admin without coach role get 403 and nothing changes',
+    'an athlete gets 403 and nothing changes',
     () async {
       final store = storeWithPlan();
       for (final ctx in [
         _ctx('club-a', {Rol.atleta}),
-        _ctx('club-a', {Rol.adminClub}),
       ]) {
         final r = await _save(ctx, store, _validBody());
         expect(r.statusCode, HttpStatus.forbidden);

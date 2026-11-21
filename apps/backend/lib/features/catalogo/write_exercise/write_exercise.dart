@@ -12,9 +12,8 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'write_exercise_store.dart';
 
-/// Writes of exercises (F2). Creating, editing, archiving and deleting need [Accion.editarEjerciciosClub] (coach or club admin).
-/// Changing an existing one is authorized once
-/// it is loaded, because a default one needs a platform admin instead.
+/// Writes of exercises (F2). Creating, editing, archiving and deleting need [Accion.editarCatalogoClub] (coach and
+/// up). Changing an existing one is authorized once it is loaded, because a default one needs a platform admin instead.
 ///
 /// `POST   .../catalogo/ejercicios` body: the exercise without `id`, `clubId`, `estado`, `auditoria` → the
 ///   created exercise (200, active)
@@ -32,7 +31,7 @@ Future<Response> createExerciseEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.editarEjerciciosClub);
+  final club = context.read<ClubContext>().authorize(Accion.editarCatalogoClub);
   final created = await _useCase(context, store, usage, newId, now).create(club, await leerCuerpoJson(context.request));
   return Response.json(body: created.toJson());
 }
@@ -250,7 +249,7 @@ class WriteExercise {
     if (found == null || !isVisibleTo(found, club.clubId)) {
       throw const ErrorDeSolicitud.noEncontrado('Ejercicio no encontrado.');
     }
-    club.authorizeExerciseWrite(found);
+    club.authorizeCatalogWrite(found);
     return found;
   }
 

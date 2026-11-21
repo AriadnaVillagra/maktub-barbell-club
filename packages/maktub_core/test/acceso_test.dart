@@ -97,83 +97,127 @@ void main() {
   group('matriz de permisos', () {
     const atleta = {Rol.atleta};
     const coach = {Rol.coach};
+    const admin = {Rol.adminClub};
     const ambos = {Rol.coach, Rol.atleta};
+    Set<Accion> permitidas(Set<Rol> roles, {TipoClub tipo = TipoClub.club, bool plataforma = false}) => {
+      for (final a in Accion.values)
+        if (puede(roles, a, tipo, esAdminPlataforma: plataforma)) a,
+    };
 
-    test('el atleta ve, registra y ve sus reportes, nada más', () {
-      final permitidas = {for (final a in Accion.values) if (puede(atleta, a, TipoClub.club)) a};
-      expect(permitidas, {Accion.verCatalogoYPlanes, Accion.registrar, Accion.verReportesPropios});
+    test('jerarquía: cada nivel puede todo lo que pueden los de abajo, y algo más', () {
+      for (final nivel in PermissionLevel.values.skip(1)) {
+        final abajo = PermissionLevel.values[nivel.index - 1];
+        expect(actionsOf(nivel).containsAll(actionsOf(abajo)), isTrue, reason: nivel.name);
+        expect(actionsOf(nivel).length, greaterThan(actionsOf(abajo).length), reason: nivel.name);
+      }
     });
 
-    test('el coach planifica, pero no toca el catálogo del club ni los miembros sin ser admin del club', () {
-      expect(puede(coach, Accion.editarCatalogoClub, TipoClub.club), isFalse);
-      expect(puede(coach, Accion.gestionarMiembros, TipoClub.club), isFalse);
-      expect(puede({Rol.coach, Rol.adminClub}, Accion.editarCatalogoClub, TipoClub.club), isTrue);
-      expect(puede({Rol.coach, Rol.adminClub}, Accion.gestionarMiembros, TipoClub.club), isTrue);
-      expect(puede({Rol.adminClub}, Accion.editarCatalogoClub, TipoClub.personal), isFalse);
+    test('cada acción de club la agrega un solo nivel', () {
+      final agregadas = [for (final n in PermissionLevel.values) ...n.adds];
+      expect(agregadas.toSet().length, agregadas.length);
+      expect({...agregadas, Accion.seguirPlanPorDefecto}, Accion.values.toSet());
     });
 
-    test('el admin del club lee a todos los atletas pero no planifica ni edita referencias', () {
-      const admin = {Rol.adminClub};
-      expect(puede(admin, Accion.verReportesDeTodos, TipoClub.club), isTrue);
-      expect(puede(admin, Accion.verReportesPropios, TipoClub.club), isTrue);
-      expect(puede(admin, Accion.planificar, TipoClub.club), isFalse);
-      expect(puede(admin, Accion.editarReferencias, TipoClub.club), isFalse);
-      expect(puede(admin, Accion.registrar, TipoClub.club), isFalse);
-      expect(puede(admin, Accion.verReportesDeTodos, TipoClub.personal), isFalse);
+    test('el nivel lo da el rol más alto; la marca de plataforma, por encima de todo', () {
+      expect(PermissionLevel.of(atleta), PermissionLevel.athlete);
+      expect(PermissionLevel.of(ambos), PermissionLevel.coach);
+      expect(PermissionLevel.of(admin), PermissionLevel.clubAdmin);
+      expect(PermissionLevel.of({Rol.atleta, Rol.adminClub}), PermissionLevel.clubAdmin);
+      expect(PermissionLevel.of(const {}, isPlatformAdmin: true), PermissionLevel.platform);
+      expect(PermissionLevel.of(atleta, isPlatformAdmin: true), PermissionLevel.platform);
+      expect(PermissionLevel.of(const {}), isNull);
     });
 
-    test('crear, editar, archivar y borrar ejercicios del club lo hacen el coach y el admin del club, no el atleta', () {
-      expect(puede(coach, Accion.editarEjerciciosClub, TipoClub.club), isTrue);
-      expect(puede({Rol.adminClub}, Accion.editarEjerciciosClub, TipoClub.club), isTrue);
-      expect(puede(atleta, Accion.editarEjerciciosClub, TipoClub.club), isFalse);
-      expect(puede(coach, Accion.editarEjerciciosClub, TipoClub.personal), isFalse);
+    test('en un club, lo que puede cada rol es lo de su nivel', () {
+      expect(permitidas(atleta), actionsOf(PermissionLevel.athlete));
+      expect(permitidas(coach), actionsOf(PermissionLevel.coach));
+      expect(permitidas(ambos), actionsOf(PermissionLevel.coach));
+      expect(permitidas(admin), actionsOf(PermissionLevel.clubAdmin));
+      expect(permitidas(const {}, plataforma: true), actionsOf(PermissionLevel.platform));
     });
 
-    test('puedeEscribirEjercicio: lo del club, coach o admin; lo default, solo plataforma', () {
-      final base = Category(id: 'x', clubId: clubPlataforma, name: 'x', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));
-      final propio = Category(id: 'y', clubId: 'c1', name: 'y', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));
-      expect(puedeEscribirEjercicio(propio, const {Rol.coach}, TipoClub.club), isTrue);
-      expect(puedeEscribirEjercicio(propio, const {Rol.atleta}, TipoClub.club), isFalse);
-      expect(puedeEscribirEjercicio(base, const {Rol.coach, Rol.adminClub}, TipoClub.club), isFalse);
-      expect(puedeEscribirEjercicio(base, const {Rol.coach}, TipoClub.club, esAdminPlataforma: true), isTrue);
+    test('el atleta solo ve, registra y ve lo suyo', () {
+      expect(permitidas(atleta), {Accion.verCatalogoYPlanes, Accion.registrar, Accion.verReportesPropios});
     });
 
-    test('lo default solo lo cambia el admin de plataforma; lo del club, el admin del club', () {
-      final cat = Category(id: 'x', clubId: clubPlataforma, name: 'x', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));
-      final propia = Category(id: 'y', clubId: 'c1', name: 'y', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));
-      const admin = {Rol.coach, Rol.adminClub};
-      expect(puedeEscribirCatalogo(cat, admin, TipoClub.club), isFalse);
-      expect(puedeEscribirCatalogo(cat, const {Rol.coach}, TipoClub.club, esAdminPlataforma: true), isTrue);
-      expect(puedeEscribirCatalogo(propia, admin, TipoClub.club), isTrue);
-      expect(puedeEscribirCatalogo(propia, const {Rol.coach}, TipoClub.club, esAdminPlataforma: true), isFalse);
-    });
-
-    test('el coach planifica y gestiona su trabajo, pero no sigue planes por defecto ni edita plataforma', () {
-      for (final a in [Accion.planificar, Accion.editarReferencias, Accion.verReportesDeTodos, Accion.registrar]) {
+    test('el coach: planes, asignaciones, catálogo del club (ejercicios, categorías, temporizadores) y atletas', () {
+      for (final a in [
+        Accion.planificar,
+        Accion.deletePlan,
+        Accion.editarCatalogoClub,
+        Accion.editarReferencias,
+        Accion.verReportesDeTodos,
+        Accion.registrar,
+      ]) {
         expect(puede(coach, a, TipoClub.club), isTrue, reason: a.name);
       }
-      expect(puede(coach, Accion.seguirPlanPorDefecto, TipoClub.club), isFalse);
+      expect(puede(coach, Accion.editarEquipo, TipoClub.club), isFalse);
+      expect(puede(coach, Accion.gestionarMiembros, TipoClub.club), isFalse);
       expect(puede(coach, Accion.editarPlataforma, TipoClub.club), isFalse);
     });
 
-    test('en el club personal no se planifica aunque la membresía tenga coach', () {
-      expect(puede(ambos, Accion.planificar, TipoClub.personal), isFalse);
-      expect(puede(ambos, Accion.gestionarMiembros, TipoClub.personal), isFalse);
-      expect(puede(ambos, Accion.verReportesDeTodos, TipoClub.personal), isFalse);
-      expect(puede(ambos, Accion.seguirPlanPorDefecto, TipoClub.personal), isTrue);
-      expect(puede(ambos, Accion.editarReferencias, TipoClub.personal), isTrue);
+    test('el admin del club puede todo en su club: también planes, asignaciones, equipo y miembros', () {
+      for (final a in [
+        Accion.planificar,
+        Accion.deletePlan,
+        Accion.editarReferencias,
+        Accion.editarCatalogoClub,
+        Accion.editarEquipo,
+        Accion.gestionarMiembros,
+        Accion.verReportesDeTodos,
+        Accion.registrar,
+      ]) {
+        expect(puede(admin, a, TipoClub.club), isTrue, reason: a.name);
+      }
+      expect(puede(admin, Accion.editarPlataforma, TipoClub.club), isFalse);
+      expect(puede(admin, Accion.reviewClubRequests, TipoClub.club), isFalse);
     });
 
-    test('sin roles no se puede nada dentro de un club', () {
-      for (final a in Accion.values) {
-        expect(puede(const {}, a, TipoClub.club), isFalse, reason: a.name);
+    test('el admin de plataforma puede todo en cualquier club, aunque no sea miembro', () {
+      for (final a in actionsOf(PermissionLevel.clubAdmin)) {
+        expect(puede(const {}, a, TipoClub.club, esAdminPlataforma: true), isTrue, reason: a.name);
+      }
+      expect(puede(atleta, Accion.planificar, TipoClub.club, esAdminPlataforma: true), isTrue);
+    });
+
+    test('en el club personal no se planifica aunque la membresía tenga coach o la marca de plataforma', () {
+      for (final roles in [ambos, {Rol.adminClub, Rol.coach, Rol.atleta}]) {
+        expect(permitidas(roles, tipo: TipoClub.personal), {
+          Accion.verCatalogoYPlanes,
+          Accion.registrar,
+          Accion.verReportesPropios,
+          Accion.editarReferencias,
+          Accion.seguirPlanPorDefecto,
+        });
+      }
+      expect(puede(const {}, Accion.planificar, TipoClub.personal, esAdminPlataforma: true), isFalse);
+      expect(puede(const {}, Accion.registrar, TipoClub.personal, esAdminPlataforma: true), isTrue);
+    });
+
+    test('sin roles ni marca de plataforma no se puede nada', () {
+      for (final tipo in TipoClub.values) {
+        expect(permitidas(const {}, tipo: tipo), isEmpty, reason: tipo.name);
       }
     });
 
-    test('editar plataforma depende solo de la marca de administrador', () {
-      expect(puede(const {}, Accion.editarPlataforma, TipoClub.personal, esAdminPlataforma: true), isTrue);
-      expect(puede(ambos, Accion.editarPlataforma, TipoClub.club), isFalse);
-      expect(puede(atleta, Accion.planificar, TipoClub.club, esAdminPlataforma: true), isFalse);
+    test('las acciones de plataforma dependen solo de la marca, nunca de los roles', () {
+      for (final a in platformActions) {
+        expect(puede(const {}, a, TipoClub.personal, esAdminPlataforma: true), isTrue, reason: a.name);
+        expect(puede({Rol.adminClub, Rol.coach}, a, TipoClub.club), isFalse, reason: a.name);
+      }
+    });
+
+    test('catálogo: lo default solo el admin de plataforma; lo del club, coach, admin del club o plataforma', () {
+      final auditoria = Auditoria.nueva('u', ahora: DateTime.utc(2026));
+      final base = Category(id: 'x', clubId: clubPlataforma, name: 'x', auditoria: auditoria);
+      final propia = Category(id: 'y', clubId: 'c1', name: 'y', auditoria: auditoria);
+      expect(puedeEscribirCatalogo(base, {Rol.adminClub, Rol.coach}, TipoClub.club), isFalse);
+      expect(puedeEscribirCatalogo(base, coach, TipoClub.club, esAdminPlataforma: true), isTrue);
+      expect(puedeEscribirCatalogo(propia, coach, TipoClub.club), isTrue);
+      expect(puedeEscribirCatalogo(propia, admin, TipoClub.club), isTrue);
+      expect(puedeEscribirCatalogo(propia, const {}, TipoClub.club, esAdminPlataforma: true), isTrue);
+      expect(puedeEscribirCatalogo(propia, atleta, TipoClub.club), isFalse);
+      expect(puedeEscribirCatalogo(propia, ambos, TipoClub.personal), isFalse);
     });
   });
 

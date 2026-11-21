@@ -554,11 +554,10 @@ void main() {
       expect(store.stored.single.published, isNull);
     });
 
-    test('an athlete and an admin without coach role get 403', () async {
+    test('an athlete gets 403', () async {
       final store = storeWith(_plan('club-a'));
       for (final ctx in [
         _ctx('club-a', {Rol.atleta}),
-        _ctx('club-a', {Rol.adminClub}),
       ]) {
         final r = await _publish(ctx, store);
         expect(r.statusCode, HttpStatus.forbidden);

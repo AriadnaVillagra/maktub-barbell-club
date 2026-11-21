@@ -34,7 +34,7 @@ class _ExerciseListPageState extends ConsumerState<ExerciseListPage> {
     final categories =
         ref.watch(catalogCategoriesProvider).value ?? const <Category>[];
     final clubId = ref.watch(catalogClubIdProvider);
-    final canEdit = ref.watch(canEditClubExercisesProvider);
+    final canEdit = ref.watch(canEditClubCatalogProvider);
     return Scaffold(
       appBar: AppBar(title: const Text('Catálogo de ejercicios')),
       floatingActionButton: canEdit

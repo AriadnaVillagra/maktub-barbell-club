@@ -21,7 +21,7 @@ class TeamPage extends ConsumerWidget {
       onRetry: () => ref.invalidate(clubTeamProvider),
       builder: (team) => team == null
           ? const SizedBox.shrink()
-          : _TeamEditor(team: team, canEdit: ref.watch(canEditClubCatalogProvider)),
+          : _TeamEditor(team: team, canEdit: ref.watch(canEditEquipmentProvider)),
     ),
   );
 }

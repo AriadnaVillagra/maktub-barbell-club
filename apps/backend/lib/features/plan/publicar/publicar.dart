@@ -58,7 +58,7 @@ class PublishPlan {
 
   Future<Plan> call(ClubContext club, String planId) async {
     final plan = await _store.plan(club.clubId, planId);
-    final access = plan == null ? null : PlanAccess.of(plan, userId: club.userId, roles: club.roles);
+    final access = plan == null ? null : club.planAccess(plan);
     if (plan == null || !access!.see) {
       throw const ErrorDeSolicitud.noEncontrado('Plan no encontrado.');
     }

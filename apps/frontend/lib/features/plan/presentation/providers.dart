@@ -338,7 +338,7 @@ class PlanSave extends Notifier<PlanSaveState> {
       final gaining = exercisesGainingLoad(
         plan,
         catalog,
-        canWrite: (e) => me?.canWriteExercise(e) ?? false,
+        canWrite: (e) => me?.canWriteCatalog(e) ?? false,
       );
       final exercises = {...catalog, ...gaining};
       nameOf = (id) => exercises[id]?.name;

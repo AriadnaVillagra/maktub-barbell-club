@@ -30,6 +30,13 @@ void main() {
     }
   });
 
+  test('a platform admin reaches it whole, even without a membership in the club', () {
+    for (final v in PlanVisibility.values) {
+      final a = PlanAccess.of(_plan(v), userId: 'soporte', roles: const {}, isPlatformAdmin: true);
+      expect((a.see, a.edit, a.manage), (true, true, true), reason: v.name);
+    }
+  });
+
   test('another coach: nothing if private, read if shared read-only, edit but not manage if shared editable', () {
     expect(access(PlanVisibility.private, 'kamila', coach), (false, false, false));
     expect(access(PlanVisibility.sharedReadOnly, 'kamila', coach), (true, false, false));

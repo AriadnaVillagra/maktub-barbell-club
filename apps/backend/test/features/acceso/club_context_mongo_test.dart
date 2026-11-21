@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:maktub_backend/features/acceso/club_context/club_context.dart';
 import 'package:maktub_backend/features/acceso/club_context/club_context_store.dart';
+import 'package:maktub_backend/features/acceso/list_all_clubs/list_all_clubs_store.dart';
 import 'package:maktub_backend/infraestructura/mongo.dart';
 import 'package:maktub_core/maktub_core.dart';
 import 'package:mongo_dart/mongo_dart.dart';
@@ -98,5 +100,36 @@ void main() {
     expect(await store.activeMembership(clubId: 'zz', userId: 'u1'), isNull);
     expect(await store.clubType('c1'), TipoClub.club);
     expect(await store.isPlatformAdmin('u1'), isTrue);
+  });
+
+  mongoTest('a platform admin enters a club without a membership; anyone else does not', () async {
+    await seed();
+    await db!.collection(Colecciones.clubes).insert(
+      aDocumento(Club(id: 'c2', nombre: 'Barra Norte', tipo: TipoClub.club, auditoria: audit).toJson()),
+    );
+
+    final platform = await ResolveClubContext(MongoClubContextStore(db!))(userId: 'u1', clubId: 'c2');
+    expect((platform.clubId, platform.clubType, platform.isPlatformAdmin), ('c2', TipoClub.club, true));
+    expect(platform.roles, isEmpty);
+    expect(platform.can(Accion.gestionarMiembros), isTrue);
+
+    await expectLater(
+      ResolveClubContext(MongoClubContextStore(db!))(userId: 'u2', clubId: 'c2'),
+      throwsA(same(notAMember)),
+    );
+    await expectLater(
+      ResolveClubContext(MongoClubContextStore(db!))(userId: 'u1', clubId: 'nope'),
+      throwsA(same(notAMember)),
+    );
+  });
+
+  mongoTest('every club of type club is listed by name, never a personal one', () async {
+    await seed();
+    await db!.collection(Colecciones.clubes).insert(
+      aDocumento(Club(id: 'c2', nombre: 'Barra Norte', tipo: TipoClub.club, auditoria: audit).toJson()),
+    );
+
+    final clubs = await MongoListAllClubsStore(db!).clubs();
+    expect([for (final c in clubs) c.id], ['c2', 'c1']);
   });
 }

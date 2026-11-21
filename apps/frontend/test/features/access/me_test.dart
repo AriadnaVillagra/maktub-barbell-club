@@ -58,4 +58,58 @@ void main() {
     });
     expect([for (final c in me.clubs) c.athleteId], ['ath-1', null, null]);
   });
+
+  group('permissions by hierarchy', () {
+    test('a club admin without the coach role plans, edits the catalog, the equipment and the members', () {
+      final me = meWith([(gym, {Rol.adminClub})]);
+      expect(
+        (me.canPlan, me.canEditClubCatalog, me.canEditEquipment, me.canManageMembers, me.canEditReferences),
+        (true, true, true, true, true),
+      );
+    });
+
+    test('a coach edits the catalog (exercises, categories, timers) but not the equipment nor the members', () {
+      final me = meWith([(gym, {Rol.coach})]);
+      expect((me.canPlan, me.canEditClubCatalog, me.canEditEquipment, me.canManageMembers), (true, true, false, false));
+      expect(me.canConfigure, isTrue);
+    });
+
+    test('an athlete only trains: no planning, no catalog, no Preferences', () {
+      final me = meWith([(gym, {Rol.atleta})]);
+      expect((me.canPlan, me.canEditClubCatalog, me.canEditEquipment, me.canConfigure), (false, false, false, false));
+    });
+
+    test('a platform admin can do everything in their club, whatever the roles', () {
+      final me = meWith([(gym, {Rol.atleta})], isPlatformAdmin: true);
+      expect((me.canPlan, me.canEditEquipment, me.canManageMembers, me.canPickAnyClub), (true, true, true, true));
+      expect(me.activeClub?.can(Accion.verReportesDeTodos), isTrue);
+    });
+  });
+
+  group('the chosen club', () {
+    test('one of the user\'s clubs becomes the active one', () {
+      final me = meWith([(gym, {Rol.coach}), (other, {Rol.atleta})]).withChosenClub(other);
+      expect(me.activeClub?.club.id, 'c2');
+      expect(me.canPlan, isFalse);
+    });
+
+    test('a platform admin works in a club where they are not a member, with every action', () {
+      final foreign = club('c9', 'Barra Norte', TipoClub.club);
+      final me = meWith([(gym, {Rol.atleta})], isPlatformAdmin: true).withChosenClub(foreign);
+      expect(me.activeClub?.club.id, 'c9');
+      expect(me.activeClub?.roles, isEmpty);
+      expect((me.canPlan, me.canEditEquipment, me.canManageMembers), (true, true, true));
+      expect(me.athleteId, isNull);
+    });
+
+    test('anyone else ignores a club they cannot reach and stays in the default', () {
+      final foreign = club('c9', 'Barra Norte', TipoClub.club);
+      expect(meWith([(gym, {Rol.coach})]).withChosenClub(foreign).activeClub?.club.id, 'c1');
+    });
+
+    test('is not part of the GET /me copy', () {
+      final me = meWith([(gym, {Rol.coach})]);
+      expect(me.withChosenClub(other).toJson(), me.toJson());
+    });
+  });
 }

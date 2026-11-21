@@ -1215,14 +1215,14 @@ void main() {
       expect(find.byKey(const Key('wod-name-field')), findsOneWidget);
     });
 
-    testWidgets('who cannot plan does not see WoDs in Preferencias', (
+    testWidgets('a club admin without the coach role sees WoDs in Preferencias too (hierarchy)', (
       tester,
     ) async {
       await mount(tester, {Rol.adminClub});
       await tester.tap(find.text('Preferencias'));
       await tester.pumpAndSettle();
       expect(find.text('Miembros'), findsOneWidget);
-      expect(find.text('WoDs'), findsNothing);
+      expect(find.text('WoDs'), findsOneWidget);
     });
   });
 }

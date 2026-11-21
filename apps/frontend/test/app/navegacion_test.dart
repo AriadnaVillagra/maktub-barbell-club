@@ -286,11 +286,11 @@ void main() {
       expect(find.text('Andi'), findsOneWidget);
     });
 
-    testWidgets('a club admin without the coach role reads the athletes, but sees no plans', (tester) async {
+    testWidgets('a club admin without the coach role sees all of planning: athletes, plans and assignments', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.adminClub}, ruta: Rutas.planificacion);
       expect(_tab('Planificación'), findsOneWidget);
-      expect(find.byKey(const Key('portada-${Rutas.planes}')), findsNothing);
-      expect(find.byKey(const Key('portada-${Rutas.asignaciones}')), findsNothing);
+      expect(find.byKey(const Key('portada-${Rutas.planes}')), findsOneWidget);
+      expect(find.byKey(const Key('portada-${Rutas.asignaciones}')), findsOneWidget);
 
       await tester.tap(find.byKey(const Key('portada-${Rutas.atletas}')));
       await tester.pumpAndSettle();
@@ -356,6 +356,61 @@ void main() {
     testWidgets('a club admin also manages members', (tester) async {
       await _montar(tester, const Size(400, 800), roles: {Rol.coach, Rol.adminClub}, ruta: Rutas.preferencias);
       expect(find.text('Miembros'), findsOneWidget);
+    });
+
+    Iterable<String> preferenceRoutes(WidgetTester tester) => [
+      for (final tile in tester.widgetList<ListTile>(find.byType(ListTile)))
+        if (tile.key case ValueKey<String>(:final value) when value.startsWith('preferencia-'))
+          value.substring('preferencia-'.length),
+    ];
+
+    testWidgets('a coach: exercises, categories, timers and WoDs; neither equipment nor members', (tester) async {
+      await _montar(tester, const Size(400, 800), ruta: Rutas.preferencias);
+      expect(preferenceRoutes(tester), [Rutas.catalogo, Rutas.categorias, Rutas.temporizadores, Rutas.wods]);
+    });
+
+    testWidgets('a club admin without the coach role: everything of the club, equipment and members too', (tester) async {
+      await _montar(tester, const Size(400, 800), roles: {Rol.adminClub}, ruta: Rutas.preferencias);
+      expect(preferenceRoutes(tester), [
+        Rutas.catalogo,
+        Rutas.categorias,
+        Rutas.temporizadores,
+        Rutas.wods,
+        Rutas.equipo,
+        Rutas.miembros,
+      ]);
+    });
+
+    testWidgets('a platform admin: everything of the club, plus club requests', (tester) async {
+      await _montar(
+        tester,
+        const Size(400, 800),
+        roles: {Rol.atleta},
+        meRepository: FakeMeRepository(meWith([(_gym, {Rol.atleta})], isPlatformAdmin: true)),
+        ruta: Rutas.preferencias,
+      );
+      expect(preferenceRoutes(tester), [
+        Rutas.catalogo,
+        Rutas.categorias,
+        Rutas.temporizadores,
+        Rutas.wods,
+        Rutas.equipo,
+        Rutas.miembros,
+        Rutas.pedidosClub,
+      ]);
+      expect(_tab('Planificación'), findsOneWidget);
+    });
+
+    testWidgets('a platform admin working in a club where they are not a member gets every tab', (tester) async {
+      final other = club('c9', 'Barra Norte', TipoClub.club);
+      await _montar(
+        tester,
+        const Size(400, 800),
+        meRepository: FakeMeRepository(meWith([], isPlatformAdmin: true).withChosenClub(other)),
+        ruta: Rutas.planificacion,
+      );
+      expect(find.byKey(const Key('portada-${Rutas.planes}')), findsOneWidget);
+      expect(_tab('Preferencias'), findsOneWidget);
     });
 
     testWidgets('an athlete cannot open Preferences by URL', (tester) async {

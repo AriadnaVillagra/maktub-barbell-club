@@ -219,12 +219,19 @@ void main() {
     expect(await r.body(), isNot(contains('referencias')));
   });
 
-  test('a club admin reads any athlete but gets no work factors', () async {
+  test('a club admin reads any athlete whole, work factors included (hierarchy)', () async {
     final r = await _call(clubAdmin, seeded(), 'ath-1');
     expect(r.statusCode, HttpStatus.ok);
     final sheet = await read(r);
     expect(sheet['referencias'], isNotEmpty);
-    expect(sheet['factores'], isEmpty);
+    expect(sheet['factores'], hasLength(1));
+  });
+
+  test('a platform admin who is not a member reads any athlete whole', () async {
+    const platform = ClubContext(clubId: 'club-a', userId: 'soporte', roles: {}, clubType: TipoClub.club, isPlatformAdmin: true);
+    final r = await _call(platform, seeded(), 'ath-1');
+    expect(r.statusCode, HttpStatus.ok);
+    expect((await read(r))['factores'], hasLength(1));
   });
 
   group('club isolation', () {

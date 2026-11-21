@@ -172,9 +172,9 @@ void main() {
       expect(((body.first as Map)['prescripciones'] as List), hasLength(1));
     });
 
-    test('an athlete and an admin without coach role get 403', () async {
+    test('an athlete gets 403', () async {
       final store = _FakeStore()..all.add(_wod('1', 'club-a', 'Fran'));
-      for (final ctx in [_athleteA, _adminOnlyA]) {
+      for (final ctx in [_athleteA]) {
         final r = await list(ctx, store);
         expect(r.statusCode, HttpStatus.forbidden);
         expect(await r.body(), isNot(contains('Fran')));
@@ -272,15 +272,17 @@ void main() {
       },
     );
 
-    test('an athlete and an admin without coach role get 403 and nothing is stored', () async {
+    test('an athlete gets 403 and nothing is stored; a club admin without coach role creates (hierarchy)', () async {
       final store = _FakeStore();
-      for (final ctx in [_athleteA, _adminOnlyA]) {
+      expect((await create(_adminOnlyA, store, {'nombre': 'Fran'})).statusCode, HttpStatus.created);
+      final before = store.writes;
+      for (final ctx in [_athleteA]) {
         expect(
           (await create(ctx, store, {'nombre': 'Fran'})).statusCode,
           HttpStatus.forbidden,
         );
       }
-      expect(store.writes, 0);
+      expect(store.writes, before);
     });
   });
 

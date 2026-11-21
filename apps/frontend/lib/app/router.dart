@@ -99,8 +99,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   final session = ValueNotifier<SessionStatus>(ref.read(sessionControllerProvider));
   ref.listen(sessionControllerProvider, (_, status) => session.value = status);
   ref.onDispose(session.dispose);
-  final canPlan = ValueNotifier<bool?>(ref.read(canOpenPlanningProvider));
-  ref.listen(canOpenPlanningProvider, (_, value) => canPlan.value = value);
+  final canPlan = ValueNotifier<bool?>(ref.read(canPlanProvider));
+  ref.listen(canPlanProvider, (_, value) => canPlan.value = value);
   ref.onDispose(canPlan.dispose);
   final canConfigure = ValueNotifier<bool?>(ref.read(canConfigureProvider));
   ref.listen(canConfigureProvider, (_, value) => canConfigure.value = value);

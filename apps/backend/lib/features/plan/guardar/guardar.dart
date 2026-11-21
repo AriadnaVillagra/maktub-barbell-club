@@ -50,7 +50,7 @@ class SavePlan {
 
   Future<Plan> call(ClubContext club, String planId, Json body) async {
     final stored = await _store.plan(club.clubId, planId);
-    final access = stored == null ? null : PlanAccess.of(stored, userId: club.userId, roles: club.roles);
+    final access = stored == null ? null : club.planAccess(stored);
     if (stored == null || !access!.see) {
       throw const ErrorDeSolicitud.noEncontrado('Plan no encontrado.');
     }

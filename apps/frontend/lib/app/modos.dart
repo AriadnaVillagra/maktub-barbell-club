@@ -24,29 +24,24 @@ class PaginaEntrenamiento extends ConsumerWidget {
       );
 }
 
-class PaginaPlanificacion extends ConsumerWidget {
+/// Only reached by coach and up (the router sends the rest to training), so every entry shows.
+class PaginaPlanificacion extends StatelessWidget {
   const PaginaPlanificacion({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // A club admin without the coach role only reads the athletes: no plans, no assignments.
-    final canPlan = ref.watch(canPlanProvider) ?? false;
-    return _PortadaModo(
-      titulo: 'Planificación',
-      descripcion: 'Diseñar planes y mantener las referencias de cada atleta.',
-      secciones: [
-        if (ref.watch(canReadAthletesProvider))
+  Widget build(BuildContext context) => const _PortadaModo(
+        titulo: 'Planificación',
+        descripcion: 'Diseñar planes y mantener las referencias de cada atleta.',
+        secciones: [
           (Icons.people_outline, 'Atletas y referencias', 'RMs, marcas, ritmos, FC y factores de trabajo', Rutas.atletas),
-        if (canPlan) ...[
           (Icons.view_week_outlined, 'Planes', 'Modelos de semana, días, bloques y prescripciones', Rutas.planes),
           (Icons.event_available_outlined, 'Asignaciones', 'Plan × grupo × inicio y estado de los días', Rutas.asignaciones),
         ],
-      ],
-    );
-  }
+      );
 }
 
-/// What configures the club rather than a plan.
+/// What configures the club rather than a plan. Each entry shows by the permission it needs (by hierarchy: coach
+/// the catalog, club admin also equipment and members, platform admin also club requests and the club picker).
 class PaginaPreferencias extends ConsumerWidget {
   const PaginaPreferencias({super.key});
 
@@ -57,11 +52,13 @@ class PaginaPreferencias extends ConsumerWidget {
           padding: const EdgeInsets.all(Espacio.l),
           children: [
             for (final (icono, nombre, ruta) in [
-              (Icons.list_alt, 'Ejercicios', Rutas.catalogo),
-              (Icons.fitness_center, 'Categorías', Rutas.categorias),
-              (Icons.timer_outlined, 'Temporizadores', Rutas.temporizadores),
+              if (ref.watch(canEditClubCatalogProvider)) ...[
+                (Icons.list_alt, 'Ejercicios', Rutas.catalogo),
+                (Icons.fitness_center, 'Categorías', Rutas.categorias),
+                (Icons.timer_outlined, 'Temporizadores', Rutas.temporizadores),
+              ],
               if (ref.watch(canPlanProvider) ?? false) (Icons.local_fire_department_outlined, 'WoDs', Rutas.wods),
-              (Icons.inventory_2_outlined, 'Equipo', Rutas.equipo),
+              if (ref.watch(canEditEquipmentProvider)) (Icons.inventory_2_outlined, 'Equipo', Rutas.equipo),
               if (ref.watch(canManageMembersProvider)) (Icons.group_outlined, 'Miembros', Rutas.miembros),
               if (ref.watch(isPlatformAdminProvider)) (Icons.domain_add_outlined, 'Pedidos de clubes', Rutas.pedidosClub),
             ])
