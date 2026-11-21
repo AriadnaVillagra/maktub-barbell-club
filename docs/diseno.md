@@ -465,6 +465,11 @@ general.
   "Terminar el día" con un bloque en curso lo cierra como interrumpido.
 - Las acciones que se tocan sin querer (saltar ejercicio, saltar bloque, interrumpir) van en
   "Más acciones". Reordenar pasos queda para después.
+- **"Atrás"** vuelve a los pasos ya hechos del bloque en curso, uno por vez, para verlos o corregirlos.
+  Es local a cada dispositivo: no mueve la pasada ni a los otros teléfonos. Terminar de nuevo un paso
+  pisa sus series, sin desmarcar.
+- Cada dispositivo **recuerda dónde quedó** (bloque, paso y lo tipeado) aunque se salga a otra
+  pantalla o se recargue la PWA. Si la pasada cambió mientras tanto, arranca desde lo que dice ella.
 
 ## 6. Temporizadores, cardio y WoD
 
