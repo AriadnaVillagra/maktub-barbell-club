@@ -428,6 +428,7 @@ Future<_Harness> _pump(
   _Sessions? sessions,
   DateTime? today,
   GuidedPositionStore? positions,
+  String initialLocation = Rutas.sesion,
 }) async {
   final h = _Harness(sessions ?? (_Sessions(records: records)..pass = pass));
   tester.view.physicalSize = const Size(900, 3000);
@@ -453,7 +454,7 @@ Future<_Harness> _pump(
     ],
   );
   final router = GoRouter(
-    initialLocation: Rutas.sesion,
+    initialLocation: initialLocation,
     routes: [
       GoRoute(
         path: Rutas.entrenamiento,
@@ -507,7 +508,7 @@ Future<_Harness> _pump(
   );
   await tester.pumpAndSettle();
   h.container = ProviderScope.containerOf(
-    tester.element(find.byType(SessionPage)),
+    tester.element(find.byType(SessionPage, skipOffstage: false)),
   );
   return h;
 }
@@ -1349,6 +1350,28 @@ void main() {
       expect(find.byKey(const Key('guided-finished')), findsOneWidget);
     });
 
+    testWidgets('the day clock starts at "Comenzar" and the block clock at "Iniciar bloque"', (tester) async {
+      final h = await _pump(tester);
+      await _train(tester);
+      await _tap(tester, 'guided-athlete-andi');
+      h.now = h.now.add(const Duration(minutes: 30)); // choosing does not count
+      await tester.pump(const Duration(seconds: 1));
+      expect(find.byKey(const Key('guided-total-clock')), findsNothing);
+
+      await _tap(tester, 'guided-begin');
+      await _skipBlock(tester);
+      h.now = h.now.add(const Duration(seconds: 40));
+      await tester.pump(const Duration(seconds: 1));
+      expect(_text(tester, 'guided-total-clock'), '00:40');
+      expect(find.byKey(const Key('guided-block-clock')), findsNothing, reason: 'the preview has no clock');
+
+      await _tap(tester, 'guided-start-block');
+      h.now = h.now.add(const Duration(seconds: 20));
+      await tester.pump(const Duration(seconds: 1));
+      expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 00:20');
+      expect(_text(tester, 'guided-total-clock'), '01:00');
+    });
+
     testWidgets('the clocks run against the system clock', (tester) async {
       final h = await _pump(tester);
       await _toBlock(tester, 1);
@@ -1540,22 +1563,59 @@ void main() {
       expect(find.byKey(const Key('session-train')), findsOneWidget);
     });
 
-    testWidgets('✕ asks first, then goes back to the session', (tester) async {
-      await _pump(tester);
+    testWidgets('✕ offers to save and leave, finish the training or cancel, each 56 dp', (tester) async {
+      final h = await _pump(tester);
       await _toBlock(tester, 1);
 
       await _tap(tester, 'guided-exit');
-      expect(find.text('¿Salir del modo guiado?'), findsOneWidget);
-      await tester.tap(find.text('Cancelar'));
-      await tester.pumpAndSettle();
+      expect(find.text('Salir del modo guiado'), findsOneWidget);
+      for (final key in ['guided-exit-save', 'guided-exit-finish', 'guided-exit-cancel']) {
+        expect(tester.getSize(find.byKey(Key(key))).height, greaterThanOrEqualTo(56));
+      }
+      expect(find.text('Guardar y salir'), findsOneWidget);
+      expect(find.text('Terminar el entrenamiento'), findsOneWidget);
+      final finish = tester.widget<ListTile>(find.byKey(const Key('guided-exit-finish')));
+      final scheme = Theme.of(tester.element(find.byKey(const Key('guided-exit-finish')))).colorScheme;
+      expect(finish.textColor, scheme.error, reason: 'destructive');
+
+      await _tap(tester, 'guided-exit-cancel');
+      expect(find.byKey(const Key('guided-exit-sheet')), findsNothing);
       expect(find.byType(GuidedPage), findsOneWidget);
+      expect(h.sessions.pass!.finished, false);
 
       await _tap(tester, 'guided-exit');
-      await tester.tap(find.text('Salir'));
-      await tester.pumpAndSettle();
+      await _tap(tester, 'guided-exit-save');
 
       expect(find.byType(GuidedPage), findsNothing);
       expect(find.byKey(const Key('session-train')), findsOneWidget);
+      expect(h.sessions.pass!.finished, false, reason: 'the pass goes on to come back to it');
+    });
+
+    testWidgets('"Terminar el entrenamiento" finishes the pass, keeps what was recorded and forgets the position', (
+      tester,
+    ) async {
+      final positions = _Positions();
+      final h = await _pump(tester, positions: positions);
+      await _toBlock(tester, 1);
+      await _tap(tester, 'guided-start-block');
+      await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main'); // Ari's first set
+      await _tap(tester, 'guided-step-main'); // Andi's turn started
+      expect(positions.saved?.draft?.running, true);
+
+      await _tap(tester, 'guided-exit');
+      await _tap(tester, 'guided-exit-finish');
+
+      expect(find.text('Día terminado'), findsOneWidget);
+      expect(h.sessions.pass!.finished, true);
+      expect(h.sessions.pass!.blocks[1].status, GuidedBlockStatus.interrupted);
+      expect(h.sessions.writes.map(_w), ['ari 1-0-0 done']);
+      expect(positions.saved, isNull);
+
+      await _tap(tester, 'guided-exit');
+      expect(find.byType(GuidedPage), findsNothing, reason: 'the summary leaves without asking');
+      await _train(tester);
+      expect(find.text('¿Quiénes entrenan?'), findsOneWidget);
     });
 
     testWidgets('entering again resumes the pass where it is, without asking', (
@@ -1568,8 +1628,7 @@ void main() {
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-exit');
-      await tester.tap(find.text('Salir'));
-      await tester.pumpAndSettle();
+      await _tap(tester, 'guided-exit-save');
 
       expect(
         h.sessions.pass!.finished,
@@ -1647,7 +1706,12 @@ void main() {
         expect(_text(tester, 'guided-block-count'), 'Bloque 2 de 4');
         expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
         expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 02:05');
-        expect(_text(tester, 'guided-total-clock'), '02:05');
+        expect(
+          _text(tester, 'guided-total-clock'),
+          '07:05',
+          reason: 'the day runs from "Comenzar", at 9:55',
+        );
+        expect(find.byKey(const Key('guided-stale')), findsNothing);
       },
     );
 
@@ -1672,6 +1736,87 @@ void main() {
         expect(h.sessions.times.single.$1, 'other-1');
       },
     );
+
+    testWidgets('a pass left open hours ago shows its real times and offers to finish it', (tester) async {
+      final h = await _pump(tester, pass: running());
+      h.now = DateTime.utc(2026, 11, 18, 14, 45);
+      await _train(tester);
+
+      expect(_text(tester, 'guided-total-clock'), '290:00');
+      expect(_text(tester, 'guided-block-clock'), 'Bloque en curso · 285:00');
+      expect(
+        find.textContaining('Esta pasada empezó hace 4 h 50 min y sigue abierta'),
+        findsOneWidget,
+      );
+
+      await _tap(tester, 'guided-stale-finish');
+      await _tap(tester, 'guided-exit-finish');
+
+      expect(find.text('Día terminado'), findsOneWidget);
+      expect(h.sessions.pass!.finished, true);
+      expect(h.sessions.pass!.blocks[1].status, GuidedBlockStatus.interrupted);
+      expect(h.sessions.pass!.blocks[1].end, h.now);
+    });
+
+    group('after a reload of the app (Ari, 2026-11-21)', () {
+      testWidgets('on the guided route it waits for the day and its session, and resumes the pass', (tester) async {
+        await _pump(
+          tester,
+          records: [_record('ari', 1, 0, 0, kg: 80)],
+          pass: running(),
+          initialLocation: Rutas.entrenar,
+        );
+
+        expect(find.text('No hay un día del plan para entrenar.'), findsNothing);
+        expect(find.text('¿Quiénes entrenan?'), findsNothing);
+        expect(_text(tester, 'guided-block-name'), 'Principal');
+        expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi');
+      });
+
+      testWidgets('on the guided route it lands on the remembered step', (tester) async {
+        final positions = _Positions();
+        final first = await _pump(tester, pass: running(), positions: positions);
+        await _train(tester);
+        await _tap(tester, 'guided-step-main');
+        await _tap(tester, 'guided-edit-ari');
+        await tester.enterText(find.byKey(const Key('session-set-kg')), '85');
+        await _tap(tester, 'session-set-save');
+
+        await tester.pumpWidget(const SizedBox.shrink());
+        await _pump(
+          tester,
+          sessions: first.sessions,
+          positions: positions,
+          initialLocation: Rutas.entrenar,
+        );
+
+        expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · en curso');
+        expect(_text(tester, 'guided-values-ari'), '85 kg × 5 reps');
+      });
+
+      testWidgets('the day\'s session shows the day, and Entrenar resumes the pass', (tester) async {
+        await _pump(
+          tester,
+          records: [_record('ari', 1, 0, 0, kg: 80)],
+          pass: running(),
+        );
+
+        expect(find.byKey(const Key('session-empty')), findsNothing);
+        expect(_text(tester, 'session-day-title'), 'Día 1 · Piernas');
+        await _train(tester);
+        expect(_text(tester, 'guided-block-name'), 'Principal');
+      });
+
+      testWidgets('back from the guided route, the day\'s session shows the day', (tester) async {
+        await _pump(tester, pass: running(), initialLocation: Rutas.entrenar);
+        await _tap(tester, 'guided-exit');
+        await _tap(tester, 'guided-exit-save');
+
+        expect(find.byKey(const Key('session-empty')), findsNothing);
+        expect(_text(tester, 'session-day-title'), 'Día 1 · Piernas');
+        expect(find.byKey(const Key('session-train')), findsOneWidget);
+      });
+    });
 
     testWidgets('a new pass can be started over the one going on, or left', (
       tester,
@@ -1836,7 +1981,8 @@ void main() {
       expect(find.byKey(const Key('guided-card-ari')), findsOneWidget);
       expect(find.byKey(const Key('guided-card-andi')), findsNothing);
       expect(_text(tester, 'guided-values-ari'), '80 kg × 5 reps');
-      expect(find.byKey(const Key('guided-reviewing')), findsOneWidget);
+      expect(_text(tester, 'guided-reviewing'), 'Si la terminás, reemplaza lo registrado.');
+      expect(_text(tester, 'guided-step-main'), 'Iniciar turno de Ari');
       expect(find.byKey(const Key('guided-leave-ari')), findsNothing);
       expect(_text(tester, 'guided-next'), 'Después vuelve al paso actual: Sentadilla, serie 1 · Andi');
       expect(tester.widget<TextButton>(find.byKey(const Key('guided-back'))).onPressed, isNull);
@@ -1862,8 +2008,11 @@ void main() {
       await tester.enterText(find.byKey(const Key('session-set-kg')), '85');
       await tester.enterText(find.byKey(const Key('session-set-reps')), '4');
       await _tap(tester, 'session-set-save');
-      expect(find.text('Terminar turno de nuevo'), findsOneWidget);
+      expect(_text(tester, 'guided-step-main'), 'Iniciar turno de Ari');
 
+      await _tap(tester, 'guided-step-main');
+      expect(_text(tester, 'guided-step-main'), 'Terminar turno');
+      expect(h.sessions.writes, hasLength(1), reason: 'starting it writes nothing');
       await _tap(tester, 'guided-step-main');
 
       expect(h.sessions.writes.map(_w), ['ari 1-0-0 done', 'ari 1-0-0 done']);
@@ -1890,7 +2039,10 @@ void main() {
       expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Ari · ya registrada');
 
       await _tap(tester, 'guided-step-main');
+      await _tap(tester, 'guided-step-main');
       expect(_text(tester, 'guided-set'), 'Serie 1 de 2 · turno de Andi · ya registrada');
+      expect(_text(tester, 'guided-step-main'), 'Iniciar turno de Andi');
+      await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main');
       expect(_text(tester, 'guided-set'), 'Serie 2 de 2 · turno de Ari');
       expect(h.sessions.writes.map(_w), [
@@ -1916,11 +2068,14 @@ void main() {
       await _tap(tester, 'guided-back');
 
       expect(find.text('No hace esta serie'), findsOneWidget);
+      expect(_text(tester, 'guided-step-main'), 'Iniciar serie');
+      await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main');
       expect(h.sessions.writes.map(_w), ['ari 1-0-0 done', 'ari 1-0-0 done']);
 
       await _tap(tester, 'guided-back');
       await _tap(tester, 'guided-not-done-andi');
+      await _tap(tester, 'guided-step-main');
       await _tap(tester, 'guided-step-main');
       expect(h.sessions.writes.map(_w).skip(2), ['ari 1-0-0 done', 'andi 1-0-0 done']);
     });
@@ -1929,8 +2084,7 @@ void main() {
   group('coming back where it was (Ari, 2026-11-21)', () {
     Future<void> leave(WidgetTester tester) async {
       await _tap(tester, 'guided-exit');
-      await tester.tap(find.text('Salir'));
-      await tester.pumpAndSettle();
+      await _tap(tester, 'guided-exit-save');
       expect(find.byType(GuidedPage), findsNothing);
     }
 

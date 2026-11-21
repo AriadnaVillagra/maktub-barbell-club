@@ -18,7 +18,7 @@ import 'session_timers.dart';
 
 /// The step on screen (E7.17's list): the exercise and set, one card per athlete of the step, the rest timer and
 /// what comes next. "Atrás", at the head of the step and away from the timers, shows the step before on this device
-/// only, to see it or correct it; finishing it again replaces its sets.
+/// only, to see it or correct it: it is started and finished like any step, and finishing it replaces its sets.
 class GuidedStepView extends ConsumerWidget {
   const GuidedStepView({
     super.key,
@@ -67,9 +67,7 @@ class GuidedStepView extends ConsumerWidget {
     )[step.prescription].values.fold(0, (max, n) => n > max ? n : max);
     final whose = athleteLabel(data, step.athleteIds.first);
     final String main;
-    if (reviewing) {
-      main = turns ? 'Terminar turno de nuevo' : 'Terminar serie de nuevo';
-    } else if (draft.running) {
+    if (draft.running) {
       main = turns ? 'Terminar turno' : 'Terminar serie';
     } else {
       main = turns ? 'Iniciar turno de $whose' : 'Iniciar serie';
@@ -121,8 +119,7 @@ class GuidedStepView extends ConsumerWidget {
         ),
         if (reviewing)
           Text(
-            'Corregí lo que haga falta: al terminarla de nuevo reemplaza lo '
-            'registrado.',
+            'Si la terminás, reemplaza lo registrado.',
             key: const Key('guided-reviewing'),
             style: context.textos.bodyMedium,
           ),
@@ -157,7 +154,7 @@ class GuidedStepView extends ConsumerWidget {
             ),
             FilledButton(
               key: const Key('guided-step-main'),
-              onPressed: draft.running || reviewing
+              onPressed: draft.running
                   ? () => guardedGuided(context, notifier.finishStep)
                   : notifier.startStep,
               child: Text(main),

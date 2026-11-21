@@ -465,6 +465,7 @@ class SessionScreenState {
     this.adjustments = const {},
     this.opening = false,
     this.liveStatus = LiveStatus.connecting,
+    this.lookedUp = false,
   });
 
   /// The chosen week and day; null keeps today's week and the D13 day.
@@ -485,6 +486,11 @@ class SessionScreenState {
 
   /// How the open session's live channel is doing. Only an indicator: marking a set never waits for it.
   final LiveStatus liveStatus;
+
+  /// Whether the chosen day's session was looked up at least once, found or not (or the lookup failed, as without
+  /// signal). Until then a missing [live] says nothing: after a reload the guided mode waits for it instead of
+  /// offering to choose who trains over a pass going on.
+  final bool lookedUp;
 
   AthleteAdjustments adjustmentsOf(String athleteId) =>
       adjustments[athleteId] ?? const AthleteAdjustments();
@@ -579,6 +585,16 @@ class SessionScreenController extends Notifier<SessionScreenState> {
       day: shown.day,
     );
     LiveSession? found;
+    bool stale() =>
+        !ref.mounted ||
+        state.live != null ||
+        state.opening ||
+        _dayData?.location.assignmentId != data.location.assignmentId ||
+        shownDayOf(data, state) != shown;
+    void lookedUp() {
+      if (!stale() && !state.lookedUp) state = _with(lookedUp: true);
+    }
+
     try {
       found = await findOn(today);
       if (found == null) {
@@ -586,15 +602,14 @@ class SessionScreenController extends Notifier<SessionScreenState> {
         if (doneOn != null && doneOn != today) found = await findOn(doneOn);
       }
     } catch (_) {
+      lookedUp();
       return;
     }
-    bool stale() =>
-        !ref.mounted ||
-        state.live != null ||
-        state.opening ||
-        _dayData?.location.assignmentId != data.location.assignmentId ||
-        shownDayOf(data, state) != shown;
-    if (found == null || stale()) return;
+    if (found == null) {
+      lookedUp();
+      return;
+    }
+    if (stale()) return;
     final unsent = await ref
         .read(setSyncQueueProvider)
         .resume(found.session.id);
@@ -603,6 +618,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     state = _with(
       live: _withUnsent(found, unsent),
       liveStatus: _sync?.status ?? LiveStatus.connecting,
+      lookedUp: true,
     );
   }
 
@@ -1037,6 +1053,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
         adjustments: {...state.adjustments, athleteId: value},
         opening: state.opening,
         liveStatus: state.liveStatus,
+        lookedUp: state.lookedUp,
       );
 
   SessionScreenState _with({
@@ -1044,6 +1061,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     String? athleteId,
     LiveSession? live,
     LiveStatus? liveStatus,
+    bool? lookedUp,
   }) => SessionScreenState(
     week: state.week,
     day: state.day,
@@ -1052,6 +1070,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     adjustments: state.adjustments,
     opening: opening ?? state.opening,
     liveStatus: liveStatus ?? state.liveStatus,
+    lookedUp: lookedUp ?? state.lookedUp,
   );
 }
 
@@ -1138,7 +1157,8 @@ class GuidedController extends Notifier<GuidedSession?> {
     final queue = ref.read(setSyncQueueProvider);
     final subscription = queue.changes.listen((_) => _refresh());
     ref.onDispose(subscription.cancel);
-    final data = ref.read(sessionDayProvider).value;
+    // Watched, not read: after a reload on the guided route the day arrives after this is first built.
+    final data = ref.watch(sessionDayProvider.select((d) => d.value));
     final screen = ref.read(sessionScreenProvider);
     if (data == null) return null;
     final live = screen.live;

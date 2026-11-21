@@ -213,9 +213,22 @@ class GuidedSession {
   /// Index of the block on screen.
   int get current => phase == GuidedPhase.athletes ? 0 : pass!.current;
 
-  /// When the first block started, and when the pass finished.
+  /// When the pass began ("Comenzar"), and when it finished.
   DateTime? get start => phase == GuidedPhase.athletes ? null : pass!.start;
   DateTime? get end => phase == GuidedPhase.athletes ? null : pass!.end;
+
+  /// How long a pass can go on before it looks left open from before (Ari, 2026-11-21: one begun hours earlier and
+  /// never finished came back with its clocks at almost 5 hours).
+  static const staleAfter = Duration(hours: 3);
+
+  /// Whether the pass going on began more than [staleAfter] before [now]: the screen still shows its real times, and
+  /// offers to finish it.
+  bool isStaleAt(DateTime now) {
+    final start = this.start;
+    return phase == GuidedPhase.blocks &&
+        start != null &&
+        now.difference(start) > staleAfter;
+  }
 
   /// The block on screen and how it goes; null outside [GuidedPhase.blocks] or if the plan no longer has it.
   GuidedBlockRun? get run {
@@ -239,7 +252,7 @@ class GuidedSession {
       blockHasSteps(block!) &&
       block!.prescriptions.where((p) => p.sets.isNotEmpty).length > 1;
 
-  /// From the first block's start to now, or to the end. The instants are the pass's, so every device shows the same.
+  /// From "Comenzar" to now, or to the end. The instants are the pass's, so every device shows the same.
   Duration? elapsed(DateTime now) =>
       start == null ? null : (end ?? now).difference(start!);
 
@@ -363,8 +376,9 @@ class GuidedSession {
     return review == null ? behind.isNotEmpty : behind.indexOf(review) > 0;
   }
 
-  /// "Atrás": shows the step before the one on screen, with what was recorded. Nothing is unmarked and the pass does
-  /// not move: the step the pass is on keeps its draft. An athlete whose set was passed without being recorded ("No
+  /// "Atrás": shows the step before the one on screen, with what was recorded, to be started and finished like any
+  /// other ("Iniciar serie", then "Terminar serie"). Nothing is unmarked and the pass does not move: the step the pass
+  /// is on keeps its draft. An athlete whose set was passed without being recorded ("No
   /// hizo esta serie") starts marked as not doing it, so finishing the step again leaves them as they were.
   GuidedSession goBack(Set<BlockSet> recorded) {
     if (!canGoBack(recorded)) return this;
@@ -412,7 +426,6 @@ class GuidedSession {
       GuidedStepDraft(
         prescription: step.prescription,
         set: step.set,
-        running: true,
         notDone: {
           for (final a in step.athleteIds)
             if (!recorded.contains((

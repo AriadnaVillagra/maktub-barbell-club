@@ -82,7 +82,7 @@ void main() {
         AthleteMode.simultaneous,
       ]);
       expect(g.runs.every((r) => r.status == GuidedBlockStatus.pending), true);
-      expect(g.start, isNull);
+      expect(g.start, _t0, reason: 'the day runs from "Comenzar"');
     });
 
     test('a day without blocks finishes at once', () {
@@ -119,7 +119,7 @@ void main() {
       expect(run.status, GuidedBlockStatus.done);
       expect(run.start, _at(1));
       expect(run.end, _at(4));
-      expect(g.start, _at(1));
+      expect(g.start, _t0);
       expect(g.current, 1);
     });
 
@@ -128,7 +128,18 @@ void main() {
       expect(g.runs[0].status, GuidedBlockStatus.skipped);
       expect(g.runs[0].start, isNull);
       expect(g.current, 1);
-      expect(g.start, isNull);
+      expect(g.start, _t0);
+    });
+
+    test('a pass going on for more than three hours looks left open', () {
+      final g = _onBlock(1).startBlock(_none, now: _at(1));
+      expect(g.isStaleAt(_at(180)), false);
+      expect(g.isStaleAt(_at(181)), true);
+      expect(g.finishDay(now: _at(200)).isStaleAt(_at(300)), false);
+      expect(
+        GuidedSession.choosing(_day, const ['ari']).isStaleAt(_at(300)),
+        false,
+      );
     });
 
     test('interrupting closes the block as interrupted', () {
@@ -140,14 +151,16 @@ void main() {
       expect(g.current, 2);
     });
 
-    test('the total time runs from the first block started to the last closed', () {
-      var g = _onBlock(2).startBlock(_none, now: _at(5));
-      expect(g.elapsed(_at(7)), const Duration(minutes: 2));
+    test('the total time runs from "Comenzar" to the last block closed', () {
+      var g = _onBlock(2);
+      expect(g.elapsed(_at(3)), const Duration(minutes: 3));
+      g = g.startBlock(_none, now: _at(5));
+      expect(g.elapsed(_at(7)), const Duration(minutes: 7));
       g = g.interruptBlock(now: _at(8)).startBlock(_none, now: _at(9));
       g = g.finishBlock(now: _at(12));
       expect(g.phase, GuidedPhase.finished);
       expect(g.end, _at(12));
-      expect(g.elapsed(_at(30)), const Duration(minutes: 7));
+      expect(g.elapsed(_at(30)), const Duration(minutes: 12));
     });
   });
 
@@ -666,6 +679,20 @@ void main() {
       expect(step, _step(0, 0, ['ari', 'andi']));
       expect(g.draftFor(step).notDone, {'andi'});
       expect(g.finishReview(recorded).record, ['ari']);
+    });
+
+    test('a step behind is started and finished like any step', () {
+      final (g, recorded) = afterTwo();
+      final back = g.goBack(recorded);
+      final step = back.shownStep(recorded)!;
+      expect(back.draftFor(step).running, false);
+      final started = back.startStep(recorded);
+      expect(started.draftFor(step).running, true);
+      expect(
+        started.draftFor(started.currentStep(recorded)!).running,
+        false,
+        reason: 'the step the pass is on is not started by it',
+      );
     });
 
     test('once the block on screen changes, the step behind is dropped', () {
