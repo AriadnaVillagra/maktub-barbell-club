@@ -190,8 +190,8 @@ void main() {
     group('kilos by hand per athlete in a plan for several (Ari, 2026-11-21)', () {
       final assigned = PrescriptionAthletes(athletes: const [_andi, _ari, _noRm], equipo: _equipo, assigned: true);
 
-      testWidgets('each athlete gets a line with their suggestion and a field for kilos by hand; blank keeps the '
-          'suggestion', (tester) async {
+      testWidgets('each athlete gets a line with their suggestion and a field filled with it, for kilos by hand; '
+          'blank keeps the suggestion', (tester) async {
         final result = await open(tester, athletes: assigned);
         await tester.enterText(find.byKey(const ValueKey('set-pct-0-0')), '65');
         await tester.pump();
@@ -204,11 +204,12 @@ void main() {
         expect(tester.widget<Text>(find.byKey(const Key('set-suggestion-0-nadie'))).data, 'sin RM');
         expect(find.textContaining('(sugerido)'), findsNothing);
         expect(find.byKey(const ValueKey('set-kg-0-0')), findsNothing);
-        expect(fieldText(tester, 'set-manual-kg-0-andi-0'), '');
+        expect(fieldText(tester, 'set-manual-kg-0-andi-0-1'), formatNumber(andiKg));
+        expect(fieldText(tester, 'set-manual-kg-0-nadie-0-1'), '');
         expect(find.byKey(const Key('set-athletes-0')), findsNothing);
 
-        await tester.enterText(find.byKey(const ValueKey('set-manual-kg-0-ari-0')), '50');
-        await tester.enterText(find.byKey(const ValueKey('set-manual-kg-0-nadie-0')), '40');
+        await tester.enterText(find.byKey(const ValueKey('set-manual-kg-0-ari-0-1')), '50');
+        await tester.enterText(find.byKey(const ValueKey('set-manual-kg-0-nadie-0-1')), '40');
         await tester.tap(find.byKey(const Key('prescription-ok')));
         await tester.pumpAndSettle();
         final set = (await result)!.sets.single;
@@ -220,7 +221,7 @@ void main() {
         });
       });
 
-      testWidgets('kilos by hand stay when the % changes, and clearing them gives back the suggestion', (tester) async {
+      testWidgets('kilos by hand are overwritten when the % changes, and the others are filled in', (tester) async {
         final result = await open(
           tester,
           athletes: assigned,
@@ -239,15 +240,15 @@ void main() {
           ),
         );
         expect(fieldText(tester, 'set-manual-kg-0-andi-0'), '50');
-        expect(fieldText(tester, 'set-manual-kg-0-ari-0'), '');
+        expect(fieldText(tester, 'set-manual-kg-0-ari-0'), formatNumber(_equipo.masCercano(46.8)));
 
         await tester.enterText(find.byKey(const ValueKey('set-pct-0-0')), '70');
         await tester.pump();
-        expect(fieldText(tester, 'set-manual-kg-0-andi-0'), '50');
+        expect(fieldText(tester, 'set-manual-kg-0-andi-0-1'), formatNumber(_equipo.masCercano(56)));
         await tester.tap(find.byKey(const Key('prescription-ok')));
         await tester.pumpAndSettle();
         final set = (await result)!.sets.single;
-        expect(set.byAthlete['andi'], const AthleteSetLoad(pct: 62.5, kg: 50, manualKg: true));
+        expect(set.byAthlete['andi'], AthleteSetLoad(pct: 70, kg: _equipo.masCercano(56)));
         expect(set.byAthlete['ari'], AthleteSetLoad(pct: 70, kg: _equipo.masCercano(72 * 0.7)));
       });
 

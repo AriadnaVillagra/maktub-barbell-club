@@ -118,6 +118,9 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   final _pctCleared = <int, int>{};
   final _kgCleared = <int, int>{};
 
+  /// Per set, how many times a new % or bar refilled the athletes' kilos (their fields are rebuilt with the new text).
+  final _refilled = <int, int>{};
+
   String _clearedSuffix(Map<int, int> cleared, int i) => (cleared[i] ?? 0) == 0 ? '' : '-${cleared[i]}';
 
   /// The bar the kilos are rounded on: the one typed here, else the exercise's.
@@ -156,7 +159,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   }
 
   /// [s] worked out again from its % ([fromPct]) or from its kg (E5.16): each athlete's loads, and with a single
-  /// athlete the other field too. With several, only what was typed is kept, and so are the kilos typed by hand.
+  /// athlete the other field too. With several, only what was typed is kept; the kilos typed by hand are overwritten.
   PlanSet _workedOut(PlanSet s, {required bool fromPct}) {
     final pct = fromPct ? s.pct : null;
     final kg = fromPct ? null : s.kg;
@@ -167,7 +170,7 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
       reps: s.reps,
       pct: fromPct ? pct : own?.pct,
       kg: fromPct ? own?.kg : kg,
-      byAthlete: {...loads, if (_pctPerAthlete) ...manualLoads(s.byAthlete)},
+      byAthlete: loads,
     );
   }
 
@@ -189,16 +192,23 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
     final after = _workedOut(typed, fromPct: inPct);
     setState(() {
       _refreshFields(i, before, after, typedPct: inPct);
+      if (inPct) _refilled[i] = (_refilled[i] ?? 0) + 1;
       _sets = [for (final (j, x) in _sets.indexed) j == i ? after : x];
     });
   }
 
-  /// A new bar rounds the kilos differently: the sets typed in % for several athletes are worked out again. With a
-  /// single athlete both fields are filled and it is not known which was typed, so they stay.
+  /// A new bar rounds the kilos differently: the sets typed in % for several athletes are worked out again, and the
+  /// kilos typed by hand are overwritten. With a single athlete both fields are filled and it is not known which was
+  /// typed, so they stay.
   void _rebar() {
     _sets = [
-      for (final s in _sets)
-        s.byAthlete.isEmpty || s.pct == null || s.kg != null ? s : _workedOut(s, fromPct: true),
+      for (final (i, s) in _sets.indexed)
+        (s.byAthlete.isEmpty && !_pctPerAthlete) || s.pct == null || s.kg != null
+            ? s
+            : () {
+                _refilled[i] = (_refilled[i] ?? 0) + 1;
+                return _workedOut(s, fromPct: true);
+              }(),
     ];
   }
 
@@ -235,6 +245,19 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   List<PlanSet> get _submittedSets {
     final exercise = widget.exercise;
     final unweighted = widget.offerLoad && exercise != null && !isWeighted(exercise);
+    if (_pctPerAthlete) {
+      // The kilos each input shows are frozen too, even when never touched: the manual ones stay as typed.
+      return [
+        for (final s in _sets)
+          setWith(
+            s,
+            reps: s.reps,
+            pct: s.pct,
+            kg: s.kg,
+            byAthlete: {..._loadsFor(s.pct, s.kg), ...s.byAthlete},
+          ),
+      ];
+    }
     return unweighted && _kgAthletes.isNotEmpty ? kgToEachAthlete(_sets, [for (final a in _kgAthletes) a.id]) : _sets;
   }
 
@@ -244,28 +267,33 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
   }
 
   /// Under set [i], one column per athlete of the plan: their kilos input and, right below it, what their RM suggests
-  /// (only in a set by %). Two columns of equal width when the dialog is wide, stacked on a phone. A blank input in a
-  /// set by % keeps the suggestion.
+  /// (only in a set by %). In a set by %, the input opens with the kilos worked out from the set's %, or the ones typed
+  /// by hand; a new % fills it in again. Two columns of equal width when the dialog is wide (the same split as Reps and
+  /// %), stacked on a phone.
   Widget _athleteKgFields(int i, PlanSet set) {
     final byPct = _pctPerAthlete;
     final suggestions = byPct ? _loadsFor(set.pct, set.kg) : const <String, AthleteSetLoad>{};
     Widget column(AthleteBasis a) {
       final entry = set.byAthlete[a.id];
       final suggested = suggestions[a.id];
+      final initial = byPct
+          ? switch ((entry != null && entry.manualKg ? entry.kg : null) ?? suggested?.kg) {
+              null => '',
+              final kg => formatNumber(kg),
+            }
+          : switch (entry?.kg) {
+              null => '',
+              final kg => formatNumber(kg),
+            };
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _numberInput(
             key: byPct
-                ? ValueKey('set-manual-kg-$i-${a.id}-$_generation')
+                ? ValueKey('set-manual-kg-$i-${a.id}-$_generation${_clearedSuffix(_refilled, i)}')
                 : ValueKey('set-kg-$i-${a.id}-$_generation'),
             label: '${a.name} (kg)',
-            initial: byPct
-                ? (entry != null && entry.manualKg && entry.kg != null ? formatNumber(entry.kg!) : '')
-                : switch (entry?.kg) {
-                    null => '',
-                    final kg => formatNumber(kg),
-                  },
+            initial: initial,
             formatters: [_decimalFormatter],
             onChanged: (t) => _setSet(
               i,
@@ -287,31 +315,29 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
       );
     }
 
-    return Padding(
+    return LayoutBuilder(
       key: Key(byPct ? 'set-athlete-manual-$i' : 'set-athlete-kg-$i'),
-      padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),
-      child: LayoutBuilder(
-        builder: (context, box) {
-          final columns = box.maxWidth >= 360 ? 2 : 1;
-          final width = (box.maxWidth - Espacio.s * (columns - 1)) / columns;
-          return Wrap(
-            spacing: Espacio.s,
-            runSpacing: Espacio.s,
-            children: [
-              for (final a in _kgAthletes) SizedBox(width: width, child: column(a)),
-            ],
-          );
-        },
-      ),
+      builder: (context, box) {
+        final columns = box.maxWidth >= 360 ? 2 : 1;
+        final width = (box.maxWidth - Espacio.s * (columns - 1)) / columns;
+        return Wrap(
+          spacing: Espacio.s,
+          runSpacing: Espacio.s,
+          children: [
+            for (final a in _kgAthletes) SizedBox(width: width, child: column(a)),
+          ],
+        );
+      },
     );
   }
 
   /// [s] with [a]'s kilos typed by hand as [kg]; blank (or not positive) gives them back the suggestion.
-  PlanSet _withManualKg(PlanSet s, AthleteBasis a, double? kg) => setWithAthleteLoad(
-    s,
-    a.id,
-    kg != null && kg > 0 ? manualAthleteLoad(kg, a) : _loadsFor(s.pct, s.kg)[a.id],
-  );
+  /// A value equal to the one worked out stays the normal frozen one, not a manual one.
+  PlanSet _withManualKg(PlanSet s, AthleteBasis a, double? kg) {
+    final computed = _loadsFor(s.pct, s.kg)[a.id];
+    final same = kg != null && computed?.kg != null && (computed!.kg! - kg).abs() < 0.0001;
+    return setWithAthleteLoad(s, a.id, kg != null && kg > 0 && !same ? manualAthleteLoad(kg, a) : computed);
+  }
 
   void _submit() => Navigator.pop(
     context,
@@ -353,6 +379,21 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
     inputFormatters: formatters,
     decoration: InputDecoration(labelText: label),
     onChanged: onChanged,
+  );
+
+  Widget removeButton(int i, {bool keyed = true}) => IconButton(
+    key: keyed ? Key('set-remove-$i') : null,
+    icon: const Icon(Icons.delete_outline),
+    tooltip: 'Quitar serie',
+    onPressed: _sets.length <= 1
+        ? null
+        : () => setState(() {
+            _sets = removeSet(_sets, i);
+            _generation++;
+            _pctCleared.clear();
+            _kgCleared.clear();
+            _refilled.clear();
+          }),
   );
 
   @override
@@ -399,14 +440,14 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                         onChanged: (t) => _typeLoad(i, inPct: true, value: parseTypedNumber(t)),
                       ),
                       if (!_pctPerAthlete) ...[
-                      const SizedBox(width: Espacio.s),
-                      _numberField(
-                        key: ValueKey('set-kg-$i-$_generation${_clearedSuffix(_kgCleared, i)}'),
-                        label: 'kg',
-                        initial: set.kg == null ? '' : formatNumber(set.kg!),
-                        formatters: [_decimalFormatter],
-                        onChanged: (t) => _typeLoad(i, inPct: false, value: parseTypedNumber(t)),
-                      ),
+                        const SizedBox(width: Espacio.s),
+                        _numberField(
+                          key: ValueKey('set-kg-$i-$_generation${_clearedSuffix(_kgCleared, i)}'),
+                          label: 'kg',
+                          initial: set.kg == null ? '' : formatNumber(set.kg!),
+                          formatters: [_decimalFormatter],
+                          onChanged: (t) => _typeLoad(i, inPct: false, value: parseTypedNumber(t)),
+                        ),
                       ],
                     ] else if (_hasKg && !_kgPerAthlete) ...[
                       const SizedBox(width: Espacio.s),
@@ -421,34 +462,42 @@ class _PrescriptionDialogState extends ConsumerState<_PrescriptionDialog> {
                         onChanged: (t) => _setSet(i, (s) => setWithSingleKg(s, parseTypedNumber(t))),
                       ),
                     ],
-                    IconButton(
-                      key: Key('set-remove-$i'),
-                      icon: const Icon(Icons.delete_outline),
-                      tooltip: 'Quitar serie',
-                      onPressed: _sets.length <= 1
-                          ? null
-                          : () => setState(() {
-                              _sets = removeSet(_sets, i);
-                              _generation++;
-                              _pctCleared.clear();
-                              _kgCleared.clear();
-                            }),
-                    ),
+                    removeButton(i),
                   ],
                 ),
-                if ((_hasKg && _kgPerAthlete) || _pctPerAthlete) _athleteKgFields(i, set),
+                if ((_hasKg && _kgPerAthlete) || _pctPerAthlete)
+                  // Same frame as the Reps | % fields: the number column on the left and the delete button's width
+                  // (kept, invisible) on the right.
+                  Padding(
+                    padding: const EdgeInsets.only(top: Espacio.s),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(width: Espacio.xl),
+                        Expanded(child: _athleteKgFields(i, set)),
+                        Visibility(
+                          visible: false,
+                          maintainSize: true,
+                          maintainAnimation: true,
+                          maintainState: true,
+                          child: removeButton(i, keyed: false),
+                        ),
+                      ],
+                    ),
+                  ),
                 if (_single == null && !_kgPerAthlete && !_pctPerAthlete
                     ? athleteLoadsSummary(set.byAthlete, _athletes, formatNumber)
                     : '' case final line
                     when line.isNotEmpty)
                   Padding(
-                    padding: const EdgeInsets.only(left: Espacio.xl, bottom: Espacio.s),
+                    padding: const EdgeInsets.only(left: Espacio.xl),
                     child: Text(
                       line,
                       key: Key('set-athletes-$i'),
                       style: context.textos.bodySmall?.copyWith(color: context.esquema.onSurfaceVariant),
                     ),
                   ),
+                const SizedBox(height: Espacio.l),
               ],
               Align(
                 alignment: Alignment.centerLeft,

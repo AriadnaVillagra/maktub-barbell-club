@@ -258,6 +258,105 @@ void main() {
       expect(tester.getTopLeft(find.byKey(const Key('set-suggestion-0-andi'))).dy, greaterThan(input));
     });
 
+    group('a set by % with an RM per athlete', () {
+      const withRm = PrescriptionAthletes(
+        athletes: [
+          AthleteBasis(id: 'andi', name: 'Andi', rm: 80),
+          AthleteBasis(id: 'ari', name: 'Ari', rm: 100),
+          AthleteBasis(id: 'sin', name: 'Sin', rm: null),
+        ],
+        assigned: true,
+      );
+      final squat = ex('sq', 'Sentadilla');
+      String kgOf(WidgetTester tester, String id, [String suffix = '0']) =>
+          _fieldText(tester, 'set-manual-kg-0-$id-$suffix');
+
+      testWidgets('opens with the kilos worked out from the %, and none for an athlete without RM', (tester) async {
+        await open(tester, exercise: squat, athletes: withRm, sets: const [PlanSet(reps: 5, pct: 50)]);
+        expect(kgOf(tester, 'andi'), '40');
+        expect(kgOf(tester, 'ari'), '50');
+        expect(kgOf(tester, 'sin'), '');
+        expect(find.text('sin RM'), findsOneWidget);
+        expect(find.textContaining('RM 80 kg × 50 % = 40 kg'), findsOneWidget);
+      });
+
+      testWidgets('opens with the stored manual kilos, or the worked out ones', (tester) async {
+        await open(
+          tester,
+          exercise: squat,
+          athletes: withRm,
+          sets: const [
+            PlanSet(
+              reps: 5,
+              pct: 50,
+              byAthlete: {'andi': AthleteSetLoad(pct: 56.25, kg: 45, manualKg: true), 'ari': AthleteSetLoad(pct: 50, kg: 50)},
+            ),
+          ],
+        );
+        expect(kgOf(tester, 'andi'), '45');
+        expect(kgOf(tester, 'ari'), '50');
+      });
+
+      testWidgets('a new % refills every athlete, overwriting kilos typed by hand; a manual value stays until then', (
+        tester,
+      ) async {
+        final result = await open(tester, exercise: squat, athletes: withRm, sets: const [PlanSet(reps: 5, pct: 50)]);
+        await tester.enterText(find.byKey(const ValueKey('set-manual-kg-0-andi-0')), '45');
+        await tester.enterText(find.byKey(const ValueKey('set-reps-0-0')), '6');
+        await tester.pumpAndSettle();
+        expect(kgOf(tester, 'andi'), '45');
+
+        await tester.enterText(find.byKey(const ValueKey('set-pct-0-0')), '60');
+        await tester.pumpAndSettle();
+        expect(kgOf(tester, 'andi', '0-1'), '48');
+        expect(kgOf(tester, 'ari', '0-1'), '60');
+
+        final set = (await accept(tester, result)).single;
+        expect(set.byAthlete['andi']!.manualKg, isFalse);
+        expect(set.byAthlete['andi']!.kg, 48);
+        expect(set.byAthlete['ari']!.manualKg, isFalse);
+      });
+
+      testWidgets('saves a manual flag only for kilos that differ from the worked out ones', (tester) async {
+        final result = await open(tester, exercise: squat, athletes: withRm, sets: const [PlanSet(reps: 5, pct: 50)]);
+        await tester.enterText(find.byKey(const ValueKey('set-manual-kg-0-andi-0')), '45');
+        await tester.enterText(find.byKey(const ValueKey('set-manual-kg-0-ari-0')), '50');
+        final set = (await accept(tester, result)).single;
+        expect(set.byAthlete['andi']!.manualKg, isTrue);
+        expect(set.byAthlete['andi']!.kg, 45);
+        expect(set.byAthlete['ari']!.manualKg, isFalse);
+        expect(set.byAthlete['ari']!.kg, 50);
+        expect(set.byAthlete.containsKey('sin'), isFalse);
+      });
+
+      for (final width in [900.0, 340.0]) {
+        testWidgets('the athletes line up with Reps and % at width $width', (tester) async {
+          tester.view.physicalSize = Size(width, 3000);
+          tester.view.devicePixelRatio = 1;
+          addTearDown(tester.view.reset);
+          await open(tester, exercise: squat, athletes: withRm, sets: const [PlanSet(reps: 5, pct: 50)]);
+          final reps = find.byKey(const ValueKey('set-reps-0-0'));
+          final pct = find.byKey(const ValueKey('set-pct-0-0'));
+          final andi = find.byKey(const ValueKey('set-manual-kg-0-andi-0'));
+          final ari = find.byKey(const ValueKey('set-manual-kg-0-ari-0'));
+          final sin = find.byKey(const ValueKey('set-manual-kg-0-sin-0'));
+          expect(tester.getTopLeft(andi).dx, tester.getTopLeft(reps).dx);
+          if (width > 360) {
+            expect(tester.getTopRight(andi).dx, closeTo(tester.getTopRight(reps).dx, 0.01));
+            expect(tester.getTopLeft(ari).dx, closeTo(tester.getTopLeft(pct).dx, 0.01));
+            expect(tester.getTopRight(ari).dx, closeTo(tester.getTopRight(pct).dx, 0.01));
+            expect(tester.getTopLeft(sin).dx, tester.getTopLeft(reps).dx);
+          } else {
+            for (final f in [andi, ari, sin]) {
+              expect(tester.getTopLeft(f).dx, tester.getTopLeft(reps).dx);
+              expect(tester.getTopRight(f).dx, closeTo(tester.getTopRight(pct).dx, 0.01));
+            }
+            expect(tester.getTopLeft(ari).dy, greaterThan(tester.getTopLeft(andi).dy));
+          }
+        });
+      }
+    });
+
     testWidgets('kilos typed on an exercise without weight go to each athlete', (tester) async {
       final result = await open(
         tester,
