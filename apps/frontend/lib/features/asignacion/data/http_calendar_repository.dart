@@ -104,6 +104,7 @@ DayState dayStateFromJson(Json d) => DayState(
   status: DayProgressStatus.fromCable(d['estado']),
   doneSets: (d['hechas'] as num?)?.toInt(),
   totalSets: (d['total'] as num?)?.toInt(),
+  date: desdeIsoFechaOpcional(d['fecha']),
 );
 
 Json dayStateToJson(DayState s) => {
@@ -113,4 +114,5 @@ Json dayStateToJson(DayState s) => {
   'estado': s.status.cable,
   'hechas': ?s.doneSets,
   'total': ?s.totalSets,
+  if (s.date case final date?) 'fecha': aIsoFecha(date),
 };

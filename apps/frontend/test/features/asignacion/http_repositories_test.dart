@@ -148,7 +148,10 @@ void main() {
     )).single;
 
     expect(located.athleteIds, ['ari', 'luz']);
-    expect(locationFromJson(locationToJson(located)).athleteIds, ['ari', 'luz']);
+    expect(locationFromJson(locationToJson(located)).athleteIds, [
+      'ari',
+      'luz',
+    ]);
     // A copy saved before E6.7 has no list.
     expect(
       locationFromJson(locationToJson(located)..remove('atletas')).athleteIds,
@@ -161,7 +164,14 @@ void main() {
       client({
         'asignacion': {'id': 'own'},
         'dias': [
-          {'ciclo': 1, 'semana': 1, 'dia': 1, 'estado': 'hecho'},
+          {
+            'ciclo': 1,
+            'semana': 1,
+            'dia': 1,
+            'estado': 'hecho',
+            'fecha': '2026-11-10',
+          },
+          {'ciclo': 1, 'semana': 1, 'dia': 2, 'estado': 'pendiente'},
         ],
       }),
     );
@@ -174,7 +184,11 @@ void main() {
     );
 
     expect(sent.single.url.path, '/clubes/c1/asignaciones/own/dias');
-    expect(states.single.done, isTrue);
+    expect(states.first.done, isTrue);
+    // The date of the session it was done in, to look that session up on another date.
+    expect(states.first.date, DateTime.utc(2026, 11, 10));
+    expect(states.last.done, isFalse);
+    expect(states.last.date, isNull);
   });
 
   test("one athlete's progress: atletaId goes out, counts come back", () async {

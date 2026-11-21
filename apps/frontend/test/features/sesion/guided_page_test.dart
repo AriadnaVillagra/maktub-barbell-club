@@ -167,8 +167,11 @@ class _Calendar implements CalendarRepository {
     DateTime from,
     DateTime to, {
     String? athleteId,
-  }) async => const [];
+  }) async => _states;
 }
+
+/// The day states the fake calendar serves; a test can set them.
+List<DayState> _states = const [];
 
 class _Athletes implements AthleteRepository {
   @override
@@ -189,6 +192,9 @@ class _Sessions implements SessionRepository {
 
   /// What the session already has when it opens, as if another device had marked it.
   final List<SetRecord> records;
+
+  /// What the server has: [records] and every set written since.
+  late final stored = [...records];
   final opened = <Set<String>>[];
   final writes = <SetWrite>[];
 
@@ -221,6 +227,9 @@ class _Sessions implements SessionRepository {
   /// Whether the session exists on the server: something was recorded on it, a pass goes on, or it was opened.
   late var exists = records.isNotEmpty || pass != null;
 
+  /// The date the session was opened on: like the server, a session belongs to one date.
+  DateTime? date;
+
   @override
   Future<LiveSession?> find(
     String clubId, {
@@ -230,12 +239,13 @@ class _Sessions implements SessionRepository {
     required int day,
   }) async {
     if (!exists || day != 1) return null;
+    if (this.date != null && this.date != date) return null;
     if (opened.isEmpty) {
       _week = week;
       present = {for (final r in records) r.athleteId}.toList();
     }
     if (_week != week) return null;
-    return LiveSession(session: _session(), records: records);
+    return LiveSession(session: _session(), records: [...stored]);
   }
 
   @override
@@ -247,11 +257,15 @@ class _Sessions implements SessionRepository {
     required int day,
     required Set<String> presentAthleteIds,
   }) async {
+    if (this.date != null && this.date != date) {
+      throw StateError('a second session on $date');
+    }
+    this.date = date;
     opened.add(presentAthleteIds);
     present = {...present, ...presentAthleteIds}.toList();
     _week = week;
     exists = true;
-    return LiveSession(session: _session(), records: records);
+    return LiveSession(session: _session(), records: [...stored]);
   }
 
   var _week = 1;
@@ -264,7 +278,7 @@ class _Sessions implements SessionRepository {
     cycle: 3,
     week: _week,
     day: 1,
-    date: _today,
+    date: date ?? _today,
     presentAthleteIds: present,
     lastSessionChange: sessionChanges,
     guidedPass: pass,
@@ -324,7 +338,7 @@ class _Sessions implements SessionRepository {
   ) async {
     if (offlineSets) throw const ErrorDeApi('No se pudo conectar.');
     writes.add(write);
-    return _record(
+    final record = _record(
       write.athleteId,
       write.blockIndex,
       write.prescriptionIndex,
@@ -334,6 +348,10 @@ class _Sessions implements SessionRepository {
       reps: write.reps ?? _planReps(write.blockIndex, write.prescriptionIndex),
       manualKg: write.manualKg != null,
     );
+    stored
+      ..removeWhere((r) => r.id == record.id)
+      ..add(record);
+    return record;
   }
 
   @override
@@ -387,8 +405,10 @@ Future<_Harness> _pump(
   WidgetTester tester, {
   List<SetRecord> records = const [],
   GuidedPass? pass,
+  _Sessions? sessions,
+  DateTime? today,
 }) async {
-  final h = _Harness(_Sessions(records: records)..pass = pass);
+  final h = _Harness(sessions ?? (_Sessions(records: records)..pass = pass));
   tester.view.physicalSize = const Size(900, 3000);
   tester.view.devicePixelRatio = 1;
   addTearDown(tester.view.reset);
@@ -450,7 +470,7 @@ Future<_Harness> _pump(
           FakeLiveChannel(FakeLiveServer()),
         ),
         sessionDraftStoreProvider.overrideWithValue(MemoryDraftStore()),
-        todayProvider.overrideWithValue(_today),
+        todayProvider.overrideWithValue(today ?? _today),
         timerPlatformProvider.overrideWithValue(h.platform),
         guidedClockProvider.overrideWithValue(() => h.now),
       ],
@@ -505,7 +525,10 @@ bool _chosen(WidgetTester tester, String key) =>
     tester.widget<PildoraMaktub>(find.byKey(Key(key))).seleccionada;
 
 void main() {
-  setUp(() => _served = _plan);
+  setUp(() {
+    _served = _plan;
+    _states = const [];
+  });
 
   group('who trains', () {
     testWidgets('Entrenar starts with the athlete on screen chosen', (
@@ -1516,6 +1539,101 @@ void main() {
       expect(_text(tester, 'guided-block-count'), 'Bloque 1 de 4');
       expect(h.sessions.pass!.id, isNot('other'));
       expect(h.sessions.pass!.blocks[1].status, GuidedBlockStatus.pending);
+    });
+  });
+
+
+  group('the day afterwards', () {
+    /// Trains the whole day in the guided mode, Ari alone, finishing every set, and goes back to the session.
+    Future<void> trainWholeDay(WidgetTester tester) async {
+      await _train(tester);
+      await _tap(tester, 'guided-begin');
+      while (find.byKey(const Key('guided-finished')).evaluate().isEmpty) {
+        if (find.byKey(const Key('guided-start-block')).evaluate().isNotEmpty) {
+          await _tap(tester, 'guided-start-block');
+        } else if (find.byKey(const Key('guided-step-main')).evaluate().isNotEmpty) {
+          await _tap(tester, 'guided-step-main');
+        } else {
+          await _tap(tester, 'guided-finish-block');
+        }
+      }
+      await _tap(tester, 'guided-save');
+    }
+
+    bool marked(WidgetTester tester, String set) =>
+        (tester.widget<IconButton>(find.byKey(Key('session-check-$set'))).icon as Icon).icon ==
+        Icons.check_circle;
+
+    /// The app opened again, on [today], over the same server.
+    Future<_Harness> reopen(WidgetTester tester, _Harness h, DateTime today) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      return _pump(tester, sessions: h.sessions, today: today);
+    }
+
+    final tomorrow = _today.add(const Duration(days: 1));
+    final where = UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: _today);
+    final doneToday = [
+      DayState(cycle: where.ciclo, week: where.semana, day: 1, status: DayProgressStatus.done, date: _today),
+    ];
+
+    testWidgets('the sets finished in the guided mode are marked in the session, also after reopening', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      await trainWholeDay(tester);
+
+      expect(h.sessions.writes.map(_w), [
+        'ari 1-0-0 done',
+        'ari 1-0-1 done',
+        'ari 2-0-0 done',
+        'ari 2-1-0 done',
+        'ari 2-0-1 done',
+        'ari 3-0-0 done',
+      ]);
+      expect(marked(tester, '1-0-0'), true);
+      expect(marked(tester, '1-0-1'), true);
+
+      _states = doneToday;
+      await reopen(tester, h, _today);
+
+      expect(marked(tester, '1-0-0'), true);
+      expect(marked(tester, '1-0-1'), true);
+    });
+
+    testWidgets('on another date, the day done shows the session it was done in', (tester) async {
+      final h = await _pump(tester);
+      await trainWholeDay(tester);
+
+      _states = doneToday;
+      await reopen(tester, h, tomorrow);
+
+      expect(marked(tester, '1-0-0'), true);
+      expect(marked(tester, '1-0-1'), true);
+    });
+
+    testWidgets('on another date, writing on that day goes to its session, also for an athlete not present', (
+      tester,
+    ) async {
+      final h = await _pump(tester);
+      await trainWholeDay(tester);
+      _states = doneToday;
+      await reopen(tester, h, tomorrow);
+
+      await _tap(tester, 'session-athlete-andi');
+      await _tap(tester, 'session-check-1-0-0');
+
+      expect(h.sessions.opened.last, {'ari', 'andi'});
+      expect(h.sessions.date, _today, reason: 'no second session tomorrow');
+      expect(h.sessions.writes.map(_w).last, 'andi 1-0-0 done');
+      expect(marked(tester, '1-0-0'), true);
+    });
+
+    testWidgets('a day still pending is looked up only on today', (tester) async {
+      final h = await _pump(tester);
+      await trainWholeDay(tester);
+      await reopen(tester, h, tomorrow);
+
+      expect(marked(tester, '1-0-0'), false);
     });
   });
 }

@@ -488,11 +488,14 @@ class SessionScreenState {
       adjustments[athleteId] ?? const AthleteAdjustments();
 }
 
-/// The week and day on screen: the chosen ones, else today's week and the D13 day, kept within the week's days.
+/// The week and day on screen: the session's when one is shown, else the chosen ones, else today's week and the D13
+/// day, kept within the week's days. The session's win so the day never drifts from the records on screen: the D13
+/// day moves once the day being trained has its first set done.
 ({int week, int day}) shownDayOf(
   SessionDayData data,
   SessionScreenState state,
 ) {
+  if (state.live?.session case final s?) return (week: s.week, day: s.day);
   final week = state.week ?? data.location.week;
   final count = data.plan.weekModelOf(week)?.days.length ?? 0;
   final day = (state.day ?? data.openingDay).clamp(1, count < 1 ? 1 : count);
@@ -557,21 +560,29 @@ class SessionScreenController extends Notifier<SessionScreenState> {
 
   /// Reads the chosen day's session without creating it and, if it exists, takes it with what this device still has
   /// queued over it and follows its live channel. A failed read is left for the next attempt.
+  ///
+  /// A session belongs to a date: today's is looked up first, and a day done on another date with no session today
+  /// shows the session it was done in, so its marked sets are there whatever the day it is looked at.
   Future<void> _lookUp() async {
     final data = _dayData;
     if (data == null) return;
     final shown = shownDayOf(data, state);
-    final LiveSession? found;
+    final today = ref.read(todayProvider);
+    final sessions = ref.read(sessionRepositoryProvider);
+    Future<LiveSession?> findOn(DateTime date) => sessions.find(
+      data.clubId,
+      assignmentId: data.location.assignmentId,
+      date: date,
+      week: shown.week,
+      day: shown.day,
+    );
+    LiveSession? found;
     try {
-      found = await ref
-          .read(sessionRepositoryProvider)
-          .find(
-            data.clubId,
-            assignmentId: data.location.assignmentId,
-            date: ref.read(todayProvider),
-            week: shown.week,
-            day: shown.day,
-          );
+      found = await findOn(today);
+      if (found == null) {
+        final doneOn = await _doneDateOf(data, shown.week, shown.day);
+        if (doneOn != null && doneOn != today) found = await findOn(doneOn);
+      }
     } catch (_) {
       return;
     }
@@ -591,6 +602,33 @@ class SessionScreenController extends Notifier<SessionScreenState> {
       live: _withUnsent(found, unsent),
       liveStatus: _sync?.status ?? LiveStatus.connecting,
     );
+  }
+
+  /// The date the athlete on screen started [day] of [week], from the cycle's day states; null when it is pending or
+  /// they cannot be read.
+  Future<DateTime?> _doneDateOf(SessionDayData data, int week, int day) async {
+    final subscription = ref.listen(
+      cycleDayStatesProvider((
+        data.clubId,
+        data.location.assignmentId,
+        data.location.startDate,
+        data.location.cycle,
+        athleteOnScreen(data, state),
+      )).future,
+      (_, _) {},
+    );
+    try {
+      return doneDateOf(
+        await subscription.read(),
+        cycle: data.location.cycle,
+        week: week,
+        day: day,
+      );
+    } catch (_) {
+      return null;
+    } finally {
+      subscription.close();
+    }
   }
 
   /// The opening of the session on screen reached the server (E7.16): the screen moves to the server's session, with
@@ -806,11 +844,11 @@ class SessionScreenController extends Notifier<SessionScreenState> {
     final live = state.live;
     final present = live?.session.presentAthleteIds ?? const <String>[];
     if (live != null && athleteIds.every(present.contains)) return live;
-    final shown = live == null
-        ? shownDayOf(data, state)
-        : (week: live.session.week, day: live.session.day);
+    final shown = shownDayOf(data, state);
+    // A session on screen is opened again on its own date: it may be the one of a day done on an earlier date.
     await _open(
       data,
+      date: live?.session.date ?? ref.read(todayProvider),
       week: shown.week,
       day: shown.day,
       present: {...present, ...athleteIds},
@@ -820,6 +858,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
 
   Future<void> _open(
     SessionDayData data, {
+    required DateTime date,
     required int week,
     required int day,
     required Set<String> present,
@@ -839,7 +878,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
               assignmentId: data.location.assignmentId,
               planId: data.location.planId,
               cycle: data.location.cycle,
-              date: ref.read(todayProvider),
+              date: date,
               week: week,
               day: day,
             ),
@@ -854,7 +893,7 @@ class SessionScreenController extends Notifier<SessionScreenState> {
                 .open(
                   data.clubId,
                   assignmentId: data.location.assignmentId,
-                  date: ref.read(todayProvider),
+                  date: date,
                   week: week,
                   day: day,
                   presentAthleteIds: present,

@@ -4,6 +4,7 @@ import 'package:maktub_core/maktub_core.dart';
 import 'package:maktub_frontend/features/asignacion/domain/calendar_repository.dart';
 import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/domain/live_session_sync.dart';
+import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
 import 'package:maktub_frontend/features/sesion/presentation/providers.dart';
 
@@ -73,8 +74,7 @@ class _Phone {
       container.read(sessionScreenProvider.notifier);
   SessionScreenState get state => container.read(sessionScreenProvider);
 
-  Future<void> open() =>
-      screen.ensureSession(_data, {'ari', 'andi'});
+  Future<void> open() => screen.ensureSession(_data, {'ari', 'andi'});
 
   Future<void> mark(String athlete, int set, {double? kg}) => screen.writeSet(
     'c1',
@@ -242,4 +242,43 @@ void main() {
     expect(server.openConnections, 1);
     expect(a.state.live?.session.id, server.sessionId);
   });
+
+  test(
+    'the day on screen is the session\'s, even when the D13 day moved on',
+    () {
+      final twoDays = SessionDayData(
+        clubId: _data.clubId,
+        memberIds: _data.memberIds,
+        ownerLabel: _data.ownerLabel,
+        location: _data.location,
+        plan: PublishedPlanView(
+          id: 'p1',
+          name: 'Fuerza',
+          type: PlanType.regular,
+          publishedAt: DateTime.utc(2026, 11, 1),
+          weekAssignment: const ['A', 'A', 'A', 'A'],
+          weekModels: const [
+            WeekModel(id: 'A', name: 'Carga', days: [PlanDay(), PlanDay()]),
+          ],
+        ),
+        exerciseNames: _data.exerciseNames,
+        athleteNames: _data.athleteNames,
+        // Day 1 got its first set done, so D13 now opens day 2.
+        openingDay: 2,
+      );
+      final live = LiveSession(
+        session: FakeLiveServer().session,
+        records: const [],
+      );
+
+      expect(shownDayOf(twoDays, const SessionScreenState()), (
+        week: 4,
+        day: 2,
+      ));
+      expect(shownDayOf(twoDays, SessionScreenState(live: live)), (
+        week: 4,
+        day: 1,
+      ));
+    },
+  );
 }

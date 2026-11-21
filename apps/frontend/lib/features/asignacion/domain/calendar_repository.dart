@@ -75,6 +75,7 @@ class DayState {
     required this.status,
     this.doneSets,
     this.totalSets,
+    this.date,
   });
 
   final int cycle;
@@ -91,7 +92,24 @@ class DayState {
 
   /// Every planned set done.
   bool get done => status == DayProgressStatus.done;
+
+  /// The date of the session where the day was started (the first one, if it was done on several dates); null while
+  /// pending. A session belongs to a date, so a day started on another date is looked up with this one.
+  final DateTime? date;
 }
+
+/// The date of the session where [day] of [week] in [cycle] was started (some set done), or null when [states] do
+/// not have it.
+DateTime? doneDateOf(
+  Iterable<DayState> states, {
+  required int cycle,
+  required int week,
+  required int day,
+}) => states
+    .where((s) => s.date != null && s.cycle == cycle && s.week == week && s.day == day)
+    .firstOrNull
+    ?.date;
+
 
 /// The day the calendar opens on (D13): the first of [week] in [cycle], among [dayCount] days, not fully done; day
 /// 1 when all are done or [states] knows nothing (no sessions yet).
