@@ -26,6 +26,8 @@ import '../data/cached_session_repository.dart';
 import '../data/http_proposed_days_repository.dart';
 import '../data/http_session_repository.dart';
 import '../data/shared_preferences_calendar_layout_store.dart';
+import '../data/shared_preferences_collapsed_blocks_store.dart';
+import '../domain/collapsed_blocks.dart';
 import '../data/shared_preferences_draft_store.dart';
 import '../data/web_socket_live_channel.dart';
 import '../domain/athlete_adjustments.dart';
@@ -248,6 +250,50 @@ class CalendarLayoutController extends Notifier<CalendarLayout> {
 final calendarLayoutProvider =
     NotifierProvider<CalendarLayoutController, CalendarLayout>(
       CalendarLayoutController.new,
+    );
+
+final collapsedBlocksStoreProvider = Provider<CollapsedBlocksStore>(
+  (ref) => SharedPreferencesCollapsedBlocksStore(),
+);
+
+/// The block cards of the session screen the user collapsed, by block index, remembered on the device. Keyed by
+/// index (not by day) to stay simple: a block position folds the same way on every day. A change made before the
+/// saved set loads wins.
+class CollapsedBlocksController extends Notifier<Set<int>> {
+  var _changed = false;
+
+  @override
+  Set<int> build() {
+    unawaited(_restore());
+    return const {};
+  }
+
+  Future<void> _restore() async {
+    final saved = await ref.read(collapsedBlocksStoreProvider).load();
+    if (!_changed && ref.mounted) state = saved;
+  }
+
+  void _set(Set<int> next) {
+    _changed = true;
+    state = next;
+    unawaited(ref.read(collapsedBlocksStoreProvider).save(next));
+  }
+
+  void toggle(int block) => _set(
+    state.contains(block) ? ({...state}..remove(block)) : {...state, block},
+  );
+
+  /// Collapses the first [count] blocks, or expands them all when they already are.
+  void toggleAll(int count) => _set(
+    state.containsAll([for (var i = 0; i < count; i++) i])
+        ? <int>{}
+        : {for (var i = 0; i < count; i++) i},
+  );
+}
+
+final collapsedBlocksProvider =
+    NotifierProvider<CollapsedBlocksController, Set<int>>(
+      CollapsedBlocksController.new,
     );
 
 /// Which cycle's day states to fetch: the cycle of the assignment [assignmentId], started on [startDate].

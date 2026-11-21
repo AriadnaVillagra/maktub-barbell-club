@@ -19,6 +19,7 @@ import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
 import 'package:maktub_frontend/features/sesion/data/shared_preferences_calendar_layout_store.dart';
 import 'package:maktub_frontend/features/sesion/domain/athlete_adjustments.dart';
 import 'package:maktub_frontend/features/sesion/domain/block_time_write.dart';
+import 'package:maktub_frontend/features/sesion/domain/collapsed_blocks.dart';
 import 'package:maktub_frontend/features/sesion/domain/proposed_days.dart';
 import 'package:maktub_frontend/features/sesion/domain/session_repository.dart';
 import 'package:maktub_frontend/features/sesion/domain/set_write.dart';
@@ -476,6 +477,18 @@ final _levantamiento = PublishedPlanView(
   ],
 );
 
+class _MemoryCollapsedStore implements CollapsedBlocksStore {
+  _MemoryCollapsedStore([this.saved = const {}]);
+
+  Set<int> saved;
+
+  @override
+  Future<Set<int>> load() async => saved;
+
+  @override
+  Future<void> save(Set<int> collapsed) async => saved = collapsed;
+}
+
 Future<void> _pump(
   WidgetTester tester,
   _FakeSessions sessions, {
@@ -486,6 +499,7 @@ Future<void> _pump(
   MemoryDraftStore? draft,
   FakeLiveServer? live,
   _FakeProposedDays? proposedDays,
+  _MemoryCollapsedStore? collapsedStore,
   Widget home = const SessionPage(assignmentsPath: '/asig'),
   bool withRouter = false,
   Size size = const Size(900, 2400),
@@ -521,6 +535,9 @@ Future<void> _pump(
           draft ?? MemoryDraftStore(),
         ),
         todayProvider.overrideWithValue(_today),
+        collapsedBlocksStoreProvider.overrideWithValue(
+          collapsedStore ?? _MemoryCollapsedStore(),
+        ),
       ],
       child: withRouter
           ? MaterialApp.router(
@@ -1031,6 +1048,55 @@ void main() {
         ),
         findsOneWidget,
       );
+    });
+
+    testWidgets('tapping a header folds the block and unfolds it again', (
+      tester,
+    ) async {
+      final store = _MemoryCollapsedStore();
+      await _pump(tester, _FakeSessions(), collapsedStore: store);
+      expect(find.byKey(const Key('session-check-0-0-0')), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('session-block-toggle-0')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-check-0-0-0')), findsNothing);
+      expect(find.byKey(const Key('session-check-1-0-0')), findsOneWidget);
+      expect(store.saved, {0});
+
+      await tester.tap(find.byKey(const Key('session-block-toggle-0')));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-check-0-0-0')), findsOneWidget);
+      expect(store.saved, isEmpty);
+    });
+
+    testWidgets('the collapsed state of the device is restored', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        _FakeSessions(),
+        collapsedStore: _MemoryCollapsedStore({1}),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('session-check-0-0-0')), findsOneWidget);
+      expect(find.byKey(const Key('session-check-1-0-0')), findsNothing);
+    });
+
+    testWidgets('collapse all and expand all', (tester) async {
+      await _pump(tester, _FakeSessions());
+
+      await tester.tap(find.byKey(const Key('session-collapse-all')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('session-check-0-0-0')), findsNothing);
+      expect(find.byKey(const Key('session-check-1-0-0')), findsNothing);
+
+      await tester.tap(find.byKey(const Key('session-collapse-all')));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('session-check-0-0-0')), findsOneWidget);
+      expect(find.byKey(const Key('session-check-1-0-0')), findsOneWidget);
     });
 
     testWidgets('a warm-up has no per-exercise adjustment, a primary does', (

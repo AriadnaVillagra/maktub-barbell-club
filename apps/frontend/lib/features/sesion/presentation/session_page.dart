@@ -240,6 +240,11 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     final planDay = planDayOf(data, week, day);
     final live = state.live;
     final dayStates = watchDayStates(ref, data);
+    final blockCount = planDay?.blocks.length ?? 0;
+    final collapsedBlocks = ref.watch(collapsedBlocksProvider);
+    final allCollapsed = collapsedBlocks.containsAll([
+      for (var i = 0; i < blockCount; i++) i,
+    ]);
 
     return ListView(
       padding: const EdgeInsets.all(Espacio.l),
@@ -267,6 +272,20 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                         child: widget.viewToggle,
                       ),
                     ),
+                    if (data.memberIds.isNotEmpty && blockCount > 0)
+                      IconButton(
+                        key: const Key('session-collapse-all'),
+                        tooltip: allCollapsed
+                            ? 'Expandir todo'
+                            : 'Colapsar todo',
+                        visualDensity: VisualDensity.compact,
+                        icon: Icon(
+                          allCollapsed ? Icons.unfold_more : Icons.unfold_less,
+                        ),
+                        onPressed: () => ref
+                            .read(collapsedBlocksProvider.notifier)
+                            .toggleAll(blockCount),
+                      ),
                     IconButton(
                       key: const Key('session-day-picker-toggle'),
                       tooltip: _picking ? 'Cerrar' : 'Elegir semana y día',
