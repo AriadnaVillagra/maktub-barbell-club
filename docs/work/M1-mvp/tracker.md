@@ -187,7 +187,7 @@ publicada**, nunca el borrador.
   describe D13: avisar a su sesión.
 - **Días marcados como hechos sin hacerlos** (bug, Ari, 2026-11-21). El estado del día es de toda la asignación:
   con una serie de Andi, el día figura hecho también para Ari. Se arregla con el estado por atleta. Estado: `hecho` (`7905917`).
-- **Calendario compacto solo con los ejercicios** (Ari, 2026-11-21), sin series ni repeticiones. Estado: `en curso`.
+- **Calendario compacto solo con los ejercicios** (Ari, 2026-11-21), sin series ni repeticiones. Estado: `hecho` (`227bb7f`).
 - **El temporizador saca del modo guiado** (bug, Ari, 2026-11-21). El modo guiado se abre con `push`, y al abrir un
   temporizador `CronoConAtras` hace `go(?crono=1)`, que reemplaza la pila. Estado: `hecho` (`c950f03`: se abre con `go`).
 - **Series del modo guiado sin marcar en la sesión del día** (bug, Ari, 2026-11-21). El día figura como hecho, pero
