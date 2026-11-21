@@ -202,7 +202,7 @@ publicada**, nunca el borrador.
   viñetas de un día hecho en otra fecha y calendario compacto, todo ok.
 - **Acciones del modo guiado en "Más acciones"** (Ari, 2026-11-21). "Saltar este ejercicio" e "Interrumpir" quedan
   cerca del temporizador y se tocan sin querer: van abajo, dentro de un botón "Más acciones". Estado: `hecho`
-  (`c67a5ea`). "Saltar bloque" también va a "Más acciones" (Ari, 2026-11-21): `en curso`.
+  (`c67a5ea`). "Saltar bloque" también va a "Más acciones" (Ari, 2026-11-21): `hecho` (`34458b4`).
 - **Manijas para reordenar en el celular** (Ari, 2026-11-21). En el editor de planes, la manija (≡) de las tarjetas
   cuesta tocarla y se tocan otras cosas antes. Estado: `hecho` (`36598d7`: componente `ManijaArrastre` de 48 dp, a la
   izquierda; también en el formulario de temporizadores).
@@ -211,6 +211,9 @@ publicada**, nunca el borrador.
   Estado: `hecho` (`42a933b`). Al guardar el plan: un % suma "Carga (% del RM)" (y RM propio si mide reps), solo
   kilos suma "Carga fija". Solo lo ve quien puede escribir ese ejercicio: `admin_club` en los del club, admin de
   plataforma en los base. Un coach sin `admin_club` no lo ve.
+- **El coach crea y edita ejercicios** (Ari, 2026-11-21). Hoy solo `admin_club` escribe el catálogo del club. El coach
+  tiene que poder crear y editar ejercicios del club, y marcar "con peso" desde el plan. Los ejercicios base siguen
+  siendo solo del admin de plataforma. Estado: `en curso`.
 - **Kilos por atleta al planificar** (Ari, 2026-11-21). En un plan con dos atletas, una serie en kilos (por ejemplo
   press con mancuerna) tiene que poder llevar un peso distinto para cada atleta. E5.16 ya lo hace para series por %
   (`PlanSet.porAtleta`). Va después de "Peso en cualquier ejercicio", que toca el mismo editor. Decidido por Ari
