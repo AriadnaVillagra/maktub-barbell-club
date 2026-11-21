@@ -6,6 +6,7 @@ import '../componentes/contador_cantidad.dart';
 import '../componentes/day_card.dart';
 import '../componentes/insignia.dart';
 import '../componentes/lista_de_problemas.dart';
+import '../componentes/manija_arrastre.dart';
 import '../componentes/pildora.dart';
 import '../componentes/sign_in_panel.dart';
 import '../tema/contexto.dart';
@@ -86,6 +87,7 @@ class Muestrario extends StatelessWidget {
             _Seccion('Píldoras', _Pildoras()),
             _Seccion('Tarjetas de día', _TarjetasDeDia()),
             _Seccion('Búsqueda y cantidad', _BusquedaYCantidad()),
+            _Seccion('Manija de arrastre', _Manijas()),
             _Seccion('Lista de problemas', _ListaDeProblemas()),
           ],
         ),
@@ -425,5 +427,28 @@ class _ListaDeProblemas extends StatelessWidget {
             ],
           ),
         ],
+      );
+}
+
+class _Manijas extends StatelessWidget {
+  const _Manijas();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+        height: context.densidad.tactilMinimo * 2 + Espacio.l,
+        child: ReorderableListView(
+          buildDefaultDragHandles: false,
+          onReorderItem: (_, _) {},
+          children: [
+            for (var i = 0; i < 2; i++)
+              ListTile(
+                key: ValueKey('manija-$i'),
+                contentPadding: EdgeInsets.zero,
+                leading: ManijaArrastre(index: i, tooltip: 'Mover bloque'),
+                title: Text('Bloque ${i + 1}'),
+                trailing: IconButton(icon: const Icon(Icons.delete_outline), onPressed: () {}),
+              ),
+          ],
+        ),
       );
 }

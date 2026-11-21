@@ -1113,14 +1113,14 @@ class _BlockTile extends ConsumerWidget {
         : 'Temporizador: ${timerName ?? block.timerId}';
     final tile = ListTile(
       contentPadding: EdgeInsets.zero,
-      leading: readOnly ? null : ReorderableDragStartListener(
-        key: Key('block-drag-$keyPrefix-$index'),
-        index: index,
-        child: const Tooltip(
-          message: 'Mover bloque',
-          child: Icon(Icons.drag_handle),
-        ),
-      ),
+      leading: readOnly
+          ? null
+          : ManijaArrastre(
+              key: Key('block-drag-$keyPrefix-$index'),
+              index: index,
+              tooltip: 'Mover bloque',
+            ),
+      horizontalTitleGap: Espacio.m,
       title: Text(block.name),
       subtitle: details == null && block.note == null
           ? null

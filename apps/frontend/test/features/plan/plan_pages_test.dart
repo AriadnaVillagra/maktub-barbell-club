@@ -711,6 +711,8 @@ void main() {
       expect(topOf('Uno'), lessThan(topOf('Dos')));
 
       final handle = find.byKey(const Key('block-drag-a-0-1'));
+      expect(tester.getSize(handle).width, greaterThanOrEqualTo(48));
+      expect(tester.getSize(handle).height, greaterThanOrEqualTo(48));
       final gesture = await tester.startGesture(tester.getCenter(handle));
       await tester.pump();
       final distance = topOf('Dos') - topOf('Uno') + 40;
