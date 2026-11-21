@@ -162,6 +162,16 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
     baseOnly: _isBase,
   );
 
+  /// Keeps the target metric within the chosen metrics: a lone metric is the
+  /// target; a target that was deselected is cleared.
+  void _syncDefaultMetric() {
+    if (_metrics.length == 1) {
+      _defaultMetric = _metrics.first;
+    } else if (!_metrics.contains(_defaultMetric)) {
+      _defaultMetric = null;
+    }
+  }
+
   /// Forgets the chosen reference when the new metrics no longer allow it.
   void _dropInvalidReference() {
     if (!_referenceTargets.any((e) => e.id == _referenceExerciseId)) {
@@ -279,27 +289,32 @@ class _ExerciseFormState extends ConsumerState<_ExerciseForm> {
                   selected: _metrics.contains(m),
                   onSelected: (on) => setState(() {
                     on ? _metrics.add(m) : _metrics.remove(m);
-                    if (!_metrics.contains(_defaultMetric)) {
-                      _defaultMetric = null;
-                    }
+                    _syncDefaultMetric();
                     _dropInvalidReference();
                   }),
                 ),
             ],
           ),
           DropdownButtonFormField<Metric?>(
-            key: ValueKey('default-metric-${_metrics.length}'),
+            key: ValueKey(
+              'default-metric-${_metrics.map((m) => m.cable).join(',')}'
+              '-${_defaultMetric?.cable}',
+            ),
             initialValue: _defaultMetric,
             decoration: const InputDecoration(labelText: 'Métrica objetivo'),
+            disabledHint: const Text('Elegí métricas arriba'),
             items: [
-              const DropdownMenuItem(value: null, child: Text('Ninguna')),
+              if (_metrics.length > 1)
+                const DropdownMenuItem(value: null, child: Text('Ninguna')),
               for (final m in Metric.values.where(_metrics.contains))
                 DropdownMenuItem(value: m, child: Text(metricLabel(m))),
             ],
-            onChanged: (v) => setState(() {
-              _defaultMetric = v;
-              _dropInvalidReference();
-            }),
+            onChanged: _metrics.isEmpty
+                ? null
+                : (v) => setState(() {
+                    _defaultMetric = v;
+                    _dropInvalidReference();
+                  }),
           ),
           DropdownButtonFormField<String?>(
             key: const ValueKey('field-pattern'),
