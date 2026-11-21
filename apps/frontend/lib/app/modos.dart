@@ -8,16 +8,18 @@ import 'router.dart';
 
 /// Portadas de cada modo. Por ahora listan lo que va a vivir ahí; cada feature
 /// reemplaza su entrada por la navegación real a sus pantallas.
-class PaginaEntrenamiento extends StatelessWidget {
+class PaginaEntrenamiento extends ConsumerWidget {
   const PaginaEntrenamiento({super.key});
 
   @override
-  Widget build(BuildContext context) => const _PortadaModo(
+  Widget build(BuildContext context, WidgetRef ref) => _PortadaModo(
         titulo: 'Entrenamiento',
         descripcion: 'Ejecutar el día con los atletas presentes, en el gimnasio.',
         secciones: [
           (Icons.play_circle_outline, 'Sesión del día', 'Presentes y kilos de cada serie, y el calendario del plan', Rutas.sesion),
-          (Icons.show_chart, 'Historial', 'Progresión, % real del RM, marcas y WoDs', null),
+          // The own history needs an athlete profile in the active club.
+          if (ref.watch(hasAthleteProfileProvider) ?? false)
+            (Icons.history, 'Mi historial', 'Tus sesiones pasadas, con kilos y repeticiones', Rutas.historial),
         ],
       );
 }

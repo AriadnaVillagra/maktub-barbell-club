@@ -76,8 +76,11 @@ abstract final class Rutas {
   /// The athlete's own read-only references.
   static const perfil = '/perfil';
 
-  /// The athlete's own past sessions; one session is `<historial>/<sessionId>`.
-  static const historial = '$perfil/historial';
+  /// The athlete's own past sessions, in training mode; one session is `<historial>/<sessionId>`.
+  static const historial = '$entrenamiento/historial';
+
+  /// Where the own history used to live (under Perfil); old links are redirected to [historial].
+  static const historialAntiguo = '$perfil/historial';
 
   /// An athlete's past sessions as the coach reads them, from their sheet; one session is `<that>/<sessionId>`.
   static String historialDeAtleta(String athleteId) => '$atletas/${Uri.encodeComponent(athleteId)}/historial';
@@ -139,6 +142,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                     GoRoute(
                       path: 'entrenar',
                       builder: (_, _) => const GuidedPage(sessionPath: Rutas.sesion),
+                    ),
+                  ],
+                ),
+                GoRoute(
+                  path: 'historial',
+                  builder: (_, _) => const OwnHistoryPage(basePath: Rutas.historial),
+                  routes: [
+                    GoRoute(
+                      path: ':sessionId',
+                      builder: (_, state) => OwnSessionHistoryPage(sessionId: state.pathParameters['sessionId']!),
                     ),
                   ],
                 ),
@@ -255,16 +268,14 @@ final routerProvider = Provider<GoRouter>((ref) {
           StatefulShellBranch(routes: [
             GoRoute(
               path: Rutas.perfil,
-              builder: (_, _) => const ProfilePage(historyPath: Rutas.historial),
+              builder: (_, _) => const ProfilePage(),
               routes: [
+                // Old links to the own history keep working: they land on the training branch.
                 GoRoute(
                   path: 'historial',
-                  builder: (_, _) => const OwnHistoryPage(basePath: Rutas.historial),
+                  redirect: (_, state) => state.uri.toString().replaceFirst(Rutas.historialAntiguo, Rutas.historial),
                   routes: [
-                    GoRoute(
-                      path: ':sessionId',
-                      builder: (_, state) => OwnSessionHistoryPage(sessionId: state.pathParameters['sessionId']!),
-                    ),
+                    GoRoute(path: ':sessionId', builder: (_, _) => const SizedBox.shrink()),
                   ],
                 ),
               ],

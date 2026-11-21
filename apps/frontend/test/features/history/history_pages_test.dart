@@ -6,10 +6,13 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:maktub_core/maktub_core.dart';
+import 'package:maktub_frontend/app/modos.dart';
+import 'package:maktub_frontend/app/router.dart' show Rutas;
 import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/access/presentation/providers.dart';
 import 'package:maktub_frontend/features/atletas/domain/athlete_repository.dart';
 import 'package:maktub_frontend/features/atletas/presentation/athlete_sheet_page.dart';
+import 'package:maktub_frontend/features/atletas/presentation/athletes_page.dart';
 import 'package:maktub_frontend/features/atletas/presentation/profile_page.dart';
 import 'package:maktub_frontend/features/atletas/presentation/providers.dart';
 import 'package:maktub_frontend/features/catalogo/presentation/providers.dart';
@@ -510,26 +513,75 @@ void main() {
   });
 
   group('ways in', () {
-    testWidgets('the profile opens the own history', (tester) async {
+    testWidgets('the training landing opens the own history', (tester) async {
       final repo = _FakeHistory();
       final router = await _pumpRouter(tester, repo, [
         GoRoute(
-          path: '/perfil',
-          builder: (_, _) =>
-              const ProfilePage(historyPath: '/perfil/historial'),
+          path: Rutas.entrenamiento,
+          builder: (_, _) => const PaginaEntrenamiento(),
           routes: [
             GoRoute(
               path: 'historial',
-              builder: (_, _) =>
-                  const OwnHistoryPage(basePath: '/perfil/historial'),
+              builder: (_, _) => const OwnHistoryPage(basePath: Rutas.historial),
             ),
           ],
         ),
-      ], '/perfil');
-      await tester.tap(find.byKey(const Key('profile-history')));
+      ], Rutas.entrenamiento);
+      await tester.tap(find.byKey(const Key('portada-${Rutas.historial}')));
       await tester.pumpAndSettle();
-      expect(router.state.uri.path, '/perfil/historial');
+      expect(router.state.uri.path, Rutas.historial);
       expect(repo.calls, ['page:c1:a1:-']);
+    });
+
+    testWidgets('the old Perfil path redirects to the training history', (tester) async {
+      final repo = _FakeHistory();
+      final router = await _pumpRouter(tester, repo, [
+        GoRoute(
+          path: Rutas.entrenamiento,
+          builder: (_, _) => const SizedBox(),
+          routes: [
+            GoRoute(
+              path: 'historial',
+              builder: (_, _) => const OwnHistoryPage(basePath: Rutas.historial),
+            ),
+          ],
+        ),
+        GoRoute(
+          path: Rutas.perfil,
+          builder: (_, _) => const SizedBox(),
+          routes: [
+            GoRoute(
+              path: 'historial',
+              redirect: (_, state) => state.uri.toString().replaceFirst(Rutas.historialAntiguo, Rutas.historial),
+            ),
+          ],
+        ),
+      ], Rutas.historialAntiguo);
+      expect(router.state.uri.path, Rutas.historial);
+      expect(find.byType(OwnHistoryPage), findsOneWidget);
+    });
+
+    testWidgets("the athletes list has a history action per athlete", (tester) async {
+      final repo = _FakeHistory();
+      final router = await _pumpRouter(
+        tester,
+        repo,
+        [
+          GoRoute(
+            path: '/a',
+            builder: (_, _) => const AthletesPage(basePath: '/a'),
+            routes: [GoRoute(path: ':id/historial', builder: (_, _) => const SizedBox())],
+          ),
+        ],
+        '/a',
+        roles: {Rol.coach},
+        athletes: FakeAthleteRepository(athletesList: const [AthleteSummary(id: 'a2', userId: 'u2', name: 'Andi')]),
+      );
+      final button = find.byWidgetPredicate((w) => w.key.toString().contains('athlete-history-'));
+      expect(button, findsWidgets);
+      await tester.tap(button.first);
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, endsWith('/historial'));
     });
 
     testWidgets("the coach's athlete sheet opens that athlete's history", (

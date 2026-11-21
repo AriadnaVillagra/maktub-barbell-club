@@ -32,7 +32,18 @@ class AthletesPage extends ConsumerWidget {
                     key: Key('athlete-${a.id}'),
                     leading: const Icon(Icons.person_outline),
                     title: Text(a.name),
-                    trailing: const Icon(Icons.chevron_right),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          key: Key('athlete-history-${a.id}'),
+                          icon: const Icon(Icons.history),
+                          tooltip: 'Historial',
+                          onPressed: () => context.go('$basePath/${Uri.encodeComponent(a.id)}/historial'),
+                        ),
+                        const Icon(Icons.chevron_right),
+                      ],
+                    ),
                     onTap: () =>
                         context.go('$basePath/${Uri.encodeComponent(a.id)}'),
                   ),
