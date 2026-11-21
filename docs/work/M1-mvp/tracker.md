@@ -176,8 +176,9 @@ publicada**, nunca el borrador.
 - **Visibilidad de un plan para otros coaches** (pedido por Ari el 2026-11-19): pasó a ser
   [E8.10](E8.10-visibilidad-del-plan.md), hecho. Falta sumarlo a `docs/diseno.md` desde la otra sesión.
 - **Ver lo que se hizo en un día pasado** (salió de la revisión de E8.6, 2026-11-19). Hoy el calendario muestra
-  solo el ciclo del plan activo, y el editor de un plan histórico muestra lo planificado, sin kilos. Estado:
-  `sin refinar`, fuera de M1.
+  solo el ciclo del plan activo, y el editor de un plan histórico muestra lo planificado, sin kilos. Refinado con Ari
+  el 2026-11-21: una pantalla de historial por atleta, con las sesiones pasadas por fecha (de cualquier plan, también
+  terminados e históricos), y al tocar una se ve el detalle con kilos y reps. Estado: `en curso`.
 - **Insignias de las tarjetas en la sesión del día** (pedido por Ari el 2026-11-19). Una tarjeta dice "Hecho"
   apenas se tilda un ejercicio, aunque falte el resto del día. Tiene que reflejar cuánto se hizo de verdad.
   Estado: `hecho` (`777cff5`, `7905917`). Decidido por Ari el 2026-11-21, reemplaza D13: el estado es por atleta,
@@ -195,18 +196,24 @@ publicada**, nunca el borrador.
   escribía bien; la sesión del día buscaba solo la sesión de hoy, y un día hecho en otra fecha quedaba sin series.
   Ahora la busca en la fecha en que el atleta de la pestaña empezó ese día. `todayProvider` cambia a medianoche (antes
   quedaba fijo desde que se abrió la app). Escribir en un día hecho en otra fecha va a esa sesión, no a una nueva de
-  hoy: falta decidir si rehacer un día otro día es un día recuperado (3.6).
+  hoy. Decidido por Ari el 2026-11-21: rehacer un día ya hecho edita la sesión original, sin "recuperado".
 - **Tarjetas colapsables en la sesión del día** (Ari, 2026-11-21), para ver todo compacto. Estado: `hecho` (`7a010cc`: cada bloque se colapsa desde su cabecera, "Colapsar todo" en la cabecera del día; se recuerda por posición de bloque en el dispositivo).
 - **Prueba en local de Ari (2026-11-21):** temporizador en el modo guiado, tarjetas colapsables, estado por atleta,
   viñetas de un día hecho en otra fecha y calendario compacto, todo ok.
 - **Acciones del modo guiado en "Más acciones"** (Ari, 2026-11-21). "Saltar este ejercicio" e "Interrumpir" quedan
-  cerca del temporizador y se tocan sin querer: van abajo, dentro de un botón "Más acciones". Estado: `en curso`.
+  cerca del temporizador y se tocan sin querer: van abajo, dentro de un botón "Más acciones". Estado: `hecho`
+  (`c67a5ea`). "Saltar bloque" también va a "Más acciones" (Ari, 2026-11-21): `en curso`.
 - **Manijas para reordenar en el celular** (Ari, 2026-11-21). En el editor de planes, la manija (≡) de las tarjetas
-  cuesta tocarla y se tocan otras cosas antes. Estado: `en curso`.
+  cuesta tocarla y se tocan otras cosas antes. Estado: `hecho` (`36598d7`: componente `ManijaArrastre` de 48 dp, a la
+  izquierda; también en el formulario de temporizadores).
 - **Peso en cualquier ejercicio al planificar** (Ari, 2026-11-21). Un ejercicio dado de alta sin "con peso" igual
   ofrece kilos o % al planificar. En blanco es sin peso; si se carga, el ejercicio queda guardado con peso.
   Estado: `en curso`.
 - **Métrica objetivo según los chips** (Ari, 2026-11-21). El desplegable "métrica objetivo" no se llena con las
-  métricas elegidas en los chips de arriba. Estado: `en curso`.
+  métricas elegidas en los chips de arriba. Estado: `hecho` (`cee2fa0`).
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
-  `admin_club` da de alta miembros en un club existente. Falta diseño. Estado: `sin refinar`.
+  `admin_club` da de alta miembros en un club existente. Refinado con Ari el 2026-11-21: quien entra con Google sin
+  cuenta puede pedir un club; queda pendiente hasta que un admin de plataforma lo aprueba desde la app, y mientras
+  tanto ve "Tu pedido está en revisión" (sin emails). Al aprobarse se crea el club con la semilla base del catálogo, y
+  quien lo pidió queda `admin_club`, coach y atleta. Los demás miembros se siguen sumando por alta de email.
+  Estado: `en curso`.
