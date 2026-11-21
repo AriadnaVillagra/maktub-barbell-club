@@ -1572,7 +1572,7 @@ void main() {
       for (final key in ['guided-exit-save', 'guided-exit-finish', 'guided-exit-cancel']) {
         expect(tester.getSize(find.byKey(Key(key))).height, greaterThanOrEqualTo(56));
       }
-      expect(find.text('Guardar y salir'), findsOneWidget);
+      expect(find.text('Pausar y salir'), findsOneWidget);
       expect(find.text('Terminar el entrenamiento'), findsOneWidget);
       final finish = tester.widget<ListTile>(find.byKey(const Key('guided-exit-finish')));
       final scheme = Theme.of(tester.element(find.byKey(const Key('guided-exit-finish')))).colorScheme;

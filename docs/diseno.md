@@ -476,7 +476,7 @@ general.
   instantes de la pasada, así que todos los dispositivos muestran lo mismo. Cada bloque cerrado deja su
   **tiempo de bloque** (3.6), y el día termina con un resumen. "Terminar el día" con un bloque en curso
   lo cierra como interrumpido.
-- **La ✕** ofrece "Guardar y salir" (la pasada sigue y el dispositivo vuelve donde quedó),
+- **La ✕** ofrece "Pausar y salir" (la pasada sigue y el dispositivo vuelve donde quedó),
   "Terminar el entrenamiento" (termina la pasada para todos, como "Terminar el día", y va al resumen;
   lo registrado queda) o "Cancelar".
 - Una pasada que empezó hace más de 3 horas y sigue abierta probablemente quedó de antes: se muestran

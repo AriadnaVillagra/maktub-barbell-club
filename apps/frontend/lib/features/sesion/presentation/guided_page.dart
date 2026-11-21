@@ -34,7 +34,7 @@ Future<void> guardedGuided(
 
 /// What ✕ leads to while the blocks go on.
 enum GuidedExitChoice {
-  /// "Guardar y salir": the pass goes on and this device comes back where it was.
+  /// "Pausar y salir": the pass goes on and this device comes back where it was.
   saveAndLeave,
 
   /// "Terminar el entrenamiento": the pass finishes for every device, like "Terminar el día".
@@ -85,8 +85,8 @@ Future<GuidedExitChoice?> showGuidedExit(BuildContext context) =>
             option(
               key: const Key('guided-exit-save'),
               icon: Icons.bookmark_outline,
-              title: 'Guardar y salir',
-              subtitle: 'Al volver seguís donde quedaste.',
+              title: 'Pausar y salir',
+              subtitle: 'El entrenamiento queda abierto. Al volver, seguís en el mismo paso.',
               choice: GuidedExitChoice.saveAndLeave,
             ),
             option(
@@ -94,8 +94,8 @@ Future<GuidedExitChoice?> showGuidedExit(BuildContext context) =>
               icon: Icons.stop_circle_outlined,
               title: 'Terminar el entrenamiento',
               subtitle:
-                  'Cierra la pasada para todos. Lo registrado queda; lo que '
-                  'falta, sin hacer.',
+                  'Da el día por terminado, para todos. Lo que hiciste queda '
+                  'guardado; lo que falta, sin hacer.',
               destructive: true,
               choice: GuidedExitChoice.finish,
             ),
