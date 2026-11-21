@@ -262,7 +262,8 @@ publicada**, nunca el borrador.
     `en curso`.
   - **Al recargar, la sesión del día dice "No hay un día de plan cargado"**, aunque el modo guiado retoma bien. `en curso`.
   - **Diálogo de kilos por atleta:** con atletas en el plan, sin el campo kg general, cada atleta con su campo y la
-    sugerencia debajo, sin "(sugerido)". Con un solo atleta o sin atletas, el campo kg general como antes. `en curso`.
+    sugerencia debajo, sin "(sugerido)". Con un solo atleta o sin atletas, el campo kg general como antes. `hecho` (`db66c0b`; con varios
+    atletas, la carga de la serie se fija solo por %).
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
   `admin_club` da de alta miembros en un club existente. Refinado con Ari el 2026-11-21: quien entra con Google sin
   cuenta puede pedir un club; queda pendiente hasta que un admin de plataforma lo aprueba desde la app, y mientras
