@@ -209,6 +209,9 @@ publicada**, nunca el borrador.
 - **Peso en cualquier ejercicio al planificar** (Ari, 2026-11-21). Un ejercicio dado de alta sin "con peso" igual
   ofrece kilos o % al planificar. En blanco es sin peso; si se carga, el ejercicio queda guardado con peso.
   Estado: `en curso`.
+- **Kilos por atleta al planificar** (Ari, 2026-11-21). En un plan con dos atletas, una serie en kilos (por ejemplo
+  press con mancuerna) tiene que poder llevar un peso distinto para cada atleta. E5.16 ya lo hace para series por %
+  (`PlanSet.porAtleta`). Va después de "Peso en cualquier ejercicio", que toca el mismo editor. Estado: `pendiente`.
 - **Métrica objetivo según los chips** (Ari, 2026-11-21). El desplegable "métrica objetivo" no se llena con las
   métricas elegidas en los chips de arriba. Estado: `hecho` (`cee2fa0`).
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
