@@ -182,7 +182,8 @@ publicada**, nunca el borrador.
   atleta (API)" y "(app)"). Entradas: Perfil → Historial (atleta) y ficha del atleta → Historial (coach). Una sesión es
   del atleta si figura en presentes; el detalle usa la versión publicada actual del plan, y un plan eliminado muestra
   solo lo registrado. Índice nuevo `club_presentes_fecha`. Decidido por Ari el 2026-11-21: `admin_club` también ve la
-  ficha y el historial de los atletas del club (`en curso`). **Deploy:** primero el backend y después la PWA.
+  ficha y el historial de los atletas del club (`hecho`, `e6a9e21`: ve
+  Planificación solo con "Atletas y referencias"; no edita referencias ni planifica). **Deploy:** primero el backend y después la PWA.
 - **Insignias de las tarjetas en la sesión del día** (pedido por Ari el 2026-11-19). Una tarjeta dice "Hecho"
   apenas se tilda un ejercicio, aunque falte el resto del día. Tiene que reflejar cuánto se hizo de verdad.
   Estado: `hecho` (`777cff5`, `7905917`). Decidido por Ari el 2026-11-21, reemplaza D13: el estado es por atleta,
@@ -219,7 +220,7 @@ publicada**, nunca el borrador.
   tiene que poder crear y editar ejercicios del club, y marcar "con peso" desde el plan. Los ejercicios base siguen
   siendo solo del admin de plataforma. Estado: `hecho` (`cb1c96c`): acción nueva `editarEjerciciosClub` para coach y
   `admin_club`; archivar y eliminar ejercicios, categorías, temporizadores y equipo siguen con `admin_club`. Decidido por Ari el
-  2026-11-21: el coach también archiva y elimina ejercicios (`en curso`). **Deploy:** primero el backend y después la PWA.
+  2026-11-21: el coach también archiva y elimina ejercicios (`hecho`, `e6a9e21`). **Deploy:** primero el backend y después la PWA.
 - **Kilos por atleta al planificar** (Ari, 2026-11-21). En un plan con dos atletas, una serie en kilos (por ejemplo
   press con mancuerna) tiene que poder llevar un peso distinto para cada atleta. E5.16 ya lo hace para series por %
   (`PlanSet.porAtleta`). Va después de "Peso en cualquier ejercicio", que toca el mismo editor. Decidido por Ari
