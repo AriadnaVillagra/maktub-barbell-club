@@ -81,7 +81,7 @@ class _SessionPageState extends ConsumerState<SessionPage> {
           if (canTrain)
             FilledButton.icon(
               key: const Key('session-train'),
-              onPressed: () => context.push(path!),
+              onPressed: () => context.go(path!),
               icon: const Icon(Icons.play_arrow),
               label: const Text('Entrenar'),
             ),
