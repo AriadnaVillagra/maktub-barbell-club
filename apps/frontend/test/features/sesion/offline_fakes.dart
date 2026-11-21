@@ -152,14 +152,15 @@ class OfflineCalendar implements CalendarRepository {
     String clubId,
     String groupId,
     DateTime from,
-    DateTime to,
-  ) async {
+    DateTime to, {
+    String? athleteId,
+  }) async {
     signal.check();
     final where = UbicacionEnCiclo.desdeFechas(
       inicio: offlineStart,
       fecha: from,
     );
-    return [DayState(cycle: where.ciclo, week: 2, day: 1, done: true)];
+    return [DayState(cycle: where.ciclo, week: 2, day: 1, status: DayProgressStatus.done)];
   }
 }
 

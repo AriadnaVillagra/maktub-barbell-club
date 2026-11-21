@@ -389,6 +389,8 @@ class _TarjetasDeDia extends StatelessWidget {
           child: DayCard(
             title: 'Día 3',
             done: false,
+            doneSets: 12,
+            totalSets: 20,
             selected: true,
             onTap: () {},
             action: FilledButton(onPressed: () {}, child: const Text('Abrir')),

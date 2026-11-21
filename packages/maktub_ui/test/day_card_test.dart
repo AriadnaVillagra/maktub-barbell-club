@@ -24,6 +24,20 @@ void main() {
     expect(find.byIcon(Icons.radio_button_unchecked), findsOneWidget);
   });
 
+  testWidgets('a day in progress says how many sets are done', (tester) async {
+    await pump(tester, const DayCard(title: 'Día 1', done: false, doneSets: 12, totalSets: 20));
+    expect(find.text('En curso 12/20'), findsOneWidget);
+    expect(find.byIcon(Icons.timelapse), findsOneWidget);
+    expect(find.text('Pendiente'), findsNothing);
+    expect(find.text('Hecho'), findsNothing);
+  });
+
+  test('the badge text without a count, and done over the count', () {
+    expect(DayStatusBadge.labelOf(done: false, doneSets: 3), 'En curso');
+    expect(DayStatusBadge.labelOf(done: true, doneSets: 20, totalSets: 20), 'Hecho');
+    expect(DayStatusBadge.labelOf(done: false, totalSets: 20), 'Pendiente');
+  });
+
   testWidgets('the highlighted day carries its label', (tester) async {
     await pump(tester, const DayCard(title: 'Día 2', done: false, highlighted: true));
     expect(find.text('Toca hoy'), findsOneWidget);

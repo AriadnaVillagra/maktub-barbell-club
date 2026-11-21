@@ -210,7 +210,7 @@ class SessionDayData {
   /// Athlete name by id; empty when the user cannot list them (only coaches can).
   final Map<String, String> athleteNames;
 
-  /// The day of today's week that opens by D13.
+  /// The day of today's week that opens by D13: the first one the athlete of the first tab has not finished.
   final int openingDay;
 
   /// The user's athlete id, when they are one in this club.
@@ -296,23 +296,25 @@ final collapsedBlocksProvider =
       CollapsedBlocksController.new,
     );
 
-/// Which cycle's day states to fetch: the cycle of the assignment [assignmentId], started on [startDate].
+/// Which cycle's day states to fetch: the cycle of the assignment [assignmentId], started on [startDate], as
+/// [athleteId] did it (null: done when anyone recorded a set, for an assignment without athletes).
 typedef CycleDaysQuery = (
   String clubId,
   String assignmentId,
   DateTime startDate,
   int cycle,
+  String? athleteId,
 );
 
-/// Done or pending state of the days of one cycle (E7.13, E7.24). Invalidated when sets are recorded, so the
-/// day pills follow.
+/// The state of the days of one cycle for one athlete: done, in progress with its count, or pending (E7.13, E7.24;
+/// per athlete since 2026-11-21). Invalidated when sets are recorded, so the day badges follow.
 final cycleDayStatesProvider = FutureProvider.autoDispose
     .family<List<DayState>, CycleDaysQuery>((ref, query) {
-      final (clubId, assignmentId, startDate, cycle) = query;
+      final (clubId, assignmentId, startDate, cycle, athleteId) = query;
       final (from, to) = cycleDates(startDate, cycle);
       return ref
           .watch(calendarRepositoryProvider)
-          .dayStates(clubId, assignmentId, from, to);
+          .dayStates(clubId, assignmentId, from, to, athleteId: athleteId);
     });
 
 /// Where today falls for the user: every active assignment they train, their groups' and their own (E8.8). A user
@@ -384,14 +386,6 @@ Future<SessionDayData> _dayData(
   final plan = await ref
       .watch(calendarRepositoryProvider)
       .publishedPlan(clubId, location.planId);
-  final states = await ref.read(
-    cycleDayStatesProvider((
-      clubId,
-      location.assignmentId,
-      location.startDate,
-      location.cycle,
-    )).future,
-  );
   // E6.7: the location lists who is in the plan today. One saved before that does not: it was its group's (or the
   // first group's, before E8.8), or its one athlete's.
   final group = location.athleteIds != null || location.athleteId != null
@@ -404,6 +398,16 @@ Future<SessionDayData> _dayData(
       (location.athleteId != null
           ? [location.athleteId!]
           : group?.memberIds ?? const <String>[]);
+  // The day that opens is the first one the athlete of the first tab has not finished.
+  final states = await ref.read(
+    cycleDayStatesProvider((
+      clubId,
+      location.assignmentId,
+      location.startDate,
+      location.cycle,
+      defaultAthleteOf(memberIds, ownAthleteId),
+    )).future,
+  );
   return SessionDayData(
     clubId: clubId,
     memberIds: memberIds,
@@ -1018,13 +1022,15 @@ final sessionScreenProvider =
 /// The athlete tab on screen: the chosen one, else the user if they are in the group, else the group's first. Null
 /// for a group without athletes.
 String? athleteOnScreen(SessionDayData data, SessionScreenState state) {
-  final members = data.memberIds;
   final chosen = state.athleteId;
-  if (chosen != null && members.contains(chosen)) return chosen;
-  return members.contains(data.ownAthleteId)
-      ? data.ownAthleteId
-      : members.firstOrNull;
+  if (chosen != null && data.memberIds.contains(chosen)) return chosen;
+  return defaultAthleteOf(data.memberIds, data.ownAthleteId);
 }
+
+/// The athlete tab shown before choosing one: the user if they are among [memberIds], else the first. Null without
+/// athletes.
+String? defaultAthleteOf(List<String> memberIds, String? ownAthleteId) =>
+    memberIds.contains(ownAthleteId) ? ownAthleteId : memberIds.firstOrNull;
 
 /// The date whose proposed kilos (E7.14) stand for [week] of the cycle on screen: today in today's week, else the
 /// first date of that week of the cycle.

@@ -239,7 +239,8 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
     final dayCount = plan.weekModelOf(week)?.days.length ?? 0;
     final planDay = planDayOf(data, week, day);
     final live = state.live;
-    final dayStates = watchDayStates(ref, data);
+    final dayStates = watchDayStates(ref, data, athleteOnScreen(data, state));
+    final shownState = dayStateOf(dayStates, data, week, day);
     final blockCount = planDay?.blocks.length ?? 0;
     final collapsedBlocks = ref.watch(collapsedBlocksProvider);
     final allCollapsed = collapsedBlocks.containsAll([
@@ -328,15 +329,12 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                           context.colores.insigniaBase,
                           key: const Key('session-day-title'),
                         ),
-                        isDayDone(dayStates, data, week, day)
-                            ? InsigniaMaktub(
-                                'Hecho',
-                                context.colores.exitoContenedor,
-                              )
-                            : InsigniaMaktub(
-                                'Pendiente',
-                                context.colores.insigniaPropio,
-                              ),
+                        DayStatusBadge(
+                          key: const Key('session-day-status'),
+                          done: shownState?.done ?? false,
+                          doneSets: shownState?.doneSets ?? 0,
+                          totalSets: shownState?.totalSets,
+                        ),
                       ],
                     ],
                   ),
@@ -382,9 +380,19 @@ class _SessionBodyState extends ConsumerState<_SessionBody> {
                               PildoraMaktub(
                                 key: Key('session-day-$d'),
                                 texto: 'Día $d',
-                                detalle: isDayDone(dayStates, data, week, d)
-                                    ? 'Hecho'
-                                    : 'Pendiente',
+                                detalle: switch (dayStateOf(
+                                  dayStates,
+                                  data,
+                                  week,
+                                  d,
+                                )) {
+                                  final s? => DayStatusBadge.labelOf(
+                                    done: s.done,
+                                    doneSets: s.doneSets ?? 0,
+                                    totalSets: s.totalSets,
+                                  ),
+                                  null => DayStatusBadge.pendingLabel,
+                                },
                                 seleccionada: d == day,
                                 onTap: () {
                                   notifier.selectDay(week, d);

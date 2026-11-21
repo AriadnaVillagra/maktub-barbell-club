@@ -165,8 +165,9 @@ class _Calendar implements CalendarRepository {
     String clubId,
     String groupId,
     DateTime from,
-    DateTime to,
-  ) async => const [];
+    DateTime to, {
+    String? athleteId,
+  }) async => const [];
 }
 
 class _Athletes implements AthleteRepository {

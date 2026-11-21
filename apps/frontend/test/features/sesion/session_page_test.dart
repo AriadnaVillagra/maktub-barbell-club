@@ -73,6 +73,12 @@ class _FakeCalendar implements CalendarRepository {
 
   /// Done days by (week, day) of the cycle of [_today], on top of [done] (those are in today's week).
   final extraDone = <(int, int)>{};
+
+  /// One athlete's progress by day of today's week: (done sets, planned sets). Replaces [done] for that athlete.
+  final progress = <String, Map<int, (int, int)>>{};
+
+  /// The athlete of every read of the days' states.
+  final athletesAsked = <String?>[];
   int stateCalls = 0;
 
   @override
@@ -119,15 +125,34 @@ class _FakeCalendar implements CalendarRepository {
     String clubId,
     String groupId,
     DateTime from,
-    DateTime to,
-  ) async {
+    DateTime to, {
+    String? athleteId,
+  }) async {
     stateCalls++;
+    athletesAsked.add(athleteId);
     final where = UbicacionEnCiclo.desdeFechas(inicio: _start, fecha: _today);
+    if (progress[athleteId] case final days?) {
+      return [
+        for (final MapEntry(key: d, value: (done, total)) in days.entries)
+          DayState(
+            cycle: where.ciclo,
+            week: where.semana,
+            day: d,
+            status: done == 0
+                ? DayProgressStatus.pending
+                : done >= total
+                ? DayProgressStatus.done
+                : DayProgressStatus.inProgress,
+            doneSets: done,
+            totalSets: total,
+          ),
+      ];
+    }
     return [
       for (final d in done)
-        DayState(cycle: where.ciclo, week: where.semana, day: d, done: true),
+        DayState(cycle: where.ciclo, week: where.semana, day: d, status: DayProgressStatus.done),
       for (final (w, d) in extraDone)
-        DayState(cycle: where.ciclo, week: w, day: d, done: true),
+        DayState(cycle: where.ciclo, week: w, day: d, status: DayProgressStatus.done),
     ];
   }
 }
@@ -1689,6 +1714,78 @@ void main() {
 
       await _openDayPicker(tester);
       expect(detail('session-day-1', 'Hecho'), findsOneWidget);
+    });
+  });
+
+  group("the athlete on screen's progress (2026-11-21)", () {
+    Finder inKey(String key, String text) =>
+        find.descendant(of: find.byKey(Key(key)), matching: find.text(text));
+
+    _FakeCalendar calendar() => _FakeCalendar()
+      ..progress['ari'] = {1: (2, 5), 2: (0, 4)}
+      ..progress['andi'] = {1: (5, 5), 2: (1, 4)};
+
+    testWidgets('the day says how many sets the athlete did, and follows the tab', (
+      tester,
+    ) async {
+      final days = calendar();
+      await _pump(tester, _FakeSessions(), calendar: days);
+
+      expect(days.athletesAsked.toSet(), {'ari'});
+      expect(inKey('session-day-status', 'En curso 2/5'), findsOneWidget);
+      await _openDayPicker(tester);
+      expect(inKey('session-day-1', 'En curso 2/5'), findsOneWidget);
+      expect(inKey('session-day-2', 'Pendiente'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('session-athlete-andi')));
+      await tester.pumpAndSettle();
+
+      expect(days.athletesAsked.last, 'andi');
+      expect(inKey('session-day-status', 'Hecho'), findsOneWidget);
+      expect(inKey('session-day-1', 'Hecho'), findsOneWidget);
+      expect(inKey('session-day-2', 'En curso 1/4'), findsOneWidget);
+    });
+
+    testWidgets("another athlete's finished day does not open as done", (
+      tester,
+    ) async {
+      await _pump(tester, _FakeSessions(), calendar: calendar());
+
+      // Andi finished day 1, Ari did not: Ari's session opens on day 1.
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('session-day-title')),
+          matching: find.textContaining('Día 1'),
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets("the calendar shows the tab's athlete, and changes it", (
+      tester,
+    ) async {
+      final days = calendar();
+      await _pump(tester, _FakeSessions(), calendar: days);
+      await tester.tap(find.text('Calendario'));
+      await tester.pumpAndSettle();
+      final week = UbicacionEnCiclo.desdeFechas(
+        inicio: _start,
+        fecha: _today,
+      ).semana;
+
+      expect(inKey('calendar-day-$week-1', 'En curso 2/5'), findsOneWidget);
+
+      await tester.tap(find.byKey(const Key('calendar-athlete-andi')));
+      await tester.pumpAndSettle();
+
+      expect(days.athletesAsked.last, 'andi');
+      expect(inKey('calendar-day-$week-1', 'Hecho'), findsOneWidget);
+      expect(inKey('calendar-day-$week-2', 'En curso 1/4'), findsOneWidget);
+
+      // The session view keeps the tab chosen in the calendar.
+      await tester.tap(find.text('Sesión del día'));
+      await tester.pumpAndSettle();
+      expect(inKey('session-day-status', 'Hecho'), findsOneWidget);
     });
   });
 

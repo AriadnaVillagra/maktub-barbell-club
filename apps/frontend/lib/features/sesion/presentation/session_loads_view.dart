@@ -141,17 +141,21 @@ class SessionAthleteSelector extends StatelessWidget {
     required this.data,
     required this.selected,
     required this.onSelect,
+    this.keyPrefix = 'session',
   });
 
   final SessionDayData data;
   final String? selected;
   final ValueChanged<String> onSelect;
 
+  /// Starts the keys of the selector (`<prefix>-athletes`) and of each athlete (`<prefix>-athlete-<id>`).
+  final String keyPrefix;
+
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
     scrollDirection: Axis.horizontal,
     child: SegmentedButton<String>(
-      key: const Key('session-athletes'),
+      key: Key('$keyPrefix-athletes'),
       showSelectedIcon: false,
       style: const ButtonStyle(visualDensity: VisualDensity.compact),
       segments: [
@@ -160,7 +164,7 @@ class SessionAthleteSelector extends StatelessWidget {
             value: id,
             label: Text(
               athleteLabel(data, id),
-              key: Key('session-athlete-$id'),
+              key: Key('$keyPrefix-athlete-$id'),
             ),
           ),
       ],

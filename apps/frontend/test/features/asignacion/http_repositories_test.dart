@@ -4,10 +4,53 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:maktub_core/maktub_core.dart';
+import 'package:maktub_frontend/core/offline/local_copy.dart';
+import 'package:maktub_frontend/core/offline/shared_preferences_local_copy_store.dart';
 import 'package:maktub_frontend/core/red/cliente_api.dart';
 import 'package:maktub_frontend/features/asignacion/data/cached_calendar_repository.dart';
 import 'package:maktub_frontend/features/asignacion/data/http_assignment_repository.dart';
 import 'package:maktub_frontend/features/asignacion/data/http_calendar_repository.dart';
+import 'package:maktub_frontend/features/asignacion/domain/calendar_repository.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class _NoReporter implements LocalCopyReporter {
+  @override
+  void servedFresh() {}
+
+  @override
+  void servedFromCopy(DateTime savedAt) {}
+}
+
+/// Ari has 3 sets done of day 1, Andi 1; without signal it throws.
+class _AthleteDays implements CalendarRepository {
+  var offline = false;
+
+  @override
+  Future<List<DayState>> dayStates(
+    String clubId,
+    String assignmentId,
+    DateTime from,
+    DateTime to, {
+    String? athleteId,
+  }) async {
+    if (offline) throw const ErrorDeApi('sin conexión');
+    final done = athleteId == 'ari' ? 3 : 1;
+    return [
+      DayState(
+        cycle: 1,
+        week: 1,
+        day: 1,
+        status: DayProgressStatus.inProgress,
+        doneSets: done,
+        totalSets: 4,
+      ),
+    ];
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) =>
+      throw UnimplementedError('${invocation.memberName}');
+}
 
 /// The requests the repositories send and the answers they parse (E8.8: athlete's location, days by assignment and
 /// assigning to an athlete).
@@ -132,6 +175,56 @@ void main() {
 
     expect(sent.single.url.path, '/clubes/c1/asignaciones/own/dias');
     expect(states.single.done, isTrue);
+  });
+
+  test("one athlete's progress: atletaId goes out, counts come back", () async {
+    final repo = HttpCalendarRepository(
+      client({
+        'asignacion': {'id': 'a1'},
+        'dias': [
+          {'ciclo': 1, 'semana': 1, 'dia': 1, 'estado': 'hecho', 'hechas': 4, 'total': 4},
+          {'ciclo': 1, 'semana': 1, 'dia': 2, 'estado': 'en_curso', 'hechas': 12, 'total': 20},
+          {'ciclo': 1, 'semana': 1, 'dia': 3, 'estado': 'pendiente', 'hechas': 0, 'total': 5},
+        ],
+      }),
+    );
+
+    final states = await repo.dayStates(
+      'c1',
+      'a1',
+      DateTime.utc(2026, 11, 6),
+      DateTime.utc(2026, 12, 3),
+      athleteId: 'ari',
+    );
+
+    expect(sent.single.url.queryParameters['atletaId'], 'ari');
+    expect(
+      [for (final s in states) (s.status, s.doneSets, s.totalSets, s.done)],
+      [
+        (DayProgressStatus.done, 4, 4, true),
+        (DayProgressStatus.inProgress, 12, 20, false),
+        (DayProgressStatus.pending, 0, 5, false),
+      ],
+    );
+    // The device's copy keeps the same.
+    final copied = dayStateFromJson(dayStateToJson(states[1]));
+    expect((copied.status, copied.doneSets, copied.totalSets), (DayProgressStatus.inProgress, 12, 20));
+  });
+
+  test("each athlete's days are kept apart on the device", () async {
+    SharedPreferences.setMockInitialValues({});
+    final remote = _AthleteDays();
+    final reads = LocalCopyReads(SharedPreferencesLocalCopyStore(), _NoReporter());
+    final repo = CachedCalendarRepository(remote, reads);
+    final from = DateTime.utc(2026, 11, 6);
+    final to = DateTime.utc(2026, 12, 3);
+
+    await repo.dayStates('c1', 'a1', from, to, athleteId: 'ari');
+    await repo.dayStates('c1', 'a1', from, to, athleteId: 'andi');
+    remote.offline = true;
+
+    expect((await repo.dayStates('c1', 'a1', from, to, athleteId: 'ari')).single.doneSets, 3);
+    expect((await repo.dayStates('c1', 'a1', from, to, athleteId: 'andi')).single.doneSets, 1);
   });
 
   Map<String, Object?> answer(List<Map<String, String>> athletes) => {
