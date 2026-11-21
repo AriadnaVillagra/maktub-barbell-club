@@ -79,22 +79,26 @@ Empezamos con un grupo chico (Andi, Ari y algunos más), pero el modelo está pe
 - **Membresía**: usuario × club × roles. Un usuario puede pertenecer a varios clubes, con roles
   distintos en cada uno. Por ahora se entra a un club por **alta del administrador del club**, con el
   email de la persona y sus roles; las invitaciones por link o código quedan para el resto de F1.
-  - **Coach**: planifica y asigna; crea, edita, archiva y elimina los ejercicios del club; gestiona
+  Los permisos siguen una **jerarquía**: cada nivel hace todo lo del nivel de abajo y algo más
+  (atleta < coach < administrador del club < administrador de plataforma). Una membresía con varios
+  roles toma el más alto.
+  - **Atleta**: su plan del día, su historial, su perfil, los temporizadores del club y toda la
+    pantalla Entrenamiento. Ejecuta y registra lo suyo, y también lo de sus compañeros de la misma
+    sesión.
+  - **Coach**: todo lo del atleta, y además planifica, asigna y mantiene los WoDs; crea, edita,
+    archiva y elimina ejercicios, categorías y temporizadores del club (el equipo no); gestiona
     referencias, factores y kilajes; elimina planes; lee la ficha y el historial de todos los atletas;
     decide si un día perdido se recupera o queda como falta. Qué planes de otros coaches ve depende
     de la visibilidad del plan (3.4).
-  - **Atleta**: ejecuta y registra lo suyo, y también lo de sus compañeros de la misma sesión.
-  - **Administrador del club** (`admin_club`): se suma a los otros roles. Da de alta miembros y
-    cambia sus roles; mantiene categorías, temporizadores y equipo del club (los ejercicios también,
-    como el coach); elimina cualquier plan del club y, si también es coach, alcanza los privados de
-    otros coaches. Lee la ficha y el historial de los atletas, pero sin el rol de coach no edita
-    referencias ni planifica.
+  - **Administrador del club** (`admin_club`): ve y hace todo dentro de su club: todo lo del coach,
+    más el equipo y los miembros (alta y roles). Elimina cualquier plan del club y alcanza los
+    privados de otros coaches.
   - Una membresía puede tener varios roles: un coach que también entrena. Un club siempre tiene al
     menos un administrador y un coach activos.
 - **Administrador de plataforma**: nosotros. Mantiene lo que es de todos: el catálogo base, las
   categorías base, los grupos musculares y patrones base, y la biblioteca de planes por defecto.
-  Revisa los pedidos de club. Esa marca **no da permisos dentro de un club**: para eso hace falta una
-  membresía.
+  Revisa los pedidos de club. **Ve y hace todo en cualquier club**, aunque no sea miembro, para dar
+  soporte: elige el club activo desde Preferencias. En su club personal sigue el set recortado.
 - **Atleta**: el perfil de entrenamiento de un miembro dentro del club. Todo registro sabe
   qué usuario lo escribió.
 
@@ -745,9 +749,10 @@ la sección 3 antes de construir encima.
 | 2026-11-21 | EN8 | Rehacer un día ya hecho en otra fecha edita la sesión original; no lo marca como recuperado. |
 | 2026-11-21 | PL7 | En un plan de varios atletas, una serie en kilos pide un peso por atleta, sin valor general, con las mismas reps para todos. La sesión los propone sin ajuste del día. |
 | 2026-11-21 | C7 | Cualquier ejercicio admite peso al planificar; si se carga, el ejercicio suma la métrica de carga. |
-| 2026-11-21 | A9 | El coach crea, edita, archiva y elimina los ejercicios del club. Categorías, temporizadores y equipo siguen siendo del administrador del club. |
-| 2026-11-21 | A10 | El administrador del club lee la ficha y el historial de todos los atletas, sin editar referencias ni planificar. La marca de administrador de plataforma no da permisos dentro de un club. |
+| 2026-11-21 | A9 | ~~El coach crea, edita, archiva y elimina los ejercicios del club. Categorías, temporizadores y equipo siguen siendo del administrador del club.~~ Reemplazada por A12. |
+| 2026-11-21 | A10 | ~~El administrador del club lee la ficha y el historial de todos los atletas, sin editar referencias ni planificar. La marca de administrador de plataforma no da permisos dentro de un club.~~ Reemplazada por A12. |
 | 2026-11-21 | A11 | Un club nuevo se pide y lo aprueba o rechaza un administrador de plataforma desde la app. Quien lo pidió queda como administrador del club, coach y atleta. El catálogo base no se copia. |
+| 2026-11-21 | A12 | Permisos por jerarquía, cada nivel con todo lo de abajo: atleta (lo suyo y la pantalla Entrenamiento) < coach (planes, asignaciones, WoDs, ejercicios, categorías, temporizadores, referencias, ver a todos los atletas; no equipo) < administrador del club (todo en su club: equipo y miembros) < administrador de plataforma (todo en cualquier club, aunque no sea miembro, y lo de plataforma). Decidido por Ari. |
 | 2026-11-21 | R7 | Historial por atleta: sus sesiones pasadas de cualquier plan, con el detalle de kilos y reps. Lo ven el atleta, el coach y el administrador del club. |
 
 ## 13. Preguntas abiertas

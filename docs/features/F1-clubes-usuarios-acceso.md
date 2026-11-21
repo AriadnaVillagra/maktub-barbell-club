@@ -101,17 +101,23 @@ Todos los documentos con `clubId` llevan además la auditoría que ya existe en 
 
 **Matriz de permisos**
 
-| Acción | Atleta | Coach | Club personal | Admin plataforma |
-|---|---|---|---|---|
-| Ver catálogo, planes asignados, sus sesiones | ✓ | ✓ | ✓ | — |
-| Registrar lo suyo y lo de compañeros de su sesión | ✓ | ✓ | ✓ (solo él) | — |
-| Ver reportes propios | ✓ | ✓ | ✓ | — |
-| Editar sus referencias (RMs, marcas) | — | ✓ (de todos) | ✓ | — |
-| Planificar, asignar, editar catálogo del club | — | ✓ | — | — |
-| Seguir un plan por defecto | — | — | ✓ | — |
-| Invitar, quitar miembros, cambiar roles | — | ✓ | — | — |
-| Ver reportes de todos | — | ✓ | — | — |
-| Editar catálogo base y biblioteca de planes | — | — | — | ✓ |
+Jerarquía (decidida el 2026-11-21, A12 en `diseno.md`): cada columna hace todo lo de la anterior.
+El admin de plataforma actúa en cualquier club aunque no sea miembro. En el club personal, todos
+tienen el set recortado de su columna.
+
+| Acción | Atleta | Coach | Admin del club | Admin plataforma | Club personal |
+|---|---|---|---|---|---|
+| Ver catálogo, planes asignados, sus sesiones, temporizadores | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Registrar lo suyo y lo de compañeros de su sesión | ✓ | ✓ | ✓ | ✓ | ✓ (solo él) |
+| Ver reportes e historial propios | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Editar referencias (RMs, factores, kilajes) | — | ✓ (de todos) | ✓ | ✓ | ✓ (las suyas) |
+| Planificar, asignar, WoDs, eliminar planes | — | ✓ | ✓ | ✓ | — |
+| Ejercicios, categorías y temporizadores del club | — | ✓ | ✓ | ✓ | — |
+| Ver ficha, historial y reportes de todos | — | ✓ | ✓ | ✓ | — |
+| Equipo del club | — | — | ✓ | ✓ | — |
+| Alta de miembros y cambio de roles | — | — | ✓ | ✓ | — |
+| Seguir un plan por defecto | — | — | — | — | ✓ |
+| Catálogo base, biblioteca de planes, pedidos de club, elegir cualquier club | — | — | — | ✓ | — |
 
 ## 6. Interfaz
 

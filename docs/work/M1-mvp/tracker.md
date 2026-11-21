@@ -249,7 +249,10 @@ publicada**, nunca el borrador.
   - **Permisos por jerarquía** (decidido por Ari): admin de plataforma ve y hace todo en todos los clubes; `admin_club`
     ve y hace todo en su club (planes y asignaciones incluidos); coach: planes, ejercicios, categorías,
     temporizadores, WoDs, asignar, ver planes, y todo lo del atleta (equipo no); atleta: su plan del día, su historial,
-    su perfil, los temporizadores del club y toda la pantalla Entrenamiento. `en curso`.
+    su perfil, los temporizadores del club y toda la pantalla Entrenamiento. `hecho` (commits "Permisos por
+    jerarquía" y "Elegir club"; A12 en `diseno.md`). El admin de plataforma elige el club activo en Preferencias →
+    Club activo (`GET /plataforma/clubes`). **Deploy:** primero el backend.
+    La matriz de `docs/features/F1-clubes-usuarios-acceso.md` quedó al día.
 - **Alta de un club nuevo** (Ari, 2026-11-21). Hoy no existe: los clubes solo se crean con `tool/alta.dart`, y
   `admin_club` da de alta miembros en un club existente. Refinado con Ari el 2026-11-21: quien entra con Google sin
   cuenta puede pedir un club; queda pendiente hasta que un admin de plataforma lo aprueba desde la app, y mientras
