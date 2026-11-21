@@ -133,6 +133,12 @@ void main() {
       expect(store.exercises.single.id, 'new-1');
     });
 
+    test('a coach without the club admin role creates a club exercise', () async {
+      final r = await create(_body('Remo'), club: _club('club-a', roles: {Rol.coach}));
+      expect(r.statusCode, HttpStatus.ok);
+      expect(store.exercises.single.clubId, 'club-a');
+    });
+
     test('an athlete is rejected and nothing is written', () async {
       final r = await create(_body('Remo'), club: _club('club-a', roles: {Rol.atleta}));
       expect(r.statusCode, HttpStatus.forbidden);
@@ -298,6 +304,14 @@ void main() {
       expect(store.exercises.single.name, 'Remo');
     });
 
+    test('a coach without the club admin role edits a club exercise but not a base one', () async {
+      final coach = _club('club-a', roles: {Rol.coach});
+      expect((await update('e1', _body('Remo 2'), club: coach)).statusCode, HttpStatus.ok);
+      expect(store.exercises.single.name, 'Remo 2');
+      store.exercises.add(_exercise('base', clubPlataforma, 'Sentadilla'));
+      expect((await update('base', _body('Otra'), club: coach)).statusCode, HttpStatus.forbidden);
+    });
+
     test('a platform admin edits a default exercise and it stays default', () async {
       store.exercises.add(_exercise('base', clubPlataforma, 'Sentadilla'));
       final admin = ClubContext(
@@ -398,6 +412,12 @@ void main() {
       expect(store.exercises.firstWhere((e) => e.id == 'base').status, CatalogStatus.active);
     });
 
+    test('a coach without the club admin role cannot delete', () async {
+      final coach = _club('club-a', roles: {Rol.coach});
+      expect((await remove('e1', club: coach)).statusCode, HttpStatus.forbidden);
+      expect(store.exercises, hasLength(1));
+    });
+
     test('an athlete cannot delete or archive', () async {
       final athlete = _club('club-a', roles: {Rol.atleta});
       expect((await remove('e1', club: athlete)).statusCode, HttpStatus.forbidden);
@@ -424,7 +444,7 @@ void main() {
         newId: () => markers[c.read<ClubContext>().clubId]!,
       ),
       path: '/clubes/{clubId}/catalogo/ejercicios',
-      action: Accion.editarCatalogoClub,
+      action: Accion.editarEjerciciosClub,
       method: 'POST',
       body: jsonEncode(_body('Remo')),
       seed: (clubId, marker) => markers[clubId] = marker,

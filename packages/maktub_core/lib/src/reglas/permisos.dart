@@ -25,6 +25,10 @@ enum Accion {
 
   /// Crear, editar, archivar y borrar lo del club: ejercicios, categorías, temporizadores y equipo.
   editarCatalogoClub,
+
+  /// Crear y editar los ejercicios del club (incluido marcarlos con peso). Coach y administrador del club;
+  /// archivar y borrar siguen siendo de [editarCatalogoClub].
+  editarEjerciciosClub,
   seguirPlanPorDefecto,
 
   /// Registrar miembros y cambiar sus roles. Solo el administrador del club.
@@ -44,12 +48,14 @@ const _coach = {
   Accion.editarReferencias,
   Accion.planificar,
   Accion.deletePlan,
+  Accion.editarEjerciciosClub,
   Accion.verReportesDeTodos,
 };
 
 const _adminClub = {
   Accion.verCatalogoYPlanes,
   Accion.editarCatalogoClub,
+  Accion.editarEjerciciosClub,
   Accion.gestionarMiembros,
   Accion.deletePlan,
 };
@@ -85,6 +91,17 @@ bool puedeEscribirCatalogo(
 }) => elemento.clubId == clubPlataforma
     ? esAdminPlataforma
     : puede(roles, Accion.editarCatalogoClub, tipo);
+
+/// Como [puedeEscribirCatalogo], pero para crear y editar un ejercicio: lo del club lo puede quien tenga
+/// [Accion.editarEjerciciosClub] (coach o administrador). Lo default sigue siendo solo del administrador de plataforma.
+bool puedeEscribirEjercicio(
+  DelClub ejercicio,
+  Set<Rol> roles,
+  TipoClub tipo, {
+  bool esAdminPlataforma = false,
+}) => ejercicio.clubId == clubPlataforma
+    ? esAdminPlataforma
+    : puede(roles, Accion.editarEjerciciosClub, tipo);
 
 /// Si dejar a [usuarioId] con [rolesNuevos] deja al club sin ningún administrador activo.
 bool dejaSinAdmin(Iterable<Membresia> membresiasDelClub, String usuarioId, Set<Rol> rolesNuevos) {

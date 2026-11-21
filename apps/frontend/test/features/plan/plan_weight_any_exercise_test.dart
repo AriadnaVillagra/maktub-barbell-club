@@ -158,9 +158,15 @@ void main() {
       expect(find.textContaining('ahora tiene peso'), findsNothing);
     });
 
-    testWidgets('a coach who cannot change the catalog gets no weight fields, as before', (tester) async {
+    testWidgets('a coach without the club admin role gets weight fields on a club exercise', (tester) async {
       await open(tester, roles: const {Rol.coach});
-      expect(find.byKey(const ValueKey('set-pct-0-0')), findsNothing);
+      expect(find.byKey(const ValueKey('set-pct-0-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('set-kg-0-0')), findsOneWidget);
+    });
+
+    testWidgets('a coach without the club admin role gets no weight fields on a default exercise', (tester) async {
+      final base = ex('bulgara', 'Sentadilla búlgara', clubId: clubPlataforma, categories: ['accesorio'], metrics: [Metric.reps]);
+      await open(tester, roles: const {Rol.coach}, exercise: base);
       expect(find.byKey(const ValueKey('set-kg-0-0')), findsNothing);
     });
 

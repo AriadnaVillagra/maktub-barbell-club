@@ -98,3 +98,14 @@ final canWriteCatalogProvider = Provider<bool Function(DelClub)>((ref) {
   final me = ref.watch(meProvider).value;
   return (item) => me?.canWriteCatalog(item) ?? false;
 });
+
+/// Whether the user can create exercises of the active club ([Me.canEditClubExercises]).
+final canEditClubExercisesProvider = Provider<bool>(
+  (ref) => ref.watch(meProvider).value?.canEditClubExercises ?? false,
+);
+
+/// Whether the user can create or edit a given exercise (see [Me.canWriteExercise]).
+final canWriteExerciseProvider = Provider<bool Function(DelClub)>((ref) {
+  final me = ref.watch(meProvider).value;
+  return (item) => me?.canWriteExercise(item) ?? false;
+});

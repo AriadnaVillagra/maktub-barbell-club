@@ -112,6 +112,22 @@ void main() {
       expect(puede({Rol.adminClub}, Accion.editarCatalogoClub, TipoClub.personal), isFalse);
     });
 
+    test('crear y editar ejercicios del club lo hacen el coach y el admin del club, no el atleta', () {
+      expect(puede(coach, Accion.editarEjerciciosClub, TipoClub.club), isTrue);
+      expect(puede({Rol.adminClub}, Accion.editarEjerciciosClub, TipoClub.club), isTrue);
+      expect(puede(atleta, Accion.editarEjerciciosClub, TipoClub.club), isFalse);
+      expect(puede(coach, Accion.editarEjerciciosClub, TipoClub.personal), isFalse);
+    });
+
+    test('puedeEscribirEjercicio: lo del club, coach o admin; lo default, solo plataforma', () {
+      final base = Category(id: 'x', clubId: clubPlataforma, name: 'x', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));
+      final propio = Category(id: 'y', clubId: 'c1', name: 'y', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));
+      expect(puedeEscribirEjercicio(propio, const {Rol.coach}, TipoClub.club), isTrue);
+      expect(puedeEscribirEjercicio(propio, const {Rol.atleta}, TipoClub.club), isFalse);
+      expect(puedeEscribirEjercicio(base, const {Rol.coach, Rol.adminClub}, TipoClub.club), isFalse);
+      expect(puedeEscribirEjercicio(base, const {Rol.coach}, TipoClub.club, esAdminPlataforma: true), isTrue);
+    });
+
     test('lo default solo lo cambia el admin de plataforma; lo del club, el admin del club', () {
       final cat = Category(id: 'x', clubId: clubPlataforma, name: 'x', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));
       final propia = Category(id: 'y', clubId: 'c1', name: 'y', auditoria: Auditoria.nueva('u', ahora: DateTime.utc(2026)));

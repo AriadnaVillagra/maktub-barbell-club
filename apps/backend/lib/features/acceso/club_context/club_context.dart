@@ -44,6 +44,12 @@ class ClubContext {
   void authorizeCatalogWrite(DelClub item) {
     if (!puedeEscribirCatalogo(item, roles, clubType, esAdminPlataforma: isPlatformAdmin)) throw forbiddenRole;
   }
+
+  /// Like [authorizeCatalogWrite] for creating or editing an exercise: one of the club needs
+  /// [Accion.editarEjerciciosClub] (coach or club admin); a default one still needs a platform admin.
+  void authorizeExerciseWrite(DelClub item) {
+    if (!puedeEscribirEjercicio(item, roles, clubType, esAdminPlataforma: isPlatformAdmin)) throw forbiddenRole;
+  }
 }
 
 // Both are 403, never 401: the app treats 401 as "renew the token and retry".

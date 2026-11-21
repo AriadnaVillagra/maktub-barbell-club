@@ -12,8 +12,9 @@ import 'package:mongo_dart/mongo_dart.dart';
 
 import 'write_exercise_store.dart';
 
-/// Writes of exercises (F2). Creating needs [Accion.editarCatalogoClub]; changing an existing one is
-/// authorized once it is loaded, because a default one needs a platform admin instead.
+/// Writes of exercises (F2). Creating and editing need [Accion.editarEjerciciosClub] (coach or club admin);
+/// archiving and deleting need [Accion.editarCatalogoClub] (club admin). Changing an existing one is authorized once
+/// it is loaded, because a default one needs a platform admin instead.
 ///
 /// `POST   .../catalogo/ejercicios` body: the exercise without `id`, `clubId`, `estado`, `auditoria` → the
 ///   created exercise (200, active)
@@ -31,7 +32,7 @@ Future<Response> createExerciseEndpoint(
   String Function()? newId,
   DateTime Function()? now,
 }) async {
-  final club = context.read<ClubContext>().authorize(Accion.editarCatalogoClub);
+  final club = context.read<ClubContext>().authorize(Accion.editarEjerciciosClub);
   final created = await _useCase(context, store, usage, newId, now).create(club, await leerCuerpoJson(context.request));
   return Response.json(body: created.toJson());
 }
@@ -161,7 +162,7 @@ class WriteExercise {
 
   Future<Exercise> update(ClubContext club, String id, Json body) async {
     final view = await _store.view({clubPlataforma, club.clubId});
-    final current = _writable(club, view, id);
+    final current = _writable(club, view, id, editing: true);
     final exercise = _parse(
       body,
       id: id,
@@ -243,13 +244,17 @@ class WriteExercise {
     }
   }
 
-  /// The exercise [id] if the user can change it; 404 if not visible, 403 without permission.
-  Exercise _writable(ClubContext club, CatalogView view, String id) {
+  /// The exercise [id] if the user can change it ([editing]: create/edit rule, else archive/delete rule); 404 if not visible, 403 without permission.
+  Exercise _writable(ClubContext club, CatalogView view, String id, {bool editing = false}) {
     final found = view.exercises[id];
     if (found == null || !isVisibleTo(found, club.clubId)) {
       throw const ErrorDeSolicitud.noEncontrado('Ejercicio no encontrado.');
     }
-    club.authorizeCatalogWrite(found);
+    if (editing) {
+      club.authorizeExerciseWrite(found);
+    } else {
+      club.authorizeCatalogWrite(found);
+    }
     return found;
   }
 

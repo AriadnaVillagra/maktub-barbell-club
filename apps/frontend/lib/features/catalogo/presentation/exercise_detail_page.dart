@@ -91,7 +91,8 @@ class _ExerciseDetailPageState extends ConsumerState<ExerciseDetailPage> {
         ref.watch(muscleGroupsProvider).value ?? const <MuscleGroup>[];
     final patterns =
         ref.watch(movementPatternsProvider).value ?? const <MovementPattern>[];
-    final canEditClub = ref.watch(canEditClubCatalogProvider);
+    final canEditClub = ref.watch(canEditClubExercisesProvider);
+    final canWriteExercise = ref.watch(canWriteExerciseProvider);
     final canWrite = ref.watch(canWriteCatalogProvider);
     final clubId = ref.watch(catalogClubIdProvider);
 
@@ -165,7 +166,7 @@ class _ExerciseDetailPageState extends ConsumerState<ExerciseDetailPage> {
                 ),
                 const SizedBox(height: Espacio.s),
               ],
-              if (canWrite(e)) ...[
+              if (canWriteExercise(e)) ...[
                 FilledButton.icon(
                   onPressed: _busy
                       ? null
@@ -176,6 +177,8 @@ class _ExerciseDetailPageState extends ConsumerState<ExerciseDetailPage> {
                   label: const Text('Editar'),
                 ),
                 const SizedBox(height: Espacio.s),
+              ],
+              if (canWrite(e)) ...[
                 OutlinedButton.icon(
                   onPressed: _busy
                       ? null

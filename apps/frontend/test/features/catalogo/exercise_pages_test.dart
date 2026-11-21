@@ -180,6 +180,22 @@ void main() {
     });
   });
 
+  group('coach without the club admin role', () {
+    testWidgets('can create and edit a club exercise but not archive or delete it', (tester) async {
+      await pump(tester, {Rol.coach}, at: '/planificacion/catalogo');
+      expect(find.byTooltip('Nuevo ejercicio'), findsOneWidget);
+      await pump(tester, {Rol.coach}, at: '/planificacion/catalogo/ejercicios/curl');
+      expect(find.text('Editar'), findsOneWidget);
+      expect(find.text('Archivar'), findsNothing);
+      expect(find.text('Eliminar'), findsNothing);
+    });
+
+    testWidgets('cannot edit a default exercise', (tester) async {
+      await pump(tester, {Rol.coach}, at: '/planificacion/catalogo/ejercicios/squat');
+      expect(find.text('Editar'), findsNothing);
+    });
+  });
+
   group('coach writes', () {
     testWidgets(
       'creates an exercise choosing muscles and pattern from the seeded lists',

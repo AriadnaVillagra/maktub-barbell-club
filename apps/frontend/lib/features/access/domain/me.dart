@@ -84,6 +84,9 @@ class Me {
   /// Whether the user can create and change what belongs to the active club.
   bool get canEditClubCatalog => activeClub?.can(Accion.editarCatalogoClub) ?? false;
 
+  /// Whether the user can create and edit the club's exercises (coach and club admin).
+  bool get canEditClubExercises => activeClub?.can(Accion.editarEjerciciosClub) ?? false;
+
   /// Whether the user can write athletes' references, factors and fixed weights (coach only).
   bool get canEditReferences => activeClub?.can(Accion.editarReferencias) ?? false;
 
@@ -97,12 +100,19 @@ class Me {
   bool get canManageMembers => activeClub?.can(Accion.gestionarMiembros) ?? false;
 
   /// Whether the Preferences tab (catalog, timers, equipment, members) is available.
-  bool get canConfigure => canPlan || canEditClubCatalog || canManageMembers;
+  bool get canConfigure => canPlan || canEditClubCatalog || canEditClubExercises || canManageMembers;
 
   /// Whether the user can change [item]: default ones need a platform admin, the club's a club admin.
   bool canWriteCatalog(DelClub item) {
     final active = activeClub;
     if (active == null) return false;
     return puedeEscribirCatalogo(item, active.roles, active.club.tipo, esAdminPlataforma: isPlatformAdmin);
+  }
+
+  /// Whether the user can create or edit [exercise]: default ones need a platform admin, the club's a coach or club admin.
+  bool canWriteExercise(DelClub exercise) {
+    final active = activeClub;
+    if (active == null) return false;
+    return puedeEscribirEjercicio(exercise, active.roles, active.club.tipo, esAdminPlataforma: isPlatformAdmin);
   }
 }

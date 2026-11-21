@@ -996,7 +996,7 @@ class _BlockTile extends ConsumerWidget {
   /// Whether the dialog offers % and kg on [exercise] even if it is not weighted: only to who can make it weighted in
   /// the catalog when the plan is saved ([exercisesGainingLoad]).
   bool _offersLoad(WidgetRef ref, Exercise? exercise) =>
-      exercise != null && (ref.read(meProvider).value?.canWriteCatalog(exercise) ?? false);
+      exercise != null && (ref.read(meProvider).value?.canWriteExercise(exercise) ?? false);
 
   Future<PrescriptionAthletes> _loadBasis(WidgetRef ref, Exercise? exercise) async {
     if (exercise == null) return const PrescriptionAthletes();
