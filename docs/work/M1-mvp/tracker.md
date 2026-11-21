@@ -240,7 +240,9 @@ publicada**, nunca el borrador.
     pisa la serie). Salir del modo guiado (por ejemplo a Preferencias) y volver retoma el mismo paso. `en curso`.
   - **Kilos por atleta en ejercicios por %.** En un plan con varios atletas, cada serie por % muestra debajo la
     sugerencia de cada atleta (RM × % = kg) y el coach escribe a mano los kg de cada uno. `en curso`.
-  - **Historial en su lugar.** El propio va en la pantalla Entrenamiento; el de los atletas, en Planificación. `en curso`.
+  - **Historial en su lugar.** El propio va en la pantalla Entrenamiento; el de los atletas, en Planificación. `hecho`
+    (`7c4ad2d`: tarjeta "Mi historial" en Entrenamiento; botón Historial por atleta en la lista de atletas;
+    `/perfil/historial` redirige).
   - **Permisos por jerarquía** (decidido por Ari): admin de plataforma ve y hace todo en todos los clubes; `admin_club`
     ve y hace todo en su club (planes y asignaciones incluidos); coach: planes, ejercicios, categorías,
     temporizadores, WoDs, asignar, ver planes, y todo lo del atleta (equipo no); atleta: su plan del día, su historial,
