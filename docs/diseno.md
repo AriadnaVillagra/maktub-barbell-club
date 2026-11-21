@@ -2,7 +2,8 @@
 
 Documento vivo. Describe cómo queremos que funcione la app y la divide en features
 para planificar el desarrollo. Estado: borrador con las preguntas de diseño cerradas,
-2026-11-07. El registro de decisiones está en la sección 12.
+2026-11-07; actualizado el 2026-11-21 con lo que se decidió durante M1. El registro de decisiones
+está en la sección 12.
 
 **No es un port.** La app de Apps Script en `reference/` replica un patrón de entrenamiento
 específico: estiramiento → calentamiento → principal → final → WoD, con semanas
@@ -60,21 +61,40 @@ Empezamos con un grupo chico (Andi, Ari y algunos más), pero el modelo está pe
 ### 3.1 Club, usuarios y roles
 
 - **Club**: la unidad de aislamiento. Catálogo propio, planes, atletas, sesiones y registros
-  pertenecen a un club. Cualquier usuario puede crear un club y queda como su coach.
+  pertenecen a un club. Un club nuevo **se pide y se aprueba**: quien entra con Google sin cuenta
+  pide un club y ve "Tu pedido está en revisión" hasta que un administrador de plataforma lo aprueba
+  o lo rechaza desde la app (sin emails). Al aprobarse se crean el club, el usuario y su membresía:
+  queda como administrador del club, coach y atleta. El catálogo base no se copia: el club ya lo ve
+  (3.2).
+- **Pedido de club**: email (probado por Google), nombre de quien pide, nombre del club, nota
+  opcional, estado *pendiente*, *aprobado* o *rechazado*, el club creado al aprobarse, y quién y
+  cuándo lo revisó. Es dato de plataforma. Un pedido rechazado queda como historial y su autor puede
+  pedir de nuevo.
 - **Club personal**: todo usuario tiene uno implícito, que la UI presenta como "mi
   entrenamiento". Ahí puede seguir los **planes por defecto** de la plataforma y registrar sus
-  referencias, pero no planificar: para eso tiene que unirse a un club o crear uno. Así el modelo
+  referencias, pero no planificar: para eso tiene que unirse a un club o pedir uno. Así el modelo
   sigue teniendo un solo camino (todo pertenece a un club) y el uso individual no es un caso aparte.
 - **Usuario**: una persona con login propio, con **Google o con email y contraseña**. Las dos
   formas con el mismo email son el mismo usuario. **No existen atletas sin usuario.**
 - **Membresía**: usuario × club × roles. Un usuario puede pertenecer a varios clubes, con roles
-  distintos en cada uno. Se entra a un club por **invitación del coach** (link o código con el rol).
-  - **Coach**: planifica; gestiona catálogo propio, atletas, referencias, factores y asignaciones;
-    invita miembros; decide si un día perdido se recupera o queda como falta.
+  distintos en cada uno. Por ahora se entra a un club por **alta del administrador del club**, con el
+  email de la persona y sus roles; las invitaciones por link o código quedan para el resto de F1.
+  - **Coach**: planifica y asigna; crea, edita, archiva y elimina los ejercicios del club; gestiona
+    referencias, factores y kilajes; elimina planes; lee la ficha y el historial de todos los atletas;
+    decide si un día perdido se recupera o queda como falta. Qué planes de otros coaches ve depende
+    de la visibilidad del plan (3.4).
   - **Atleta**: ejecuta y registra lo suyo, y también lo de sus compañeros de la misma sesión.
-  - Una membresía puede tener los dos roles: un coach que también entrena.
+  - **Administrador del club** (`admin_club`): se suma a los otros roles. Da de alta miembros y
+    cambia sus roles; mantiene categorías, temporizadores y equipo del club (los ejercicios también,
+    como el coach); elimina cualquier plan del club y, si también es coach, alcanza los privados de
+    otros coaches. Lee la ficha y el historial de los atletas, pero sin el rol de coach no edita
+    referencias ni planifica.
+  - Una membresía puede tener varios roles: un coach que también entrena. Un club siempre tiene al
+    menos un administrador y un coach activos.
 - **Administrador de plataforma**: nosotros. Mantiene lo que es de todos: el catálogo base, las
   categorías base, los grupos musculares y patrones base, y la biblioteca de planes por defecto.
+  Revisa los pedidos de club. Esa marca **no da permisos dentro de un club**: para eso hace falta una
+  membresía.
 - **Atleta**: el perfil de entrenamiento de un miembro dentro del club. Todo registro sabe
   qué usuario lo escribió.
 
@@ -82,7 +102,10 @@ Empezamos con un grupo chico (Andi, Ari y algunos más), pero el modelo está pe
 
 **Dos niveles**: un **catálogo base** de plataforma que todos los clubes ven y usan tal cual, más
 los **ejercicios propios** de cada club. Un club no modifica ni oculta los base; si uno no le sirve,
-crea uno propio. Los planes por defecto usan solo ejercicios base. La semilla del catálogo base son
+crea uno propio. Los base los edita solo el administrador de plataforma, y un cambio en uno se ve en
+todos los clubes (los registros conservan el nombre que tenía al momento). Un club nuevo no recibe
+una copia: ve el catálogo base desde el primer día. En la app, lo base se marca **Default** y lo del
+club **Custom**. Los planes por defecto usan solo ejercicios base. La semilla del catálogo base son
 los ejercicios de `reference/` (catálogo e historial importado), completados con músculos y patrón,
 más un set general de gimnasio y cardio.
 
@@ -90,7 +113,10 @@ más un set general de gimnasio y cardio.
 
 - nombre;
 - **categorías**: una o varias; definen en qué bloques se puede elegir;
-- **métricas**: qué se mide (ver 3.5);
+- **métricas**: qué se mide (ver 3.5). Si al planificar se le carga peso a un ejercicio que no lo
+  medía, el ejercicio pasa a medir carga (ver 4);
+- **barra** (opcional): con cuál barra del inventario se carga, o que no usa barra (mancuernas). Sin
+  barra indicada, o si el club no la tiene, se usa la barra por defecto del equipo;
 - **patrón de movimiento**: sentadilla, bisagra, empuje horizontal/vertical, tracción
   horizontal/vertical, core, cardio…;
 - **grupos musculares con peso**: principales (100 %) y secundarios (50 %). Una sentadilla
@@ -117,8 +143,10 @@ comparable al nivel base.
 **Temporizador**: preset reutilizable (countdown, EMOM, tabata, AMRAP, for time, intervalos).
 Se expande a una lista de fases. Ver sección 6.
 
-**Equipo**: la barra y los pares de discos del club, en datos. Definen qué pesos son
-cargables.
+**Equipo**: el inventario del club (uno por club), en datos: barras y pares de discos, cada fila con
+su peso y su cantidad. La barra por defecto es la más pesada. Definen qué pesos son cargables con
+cada barra; un club que no editó su equipo usa el estándar (barra de 20 y un par de 20, 15, 10, 5,
+2.5, 1.5 y 1.25).
 
 ### 3.3 Referencias del atleta
 
@@ -156,11 +184,25 @@ Plan
 └── se repite en ciclos idénticos, sin fin
 
 Asignación de plan
-└── plan × grupo de atletas × fecha de inicio (calendario común)
+└── plan × atletas (cada uno con desde–hasta) × fecha de inicio (calendario común)
 ```
 
-- **Tipo de plan**: *regular* (entrena, se repite sin fin) o *de test* (dura un ciclo y produce
-  referencias nuevas; ver sección 7).
+- **Tipo de plan**: *regular* (entrena, se repite sin fin), *de test* (dura un ciclo y produce
+  referencias nuevas; ver sección 7) o *histórico* (reconstruido al migrar lo registrado antes de la
+  app; no se vuelve a asignar y puede no tener % ni reps, porque el registro viejo no los tenía).
+- **Borrador y versión publicada**: guardar deja un borrador; publicar exige el plan completo y es
+  lo único que ven atletas, sesiones y calendario. Editar un plan asignado no cambia nada hasta volver
+  a publicar. Un plan histórico se publica sin %, solo desde el importador. Republicar con una sesión a
+  medias no está cubierto: los registros se ubican por posición.
+- **Activo o pasado**: lo marca el coach, para separar la lista de planes. Un histórico siempre es
+  pasado.
+- **Visibilidad** para los otros coaches del club: *privado* (por defecto), *compartido para ver*
+  (lo ven, lo copian y lo asignan) o *compartido para editar* (también lo guardan y lo publican). Quien
+  lo creó y los administradores del club lo alcanzan entero; eliminarlo y cambiar quién lo ve queda
+  para ellos.
+- **Copiar como plan nuevo** crea un plan regular en borrador con sus modelos de semana y su
+  asignación de semanas. **Eliminar un plan** borra el plan y sus asignaciones; sesiones, registros y
+  tiempos de bloque quedan para el historial y los reportes.
 - **Plan**: 4 semanas. Cada semana usa un **modelo de semana**. Las 4 pueden usar el mismo
   modelo, usar 4 distintos o repetir alguno. El patrón de la referencia
   (descarga/carga/carga/descarga) es solo una asignación posible: `A, B, B, A`.
@@ -181,11 +223,24 @@ Asignación de plan
 - **Prescripción**: un ejercicio más sus **series**, una por una. Cada serie declara sus
   objetivos en las métricas del ejercicio: reps, % del RM, kg, tiempo, distancia, % de la
   marca, ritmo, zona… Las rampas (8 @ barra → 5 → 3 → 3×3) se representan así, con cada serie
-  distinta. Opcionales: nota/RPE (texto libre, no se interpreta) y temporizador propio.
-- **Asignación**: el coach asigna un plan a un **grupo de atletas** con una fecha de inicio.
-  El grupo comparte el calendario. **Un atleta puede estar en varias asignaciones a la vez**,
-  en días distintos (ej. fuerza lunes y miércoles, otro plan los sábados). Una asignación
-  puede estar *activa*, *pausada* (mientras el grupo hace un plan de test) o *terminada*.
+  distinta. Opcionales: nota/RPE (texto libre, no se interpreta), temporizador propio y una barra que
+  pisa la del ejercicio.
+- **Kilos por atleta en la serie** (`porAtleta`): se congelan al planificar, para cada atleta de la
+  asignación.
+  - En una serie por %, el coach escribe % o kg, y cada atleta con RM queda con su % y sus kg
+    (con su factor de trabajo, como en F4). La sesión propone esos kg con el ajuste del día.
+  - En un plan de varios atletas, una serie en kilos pide un peso para cada uno, sin valor general;
+    las reps son las mismas para todos. La sesión propone esos kilos tal cual, sin ajuste del día.
+    Publicar exige el de cada atleta; un plan sin asignación usa un solo peso.
+  - Un atleta sumado después recibe su kilaje fijo o nada, y republicar pide cargar el suyo.
+- **Asignación**: el coach asigna un plan a una **lista de atletas** con una fecha de inicio, y
+  comparten el calendario. Cada atleta tiene un período en la asignación (desde–hasta): el coach suma
+  o saca atletas sin terminar el plan, quien sale conserva sus días anteriores, y quien vuelve abre
+  otro período. Un plan puede ser de varios atletas o de uno solo; los grupos ya no se usan para
+  asignar. **Un atleta puede estar en cualquier cantidad de
+  asignaciones activas**, aunque caigan el mismo día (ej. fuerza lunes y miércoles, otro plan los
+  sábados, o un plan propio junto al del grupo); si hay dos en un día, la sesión ofrece una por plan.
+  Una asignación puede estar *activa*, *pausada* (mientras se hace un plan de test) o *terminada*.
 
 ### 3.5 Métricas de un ejercicio
 
@@ -215,30 +270,51 @@ sola "serie" de 20 minutos.
 ### 3.6 Sesión y registro
 
 - **Sesión**: la ejecución de un día de una asignación (plan, ciclo, semana, día) en una
-  fecha, con los **atletas presentes**, que se eligen al abrirla de entre los del grupo. Una
-  sesión ejecuta **un solo plan**. Se sigue desde varios dispositivos a la vez.
-- **Estado de un día por atleta**: *hecho en fecha*, *recuperado* (lo hizo después, fuera de la
-  sesión grupal) o *falta*. Si un día perdido se recupera o queda como falta lo decide el coach.
-  Mientras tanto queda *pendiente*.
+  fecha, con los **atletas presentes**. Una sesión ejecuta **un solo plan**. Se sigue desde varios
+  dispositivos a la vez.
+  - **No se abre a mano**: se crea con la primera escritura (una serie, un valor, un ajuste, una nota
+    o "Comenzar" del modo guiado), y cada atleta que escribe se suma a los presentes. Los presentes
+    son de entre los atletas que la asignación tiene ese día. Antes de existir, la app la busca sin
+    crearla.
+  - **Nota** de la sesión, libre y compartida por todos.
+  - **Secuencia**: el número del último cambio de la sesión (`secuencia`) y el del último cambio a
+    la sesión misma, es decir nota, presentes o pasada guiada (`secuenciaSesion`). Ver sección 9.
+  - **Pasada guiada** (opcional): el estado del modo guiado, el mismo en todos los dispositivos
+    (ver 5.4).
+- **Estado de un día por atleta**: sale de sus series contra las planificadas del día: *hecho* con
+  todas, *en curso n/m* con algunas y *pendiente* sin ninguna. Es por atleta: la serie de uno no
+  marca el día del otro. Rehacer un día ya hecho en otra fecha **edita la sesión original**: no hay
+  "recuperado" por eso. Para después de M1 quedan *recuperado* (lo hizo después, fuera de la sesión
+  grupal) y *falta*, que decide el coach.
 - **Registro**: lo hecho, **una entrada por atleta, ejercicio y serie** (o por ronda/resultado en
   bloques por tiempo). Desnormalizado a propósito: guarda los valores absolutos, **el objetivo que
   tenía la serie**, el id y el valor de la referencia, el factor, los porcentajes, el RPE si se
   cargó, el nombre del ejercicio al momento, la posición en el plan (bloque, prescripción, serie) y
   quién lo escribió. Guardar el objetivo junto a lo hecho es lo que permite medir dificultades sin
   reconstruir el plan. Nunca punteros que cambien de
-  significado.
+  significado. Además:
+  - **nota** del ejercicio, en la primera serie (un ejercicio sin series no tiene nota);
+  - **secuencia**: el número del cambio de la sesión que lo modificó por última vez;
+  - **estimada**: series cargadas por el importador con los kilos que propone la app (RM × %), no
+    registradas por nadie. Solo el importador la pone; cualquier escritura desde la app la saca.
+- **Tiempo de bloque**: inicio, fin y duración de un bloque hecho en el modo guiado, con el nombre
+  del bloque al momento, el modo de atletas, los atletas y si se interrumpió. Un id por bloque y
+  pasada, para que dos dispositivos lo escriban una sola vez. La hoja Tiempos de la referencia se
+  importó acá.
 - **Invariante** en cargas por porcentaje: `rm × pct_real ≈ kg`, con
   `pct_real = factor × pct_plan`. Si el atleta escribió los kilos a mano, los dos % se derivan de
   ellos.
 
 ## 4. Modo planificación
 
-Reservado al coach.
+Reservado al coach y al administrador del club, cada uno con lo suyo (3.1).
 
-1. **Catálogo**: crear, editar y archivar ejercicios y categorías; definir métricas, referencia de
-   carga y relaciones de sugerencia. Editar el equipo y los temporizadores.
-2. **Atletas y referencias**: alta de atletas y membresías; registrar RMs, marcas, ritmos y FC
-   (con historial); factores de trabajo; kilajes fijos.
+1. **Catálogo**: crear, editar, archivar y eliminar ejercicios (coach o administrador); definir
+   métricas, barra, referencia de carga y relaciones de sugerencia. Categorías, equipo y
+   temporizadores, solo el administrador del club.
+2. **Atletas y referencias**: alta de miembros (administrador del club); registrar RMs, marcas,
+   ritmos y FC (con historial); factores de trabajo; kilajes fijos. El administrador sin rol de coach
+   solo lee fichas e historial.
 3. **Editor de plan**:
    - crear modelos de semana y asignarlos a las 4 semanas;
    - por modelo: agregar, quitar y reordenar días;
@@ -249,11 +325,18 @@ Reservado al coach.
    - **sugerencias**: para un bloque, el editor propone ejercicios según los ejercicios principales
      del día, usando las relaciones del catálogo. El coach acepta o no, y el plan guarda lo elegido.
      En la sesión no se rellena nada automáticamente: un bloque vacío queda vacío;
-   - atajos: duplicar día/bloque/modelo, generar una rampa a partir del % de trabajo, copiar
-     series a otro ejercicio.
+   - **peso en cualquier ejercicio**: toda serie ofrece kilos o %. En blanco es sin peso; si se
+     carga, al guardar el plan el ejercicio suma la métrica (con % "Carga (% del RM)", y RM propio si
+     mide reps; solo kilos, "Carga fija"). Lo ve solo quien puede escribir ese ejercicio;
+   - kilos por atleta (3.4): con % o kg en series por %, y un peso por atleta en series en kilos de
+     planes de varios atletas;
+   - atajos: duplicar día/bloque/modelo (un día se puede duplicar en otro modelo de semana), generar
+     una rampa a partir del % de trabajo, copiar series a otro ejercicio;
+   - guardar (borrador) y publicar; marcar activo o pasado; elegir quién lo ve; copiar como plan
+     nuevo; eliminar (3.4).
 4. **Análisis del plan** mientras se arma (ver 4.1).
-5. **Asignar** un plan a un grupo de atletas con fecha de inicio; desactivarlo, reemplazarlo o
-   pausarlo para un plan de test.
+5. **Asignar** un plan a atletas con fecha de inicio; sumar o sacar atletas sin terminarlo;
+   desactivarlo, reemplazarlo o pausarlo para un plan de test.
 6. **Asistencia**: ver días pendientes por atleta y decidir *recuperar* o *falta*.
 
 ### 4.1 Análisis del plan
@@ -340,16 +423,48 @@ el registro guarda lo que se hizo.
 
 ### 5.3 En la pantalla
 
-- Se abre la sesión del día que toca según el calendario de la asignación, y se marcan **los
-  atletas presentes**.
+- **Sesión del día y calendario son una pantalla**, con un selector entre las dos vistas. Abre en el
+  día que toca: la fecha da ciclo y semana, y el día es el primero de esa semana que el atleta de la primera
+  pestaña (el usuario, si está en el plan) no completó; el día 1 si están todos hechos.
+  La sesión tiene una pestaña por atleta, y no se eligen presentes (3.6). Cada bloque se colapsa
+  desde su cabecera.
+- El **calendario** muestra el ciclo con el estado de cada día **por atleta** (*hecho*, *en curso
+  n/m*, *pendiente*), con un selector de atleta, en tres vistas que se recuerdan en el dispositivo:
+  compacta (solo los ejercicios), tarjetas y detallada.
 - Un atleta también puede abrir un día pendiente por su cuenta para **recuperarlo** fuera de la
-  sesión grupal, si el coach lo habilitó.
+  sesión grupal, si el coach lo habilitó (después de M1).
 - Cada paso muestra, por atleta, el objetivo ya calculado: kg cargables, reps, tiempo, ritmo o
   zona. En cargas por porcentaje se muestra **el % del plan**.
 - Ajuste del día: uno por sesión y otro por ejercicio que lo pisa, por atleta. Nunca modifica las
   referencias. Una serie editada a mano no se pisa si después se mueve el ajuste.
 - Marcar una serie como hecha la registra, la difunde a los demás dispositivos y dispara el
   descanso que corresponde.
+- Una nota por ejercicio y una por sesión. "Volver a lo planificado" es por ejercicio: devuelve kilos
+  y reps a lo propuesto y deja las series marcadas como estaban.
+- Los temporizadores del club están siempre a mano, también desde el modo guiado.
+
+### 5.4 Modo guiado
+
+"Entrenar" recorre el día con el motor de pasos (5.2), como el modo guiado de la referencia viva:
+bloque por bloque con una previa, un paso (una serie) por tarjeta, simultáneo o por turnos, y el
+orden (secuencial o circuito) elegido al entrenar, arrancando en el del plan, sin cambiar el plan.
+El cambio de modo en vivo recalcula solo lo pendiente. La lista de la sesión queda como vista
+general.
+
+- **La pasada es de la sesión**, no del dispositivo: quién entrena, si se rehace el día, inicio y
+  fin, y por bloque su estado (*pendiente*, *en curso*, *terminado*, *interrumpido*, *salteado*),
+  instantes, modo de atletas, orden, series pasadas y ejercicios dejados. El paso en pantalla no se
+  guarda: sale de los registros y de lo ya pasado.
+- Se escribe con acciones (comenzar, iniciar, saltar o terminar bloque, pasar series, dejar,
+  terminar…) que una regla compartida de `maktub_core` aplica sobre el estado actual, en el servidor
+  y en el teléfono. No hay rechazo por versión: una acción que ya no tiene sentido no cambia nada, y
+  dos "Comenzar" a la vez quedan en una sola pasada.
+- Nunca desmarca: arranca desde lo que falta, porque desmarcar borraría lo del otro teléfono. Una
+  serie rehecha se escribe con lo propuesto y pisa la anterior.
+- Cada bloque cerrado deja su **tiempo de bloque** (3.6), y el día termina con un resumen.
+  "Terminar el día" con un bloque en curso lo cierra como interrumpido.
+- Las acciones que se tocan sin querer (saltar ejercicio, saltar bloque, interrumpir) van en
+  "Más acciones". Reordenar pasos queda para después.
 
 ## 6. Temporizadores, cardio y WoD
 
@@ -357,8 +472,9 @@ La referencia los tiene, pero no se probaron bien. Acá son bloques de primera c
 
 - **Formatos**: countdown, EMOM, tabata (sin descanso tras la última ronda), AMRAP, for time
   (cronómetro hacia arriba, con tope opcional) e intervalos (trabajo/descanso configurables por
-  ronda).
-- Todos se expanden a **fases de duración fija** (o abiertas, en for time) que corre un único
+  ronda). El temporizador base `Cronómetro` es el for time sin tope.
+- Todos se expanden a **fases de duración fija** (o abiertas, en for time sin tope y Death By, que se cierran con
+  "Terminar") que corre un único
   motor. El tiempo se mide **contra el reloj del sistema**, no sumando ticks, para que apagar la
   pantalla no atrase la cuenta.
 - **Resultado**: depende del formato. AMRAP registra rondas + reps, for time registra el tiempo,
@@ -411,7 +527,14 @@ asignación regular (activa) ──► pausada ───────────
 Todo se calcula sobre el registro. Por eso el registro guarda el objetivo junto a lo hecho, las
 referencias por id y el RPE.
 
-**Acceso**: el coach ve a todos los atletas y puede compararlos; cada atleta ve solo lo suyo.
+**Acceso**: el coach ve a todos los atletas y puede compararlos; el administrador del club también
+los lee; cada atleta ve solo lo suyo.
+
+**Historial por atleta** (ya en M1): las sesiones pasadas del atleta por fecha, de cualquier plan
+(también terminados, históricos o eliminados), y al tocar una el detalle con kilos y reps. Una sesión
+es del atleta si figura en sus presentes. El detalle usa la versión publicada actual del plan; de un
+plan eliminado muestra solo lo registrado. El atleta llega desde su perfil; coach y administrador,
+desde la ficha del atleta.
 
 **Análisis**:
 
@@ -434,8 +557,9 @@ referencias por id y el RPE.
 
 ## 9. Multi-dispositivo
 
-- Un solo backend como fuente de verdad. Cualquier dispositivo de un atleta presente puede abrir la
-  sesión.
+- Un solo backend como fuente de verdad. Cualquier dispositivo de un atleta de la asignación puede
+  escribir en la sesión del día; la primera escritura la crea (3.6), y mientras no existe la app la
+  vuelve a buscar cada 15 s.
 - **Tiempo real**: los dispositivos de una sesión abierta reciben los cambios al instante, por
   WebSocket. El backend corre en Cloud Run (P10c), lo que impone estas condiciones:
   - **Reconexión con resincronización**: Cloud Run corta cada WebSocket al llegar a su tiempo
@@ -459,7 +583,9 @@ referencias por id y el RPE.
   Escribir a nivel de serie (upsert por `sesión + atleta + bloque + prescripción + serie`) hace que
   las escrituras concurrentes no choquen y que reintentar sea idempotente.
 - **Borrador local**: lo marcado se guarda en el dispositivo antes de enviarse. Si no hay señal, se
-  encola, se reintenta y se reconcilia al reconectar. No buscamos un modo offline completo.
+  encola, se reintenta y se reconcilia al reconectar. Sin señal también se abren el plan, el
+  calendario y la sesión de hoy y de los 7 días siguientes, que la app precarga; una sesión creada
+  sin señal entra primera en la cola. No buscamos un modo offline completo.
 
 ## 10. Features
 
@@ -468,18 +594,18 @@ Unidades de trabajo para planificar. Cada una se puede detallar después como í
 
 | # | Feature | Alcance | Depende de |
 |---|---|---|---|
-| F0 | **Fundaciones** | Monorepo, `maktub_core`, Dart Frog + Mongo, cliente HTTP, PWA, navegación entre los dos modos. Despliegue gratis: PWA en GitHub Pages, backend en Google Cloud Run (europe-north1, una instancia, contenedor Docker estándar sin APIs propias de Google), Atlas M0 (Frankfurt), API en `*.run.app`; job programado de Cloud Run con `mongodump` a Cloud Storage. *En curso en otra sesión.* | — |
+| F0 | **Fundaciones** | Monorepo, `maktub_core`, Dart Frog + Mongo, cliente HTTP, PWA, navegación entre los dos modos. Despliegue gratis: PWA en GitHub Pages, backend en Google Cloud Run (europe-north1, una instancia, contenedor Docker estándar sin APIs propias de Google), Atlas M0 (Frankfurt), API en `*.run.app`; job programado de Cloud Run con `mongodump` a Cloud Storage. *Hecho (E0 de M1).* | — |
 | F17 | **Design system** ([detalle](features/F17-design-system.md)) | Paquete `maktub_ui`: tokens en tres capas sobre Material 3, temas oscuro y claro, densidades planificación/entrenamiento, componentes base y de dominio, galería y goldens. | F0 |
-| F1 | **Clubes, usuarios y acceso** ([detalle](features/F1-clubes-usuarios-acceso.md)) | Login con Google o email, club personal, crear clubes, invitaciones, membresías con roles, administrador de plataforma, permisos y aislamiento por club en el backend. | F0 |
+| F1 | **Clubes, usuarios y acceso** ([detalle](features/F1-clubes-usuarios-acceso.md)) | Login con Google o email, club personal, alta de clubes por pedido y aprobación, alta de miembros e invitaciones, membresías con roles (coach, atleta, administrador del club), administrador de plataforma, permisos y aislamiento por club en el backend. | F0 |
 | F2 | **Catálogo** ([detalle](features/F2-catalogo.md)) | Catálogo base + propios por club; ejercicios (categorías, métricas, referencia de carga, patrón, grupos musculares con peso, sugerencias, archivado); categorías base + propias; grupos musculares extensibles por club; equipo; temporizadores; semilla del catálogo base. | F1 |
 | F3 | **Atletas y referencias** | Perfiles de atleta; RMs, marcas, ritmos y FC con id e historial; vigencia por fecha; factores de trabajo; kilajes fijos. | F2 |
 | F4 | **Reglas de carga y objetivos** | Objetivo por métrica: `RM × factor × % plan` al cargable más cercano, kilaje fijo, % de marca, ritmo, zona; ajuste del día; % derivados de kg escritos a mano. | F3 |
 | F5 | **Editor de plan: estructura** | Modelos de semana, asignación a las 4 semanas, días, bloques (nombre, categoría, modos). | F2 |
 | F6 | **Editor de plan: prescripciones** | Ejercicios filtrados por categoría, series con objetivos por métrica, sugerencias, rampas, duplicar. | F5 |
-| F7 | **Asignaciones y calendario** | Plan × grupo × inicio, varias asignaciones por atleta, estados activa/pausada/terminada, retomar desde fecha y semana elegidas, ubicación por fecha (ciclo/semana/día), estado de los días (hecho/pendiente/recuperado/falta) y decisión del coach. | F3, F5 |
+| F7 | **Asignaciones y calendario** | Plan × atletas (con desde–hasta) × inicio, varias asignaciones por atleta, estados activa/pausada/terminada, retomar desde fecha y semana elegidas, ubicación por fecha (ciclo/semana/día), estado de los días por atleta (hecho/en curso/pendiente, y recuperado/falta con la decisión del coach). | F3, F5 |
 | F8 | **Temporizadores** | Expansión a fases, motor contra el reloj, sonido, vibración y pantalla encendida en la PWA. | F0 |
-| F9 | **Sesión de entrenamiento** | Abrir la sesión del día, elegir atletas presentes, objetivos calculados por atleta, ajuste del día, recuperación individual. | F4, F6, F7 |
-| F10 | **Motor de pasos** | Secuencial / circuito × simultáneo / por turnos → lista de pasos; cambio de modo en vivo que recalcula lo pendiente; marcado fuera de orden. | F9 |
+| F9 | **Sesión de entrenamiento** | La sesión del día (creada con la primera escritura, presentes por quien escribe), objetivos calculados por atleta, ajuste del día, notas, recuperación individual. | F4, F6, F7 |
+| F10 | **Motor de pasos** | Secuencial / circuito × simultáneo / por turnos → lista de pasos; modo guiado con pasada compartida y tiempos de bloque; cambio de modo en vivo que recalcula lo pendiente; marcado fuera de orden. | F9 |
 | F11 | **Bloques por tiempo: WoD y cardio** | AMRAP, EMOM, tabata, for time e intervalos dentro de la sesión; métricas de tiempo, distancia, ritmo y FC; resultados por atleta. | F8, F10 |
 | F12 | **Registro y sincronización en vivo** | Escritura por serie con objetivo y RPE/RIR, borrador local, cola de reintentos, difusión en tiempo real a los dispositivos de la sesión por WebSocket autenticado con ticket, reconexión automática con resincronización por número de secuencia, difusión detrás de una interfaz (en memoria hoy, bus mañana). | F9 |
 | F13 | **Reportes** | Progresión (con RM estimado), volumen e intensidad, balance muscular, dificultades, adherencia y cardio; panel a demanda, resumen de ciclo, resumen post-sesión, exportación a CSV; coach ve todo, atleta lo suyo. | F12 |
@@ -495,6 +621,12 @@ F8 y F11 pueden avanzar en paralelo desde F0. F13, F14, F15 y F16 vienen despué
 arrancar en su parte relativa apenas exista F6. Conviene construir su motor de métricas antes que
 F13, porque los reportes lo reutilizan. F15 conviene
 tenerlo antes del próximo test de fin de año.
+
+**M1** ([docs/milestones/M1-mvp.md](milestones/M1-mvp.md)) es el primer corte usable: reemplaza la
+referencia para Andi y Ari con versiones recortadas de F0 a F12 y F14. Lo que queda afuera está en su
+sección "Fuera de M1". Durante M1 entraron, además, el modo guiado y el cambio de modo en vivo de F10
+(sin reordenar pasos), el alta de clubes por pedido y aprobación de F1, y el historial por atleta de
+F13.
 
 ## 11. Qué se rescata de la referencia y qué se deja
 
@@ -569,9 +701,9 @@ la sección 3 antes de construir encima.
 | 2026-11-07 | V2 | Se compara contra el plan anterior, tanto planificado como ejecutado. |
 | 2026-11-07 | V3 | Desglose por semana, día y bloque, músculo y patrón, y ejercicio. |
 | 2026-11-07 | A1 | Login con Google o con email y contraseña; con el mismo email, es el mismo usuario. |
-| 2026-11-07 | A2 | Se entra a un club por invitación del coach. Sin club, el usuario usa la PWA en su club personal con planes por defecto. |
+| 2026-11-07 | A2 | ~~Se entra a un club por invitación del coach.~~ Reemplazada por A8 en cómo se entra hoy. Sigue vigente: sin club, el usuario usa la PWA en su club personal con planes por defecto. |
 | 2026-11-07 | A3 | No existen atletas sin usuario. |
-| 2026-11-07 | A4 | Cualquier usuario puede crear un club y queda como su coach. |
+| 2026-11-07 | A4 | ~~Cualquier usuario puede crear un club y queda como su coach.~~ Reemplazada por A11. |
 | 2026-11-07 | A5 | El uso individual se modela como un club personal implícito. Ahí solo se siguen planes por defecto; para planificar hay que estar en un club. |
 | 2026-11-07 | A6 | Por ahora, los planes por defecto los publica solo la plataforma. |
 | 2026-11-07 | C1 | Catálogo base de plataforma + ejercicios propios por club. Un ejercicio base se usa tal cual. |
@@ -585,6 +717,30 @@ la sección 3 antes de construir encima.
 | 2026-11-07 | DS7 | Tipografía: Inter para texto y Barlow Condensed para números grandes y títulos de marca, empaquetadas con la app. |
 | 2026-11-07 | DS4 | Lo construye la sesión del setup, a partir de la especificación en `docs/features/F17-design-system.md`. |
 | 2026-11-07 | C4 | La semilla del catálogo base sale de `reference/`, ampliada con un set general de gimnasio y cardio. |
+| 2026-11-08 | A7 | Rol **administrador del club** (`admin_club`), que se suma a coach y atleta: da de alta miembros, cambia roles y mantiene lo del club. Un club siempre tiene un administrador y un coach activos. |
+| 2026-11-08 | A8 | Por ahora los miembros entran por alta del administrador del club, con su email. Las invitaciones por link o código quedan para el resto de F1. |
+| 2026-11-08 | C5 | Los ejercicios base los edita solo el administrador de plataforma y el cambio se ve en todos los clubes. En la app, lo base se marca "Default" y lo del club "Custom". |
+| 2026-11-08 | C6 | El equipo es un inventario por club (barras y pares de discos con cantidad). La barra se indica por ejercicio (o "sin barra"), con la más pesada por defecto, y la prescripción la puede pisar. |
+| 2026-11-08 | PL1 | Guardar deja un borrador y publicar exige el plan completo. Asignaciones, calendario y sesiones leen siempre la versión publicada. |
+| 2026-11-09 | EN1 | Una nota por ejercicio (en la primera serie) y una por sesión. "Volver a lo planificado" es por ejercicio y no desmarca. |
+| 2026-11-14 | EN2 | El modo guiado y el cambio de modo en vivo de F10 entran en M1; reordenar pasos queda afuera. Los tiempos de bloque se registran. |
+| 2026-11-14 | EN3 | Sin señal se abren el plan, el calendario y la sesión de los días precargados, y la sesión se puede crear sin señal. |
+| 2026-11-15 | EN4 | La pasada del modo guiado es estado de la sesión, igual en todos los dispositivos, y se escribe con acciones aplicadas sobre el estado actual, sin rechazo por versión. |
+| 2026-11-15 | EN5 | La sesión no se abre ni se eligen presentes: se crea con la primera escritura y quien escribe queda presente. |
+| 2026-11-15 | PL2 | Tipo de plan *histórico* para lo migrado: se publica sin % solo desde el importador, no se asigna y siempre es pasado. Los demás planes los marca el coach como activos o pasados. |
+| 2026-11-15 | EN6 | Una serie registrada puede ser *estimada*: la carga el importador con los kilos que propone la app, y cualquier escritura desde la app la saca. |
+| 2026-11-16 | PL3 | Un plan se puede eliminar (coach o administrador del club): se borran el plan y sus asignaciones, y lo registrado queda. |
+| 2026-11-18 | PL4 | Una serie por % se planifica en % o en kg, y cada atleta de la asignación queda con su % y sus kg congelados. La sesión les aplica el ajuste del día. |
+| 2026-11-18 | PL5 | La asignación guarda su lista de atletas, cada uno con desde–hasta, y el coach la cambia sin terminar el plan. Un atleta puede estar en cualquier cantidad de asignaciones activas. Reemplaza la asignación por grupo o por atleta, y elimina el límite de una asignación activa por grupo de M1 (D14). |
+| 2026-11-19 | PL6 | Visibilidad del plan para los otros coaches: privado (por defecto), compartido para ver o compartido para editar. Quien lo creó y los administradores del club lo alcanzan entero; eliminarlo y cambiar la visibilidad queda para ellos. |
+| 2026-11-21 | EN7 | El estado de un día es por atleta: *hecho* con todas sus series, *en curso n/m* con algunas, *pendiente* sin ninguna. Reemplaza D13 de M1, que miraba la sesión del grupo. |
+| 2026-11-21 | EN8 | Rehacer un día ya hecho en otra fecha edita la sesión original; no lo marca como recuperado. |
+| 2026-11-21 | PL7 | En un plan de varios atletas, una serie en kilos pide un peso por atleta, sin valor general, con las mismas reps para todos. La sesión los propone sin ajuste del día. |
+| 2026-11-21 | C7 | Cualquier ejercicio admite peso al planificar; si se carga, el ejercicio suma la métrica de carga. |
+| 2026-11-21 | A9 | El coach crea, edita, archiva y elimina los ejercicios del club. Categorías, temporizadores y equipo siguen siendo del administrador del club. |
+| 2026-11-21 | A10 | El administrador del club lee la ficha y el historial de todos los atletas, sin editar referencias ni planificar. La marca de administrador de plataforma no da permisos dentro de un club. |
+| 2026-11-21 | A11 | Un club nuevo se pide y lo aprueba o rechaza un administrador de plataforma desde la app. Quien lo pidió queda como administrador del club, coach y atleta. El catálogo base no se copia. |
+| 2026-11-21 | R7 | Historial por atleta: sus sesiones pasadas de cualquier plan, con el detalle de kilos y reps. Lo ven el atleta, el coach y el administrador del club. |
 
 ## 13. Preguntas abiertas
 

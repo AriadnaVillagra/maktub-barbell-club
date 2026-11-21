@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A training app for weightlifting and gym clubs: coaches plan, athletes run the day together from several devices in sync. Flutter PWA + Dart Frog + MongoDB. Docs are in Spanish. Existing code is in Spanish; **new code is written in English** (decided 2026-11-07, without migrating what exists).
 
-**`docs/diseno.md` is the source of truth for the domain model, the decisions log, and the feature list ("Features" section) with dependencies.** Its section numbers change as it grows, so refer to sections by name. Read the relevant section before building a feature. It is maintained from a separate session: don't edit it; raise conflicts with the user instead.
+**`docs/diseno.md` is the source of truth for the domain model, the decisions log, and the feature list ("Features" section) with dependencies.** Its section numbers change as it grows, so refer to sections by name. Read the relevant section before building a feature. It is maintained from this same working session: when a change alters the domain model, a decision or a feature, update `diseno.md` as part of closing that change (decided 2026-11-21). Raise genuine conflicts with the user instead of resolving them silently.
 
 `reference/` is the previous Apps Script app, kept as its own git repo (ignored here). It is a reference for proven rules and the source of the history to migrate, **not a spec to port**. `reference/DISENO.md` explains the reasoning behind those rules.
 

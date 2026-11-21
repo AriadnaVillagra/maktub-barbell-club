@@ -36,7 +36,9 @@ Ya hecho antes de abrir el ítem: M1 1.1 y 1.2 (`eb26f6e`, `1bcd49f`), mergeados
 
 ## Preguntas abiertas que vienen del diseño
 
-- R4 (`diseno.md` no refleja el recorte de M1): no frena nada. Ver design.md §6.
+- R4: resuelto el 2026-11-21 (`diseno.md` resume qué entró en M1).
+- **`diseno.md` al día (2026-11-21):** todas las notas de abajo que dicen "avisar a su sesión" o "`diseno.md` no tiene…"
+  ya están volcadas. Desde ahora `diseno.md` se actualiza en esta misma sesión al cerrar cada cambio (CLAUDE.md).
 
 ## Ajustes tras la prueba de E2 (2026-11-08)
 
@@ -45,7 +47,7 @@ pestaña Preferencias, inventario de equipo con barra por ejercicio, cinco modos
 
 - **Antes de usarlo en producción:** desplegar la API y la PWA juntas, y correr `tool/ajustes_e2.dart`
   con `ADMIN_PLATAFORMA`. Sin ese paso, los coaches actuales pierden la edición del catálogo.
-- **`diseno.md` quedó atrás** en C1 (ejercicios base) y en Equipo (S3 de F2). Se actualiza desde su sesión.
+- **`diseno.md`** ya refleja C1 (ejercicios base) y Equipo (S3 de F2) (2026-11-21).
 - **E5 (editor de plan):** la barra se indica por ejercicio, y la prescripción la puede pisar con una barra opcional (decidido el 2026-11-08). El control va en el editor (E5.7 o E5.8), y E4/E7 tienen que usar esa barra al calcular.
 - **E7.11 (ejecución):** for time sin tope y Death By tienen fases sin fin fijo que `Crono` todavía no maneja. El temporizador base `Cronómetro` (for time sin tope, agregado el 2026-11-08) depende de esto: tiene que contar hacia arriba y dejar registrado el tiempo final del WoD.
 - **Datos en producción (2026-11-08):** ya están el grupo de Andi y Ari, el temporizador `Cronómetro` y los roles de E2.
